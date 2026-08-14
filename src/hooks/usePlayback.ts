@@ -30,6 +30,11 @@ export function usePlayback() {
   }, [])
 
   const clock = React.useRef({ base: 0, startAt: 0 })
+  const repaintToken = React.useRef(0)
+
+  const requestPaint = React.useCallback(() => {
+    repaintToken.current++
+  }, [])
 
   const getAssetUrl = React.useCallback(async (asset: Asset): Promise<string> => {
     const cached = urlCache.current.get(asset.id)
@@ -48,13 +53,15 @@ export function usePlayback() {
       el.preload = 'auto'
       el.crossOrigin = 'anonymous'
       el.playsInline = true
+      el.addEventListener('loadedmetadata', requestPaint)
+      el.addEventListener('loadeddata', requestPaint)
       void getAssetUrl(asset).then((url) => {
         el.src = url
       })
       videoPool.current.push({ clipId: null, element: el, assetId: asset.id })
       return el
     },
-    [getAssetUrl],
+    [getAssetUrl, requestPaint],
   )
 
   const acquireAudio = React.useCallback(
@@ -83,6 +90,21 @@ export function usePlayback() {
         })
       }),
     [getAssetUrl],
+  )
+
+  const loadThumbnail = React.useCallback(
+    (asset: Asset): Promise<HTMLImageElement | null> =>
+      new Promise((resolve) => {
+        if (!asset.thumbnailUrl) {
+          resolve(null)
+          return
+        }
+        const img = new Image()
+        img.onload = () => resolve(img.width > 0 ? img : null)
+        img.onerror = () => resolve(null)
+        img.src = asset.thumbnailUrl
+      }),
+    [],
   )
 
   const activeClipsAt = React.useCallback((time: number) => {
@@ -134,10 +156,17 @@ export function usePlayback() {
         if (asset.type === 'video') {
           const el = acquireVideo(asset)
           const elTime = Math.min(srcTime, Math.max(0, (asset.duration ?? srcTime) - 0.05))
-          if (Math.abs(el.currentTime - elTime) > 0.06) el.currentTime = elTime
+          if (el.readyState >= 1 && Math.abs(el.currentTime - elTime) > 0.06) el.currentTime = elTime
           if (el.videoWidth > 0) {
             const scale = Math.max(w / el.videoWidth, h / el.videoHeight)
             ctx.drawImage(el, -el.videoWidth * scale / 2, -el.videoHeight * scale / 2, el.videoWidth * scale, el.videoHeight * scale)
+          } else {
+            // Video not decodable/ready yet — show its thumbnail so the preview isn't blank.
+            const thumb = await loadThumbnail(asset)
+            if (thumb) {
+              const scale = Math.max(w / thumb.width, h / thumb.height)
+              ctx.drawImage(thumb, -thumb.width * scale / 2, -thumb.height * scale / 2, thumb.width * scale, thumb.height * scale)
+            }
           }
         } else if (asset.type === 'image') {
           const img = await loadImage(asset)
@@ -159,7 +188,7 @@ export function usePlayback() {
         ctx.fillRect(0, 0, w, h)
       }
     },
-    [activeClipsAt, acquireVideo, loadImage],
+    [activeClipsAt, acquireVideo, loadImage, loadThumbnail],
   )
 
   const syncAudio = React.useCallback(
@@ -243,7 +272,8 @@ export function usePlayback() {
         }
         storeRef.current.setPlayhead(time)
       }
-      if (Math.abs(time - last) > 0.001) {
+      if (Math.abs(time - last) > 0.001 || repaintToken.current > 0) {
+        repaintToken.current = 0
         void paint(time)
         last = time
       }

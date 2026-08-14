@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 
 const ACCEPTED =
-  'video/*,audio/*,image/*'
+  '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
 
 function AssetIcon({ type }: { type: Asset['type'] }) {
   if (type === 'video') return <Film className="size-3.5" />

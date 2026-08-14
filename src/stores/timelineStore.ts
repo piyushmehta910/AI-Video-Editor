@@ -4,6 +4,7 @@ import { newProject, projectDuration } from '@/engine/types'
 import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
+import { detectMediaType } from '@/engine/storage/mediaType'
 
 const HISTORY_LIMIT = 200
 
@@ -123,13 +124,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
       const imported: Asset[] = []
       const errors: string[] = []
       for (const file of files) {
-        const type = file.type.startsWith('video/')
-          ? 'video'
-          : file.type.startsWith('audio/')
-            ? 'audio'
-            : file.type.startsWith('image/')
-              ? 'image'
-              : null
+        const type = detectMediaType(file)
         if (!type) {
           errors.push(`${file.name}: unsupported file type`)
           continue
