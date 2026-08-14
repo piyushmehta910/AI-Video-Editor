@@ -25,6 +25,10 @@ export function usePlayback() {
     storeRef.current = useTimelineStore.getState()
     const unsub = useTimelineStore.subscribe((state) => {
       storeRef.current = state
+      // Project/clip changes must force a repaint even when paused, otherwise a
+      // newly added clip would never be drawn (its video element only exists
+      // once paint() runs).
+      repaintToken.current++
     })
     return unsub
   }, [])
