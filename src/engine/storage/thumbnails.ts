@@ -37,9 +37,10 @@ async function videoThumbnail(blob: Blob, at = 0.2): Promise<Thumbnail> {
   video.muted = true
   video.preload = 'metadata'
   video.src = url
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolve) => {
     video.onloadedmetadata = () => resolve()
-    video.onerror = () => reject(new Error('Failed to load video'))
+    video.onerror = () => resolve()
+    setTimeout(resolve, 8000)
   })
   const duration = video.duration || 0
   const seekTo = Math.min(at, Math.max(0, duration - 0.1))
@@ -50,12 +51,30 @@ async function videoThumbnail(blob: Blob, at = 0.2): Promise<Thumbnail> {
       setTimeout(resolve, 2000)
     })
   }
+  URL.revokeObjectURL(url)
+  if (!video.videoWidth) {
+    return placeholderThumbnail()
+  }
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth || 16
   canvas.height = video.videoHeight || 9
   canvas.getContext('2d')!.drawImage(video, 0, 0)
-  URL.revokeObjectURL(url)
   return makeThumbnail(canvas)
+}
+
+function placeholderThumbnail(): Thumbnail {
+  const canvas = document.createElement('canvas')
+  canvas.width = 320
+  canvas.height = 180
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#1e293b'
+  ctx.fillRect(0, 0, 320, 180)
+  ctx.fillStyle = '#475569'
+  ctx.font = '600 22px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('VIDEO', 160, 90)
+  return { url: canvas.toDataURL('image/png'), width: 320, height: 180 }
 }
 
 async function imageThumbnail(blob: Blob): Promise<Thumbnail> {
@@ -126,9 +145,10 @@ export async function probeMedia(blob: Blob, type: 'video' | 'image' | 'audio'):
       const media = document.createElement(type === 'video' ? 'video' : 'audio')
       media.preload = 'metadata'
       media.src = url
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         media.onloadedmetadata = () => resolve()
-        media.onerror = () => reject(new Error('Failed to probe media'))
+        media.onerror = () => resolve()
+        setTimeout(resolve, 8000)
       })
       const duration = media.duration && isFinite(media.duration) ? media.duration : 0
       if (type === 'video' && media instanceof HTMLVideoElement) {

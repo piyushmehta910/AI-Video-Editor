@@ -21,7 +21,7 @@ export interface TimelineState {
   hydrate: () => Promise<void>
   save: () => Promise<void>
 
-  importFiles: (files: File[]) => Promise<Asset[]>
+  importFiles: (files: File[]) => Promise<{ imported: Asset[]; errors: string[] }>
   deleteAsset: (assetId: string) => Promise<void>
 
   begin: () => void
@@ -121,6 +121,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
 
     importFiles: async (files) => {
       const imported: Asset[] = []
+      const errors: string[] = []
       for (const file of files) {
         const type = file.type.startsWith('video/')
           ? 'video'
@@ -129,33 +130,48 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             : file.type.startsWith('image/')
               ? 'image'
               : null
-        if (!type) continue
-        const id = crypto.randomUUID()
-        const filePath = await writeMediaFile(id, file)
-        const probe = await probeMedia(file, type)
-        const thumb = await generateThumbnail(file, type)
-        const asset: Asset = {
-          id,
-          name: file.name.replace(/\.[^.]+$/, ''),
-          type,
-          filePath,
-          mime: file.type,
-          size: file.size,
-          width: probe.width,
-          height: probe.height,
-          duration: probe.duration,
-          thumbnailUrl: thumb.url,
-          importedAt: Date.now(),
+        if (!type) {
+          errors.push(`${file.name}: unsupported file type`)
+          continue
         }
-        await putRecord('assets', asset)
-        imported.push(asset)
+        try {
+          const id = crypto.randomUUID()
+          const filePath = await writeMediaFile(id, file)
+          const probe = await probeMedia(file, type)
+          const thumb = await generateThumbnail(file, type)
+          const asset: Asset = {
+            id,
+            name: file.name.replace(/\.[^.]+$/, ''),
+            type,
+            filePath,
+            mime: file.type,
+            size: file.size,
+            width: probe.width,
+            height: probe.height,
+            duration: probe.duration,
+            thumbnailUrl: thumb.url,
+            importedAt: Date.now(),
+          }
+          await putRecord('assets', asset)
+          imported.push(asset)
+        } catch (err) {
+          errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
+        }
       }
       if (imported.length) {
         set((state) => ({
           assets: [...imported.reverse(), ...state.assets],
         }))
+        // Place each newly imported item on its matching track, appended at the end.
+        for (const asset of imported) {
+          const type = asset.type === 'audio' ? 'audio' : 'video'
+          const track = get().project.tracks.find((t) => t.type === type)
+          if (!track) continue
+          const lastEnd = track.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0)
+          get().addClip(asset.id, track.id, Math.round(lastEnd * 10) / 10)
+        }
       }
-      return imported
+      return { imported, errors }
     },
 
     deleteAsset: async (assetId) => {

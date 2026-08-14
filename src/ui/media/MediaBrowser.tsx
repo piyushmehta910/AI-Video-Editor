@@ -22,6 +22,7 @@ export function MediaBrowser() {
   const addClip = useTimelineStore((s) => s.addClip)
   const project = useTimelineStore((s) => s.project)
   const [busy, setBusy] = React.useState(false)
+  const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
 
@@ -30,7 +31,16 @@ export function MediaBrowser() {
     if (!files.length) return
     setBusy(true)
     try {
-      await importFiles(files)
+      const { imported, errors } = await importFiles(files)
+      if (errors.length && !imported.length) {
+        setNotice({ kind: 'error', text: `Could not import: ${errors[0]}` })
+      } else if (errors.length) {
+        setNotice({ kind: 'error', text: `${imported.length} imported, ${errors.length} failed` })
+      } else if (imported.length) {
+        setNotice({ kind: 'ok', text: `Added ${imported.length} ${imported.length === 1 ? 'clip' : 'clips'} to the timeline` })
+      }
+    } catch (err) {
+      setNotice({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
     } finally {
       setBusy(false)
     }
@@ -94,6 +104,19 @@ export function MediaBrowser() {
           void handleFiles(e.dataTransfer.files)
         }}
       >
+        {notice && (
+          <div
+            className={cn(
+              'mb-2 rounded-md border px-2.5 py-1.5 text-[11px]',
+              notice.kind === 'error'
+                ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+            )}
+          >
+            {notice.text}
+          </div>
+        )}
+
         {dragOver && (
           <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-violet-500 bg-violet-500/10">
             <p className="text-sm font-medium">Drop to import</p>
