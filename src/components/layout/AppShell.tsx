@@ -1,11 +1,12 @@
-import { Clapperboard, Settings } from 'lucide-react'
+import { Clapperboard, Home, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Outlet } from '@tanstack/react-router'
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Editor', icon: Clapperboard },
+  { to: '/', label: 'Home', icon: Home },
+  { to: '/editor', label: 'Editor', icon: Clapperboard },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
