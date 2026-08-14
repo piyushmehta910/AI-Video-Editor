@@ -102,7 +102,11 @@ export function Hero() {
 
       <div className="relative mx-auto w-full max-w-7xl px-4 pt-16 pb-20 sm:px-6 sm:pt-24">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Badge className="gap-1.5 border-violet-500/40 bg-violet-500/10 py-1 text-violet-300">
+              <span className="size-1.5 animate-pulse rounded-full bg-violet-400" />
+              Beta · 100% free
+            </Badge>
             {HERO_BADGES.map((badge) => (
               <Badge key={badge} variant="secondary" className="gap-1.5 py-1">
                 <span className="size-1.5 rounded-full bg-emerald-500" />

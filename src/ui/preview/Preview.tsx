@@ -12,13 +12,44 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const hideTimer = React.useRef<number | undefined>(undefined)
   const [fullscreen, setFullscreen] = React.useState(false)
   const [dragging, setDragging] = React.useState(false)
+  const [controlsVisible, setControlsVisible] = React.useState(true)
+
+  const revealControls = React.useCallback(() => {
+    setControlsVisible(true)
+    if (hideTimer.current) window.clearTimeout(hideTimer.current)
+    hideTimer.current = window.setTimeout(() => setControlsVisible(false), 3000)
+  }, [])
+
+  React.useEffect(() => {
+    const onFullscreenChange = () => {
+      const isFs = Boolean(document.fullscreenElement)
+      setFullscreen(isFs)
+      if (hideTimer.current) window.clearTimeout(hideTimer.current)
+      setControlsVisible(true)
+      if (isFs) revealControls()
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      if (hideTimer.current) window.clearTimeout(hideTimer.current)
+    }
+  }, [revealControls])
 
   const toggleFullscreen = () => {
+    const el = containerRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null
     if (!document.fullscreenElement) {
-      void containerRef.current?.requestFullscreen?.()
-      setFullscreen(true)
+      if (el?.requestFullscreen) {
+        void el.requestFullscreen().catch(() => {
+          el.webkitRequestFullscreen?.()
+          setFullscreen(true)
+        })
+      } else {
+        el?.webkitRequestFullscreen?.()
+        setFullscreen(true)
+      }
     } else {
       void document.exitFullscreen?.()
       setFullscreen(false)
@@ -33,16 +64,24 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
   }
 
   return (
-    <div ref={containerRef} className="relative flex flex-1 flex-col bg-black" style={{ background: 'linear-gradient(180deg, #0b0b10 0%, #14141b 100%)' }}>
+    <div
+      ref={containerRef}
+      className={cn('relative flex flex-1 flex-col bg-black', fullscreen && 'max-h-none')}
+      style={{ background: 'linear-gradient(180deg, #0b0b10 0%, #14141b 100%)' }}
+      onPointerMove={fullscreen ? revealControls : undefined}
+    >
       <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
         <div className="relative" style={{ aspectRatio: `${project.width} / ${project.height}` }}>
           <canvas
             ref={playback.canvasRef}
             className={cn(
               'max-h-full rounded-lg shadow-2xl shadow-black/50',
-              fullscreen && 'max-h-none',
+              fullscreen && 'max-h-none rounded-none shadow-none',
             )}
-            style={{ width: 'min(100%, calc(100vh - 220px))', height: 'auto' }}
+            style={{
+              width: fullscreen ? 'min(100%, calc(100svh - 24px))' : 'min(100%, calc(100vh - 220px))',
+              height: 'auto',
+            }}
           />
         </div>
 
@@ -55,7 +94,13 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5 px-4 pb-3">
+      <div
+        className={cn(
+          'flex flex-col gap-1.5 px-4 pb-3 transition-opacity duration-300',
+          fullscreen && 'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent pb-2 pt-8',
+          fullscreen && !controlsVisible && 'pointer-events-none opacity-0',
+        )}
+      >
         <div
           className="relative h-4 cursor-pointer"
           onPointerDown={(e) => {
@@ -107,23 +152,25 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
           </span>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-white/80 hover:bg-white/10 hover:text-white"
-              onClick={playback.toggleMuted}
-              title="Mute"
-            >
-              {playback.muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-            </Button>
-            <Slider
-              className="w-24"
-              min={0}
-              max={1}
-              step={0.01}
-              value={[playback.masterVolume]}
-              onValueChange={([v]) => playback.setMasterVolume(v)}
-            />
+            <div className="hidden items-center gap-2 sm:flex">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 text-white/80 hover:bg-white/10 hover:text-white"
+                onClick={playback.toggleMuted}
+                title="Mute"
+              >
+                {playback.muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+              </Button>
+              <Slider
+                className="w-24"
+                min={0}
+                max={1}
+                step={0.01}
+                value={[playback.masterVolume]}
+                onValueChange={([v]) => playback.setMasterVolume(v)}
+              />
+            </div>
             <Button
               variant="ghost"
               size="icon"

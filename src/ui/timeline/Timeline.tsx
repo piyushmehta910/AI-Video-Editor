@@ -215,7 +215,7 @@ export function Timeline() {
 
   return (
     <div
-      className="flex h-64 shrink-0 flex-col border-t bg-muted/20"
+      className="flex h-44 shrink-0 flex-col border-t bg-muted/20 sm:h-56 md:h-64"
       onPointerMove={handleDragMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
@@ -276,7 +276,7 @@ export function Timeline() {
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={viewportRef}
-          className="absolute inset-0 overflow-x-auto overflow-y-hidden"
+          className="absolute inset-0 overflow-x-auto overflow-y-auto"
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               e.preventDefault()
