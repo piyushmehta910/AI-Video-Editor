@@ -1,8 +1,10 @@
 import { BookOpenText, Clapperboard, Globe, UserRound, ArrowRight } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
 import { Section } from './Section'
 
 const WORKFLOWS = [
   {
+    key: 'video-to-reel',
     icon: Clapperboard,
     title: 'Video → Reel',
     trigger: 'Make this 10-min video a 30-sec Reel',
@@ -14,6 +16,7 @@ const WORKFLOWS = [
     ],
   },
   {
+    key: 'pdf-to-lesson',
     icon: BookOpenText,
     title: 'PDF → Lesson',
     trigger: 'Make a 1-min Hindi video from this PDF',
@@ -25,6 +28,7 @@ const WORKFLOWS = [
     ],
   },
   {
+    key: 'article-to-video',
     icon: Globe,
     title: 'Article → Video',
     trigger: 'Turn this article into a video',
@@ -36,6 +40,7 @@ const WORKFLOWS = [
     ],
   },
   {
+    key: 'avatar-sales-video',
     icon: UserRound,
     title: 'Avatar sales video',
     trigger: 'Create a 30-sec sales video with my avatar',
@@ -49,6 +54,13 @@ const WORKFLOWS = [
 ]
 
 export function Workflows() {
+  const navigate = useNavigate()
+
+  const runPipeline = (key: string) => {
+    sessionStorage.setItem('clipforge-pipeline', key)
+    navigate({ to: '/editor' })
+  }
+
   return (
     <Section
       id="workflows"
@@ -81,10 +93,14 @@ export function Workflows() {
                 </li>
               ))}
             </ol>
-            <div className="mt-auto flex items-center gap-1.5 text-xs font-medium text-violet-600 dark:text-violet-400">
+            <button
+              type="button"
+              onClick={() => runPipeline(workflow.key)}
+              className="mt-auto flex w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-400"
+            >
               Run pipeline
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-            </div>
+            </button>
           </div>
         ))}
       </div>
