@@ -4,6 +4,8 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { usePlayback } from '@/hooks/usePlayback'
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts'
 import { ProjectHeader } from '@/ui/common/ProjectHeader'
+import { CapabilityBanner } from '@/ui/common/CapabilityBanner'
+import { useCapabilities } from '@/hooks/useCapabilities'
 import { MediaBrowser } from '@/ui/media/MediaBrowser'
 import { Preview } from '@/ui/preview/Preview'
 import { Timeline } from '@/ui/timeline/Timeline'
@@ -24,6 +26,7 @@ export function EditorPage() {
   const hydrated = useTimelineStore((s) => s.hydrated)
   const playback = usePlayback()
   useEditorShortcuts(playback)
+  const { caps } = useCapabilities()
 
   const [initialPrompt, setInitialPrompt] = React.useState<string | undefined>(undefined)
   const [mobilePanel, setMobilePanel] = React.useState<'media' | 'inspector' | null>(null)
@@ -40,6 +43,7 @@ export function EditorPage() {
   return (
     <div className="flex h-[calc(100svh-3.5rem)] flex-col">
       <ProjectHeader />
+      {caps && <CapabilityBanner caps={caps} />}
 
       <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1 md:hidden">
         <Button

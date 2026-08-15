@@ -7,6 +7,7 @@ import { Wav2LipCard } from '@/components/settings/cards/Wav2LipCard'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
+import { EngineCard } from '@/components/settings/cards/EngineCard'
 import { SecurityCard } from '@/components/settings/cards/SecurityCard'
 import { PreferencesCard } from '@/components/settings/cards/PreferencesCard'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -95,6 +96,11 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>AI Preferences</SectionLabel>
           <PreferencesCard />
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <SectionLabel>Engine</SectionLabel>
+          <EngineCard />
         </section>
       </div>
     </div>
