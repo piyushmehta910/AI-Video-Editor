@@ -1,10 +1,10 @@
 import * as React from 'react'
-import { Bot, MessageSquare, Send, Settings, X, User } from 'lucide-react'
+import { Bot, Check, MessageSquare, Send, Settings, Trash2, X, User } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import { chatCompletion, getDirectorProvider, getProjectContextSystemPrompt, type ChatMessage } from '@/api/llm/director'
-import { DIRECTOR_TOOLS, executeTool } from '@/api/llm/tools'
+import { DIRECTOR_TOOLS, applyTool, describeTool, isStagedTool } from '@/api/llm/tools'
 import { Button } from '@/components/ui/button'
 
 interface UiMessage {
@@ -12,6 +12,16 @@ interface UiMessage {
   role: 'user' | 'ai'
   text: string
   tools?: string[]
+  proposed?: boolean
+}
+
+interface Proposal {
+  id: string
+  name: string
+  args: Record<string, unknown>
+  label: string
+  status: 'pending' | 'applied' | 'failed' | 'discarded'
+  message?: string
 }
 
 const SUGGESTIONS = [
@@ -21,11 +31,14 @@ const SUGGESTIONS = [
   'Make this into a 30-second short',
 ]
 
+const MAX_PROPOSALS = 20
+
 export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const [open, setOpen] = React.useState(false)
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
   const [busy, setBusy] = React.useState(false)
+  const [proposals, setProposals] = React.useState<Proposal[]>([])
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
   const hydrateTimeline = useTimelineStore((s) => s.hydrate)
@@ -64,6 +77,10 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           return
         }
 
+        // "Fully Automatic" confirmation level applies proposals immediately; otherwise changes are staged for review.
+        const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
+        const autoApply = confirmationLevel === 'none'
+
         const apiMessages: ChatMessage[] = [
           { role: 'system', content: getProjectContextSystemPrompt() },
         ]
@@ -74,15 +91,52 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
 
         let finalText = ''
         const usedTools: string[] = []
+        const proposedTools: string[] = []
+        let stagedCount = 0
         let loops = 0
         while (loops < 6) {
           const reply = await chatCompletion(provider, apiMessages, DIRECTOR_TOOLS)
           apiMessages.push(reply)
           if (reply.tool_calls?.length) {
             for (const tc of reply.tool_calls) {
-              usedTools.push(tc.name)
-              const result = executeTool(tc.name, tc.arguments)
-              apiMessages.push({ role: 'tool', content: result, tool_call_id: tc.id })
+              if (isStagedTool(tc.name)) {
+                if (autoApply) {
+                  const result = applyTool(tc.name, tc.arguments)
+                  usedTools.push(tc.name)
+                  apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
+                } else if (stagedCount < MAX_PROPOSALS) {
+                  const label = describeTool(tc.name, tc.arguments)
+                  if (label) {
+                    stagedCount++
+                    proposedTools.push(tc.name)
+                    setProposals((prev) => [
+                      ...prev,
+                      { id: crypto.randomUUID(), name: tc.name, args: tc.arguments, label, status: 'pending' },
+                    ])
+                    apiMessages.push({
+                      role: 'tool',
+                      content: `Staged for user review (not yet applied): ${label}`,
+                      tool_call_id: tc.id,
+                    })
+                  } else {
+                    apiMessages.push({
+                      role: 'tool',
+                      content: 'Invalid arguments for that action; do not call it again.',
+                      tool_call_id: tc.id,
+                    })
+                  }
+                } else {
+                  apiMessages.push({
+                    role: 'tool',
+                    content: `Too many pending actions (max ${MAX_PROPOSALS}). The user must approve or discard pending actions before more can be staged.`,
+                    tool_call_id: tc.id,
+                  })
+                }
+              } else {
+                const result = applyTool(tc.name, tc.arguments)
+                usedTools.push(tc.name)
+                apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
+              }
             }
             loops++
             continue
@@ -96,10 +150,21 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         if (!finalText && usedTools.length) {
           finalText = `Done — applied ${usedTools.join(', ')}.`
         }
+        if (!finalText && stagedCount > 0) {
+          finalText = `I've proposed ${stagedCount} change${stagedCount > 1 ? 's' : ''} — review ${
+            stagedCount > 1 ? 'them' : 'it'
+          } above before it takes effect.`
+        }
         if (!finalText) finalText = 'I could not complete that request. Please rephrase it.'
         setMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: 'ai', text: finalText, tools: usedTools },
+          {
+            id: crypto.randomUUID(),
+            role: 'ai',
+            text: finalText,
+            tools: proposedTools.length ? proposedTools : usedTools.length ? usedTools : undefined,
+            proposed: !autoApply && proposedTools.length > 0,
+          },
         ])
       } catch (err) {
         setMessages((prev) => [
@@ -126,6 +191,49 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPrompt, timelineHydrated, configHydrated])
 
+  const applyOne = (id: string) => {
+    const target = proposals.find((p) => p.id === id)
+    if (!target || target.status !== 'pending') return
+    const store = useTimelineStore.getState()
+    store.withTransaction(() => {
+      const result = applyTool(target.name, target.args)
+      setProposals((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
+      )
+    })
+  }
+
+  const applyAll = () => {
+    const pending = proposals.filter((p) => p.status === 'pending')
+    if (!pending.length) return
+    const store = useTimelineStore.getState()
+    store.withTransaction(() => {
+      for (const target of pending) {
+        const result = applyTool(target.name, target.args)
+        setProposals((prev) =>
+          prev.map((p) =>
+            p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
+          ),
+        )
+      }
+    })
+  }
+
+  const discardOne = (id: string) => {
+    setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'discarded' } : p)))
+  }
+
+  const discardAll = () => {
+    setProposals((prev) => prev.map((p) => (p.status === 'pending' ? { ...p, status: 'discarded' } : p)))
+  }
+
+  const clearResolved = () => {
+    setProposals((prev) => prev.filter((p) => p.status === 'pending'))
+  }
+
+  const pendingCount = proposals.filter((p) => p.status === 'pending').length
+  const resolvedCount = proposals.length - pendingCount
+
   return (
     <>
       <button
@@ -145,7 +253,9 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold leading-tight">AI Director</h3>
-              <p className="text-muted-foreground truncate text-[11px]">Describe an edit, I’ll use the timeline tools</p>
+              <p className="text-muted-foreground truncate text-[11px]">
+                Proposes edits — you approve them before they apply
+              </p>
             </div>
             <Link to="/settings" className="ml-auto text-muted-foreground hover:text-foreground" title="Configure AI provider">
               <Settings className="size-4" />
@@ -191,7 +301,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                   </div>
                   {m.tools && m.tools.length > 0 && (
                     <div className="text-muted-foreground text-[10px]">
-                      Used: {m.tools.join(', ')}
+                      {m.proposed ? 'Proposed' : 'Used'}: {m.tools.join(', ')}
                     </div>
                   )}
                 </div>
@@ -213,6 +323,76 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
               </div>
             )}
           </div>
+
+          {proposals.length > 0 && (
+            <div className="border-t border-violet-500/30 bg-violet-500/5">
+              <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400">
+                  <Bot className="size-3.5" />
+                  {pendingCount > 0 ? `${pendingCount} proposed change${pendingCount > 1 ? 's' : ''} awaiting review` : 'No pending changes'}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  {pendingCount > 0 && (
+                    <>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={discardAll}>
+                        Discard all
+                      </Button>
+                      <Button type="button" size="sm" className="h-6 px-2 text-xs" onClick={applyAll}>
+                        Apply all ({pendingCount})
+                      </Button>
+                    </>
+                  )}
+                  {resolvedCount > 0 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={clearResolved}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-40 space-y-1 overflow-y-auto px-3 pb-2.5">
+                {proposals.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                      p.status === 'applied'
+                        ? 'border-emerald-500/40 bg-emerald-500/10'
+                        : p.status === 'failed'
+                          ? 'border-destructive/40 bg-destructive/10'
+                          : p.status === 'discarded'
+                            ? 'border-muted bg-muted/30 opacity-60'
+                            : 'border-violet-500/40 bg-violet-500/10'
+                    }`}
+                  >
+                    {p.status === 'applied' ? (
+                      <Check className="size-3.5 shrink-0 text-emerald-500" />
+                    ) : p.status === 'failed' || p.status === 'discarded' ? (
+                      <X className="size-3.5 shrink-0 text-destructive" />
+                    ) : (
+                      <Bot className="size-3.5 shrink-0 text-violet-500" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate" title={p.label}>
+                      {p.label}
+                      {p.status !== 'pending' && p.message && (
+                        <span className="text-muted-foreground ml-1 truncate text-[10px]">— {p.message}</span>
+                      )}
+                    </span>
+                    {p.status === 'pending' && (
+                      <>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => discardOne(p.id)}>
+                          <Trash2 className="size-3" />
+                          Discard
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => applyOne(p.id)}>
+                          <Check className="size-3" />
+                          Apply
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="border-t p-3">
             <div className="flex gap-2">

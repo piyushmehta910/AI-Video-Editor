@@ -7,6 +7,7 @@ import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
 import { detectMediaType } from '@/engine/storage/mediaType'
 
 const HISTORY_LIMIT = 200
+let transactionDepth = 0
 
 export interface TimelineState {
   project: Project
@@ -28,6 +29,8 @@ export interface TimelineState {
   begin: () => void
   undo: () => void
   redo: () => void
+  /** Run fn as a single undoable transaction: one begin snapshot, inner begins suppressed. */
+  withTransaction: (fn: () => void) => void
 
   renameProject: (name: string) => void
   setProjectSettings: (patch: Partial<Pick<Project, 'width' | 'height' | 'fps' | 'aspectRatio'>>) => void
@@ -184,10 +187,21 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     },
 
     begin: () => {
+      if (transactionDepth > 0) return
       set((state) => {
         const past = [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT)
         return { past, future: [] }
       })
+    },
+
+    withTransaction: (fn) => {
+      get().begin()
+      transactionDepth++
+      try {
+        fn()
+      } finally {
+        transactionDepth--
+      }
     },
 
     undo: () => {

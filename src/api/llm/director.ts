@@ -62,7 +62,11 @@ export function getProjectContextSystemPrompt(): string {
   lines.push(
     `User preferences: language=${prefs.language}, aspect=${prefs.defaultAspectRatio}, confirm=${prefs.confirmationLevel}.`,
   )
-  lines.push('Keep replies short and friendly. When you use a tool, briefly summarize what you changed.')
+  lines.push(
+    'Most tool calls are staged for review: they are NOT applied until the user approves them, so do not claim ' +
+      'you already changed something when you have only proposed it. Only set_playhead applies immediately. ' +
+      'When you propose actions, summarize what is awaiting approval. Keep replies short and friendly.',
+  )
   return lines.join('\n')
 }
 
