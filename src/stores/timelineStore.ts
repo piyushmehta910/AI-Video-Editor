@@ -45,6 +45,7 @@ export interface TimelineState {
   moveClip: (clipId: string, delta: number, targetTrackId?: string) => void
   trimClip: (clipId: string, edge: 'start' | 'end', delta: number) => void
   splitClip: (clipId: string, atTime: number) => void
+  joinClips: (clipId1: string, clipId2: string) => void
   deleteClips: (clipIds: string[], ripple?: boolean) => void
   duplicateClips: (clipIds: string[]) => void
 
@@ -396,6 +397,46 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
           }
           track.clips.splice(idx, 1, left, right)
           return p
+        }
+        return p
+      })
+    },
+
+    joinClips: (clipId1, clipId2) => {
+      const s = get()
+      let clip1: Clip | null = null
+      let clip2: Clip | null = null
+      let trackId: string | null = null
+      for (const track of s.project.tracks) {
+        const c1 = track.clips.find((c) => c.id === clipId1)
+        const c2 = track.clips.find((c) => c.id === clipId2)
+        if (c1) { clip1 = c1; trackId = track.id }
+        if (c2) clip2 = c2
+      }
+      if (!clip1 || !clip2 || !trackId) return
+      if (clip1.trackId !== clip2.trackId) return
+
+      const left = clip1.startTime <= clip2.startTime ? clip1 : clip2
+      const right = clip1.startTime <= clip2.startTime ? clip2 : clip1
+      const gap = right.startTime - (left.startTime + left.duration)
+      if (gap > 0.05 || left.startTime + left.duration < right.startTime - 0.05) return
+
+      get().begin()
+      mutate((p) => {
+        for (const track of p.tracks) {
+          if (track.id !== trackId) continue
+          const merged: Clip = {
+            ...left,
+            id: left.id,
+            duration: left.duration + right.duration,
+            sourceEnd: right.sourceEnd,
+            name: left.name,
+          }
+          track.clips = track.clips
+            .filter((c) => c.id !== right.id)
+            .map((c) => (c.id === left.id ? merged : c))
+          track.clips.sort((a, b) => a.startTime - b.startTime)
+          break
         }
         return p
       })

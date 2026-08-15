@@ -67,6 +67,12 @@ export function getProjectContextSystemPrompt(): string {
       'you already changed something when you have only proposed it. Only set_playhead applies immediately. ' +
       'When you propose actions, summarize what is awaiting approval. Keep replies short and friendly.',
   )
+  lines.push(
+    'Editing capabilities: You can split clips at any time position, trim start/end edges to shorten or extend, ' +
+      'move clips to different positions, join adjacent clips on the same track into one, delete clips, ' +
+      'adjust properties (opacity, volume, speed, rotation), and change the project aspect ratio. ' +
+      'Always target clips by name. To remove a section from the middle of a clip, split it twice then delete the middle part.',
+  )
   return lines.join('\n')
 }
 

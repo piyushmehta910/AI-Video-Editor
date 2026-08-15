@@ -39,17 +39,76 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
   {
     type: 'function',
     function: {
-      name: 'split_selected_clip',
-      description: 'Split the selected clip at the current playhead. Staged for user review.',
-      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      name: 'split_clip',
+      description: 'Split a clip at a specific time on the timeline. You can specify the clip by name and the time in seconds, or just the clip name to split at the current playhead. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to split.' },
+          timeSeconds: { type: 'number', description: 'Timeline position in seconds to split at. Omit to split at the current playhead.' },
+        },
+        required: ['assetName'],
+      },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'delete_selected_clips',
-      description: 'Delete the currently selected clips from the timeline. Staged for user review.',
-      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      name: 'delete_clip',
+      description: 'Delete a clip from the timeline by its name. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to delete.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'trim_clip',
+      description: 'Trim the start or end edge of a clip. Positive delta trims (shortens) from the edge; negative delta extends. The clip must have enough source media to extend. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to trim.' },
+          edge: { type: 'string', enum: ['start', 'end'], description: 'Which edge to trim: "start" trims the beginning, "end" trims the end.' },
+          deltaSeconds: { type: 'number', description: 'Amount in seconds to trim. Positive = shorten, negative = extend (if source allows).' },
+        },
+        required: ['assetName', 'edge', 'deltaSeconds'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'move_clip',
+      description: 'Move a clip to a new position on the timeline. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to move.' },
+          newStartTime: { type: 'number', description: 'The new start time in seconds on the timeline.' },
+        },
+        required: ['assetName', 'newStartTime'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'join_clips',
+      description: 'Merge two adjacent clips on the same track into one. The clips must be next to each other (no gap). The resulting clip keeps the first clip\'s properties. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clipName1: { type: 'string', description: 'Name of the first clip (the one that starts earlier).' },
+          clipName2: { type: 'string', description: 'Name of the second clip (the one that starts later).' },
+        },
+        required: ['clipName1', 'clipName2'],
+      },
     },
   },
   {
@@ -90,8 +149,11 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
 const STAGED_TOOLS = new Set<string>([
   'set_project_ratio',
   'add_media_to_timeline',
-  'split_selected_clip',
-  'delete_selected_clips',
+  'split_clip',
+  'delete_clip',
+  'trim_clip',
+  'move_clip',
+  'join_clips',
   'set_clip_property',
 ])
 
@@ -112,15 +174,6 @@ function findClip(assetName: string): Clip | null {
   const name = assetName.trim().toLowerCase()
   for (const track of s.project.tracks) {
     const clip = track.clips.find((c) => c.name.toLowerCase().includes(name))
-    if (clip) return clip
-  }
-  return null
-}
-
-function clipById(id: string): Clip | null {
-  const s = useTimelineStore.getState()
-  for (const track of s.project.tracks) {
-    const clip = track.clips.find((c) => c.id === id)
     if (clip) return clip
   }
   return null
@@ -149,18 +202,40 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       if (!asset) return null
       return `Add "${asset.name}" to the timeline`
     }
-    case 'split_selected_clip': {
+    case 'split_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      const time = args.timeSeconds != null ? Number(args.timeSeconds) : null
+      if (time != null && !Number.isFinite(time)) return null
       const s = useTimelineStore.getState()
-      const id = s.selection.clipIds[0]
-      if (!id) return null
-      const clip = clipById(id)
-      return `Split "${clip?.name ?? 'selected clip'}" at the playhead`
+      const at = time ?? s.playhead
+      return `Split "${clip.name}" at ${at.toFixed(1)}s`
     }
-    case 'delete_selected_clips': {
-      const s = useTimelineStore.getState()
-      const n = s.selection.clipIds.length
-      if (!n) return null
-      return `Delete ${n} selected clip${n > 1 ? 's' : ''}`
+    case 'delete_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      return `Delete "${clip.name}" from the timeline`
+    }
+    case 'trim_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      const edge = String(args.edge ?? '')
+      const delta = Number(args.deltaSeconds)
+      if (!clip || !['start', 'end'].includes(edge) || !Number.isFinite(delta)) return null
+      const verb = delta > 0 ? 'Trim' : 'Extend'
+      return `${verb} ${edge} of "${clip.name}" by ${Math.abs(delta).toFixed(1)}s`
+    }
+    case 'move_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      const newStart = Number(args.newStartTime)
+      if (!clip || !Number.isFinite(newStart)) return null
+      return `Move "${clip.name}" to ${Math.max(0, newStart).toFixed(1)}s`
+    }
+    case 'join_clips': {
+      const c1 = findClip(String(args.clipName1 ?? ''))
+      const c2 = findClip(String(args.clipName2 ?? ''))
+      if (!c1 || !c2) return null
+      if (c1.trackId !== c2.trackId) return null
+      return `Join "${c1.name}" and "${c2.name}" into one clip`
     }
     case 'set_playhead': {
       const t = Number(args.timeSeconds)
@@ -205,16 +280,45 @@ export function applyTool(name: string, args: Record<string, unknown>): { ok: bo
       s.addClip(asset.id, track.id)
       return { ok: true, message: desc }
     }
-    case 'split_selected_clip': {
-      const id = s.selection.clipIds[0]
-      if (!id) return { ok: false, message: 'No clip is selected anymore.' }
-      s.splitClip(id, s.playhead)
+    case 'split_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const time = args.timeSeconds != null ? Number(args.timeSeconds) : s.playhead
+      s.splitClip(clip.id, time)
       return { ok: true, message: desc }
     }
-    case 'delete_selected_clips': {
-      const ids = s.selection.clipIds
-      if (!ids.length) return { ok: false, message: 'No clips are selected anymore.' }
-      s.deleteClips(ids)
+    case 'delete_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      s.deleteClips([clip.id])
+      return { ok: true, message: desc }
+    }
+    case 'trim_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const edge = String(args.edge) as 'start' | 'end'
+      const delta = Number(args.deltaSeconds)
+      s.begin()
+      s.trimClip(clip.id, edge, delta)
+      return { ok: true, message: desc }
+    }
+    case 'move_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const newStart = Math.max(0, Number(args.newStartTime))
+      const delta = newStart - clip.startTime
+      if (Math.abs(delta) < 0.01) return { ok: true, message: 'Clip is already at that position.' }
+      s.begin()
+      s.moveClip(clip.id, delta)
+      return { ok: true, message: desc }
+    }
+    case 'join_clips': {
+      const c1 = findClip(String(args.clipName1 ?? ''))
+      const c2 = findClip(String(args.clipName2 ?? ''))
+      if (!c1) return { ok: false, message: `Clip "${String(args.clipName1)}" no longer exists.` }
+      if (!c2) return { ok: false, message: `Clip "${String(args.clipName2)}" no longer exists.` }
+      if (c1.trackId !== c2.trackId) return { ok: false, message: 'Clips must be on the same track to join.' }
+      s.joinClips(c1.id, c2.id)
       return { ok: true, message: desc }
     }
     case 'set_playhead': {
