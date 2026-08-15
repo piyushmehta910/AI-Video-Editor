@@ -5,6 +5,8 @@ import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/stor
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
 import { detectMediaType } from '@/engine/storage/mediaType'
+import { generateProxy } from '@/engine/media/proxy'
+import { generateFilmstrip } from '@/engine/media/filmstrip'
 
 const HISTORY_LIMIT = 200
 let transactionDepth = 0
@@ -137,6 +139,18 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
           const filePath = await writeMediaFile(id, file)
           const probe = await probeMedia(file, type)
           const thumb = await generateThumbnail(file, type)
+
+          let proxyPath: string | undefined
+          let filmstrip: import('@/engine/types').FilmstripData | undefined
+          if (type === 'video') {
+            const [proxy, strip] = await Promise.all([
+              generateProxy(id, file),
+              generateFilmstrip(file, type),
+            ])
+            proxyPath = proxy ?? undefined
+            filmstrip = strip ?? undefined
+          }
+
           const asset: Asset = {
             id,
             name: file.name.replace(/\.[^.]+$/, ''),
@@ -148,6 +162,8 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             height: probe.height,
             duration: probe.duration,
             thumbnailUrl: thumb.url,
+            proxyPath,
+            filmstrip,
             importedAt: Date.now(),
           }
           await putRecord('assets', asset)
@@ -160,7 +176,6 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         set((state) => ({
           assets: [...imported.reverse(), ...state.assets],
         }))
-        // Place each newly imported item on its matching track, appended at the end.
         for (const asset of imported) {
           const type = asset.type === 'audio' ? 'audio' : 'video'
           const track = get().project.tracks.find((t) => t.type === type)

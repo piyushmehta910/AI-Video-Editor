@@ -409,7 +409,17 @@ function TrackRow({
               onPointerDownClip(e, clip, 'move')
             }}
           >
-            {asset?.thumbnailUrl && (
+            {asset?.filmstrip ? (
+              <div
+                className="absolute inset-0 opacity-50"
+                style={{
+                  backgroundImage: `url(${asset.filmstrip.imageUrl})`,
+                  backgroundSize: `${asset.filmstrip.frameCount * asset.filmstrip.frameWidth}px 100%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: `${-clip.sourceStart * (asset.filmstrip.frameCount / asset.filmstrip.duration) * asset.filmstrip.frameWidth}px 0`,
+                }}
+              />
+            ) : asset?.thumbnailUrl ? (
               <div
                 className="absolute inset-0 opacity-40"
                 style={{
@@ -419,7 +429,7 @@ function TrackRow({
                   backgroundPosition: 'center',
                 }}
               />
-            )}
+            ) : null}
             <div className={cn('absolute inset-0 bg-gradient-to-b', typeColor)} />
             <div className="relative z-10 flex h-full items-center gap-1 px-1.5">
               {clip.volume < 1 && track.type === 'audio' && <Volume2 className="size-3 text-white/70" />}

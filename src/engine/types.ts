@@ -76,6 +76,14 @@ export interface Track {
   clips: Clip[]
 }
 
+export interface FilmstripData {
+  imageUrl: string
+  frameWidth: number
+  frameHeight: number
+  frameCount: number
+  duration: number
+}
+
 export interface Asset {
   id: string
   name: string
@@ -89,6 +97,10 @@ export interface Asset {
   /** Source duration in seconds (for video/audio) */
   duration?: number
   thumbnailUrl?: string
+  /** OPFS-relative path to low-res proxy video */
+  proxyPath?: string
+  /** Filmstrip thumbnail strip data */
+  filmstrip?: FilmstripData
   importedAt: number
 }
 

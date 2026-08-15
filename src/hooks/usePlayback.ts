@@ -74,6 +74,25 @@ export function usePlayback() {
     return url
   }, [])
 
+  const getProxyUrl = React.useCallback(async (asset: Asset): Promise<string> => {
+    if (!asset.proxyPath) return getAssetUrl(asset)
+    const cacheKey = `${asset.id}:proxy`
+    const cached = urlCache.current.get(cacheKey)
+    if (cached) return cached
+    try {
+      const root = await (navigator.storage as any).getDirectory()
+      const dir = await root.getDirectoryHandle('clipforge-media')
+      const assetDir = await dir.getDirectoryHandle(asset.id)
+      const fileHandle = await assetDir.getFileHandle('proxy.webm')
+      const file = await fileHandle.getFile()
+      const url = URL.createObjectURL(file)
+      urlCache.current.set(cacheKey, url)
+      return url
+    } catch {
+      return getAssetUrl(asset)
+    }
+  }, [getAssetUrl])
+
   const acquireVideo = React.useCallback(
     (asset: Asset): HTMLVideoElement => {
       const existing = videoPool.current.find((r) => r.assetId === asset.id)
@@ -84,14 +103,14 @@ export function usePlayback() {
       el.playsInline = true
       el.addEventListener('loadedmetadata', requestPaint)
       el.addEventListener('loadeddata', requestPaint)
-      void getAssetUrl(asset).then((url) => {
+      void getProxyUrl(asset).then((url) => {
         el.src = url
       })
       ensurePoolHost().appendChild(stylePooledElement(el))
       videoPool.current.push({ clipId: null, element: el, assetId: asset.id })
       return el
     },
-    [getAssetUrl, requestPaint],
+    [getProxyUrl, requestPaint],
   )
 
   const acquireAudio = React.useCallback(
