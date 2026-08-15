@@ -40,6 +40,7 @@ export interface TimelineState {
 
   addClip: (assetId: string, trackId: string, startTime?: number) => Clip | undefined
   addClipToTrack: (clip: Clip) => void
+  addTextClip: (text: string, trackId: string, startTime?: number) => Clip | undefined
   updateClip: (clipId: string, patch: Partial<Clip>) => void
   updateClips: (clipIds: string[], patch: Partial<Clip>) => void
   moveClip: (clipId: string, delta: number, targetTrackId?: string) => void
@@ -294,6 +295,58 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         effects: [],
         transitions: {},
         thumbnailUrl: asset.thumbnailUrl,
+      }
+      get().begin()
+      mutate((p) => {
+        const t = p.tracks.find((tr) => tr.id === track.id)!
+        t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
+        return p
+      })
+      get().select([clip.id], track.id)
+      return clip
+    },
+
+    addTextClip: (text, trackId, startTime) => {
+      const { project, playhead } = get()
+      const track = project.tracks.find((t) => t.id === trackId)
+      if (!track) return undefined
+
+      const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
+      const clip: Clip = {
+        id: crypto.randomUUID(),
+        assetId: '',
+        trackId: track.id,
+        startTime: start,
+        duration: 4,
+        sourceStart: 0,
+        sourceEnd: 4,
+        speed: 1,
+        name: text.slice(0, 30) || 'Text',
+        position: { x: 0, y: 0 },
+        scale: { x: 1, y: 1 },
+        rotation: 0,
+        opacity: 1,
+        volume: 0,
+        fadeIn: 0,
+        fadeOut: 0,
+        effects: [],
+        transitions: {},
+        text: {
+          text,
+          fontSize: 48,
+          fontFamily: 'sans-serif',
+          fontWeight: 'bold',
+          fontStyle: 'normal',
+          color: '#ffffff',
+          backgroundColor: 'transparent',
+          textAlign: 'center',
+          paddingTop: 8,
+          paddingBottom: 8,
+          paddingLeft: 16,
+          paddingRight: 16,
+          borderRadius: 0,
+          shadow: true,
+        },
       }
       get().begin()
       mutate((p) => {

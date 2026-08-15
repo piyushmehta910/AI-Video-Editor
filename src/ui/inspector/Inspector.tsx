@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { AudioLines, Layers, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import type { Clip, EffectType } from '@/engine/types'
+import type { Clip, EffectType, Transition } from '@/engine/types'
 import { createEffect } from '@/engine/types'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -124,6 +124,42 @@ export function Inspector() {
               <SliderRow label="Opacity" value={clip.opacity} min={0} max={1} step={0.01} onChange={(v) => set({ opacity: v })} display={`${Math.round(clip.opacity * 100)}%`} />
             </Section>
 
+            <Section icon={<Layers className="size-3.5" />} title="Transitions">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="In">
+                  <select
+                    className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
+                    value={clip.transitions.in?.type ?? ''}
+                    onChange={(e) => {
+                      const type = e.target.value as Transition['type'] | ''
+                      set({ transitions: { ...clip.transitions, in: type ? { type, duration: 0.5 } : undefined } })
+                    }}
+                  >
+                    <option value="">None</option>
+                    <option value="dissolve">Dissolve</option>
+                    <option value="wipe-left">Wipe Left</option>
+                    <option value="wipe-right">Wipe Right</option>
+                    <option value="slide">Slide</option>
+                    <option value="zoom">Zoom</option>
+                  </select>
+                </Field>
+                <Field label="Duration">
+                  <Input
+                    type="number"
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    value={clip.transitions.in?.duration ?? 0.5}
+                    onChange={(e) => {
+                      if (!clip.transitions.in) return
+                      set({ transitions: { ...clip.transitions, in: { ...clip.transitions.in, duration: Number(e.target.value) } } })
+                    }}
+                    disabled={!clip.transitions.in}
+                  />
+                </Field>
+              </div>
+            </Section>
+
             <Section icon={<AudioLines className="size-3.5" />} title="Audio">
               <SliderRow label="Volume" value={clip.volume} min={0} max={1} step={0.01} onChange={(v) => set({ volume: v })} display={`${Math.round(clip.volume * 100)}%`} />
               <SliderRow label="Fade in" value={clip.fadeIn} min={0} max={5} step={0.1} onChange={(v) => set({ fadeIn: v })} display={`${clip.fadeIn.toFixed(1)}s`} />
@@ -160,6 +196,46 @@ export function Inspector() {
                 )
               })}
             </Section>
+
+            {clip.text && (
+              <Section icon={<Type className="size-3.5" />} title="Text">
+                <textarea
+                  className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                  rows={3}
+                  value={clip.text.text}
+                  onChange={(e) => set({ text: { ...clip.text!, text: e.target.value } })}
+                  placeholder="Enter text..."
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Font Size">
+                    <Input type="number" value={clip.text.fontSize} onChange={(e) => set({ text: { ...clip.text!, fontSize: Number(e.target.value) } })} />
+                  </Field>
+                  <Field label="Color">
+                    <input type="color" value={clip.text.color} className="size-7 cursor-pointer rounded border" onChange={(e) => set({ text: { ...clip.text!, color: e.target.value } })} />
+                  </Field>
+                  <Field label="BG Color">
+                    <input type="color" value={clip.text.backgroundColor === 'transparent' ? '#000000' : clip.text.backgroundColor} className="size-7 cursor-pointer rounded border" onChange={(e) => set({ text: { ...clip.text!, backgroundColor: e.target.value } })} />
+                  </Field>
+                  <Field label="Align">
+                    <select
+                      className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
+                      value={clip.text.textAlign}
+                      onChange={(e) => set({ text: { ...clip.text!, textAlign: e.target.value as 'left' | 'center' | 'right' } })}
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </Field>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={clip.text.fontWeight === 'bold'} onCheckedChange={(c) => set({ text: { ...clip.text!, fontWeight: c ? 'bold' : 'normal' } })} aria-label="Bold" className="scale-75" />
+                  <span className="text-muted-foreground text-[10px]">Bold</span>
+                  <Switch checked={clip.text.shadow} onCheckedChange={(c) => set({ text: { ...clip.text!, shadow: c } })} aria-label="Shadow" className="scale-75" />
+                  <span className="text-muted-foreground text-[10px]">Shadow</span>
+                </div>
+              </Section>
+            )}
 
             {first.track.type === 'audio' && (
               <Section icon={<Sparkles className="size-3.5" />} title="AI Assist">

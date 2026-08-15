@@ -1,4 +1,4 @@
-import type { Effect } from '@/engine/types'
+import type { Effect, Transition } from '@/engine/types'
 
 export function effectFilter(effects: Effect[]): string {
   let brightness = 1
@@ -41,4 +41,38 @@ export function effectVignette(effects: Effect[]): number {
     vignette = Math.max(vignette, effect.value)
   }
   return vignette
+}
+
+/**
+ * Compute the alpha multiplier for a clip based on its in/out transitions.
+ * Returns 1 when fully visible, 0 when fully transparent.
+ */
+export function transitionAlpha(
+  clipStart: number,
+  clipDuration: number,
+  currentTime: number,
+  transitionIn?: Transition,
+  transitionOut?: Transition,
+): number {
+  let alpha = 1
+  if (transitionIn && transitionIn.duration > 0) {
+    const elapsed = currentTime - clipStart
+    if (elapsed < transitionIn.duration) {
+      const progress = Math.max(0, elapsed / transitionIn.duration)
+      alpha *= smoothstep(progress)
+    }
+  }
+  if (transitionOut && transitionOut.duration > 0) {
+    const remaining = (clipStart + clipDuration) - currentTime
+    if (remaining < transitionOut.duration) {
+      const progress = Math.max(0, remaining / transitionOut.duration)
+      alpha *= smoothstep(progress)
+    }
+  }
+  return alpha
+}
+
+function smoothstep(t: number): number {
+  const clamped = Math.max(0, Math.min(1, t))
+  return clamped * clamped * (3 - 2 * clamped)
 }

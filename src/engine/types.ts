@@ -38,6 +38,23 @@ export interface Transition {
   duration: number
 }
 
+export interface TextOverlay {
+  text: string
+  fontSize: number
+  fontFamily: string
+  fontWeight: 'normal' | 'bold'
+  fontStyle: 'normal' | 'italic'
+  color: string
+  backgroundColor: string
+  textAlign: 'left' | 'center' | 'right'
+  paddingTop: number
+  paddingBottom: number
+  paddingLeft: number
+  paddingRight: number
+  borderRadius: number
+  shadow: boolean
+}
+
 export interface Clip {
   id: string
   assetId: string
@@ -63,6 +80,8 @@ export interface Clip {
   effects: Effect[]
   transitions: { in?: Transition; out?: Transition }
   thumbnailUrl?: string
+  /** Text overlay (for text clips or caption overlays) */
+  text?: TextOverlay
 }
 
 export interface Track {

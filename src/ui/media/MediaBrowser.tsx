@@ -5,6 +5,7 @@ import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
+import { StockMediaSearch } from './StockMediaSearch'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
@@ -146,6 +147,10 @@ export function MediaBrowser() {
               onDelete={() => void deleteAsset(asset.id)}
             />
           ))}
+        </div>
+
+        <div className="border-t">
+          <StockMediaSearch />
         </div>
       </div>
     </div>

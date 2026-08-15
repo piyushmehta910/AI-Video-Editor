@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { readMediaFile } from '@/engine/storage/opfs'
-import { effectFilter, effectVignette } from '@/engine/render/filters'
+import { effectFilter, effectVignette, transitionAlpha } from '@/engine/render/filters'
 import type { Asset, Clip, Track } from '@/engine/types'
 
 interface ElementRef {
@@ -196,7 +196,7 @@ export function usePlayback() {
         vignette = Math.max(vignette, effectVignette(clip.effects))
         const srcTime = (time - clip.startTime) * clip.speed + clip.sourceStart
 
-        ctx.globalAlpha = clip.opacity
+        ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
         ctx.filter = effectFilter(clip.effects)
         ctx.save()
         ctx.translate(w / 2, h / 2)
@@ -233,6 +233,63 @@ export function usePlayback() {
         ctx.restore()
         ctx.filter = 'none'
         ctx.globalAlpha = 1
+      }
+
+      // Render text overlays
+      for (const { clip } of video) {
+        if (!clip.text) continue
+        const t = clip.text
+        ctx.save()
+        ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
+        ctx.translate(w / 2, h / 2)
+        ctx.rotate((clip.rotation * Math.PI) / 180)
+        ctx.scale(clip.scale.x, clip.scale.y)
+        ctx.translate(clip.position.x, clip.position.y)
+
+        const fontWeight = t.fontWeight === 'bold' ? 'bold ' : ''
+        const fontStyle = t.fontStyle === 'italic' ? 'italic ' : ''
+        ctx.font = `${fontStyle}${fontWeight}${t.fontSize}px ${t.fontFamily}`
+        ctx.textAlign = t.textAlign
+        ctx.textBaseline = 'middle'
+
+        const lines = t.text.split('\n')
+        const lineHeight = t.fontSize * 1.2
+        const totalHeight = lines.length * lineHeight
+        const startY = -totalHeight / 2 + lineHeight / 2
+
+        // Background
+        if (t.backgroundColor && t.backgroundColor !== 'transparent') {
+          const maxLineW = Math.max(...lines.map((l) => ctx.measureText(l).width))
+          const bgX = t.textAlign === 'center' ? -maxLineW / 2 - t.paddingLeft : t.textAlign === 'right' ? -maxLineW - t.paddingLeft : -t.paddingLeft
+          const bgY = startY - lineHeight / 2 - t.paddingTop
+          const bgW = maxLineW + t.paddingLeft + t.paddingRight
+          const bgH = totalHeight + t.paddingTop + t.paddingBottom
+          ctx.fillStyle = t.backgroundColor
+          if (t.borderRadius > 0) {
+            ctx.beginPath()
+            ctx.roundRect(bgX, bgY, bgW, bgH, t.borderRadius)
+            ctx.fill()
+          } else {
+            ctx.fillRect(bgX, bgY, bgW, bgH)
+          }
+        }
+
+        for (let i = 0; i < lines.length; i++) {
+          const y = startY + i * lineHeight
+          if (t.shadow) {
+            ctx.shadowColor = 'rgba(0,0,0,0.7)'
+            ctx.shadowBlur = 6
+            ctx.shadowOffsetX = 2
+            ctx.shadowOffsetY = 2
+          }
+          ctx.fillStyle = t.color
+          ctx.fillText(lines[i], 0, y)
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
+          ctx.shadowOffsetX = 0
+          ctx.shadowOffsetY = 0
+        }
+        ctx.restore()
       }
 
       if (vignette > 0) {

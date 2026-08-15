@@ -143,6 +143,39 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'add_text_overlay',
+      description: 'Add a text overlay / title card to the timeline. Creates a text clip with the given content. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'The text content to display. Use \\n for line breaks.' },
+          durationSeconds: { type: 'number', description: 'Duration in seconds (default 4).' },
+          fontSize: { type: 'number', description: 'Font size in pixels (default 48).' },
+          color: { type: 'string', description: 'Text color as hex (default #ffffff).' },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_transition',
+      description: 'Set a transition effect on a clip (e.g. dissolve, wipe). The transition plays at the start of the clip. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to add a transition to.' },
+          type: { type: 'string', enum: ['dissolve', 'wipe-left', 'wipe-right', 'slide', 'zoom'], description: 'Transition type.' },
+          durationSeconds: { type: 'number', description: 'Transition duration in seconds (default 0.5).' },
+        },
+        required: ['assetName', 'type'],
+      },
+    },
+  },
 ]
 
 /** Tools that change timeline state and therefore must be reviewed before applying. */
@@ -155,6 +188,8 @@ const STAGED_TOOLS = new Set<string>([
   'move_clip',
   'join_clips',
   'set_clip_property',
+  'add_text_overlay',
+  'set_transition',
 ])
 
 export function isStagedTool(name: string): boolean {
@@ -249,6 +284,19 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       if (!clip || !(PROPERTIES as readonly string[]).includes(property) || !Number.isFinite(value)) return null
       return `Set ${property} of "${clip.name}" to ${value}`
     }
+    case 'add_text_overlay': {
+      const text = String(args.text ?? '')
+      if (!text.trim()) return null
+      const dur = Number(args.durationSeconds) || 4
+      return `Add text overlay "${text.slice(0, 30)}${text.length > 30 ? '...' : ''}" (${dur}s)`
+    }
+    case 'set_transition': {
+      const clip = findClip(String(args.assetName ?? ''))
+      const type = String(args.type ?? '')
+      if (!clip || !['dissolve', 'wipe-left', 'wipe-right', 'slide', 'zoom'].includes(type)) return null
+      const dur = Number(args.durationSeconds) || 0.5
+      return `Add ${type} transition (${dur}s) to "${clip.name}"`
+    }
     default:
       return null
   }
@@ -331,6 +379,30 @@ export function applyTool(name: string, args: Record<string, unknown>): { ok: bo
       const property = String(args.property)
       const value = Number(args.value)
       s.updateClip(clip.id, { [property]: value } as never)
+      return { ok: true, message: desc }
+    }
+    case 'add_text_overlay': {
+      const text = String(args.text ?? '')
+      const dur = Number(args.durationSeconds) || 4
+      const fontSize = Number(args.fontSize) || 48
+      const color = String(args.color || '#ffffff')
+      const track = s.project.tracks.find((t) => t.type === 'video')
+      if (!track) return { ok: false, message: 'No video track available.' }
+      const clip = s.addTextClip(text, track.id)
+      if (!clip) return { ok: false, message: 'Failed to create text clip.' }
+      s.updateClip(clip.id, {
+        duration: dur,
+        sourceEnd: dur,
+        text: { ...clip.text!, fontSize, color },
+      })
+      return { ok: true, message: desc }
+    }
+    case 'set_transition': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const type = String(args.type) as 'dissolve' | 'wipe-left' | 'wipe-right' | 'slide' | 'zoom'
+      const dur = Number(args.durationSeconds) || 0.5
+      s.updateClip(clip.id, { transitions: { ...clip.transitions, in: { type, duration: dur } } })
       return { ok: true, message: desc }
     }
     default:
