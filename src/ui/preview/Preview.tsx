@@ -12,10 +12,12 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const previewAreaRef = React.useRef<HTMLDivElement>(null)
   const hideTimer = React.useRef<number | undefined>(undefined)
   const [fullscreen, setFullscreen] = React.useState(false)
   const [dragging, setDragging] = React.useState(false)
   const [controlsVisible, setControlsVisible] = React.useState(true)
+  const [canvasCssSize, setCanvasCssSize] = React.useState<{ w: number; h: number } | null>(null)
 
   const revealControls = React.useCallback(() => {
     setControlsVisible(true)
@@ -37,6 +39,31 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
       if (hideTimer.current) window.clearTimeout(hideTimer.current)
     }
   }, [revealControls])
+
+  React.useEffect(() => {
+    const el = previewAreaRef.current
+    if (!el) return
+    const compute = () => {
+      const rect = el.getBoundingClientRect()
+      const availW = rect.width - 32
+      const availH = rect.height - 32
+      if (availW <= 0 || availH <= 0) return
+      const aspect = project.width / project.height
+      let w: number, h: number
+      if (availW / availH >= aspect) {
+        h = availH
+        w = Math.round(h * aspect)
+      } else {
+        w = availW
+        h = Math.round(w / aspect)
+      }
+      setCanvasCssSize((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }))
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [project.width, project.height])
 
   const toggleFullscreen = () => {
     const el = containerRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null
@@ -70,20 +97,14 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
       style={{ background: 'linear-gradient(180deg, #0b0b10 0%, #14141b 100%)' }}
       onPointerMove={fullscreen ? revealControls : undefined}
     >
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
-        <div className="relative" style={{ aspectRatio: `${project.width} / ${project.height}` }}>
+      <div ref={previewAreaRef} className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
+        {canvasCssSize && (
           <canvas
             ref={playback.canvasRef}
-            className={cn(
-              'max-h-full rounded-lg shadow-2xl shadow-black/50',
-              fullscreen && 'max-h-none rounded-none shadow-none',
-            )}
-            style={{
-              width: fullscreen ? 'min(100%, calc(100svh - 24px))' : 'min(100%, calc(100vh - 220px))',
-              height: 'auto',
-            }}
+            className={cn('rounded-lg shadow-2xl shadow-black/50', fullscreen && 'rounded-none shadow-none')}
+            style={{ width: canvasCssSize.w, height: canvasCssSize.h }}
           />
-        </div>
+        )}
 
         {duration === 0 && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
