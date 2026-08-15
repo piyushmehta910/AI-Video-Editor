@@ -15,6 +15,27 @@ export function usePlayback() {
   const videoPool = React.useRef<ElementRef[]>([])
   const audioPool = React.useRef<ElementRef[]>([])
   const urlCache = React.useRef<Map<string, string>>(new Map())
+  const poolHostRef = React.useRef<HTMLDivElement | null>(null)
+
+  // Chrome does not load or play media on <video>/<audio> elements that are not
+  // in the document, so pooled elements must be attached. They must stay fully
+  // opaque, in-viewport and at least 2px — Chrome stops presenting updated
+  // frames to drawImage() for display:none, opacity:0, offscreen or 1px elements.
+  const ensurePoolHost = () => {
+    if (!poolHostRef.current) {
+      const host = document.createElement('div')
+      host.setAttribute('aria-hidden', 'true')
+      document.body.appendChild(host)
+      poolHostRef.current = host
+    }
+    return poolHostRef.current
+  }
+
+  const stylePooledElement = (el: HTMLVideoElement | HTMLAudioElement) => {
+    el.style.cssText =
+      'position:fixed;left:0;top:0;width:2px;height:2px;opacity:1;pointer-events:none;z-index:-1000'
+    return el
+  }
 
   const [isPlaying, setIsPlaying] = React.useState(false)
   const [masterVolume, setMasterVolumeState] = React.useState(1)
@@ -35,6 +56,10 @@ export function usePlayback() {
 
   const clock = React.useRef({ base: 0, startAt: 0 })
   const repaintToken = React.useRef(0)
+  const playingRef = React.useRef(false)
+  React.useEffect(() => {
+    playingRef.current = isPlaying
+  }, [isPlaying])
 
   const requestPaint = React.useCallback(() => {
     repaintToken.current++
@@ -62,6 +87,7 @@ export function usePlayback() {
       void getAssetUrl(asset).then((url) => {
         el.src = url
       })
+      ensurePoolHost().appendChild(stylePooledElement(el))
       videoPool.current.push({ clipId: null, element: el, assetId: asset.id })
       return el
     },
@@ -77,6 +103,7 @@ export function usePlayback() {
       void getAssetUrl(asset).then((url) => {
         el.src = url
       })
+      ensurePoolHost().appendChild(stylePooledElement(el))
       audioPool.current.push({ clipId: null, element: el, assetId: asset.id })
       return el
     },
@@ -160,7 +187,12 @@ export function usePlayback() {
         if (asset.type === 'video') {
           const el = acquireVideo(asset)
           const elTime = Math.min(srcTime, Math.max(0, (asset.duration ?? srcTime) - 0.05))
-          if (el.readyState >= 1 && Math.abs(el.currentTime - elTime) > 0.06) el.currentTime = elTime
+          // While playing at 1x we let the element free-run and just drawImage
+          // each frame; writing currentTime every frame freezes Chrome's frame
+          // presentation. Only seek when paused or when the element drifts.
+          const freeRun = playingRef.current && clip.speed === 1
+          const tolerance = freeRun ? 0.25 : 0.06
+          if (el.readyState >= 1 && Math.abs(el.currentTime - elTime) > tolerance) el.currentTime = elTime
           if (el.videoWidth > 0) {
             const scale = Math.max(w / el.videoWidth, h / el.videoHeight)
             ctx.drawImage(el, -el.videoWidth * scale / 2, -el.videoHeight * scale / 2, el.videoWidth * scale, el.videoHeight * scale)
@@ -218,7 +250,7 @@ export function usePlayback() {
         ref.clipId = active.clip.id
         const el = ref.element as HTMLAudioElement
         const srcTime = (time - active.clip.startTime) * active.clip.speed + active.clip.sourceStart
-        if (Math.abs(el.currentTime - srcTime) > 0.08) el.currentTime = srcTime
+        if (Math.abs(el.currentTime - srcTime) > (playing ? 0.25 : 0.08)) el.currentTime = srcTime
         const vol =
           active.clip.volume *
           (active.track.muted ? 0 : 1) *
@@ -242,16 +274,22 @@ export function usePlayback() {
         ref.clipId = active.clip.id
         const el = ref.element as HTMLVideoElement
         const srcTime = (time - active.clip.startTime) * active.clip.speed + active.clip.sourceStart
-        if (Math.abs(el.currentTime - srcTime) > 0.08) el.currentTime = srcTime
+        const freeRun = playing && active.clip.speed === 1
+        if (freeRun) {
+          // Let the element play; only resync on significant drift.
+          if (Math.abs(el.currentTime - srcTime) > 0.25) el.currentTime = srcTime
+        } else if (Math.abs(el.currentTime - srcTime) > 0.08) {
+          el.currentTime = srcTime
+        }
         const vol =
           active.clip.volume *
           (active.track.muted ? 0 : 1) *
           masterVolume *
           (muted ? 0 : 1)
         el.volume = Math.min(1, Math.max(0, vol))
-        if (playing && el.paused) {
+        if (freeRun && vol > 0 && el.paused) {
           void el.play().catch(() => undefined)
-        } else if (!playing && !el.paused) {
+        } else if ((!freeRun || !playing || vol === 0) && !el.paused) {
           el.pause()
         }
       }
