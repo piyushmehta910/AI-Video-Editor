@@ -165,12 +165,14 @@ export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.
 }
 
 export function testElevenLabs(apiKey: string, timeoutMs: number) {
-  return testBearerEndpoint({
+  return testReachability({
     label: 'ElevenLabs',
     url: 'https://api.elevenlabs.io/v1/user',
-    apiKey,
     timeoutMs,
-    headers: { 'xi-api-key': apiKey },
+    headers: {
+      'xi-api-key': apiKey,
+      Accept: 'application/json',
+    },
   })
 }
 

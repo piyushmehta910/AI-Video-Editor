@@ -4,7 +4,7 @@
  * which forwards them server-side. Mirrors the allowlist in server/proxy.ts.
  */
 
-const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.firecrawl.dev', 'api.deezer.com']
+const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.firecrawl.dev', 'api.deezer.com', 'api.elevenlabs.io']
 
 export function needsProxy(url: string): boolean {
   try {
