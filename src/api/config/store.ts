@@ -3,6 +3,30 @@ import { defaultApiConfig, type ApiConfig } from './types'
 import { loadApiConfig, saveApiConfig, clearApiConfig, type StoredApiConfig } from './persistence'
 import { encryptWithPassword, decryptWithPassword, isEncryptedPayload } from './encryption'
 
+/**
+ * Merge a previously saved config with the current defaults so that new keys
+ * (e.g. a newly added provider) get default values and removed keys are dropped.
+ */
+function mergeApiConfig(stored: Partial<ApiConfig>): ApiConfig {
+  const merged = {} as Record<string, unknown>
+  for (const key of Object.keys(defaultApiConfig) as Array<keyof ApiConfig>) {
+    const fallback = defaultApiConfig[key]
+    const value = (stored as Record<string, unknown>)[key]
+    if (
+      value != null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      typeof fallback === 'object' &&
+      !Array.isArray(fallback)
+    ) {
+      merged[key] = { ...(fallback as unknown as Record<string, unknown>), ...(value as Record<string, unknown>) }
+    } else {
+      merged[key] = value ?? fallback
+    }
+  }
+  return merged as unknown as ApiConfig
+}
+
 interface ApiConfigState {
   config: ApiConfig
   hydrated: boolean
@@ -43,8 +67,8 @@ export const useApiConfigStore = create<ApiConfigState>()((set, get) => ({
         return
       }
       if ('plain' in stored) {
-        const config = JSON.parse(stored.plain) as ApiConfig
-        set({ config, hydrated: true, locked: false })
+        const config = JSON.parse(stored.plain) as Partial<ApiConfig>
+        set({ config: mergeApiConfig(config), hydrated: true, locked: false })
       } else {
         set({ hydrated: true, locked: true })
       }
@@ -99,8 +123,8 @@ export const useApiConfigStore = create<ApiConfigState>()((set, get) => ({
         return false
       }
       const json = await decryptWithPassword(stored.encrypted, password)
-      const config = JSON.parse(json) as ApiConfig
-      set({ config, masterPassword: password, locked: false })
+      const config = JSON.parse(json) as Partial<ApiConfig>
+      set({ config: mergeApiConfig(config), masterPassword: password, locked: false })
       return true
     } catch {
       return false

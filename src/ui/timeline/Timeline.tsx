@@ -419,6 +419,16 @@ function TrackRow({
                   backgroundPosition: `${-clip.sourceStart * (asset.filmstrip.frameCount / asset.filmstrip.duration) * asset.filmstrip.frameWidth}px 0`,
                 }}
               />
+            ) : asset?.waveform ? (
+              <div
+                className="absolute inset-0 opacity-60"
+                style={{
+                  backgroundImage: `url(${asset.waveform.imageUrl})`,
+                  backgroundSize: `${asset.waveform.frameCount * asset.waveform.frameWidth}px 100%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: `${-clip.sourceStart * (asset.waveform.frameCount / asset.waveform.duration) * asset.waveform.frameWidth}px 0`,
+                }}
+              />
             ) : asset?.thumbnailUrl ? (
               <div
                 className="absolute inset-0 opacity-40"

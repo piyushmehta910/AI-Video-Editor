@@ -24,6 +24,8 @@ export interface OpenCodeZenConfig extends LLMProviderConfig {
   reasoningLevel: string
 }
 
+export interface OpenRouterConfig extends LLMProviderConfig {}
+
 export interface ElevenLabsConfig extends BaseProviderConfig {
   apiKey: string
   endpoint: string
@@ -37,26 +39,19 @@ export interface ElevenLabsConfig extends BaseProviderConfig {
   outputFormat: string
 }
 
+/**
+ * Browser-only avatar & lip-sync generation settings. Lip sync is rendered
+ * on-device (Web Audio + canvas + WebCodecs) — no API, no external service.
+ */
 export interface AvatarConfig extends BaseProviderConfig {
-  provider: string
-  apiKey: string
-  endpoint: string
-  model: string
-  avatarId: string
-  voice: string
   resolution: string
   fps: number
   background: string
-}
-
-export interface Wav2LipConfig extends BaseProviderConfig {
-  endpoint: string
-  apiKey: string
-  model: string
-  inputFormat: string
-  outputFormat: string
-  resolution: number
-  fps: number
+  /** On-device mouth anchor (fractions of the output frame). */
+  mouthX: number
+  mouthY: number
+  mouthWidth: number
+  mouthMaxOpen: number
 }
 
 export interface StockProviderConfig extends BaseProviderConfig {
@@ -136,9 +131,9 @@ export interface AiPreferencesConfig {
 export interface ApiConfig {
   nvidiaNim: NvidiaNimConfig
   opencodeZen: OpenCodeZenConfig
+  openRouter: OpenRouterConfig
   elevenLabs: ElevenLabsConfig
   avatar: AvatarConfig
-  wav2Lip: Wav2LipConfig
   stockImages: StockImagesConfig
   firecrawl: FirecrawlConfig
   music: MusicConfig
@@ -150,7 +145,7 @@ export const defaultNvidiaNimConfig: NvidiaNimConfig = {
   enabled: true,
   apiKey: '',
   baseUrl: 'https://integrate.api.nvidia.com/v1',
-  model: 'meta/llama-3.1-405b-instruct',
+  model: 'nvidia/nemotron-3-super-120b-a12b',
   temperature: 0.7,
   maxTokens: 2048,
   timeoutMs: 30000,
@@ -161,13 +156,25 @@ export const defaultNvidiaNimConfig: NvidiaNimConfig = {
 export const defaultOpenCodeZenConfig: OpenCodeZenConfig = {
   enabled: false,
   apiKey: '',
-  baseUrl: '',
-  model: '',
+  baseUrl: 'https://opencode.ai/zen/v1',
+  model: 'deepseek-v4-flash-free',
   temperature: 0.7,
   maxTokens: 2048,
   timeoutMs: 30000,
   priority: 2,
   reasoningLevel: 'standard',
+  status: 'disabled',
+}
+
+export const defaultOpenRouterConfig: OpenRouterConfig = {
+  enabled: false,
+  apiKey: '',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  model: 'nvidia/nemotron-3.5-lightning:free',
+  temperature: 0.7,
+  maxTokens: 2048,
+  timeoutMs: 30000,
+  priority: 3,
   status: 'disabled',
 }
 
@@ -187,28 +194,14 @@ export const defaultElevenLabsConfig: ElevenLabsConfig = {
 }
 
 export const defaultAvatarConfig: AvatarConfig = {
-  enabled: false,
-  provider: 'NVIDIA NIM',
-  apiKey: '',
-  endpoint: '',
-  model: '',
-  avatarId: '',
-  voice: '',
+  enabled: true,
   resolution: '512x512',
-  fps: 30,
-  background: 'transparent',
-  status: 'disabled',
-}
-
-export const defaultWav2LipConfig: Wav2LipConfig = {
-  enabled: false,
-  endpoint: 'http://localhost:8000',
-  apiKey: '',
-  model: 'wav2lip_gan',
-  inputFormat: 'mp4',
-  outputFormat: 'mp4',
-  resolution: 512,
   fps: 25,
+  background: 'solid',
+  mouthX: 0.5,
+  mouthY: 0.78,
+  mouthWidth: 0.16,
+  mouthMaxOpen: 0.1,
   status: 'disabled',
 }
 
@@ -257,7 +250,7 @@ export const defaultDeezerConfig: DeezerConfig = {
 export const defaultFreesoundConfig: FreesoundConfig = {
   enabled: false,
   apiKey: '',
-  endpoint: 'https://freesound.org',
+  endpoint: 'https://freesound.org/apiv2',
   licenseFilter: 'cc0',
   minRating: 3,
   maxDuration: 60,
@@ -297,9 +290,9 @@ export const defaultPreferencesConfig: AiPreferencesConfig = {
 export const defaultApiConfig: ApiConfig = {
   nvidiaNim: defaultNvidiaNimConfig,
   opencodeZen: defaultOpenCodeZenConfig,
+  openRouter: defaultOpenRouterConfig,
   elevenLabs: defaultElevenLabsConfig,
   avatar: defaultAvatarConfig,
-  wav2Lip: defaultWav2LipConfig,
   stockImages: defaultStockImagesConfig,
   firecrawl: defaultFirecrawlConfig,
   music: defaultMusicConfig,

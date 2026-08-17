@@ -1,7 +1,8 @@
 import { readMediaFile } from '@/engine/storage/opfs'
-import type { Asset, Clip, Project, Track } from '@/engine/types'
+import type { Asset, Project } from '@/engine/types'
 import { projectDuration } from '@/engine/types'
-import { effectFilter, effectVignette } from '@/engine/render/filters'
+import { compositeFrame } from '@/engine/render/composite'
+import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { WebMMuxer } from './webm-muxer'
 
 export interface ExportOptions {
@@ -10,6 +11,9 @@ export interface ExportOptions {
   fps: number
   bitrate: number
   codec: 'vp8' | 'vp9' | 'av1'
+  masterVolume?: number
+  muted?: boolean
+  includeAudio?: boolean
   onProgress: (done: number, total: number) => void
   signal?: AbortSignal
 }
@@ -30,7 +34,7 @@ function codecString(codec: ExportOptions['codec']): string {
   }
 }
 
-function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
+export function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
   return new Promise((resolve) => {
     if (el.readyState >= 1 && Math.abs(el.currentTime - time) < 0.02) {
       resolve()
@@ -50,7 +54,7 @@ function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
   })
 }
 
-async function loadMediaElement(asset: Asset): Promise<HTMLVideoElement> {
+export async function loadMediaElement(asset: Asset): Promise<HTMLVideoElement> {
   const el = document.createElement('video')
   el.preload = 'auto'
   el.muted = true
@@ -69,6 +73,66 @@ async function loadMediaElement(asset: Asset): Promise<HTMLVideoElement> {
     window.setTimeout(resolve, 5000)
   })
   return el
+}
+
+function encodedChunkBytes(chunk: EncodedAudioChunk): Uint8Array {
+  const bytes = new Uint8Array(chunk.byteLength)
+  chunk.copyTo(bytes)
+  return bytes
+}
+
+/**
+ * Encode a mixed audio buffer to Opus and feed the chunks to the muxer.
+ * Skips silently when WebCodecs AudioEncoder is unavailable.
+ */
+async function encodeAudio(muxer: WebMMuxer, mixed: MixedAudio, signal?: AbortSignal): Promise<void> {
+  if (typeof AudioEncoder === 'undefined') return
+  const channels: Float32Array[] = []
+  for (let c = 0; c < Math.min(2, mixed.buffer.numberOfChannels); c++) {
+    channels.push(mixed.buffer.getChannelData(c))
+  }
+  if (channels.length === 0) return
+  muxer.setAudio({ sampleRate: mixed.sampleRate, channels: channels.length })
+
+  const config: AudioEncoderConfig = { codec: 'opus', sampleRate: mixed.sampleRate, numberOfChannels: channels.length, bitrate: 128_000 }
+  try {
+    const support = await AudioEncoder.isConfigSupported(config)
+    if (!support.supported) return
+  } catch {
+    return
+  }
+
+  const encoder = new AudioEncoder({
+    output: (chunk) => {
+      muxer.addAudioChunk({ data: encodedChunkBytes(chunk), timestamp: chunk.timestamp / 1000 })
+    },
+    error: (e) => {
+      throw e
+    },
+  })
+  encoder.configure(config)
+
+  const CHUNK_FRAMES = 1024
+  for (let offset = 0; offset < mixed.buffer.length; offset += CHUNK_FRAMES) {
+    if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
+    const frames = Math.min(CHUNK_FRAMES, mixed.buffer.length - offset)
+    const plane = new Float32Array(frames * channels.length)
+    for (let c = 0; c < channels.length; c++) {
+      plane.set(channels[c].subarray(offset, offset + frames), c * frames)
+    }
+    const data = new AudioData({
+      format: 'f32-planar',
+      sampleRate: mixed.sampleRate,
+      numberOfFrames: frames,
+      numberOfChannels: channels.length,
+      timestamp: Math.round((offset / mixed.sampleRate) * 1_000_000),
+      data: plane,
+    })
+    encoder.encode(data)
+    data.close()
+  }
+  await encoder.flush()
+  encoder.close()
 }
 
 export async function exportProject(
@@ -117,17 +181,10 @@ export async function exportProject(
   const imageCache = new Map<string, HTMLImageElement>()
   const total = Math.max(1, Math.round(projectDuration(project.tracks) * opts.fps))
 
-  const activeClipsAt = (time: number) => {
-    const video: Array<{ clip: Clip; track: Track; z: number }> = []
-    project.tracks.forEach((track, trackIndex) => {
-      if (track.hidden || track.locked) return
-      const clip = track.clips.find((c) => time >= c.startTime && time < c.startTime + c.duration)
-      if (!clip) return
-      if (track.type === 'video') video.push({ clip, track, z: trackIndex })
-    })
-    video.sort((a, b) => b.z - a.z)
-    return video
-  }
+  const mixedAudio =
+    opts.includeAudio === false
+      ? null
+      : await mixProjectAudio(project, assets, { masterVolume: opts.masterVolume ?? 1, muted: opts.muted ?? false }, opts.signal)
 
   const loadImage = async (asset: Asset): Promise<HTMLImageElement> => {
     const cached = imageCache.get(asset.id)
@@ -150,53 +207,26 @@ export async function exportProject(
     const time = Math.min((i / opts.fps), duration - 1 / opts.fps)
     ctx.clearRect(0, 0, opts.width, opts.height)
 
-    let vignette = 0
-    const clips = activeClipsAt(time)
-    for (const { clip, track } of clips) {
-      void track
-      const asset = assets.find((a) => a.id === clip.assetId)
-      if (!asset) continue
-      vignette = Math.max(vignette, effectVignette(clip.effects))
-      const srcTime = (time - clip.startTime) * clip.speed + clip.sourceStart
-
-      ctx.globalAlpha = clip.opacity
-      ctx.filter = effectFilter(clip.effects)
-      ctx.save()
-      ctx.translate(opts.width / 2, opts.height / 2)
-      ctx.rotate((clip.rotation * Math.PI) / 180)
-      ctx.scale(clip.scale.x, clip.scale.y)
-
-      if (asset.type === 'video') {
-        let el = mediaElements.get(asset.id)
-        if (!el) {
-          el = await loadMediaElement(asset)
-          mediaElements.set(asset.id, el)
-        }
-        const elTime = Math.min(Math.max(0, srcTime), Math.max(0, (asset.duration ?? srcTime) - 0.05))
-        await seekTo(el, elTime)
-        if (el.videoWidth > 0) {
-          const scale = Math.max(opts.width / el.videoWidth, opts.height / el.videoHeight)
-          ctx.drawImage(el, (-el.videoWidth * scale) / 2, (-el.videoHeight * scale) / 2, el.videoWidth * scale, el.videoHeight * scale)
-        }
-      } else if (asset.type === 'image') {
-        const img = await loadImage(asset)
-        if (img.width > 0) {
-          const scale = Math.max(opts.width / img.width, opts.height / img.height)
-          ctx.drawImage(img, (-img.width * scale) / 2, (-img.height * scale) / 2, img.width * scale, img.height * scale)
-        }
-      }
-      ctx.restore()
-      ctx.filter = 'none'
-      ctx.globalAlpha = 1
-    }
-
-    if (vignette > 0) {
-      const grad = ctx.createRadialGradient(opts.width / 2, opts.height / 2, Math.min(opts.width, opts.height) * 0.35, opts.width / 2, opts.height / 2, Math.max(opts.width, opts.height) * 0.75)
-      grad.addColorStop(0, 'rgba(0,0,0,0)')
-      grad.addColorStop(1, `rgba(0,0,0,${Math.min(0.9, vignette)})`)
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, opts.width, opts.height)
-    }
+    await compositeFrame(
+      ctx,
+      project,
+      assets,
+      time,
+      {
+        video: async (_clip, asset, srcTime) => {
+          let el = mediaElements.get(asset.id)
+          if (!el) {
+            el = await loadMediaElement(asset)
+            mediaElements.set(asset.id, el)
+          }
+          const elTime = Math.min(Math.max(0, srcTime), Math.max(0, (asset.duration ?? srcTime) - 0.05))
+          await seekTo(el, elTime)
+          return el.videoWidth > 0 ? el : null
+        },
+        image: (asset) => loadImage(asset),
+      },
+      { width: opts.width, height: opts.height },
+    )
 
     const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
     encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
@@ -208,6 +238,7 @@ export async function exportProject(
 
   await encoder.flush()
   encoder.close()
+  if (mixedAudio) await encodeAudio(muxer, mixedAudio, opts.signal)
   for (const el of mediaElements.values()) el.src = ''
   for (const url of imageCache.values()) url.src = ''
 

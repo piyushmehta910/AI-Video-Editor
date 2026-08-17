@@ -2,6 +2,7 @@ import * as React from 'react'
 import { X, Loader2, Download, FileVideo } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { exportProject } from '@/engine/export/exportVideo'
+import { exportMp4 } from '@/engine/export/exportMp4'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -12,7 +13,8 @@ interface ExportDialogProps {
   onClose: () => void
 }
 
-type Codec = 'vp8' | 'vp9' | 'av1'
+type Codec = 'h264' | 'vp8' | 'vp9' | 'av1'
+type Format = 'webm' | 'mp4'
 
 const RESOLUTIONS = [
   { label: '360p', w: 640, h: 360 },
@@ -28,6 +30,7 @@ const QUALITY_PRESETS: Record<string, { label: string; bitrate: number }> = {
 }
 
 const CODEC_INFO: Record<Codec, string> = {
+  h264: 'Universal compatibility. MP4 · H.264 + AAC.',
   vp9: 'Best balance of quality & size. WebM.',
   vp8: 'Max compatibility with old devices. WebM.',
   av1: 'Smallest file, slowest to encode. WebM.',
@@ -40,7 +43,8 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
   const [resolution, setResolution] = React.useState('1080p')
   const [fps, setFps] = React.useState(project.fps)
-  const [codec, setCodec] = React.useState<Codec>('vp9')
+  const [format, setFormat] = React.useState<Format>('mp4')
+  const [codec, setCodec] = React.useState<Codec>('h264')
   const [quality, setQuality] = React.useState('medium')
 
   const [progress, setProgress] = React.useState(0)
@@ -76,18 +80,21 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     const controller = new AbortController()
     abortRef.current = controller
     try {
-      const { blob, frames } = await exportProject(project, assets, {
+      const shared = {
         width,
         height,
         fps,
         bitrate: preset.bitrate,
-        codec,
-        onProgress: (done, totalFrames) => {
+        onProgress: (done: number, totalFrames: number) => {
           setProgress(done)
           setTotal(totalFrames)
         },
         signal: controller.signal,
-      })
+      }
+      const { blob, frames } =
+        format === 'mp4'
+          ? await exportMp4(project, assets, shared)
+          : await exportProject(project, assets, { ...shared, codec: codec as 'vp8' | 'vp9' | 'av1' })
       const url = URL.createObjectURL(blob)
       setResultUrl(url)
       setStatus('done')
@@ -111,7 +118,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   }
 
   const percent = total > 0 ? Math.min(100, Math.round((progress / total) * 100)) : 0
-  const filename = `${project.name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-') || 'clipforge'}.webm`
+  const filename = `${project.name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-') || 'clipforge'}.${format}`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -163,18 +170,55 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Codec</Label>
-              <Select value={codec} onValueChange={(v) => setCodec(v as Codec)}>
+              <Label className="text-xs">Format</Label>
+              <Select
+                value={format}
+                onValueChange={(v) => {
+                  const next = v as Format
+                  setFormat(next)
+                  if (next === 'mp4') setCodec('h264')
+                  if (next === 'webm' && codec === 'h264') setCodec('vp9')
+                }}
+              >
                 <SelectTrigger size="sm" className="h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="vp9">VP9</SelectItem>
-                  <SelectItem value="vp8">VP8</SelectItem>
-                  <SelectItem value="av1">AV1</SelectItem>
+                  <SelectItem value="mp4">MP4</SelectItem>
+                  <SelectItem value="webm">WebM</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Codec</Label>
+              <Select
+                value={codec}
+                onValueChange={(v) => {
+                  const next = v as Codec
+                  setCodec(next)
+                  if (next === 'h264') setFormat('mp4')
+                  if (next === 'vp9' || next === 'vp8' || next === 'av1') setFormat('webm')
+                }}
+              >
+                <SelectTrigger size="sm" className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {format === 'mp4' ? (
+                    <SelectItem value="h264">H.264 (AVC)</SelectItem>
+                  ) : (
+                    <>
+                      <SelectItem value="vp9">VP9</SelectItem>
+                      <SelectItem value="vp8">VP8</SelectItem>
+                      <SelectItem value="av1">AV1</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Quality</Label>
               <Select value={quality} onValueChange={setQuality}>

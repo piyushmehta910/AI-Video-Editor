@@ -120,6 +120,8 @@ export interface Asset {
   proxyPath?: string
   /** Filmstrip thumbnail strip data */
   filmstrip?: FilmstripData
+  /** Peak-amplitude waveform strip data (audio assets) */
+  waveform?: FilmstripData
   importedAt: number
 }
 

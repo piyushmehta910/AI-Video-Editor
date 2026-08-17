@@ -13,6 +13,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 const REASONING_LEVELS = ['standard', 'high', 'low']
 
+const ZEN_FREE_MODELS = [
+  'deepseek-v4-flash-free',
+  'mimo-v2.5-free',
+  'hy3-free',
+  'laguna-s-2.1-free',
+  'nemotron-3-ultra-free',
+  'nemotron-3.5-lightning-free',
+  'ling-3.0-tiny-free',
+  'longcat-2.0-free',
+  'north-mini-code-free',
+]
+
 export function OpenCodeZenCard() {
   const { config, update, save } = useApiConfigStore()
   const cfg: OpenCodeZenConfig = config.opencodeZen
@@ -45,13 +57,24 @@ export function OpenCodeZenCard() {
         <Input
           id="zen-endpoint"
           value={cfg.baseUrl}
-          placeholder="https://..."
+          placeholder="https://opencode.ai/zen/v1"
           onChange={(e) => set({ baseUrl: e.target.value })}
         />
       </FieldRow>
 
       <FieldRow label="Model" htmlFor="zen-model">
-        <Input id="zen-model" value={cfg.model} placeholder="model-name" onChange={(e) => set({ model: e.target.value })} />
+        <Select value={cfg.model} onValueChange={(v) => set({ model: v })}>
+          <SelectTrigger id="zen-model" className="w-full">
+            <SelectValue placeholder="Select free model" />
+          </SelectTrigger>
+          <SelectContent>
+            {ZEN_FREE_MODELS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FieldRow>
 
       <FieldRow label="Reasoning Level" htmlFor="zen-reasoning">

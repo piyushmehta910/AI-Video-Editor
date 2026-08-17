@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { Bot, RefreshCcw } from 'lucide-react'
+import { RefreshCcw, Route } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { defaultNvidiaNimConfig, type NvidiaNimConfig } from '@/api/config/types'
-import { fetchNvidiaNimModels, testBearerEndpoint } from '@/api/config/validation'
+import { defaultOpenRouterConfig, type OpenRouterConfig } from '@/api/config/types'
+import { fetchOpenRouterFreeModels, testBearerEndpoint } from '@/api/config/validation'
 import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
@@ -14,51 +14,48 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /**
- * Free hosted chat models on the NVIDIA NIM catalog (build.nvidia.com) verified
- * against the official /v1/models catalog on 2026-08-17. Non-chat model
- * families (embeddings, safety, RAG, vision, OCR...) are excluded.
+ * Free model roster verified against https://openrouter.ai/api/v1/models on
+ * 2026-08-17 (models whose id ends with `:free`). `openrouter/free` is
+ * OpenRouter's official auto-router that picks a free model per request.
  */
-const NIM_FREE_MODELS = [
-  'deepseek-ai/deepseek-v4-flash-0731',
-  'google/gemma-4-31b-it',
-  'meta/llama-3.3-70b-instruct',
-  'meta/muse-glimmer-30b',
-  'minimaxai/minimax-m3',
-  'moonshotai/kimi-k2.6',
-  'nvidia/llama-3.3-nemotron-super-49b-v1.5',
-  'nvidia/nemotron-3-nano-30b-a3b',
-  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
-  'nvidia/nemotron-3-super-120b-a12b',
-  'nvidia/nemotron-3-ultra-550b-a55b',
-  'nvidia/nemotron-3.5-lightning-30b-a3b',
-  'nvidia/nemotron-nano-12b-v2-vl',
-  'nvidia/nvidia-nemotron-nano-9b-v2',
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-  'poolside/laguna-xs-2.1',
-  'stepfun-ai/step-3.7-flash',
-  'thinkingmachines/inkling',
-  'z-ai/glm-5.2',
+const OPENROUTER_FREE_MODELS = [
+  'openrouter/free',
+  'cohere/north-mini-code:free',
+  'dots-studio/dots-3-note-preview:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'google/gemma-4-31b-it:free',
+  'liquid/lfm-2.5-2.6b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'nvidia/nemotron-nano-9b-v2:free',
+  'openai/gpt-oss-20b:free',
+  'poolside/laguna-s-2.1:free',
+  'poolside/laguna-xs-2.1:free',
+  'z-ai/glm-5.2:free',
 ]
 
-export function NvidiaNimCard() {
+export function OpenRouterCard() {
   const { config, update, save } = useApiConfigStore()
-  const cfg: NvidiaNimConfig = config.nvidiaNim
-  const [models, setModels] = React.useState<string[]>(NIM_FREE_MODELS)
+  const cfg: OpenRouterConfig = config.openRouter
+  const [models, setModels] = React.useState<string[]>(OPENROUTER_FREE_MODELS)
   const [refreshing, setRefreshing] = React.useState(false)
   const [refreshMessage, setRefreshMessage] = React.useState<string | null>(null)
 
-  const set = (patch: Partial<NvidiaNimConfig>) => {
-    update((draft) => ({ ...draft, nvidiaNim: { ...draft.nvidiaNim, ...patch } }))
+  const set = (patch: Partial<OpenRouterConfig>) => {
+    update((draft) => ({ ...draft, openRouter: { ...draft.openRouter, ...patch } }))
   }
 
   const refresh = async () => {
     setRefreshing(true)
     setRefreshMessage(null)
     try {
-      const catalog = await fetchNvidiaNimModels(cfg.apiKey, cfg.timeoutMs)
-      setModels(Array.from(new Set([...NIM_FREE_MODELS, ...catalog])))
-      setRefreshMessage(`Catalog returned ${catalog.length} chat models`)
+      const free = await fetchOpenRouterFreeModels(cfg.timeoutMs)
+      setModels(Array.from(new Set(['openrouter/free', ...free])))
+      if (!free.includes(cfg.model) && cfg.model !== 'openrouter/free') {
+        set({ model: 'openrouter/free' })
+      }
+      setRefreshMessage(`Found ${free.length} free models`)
     } catch (err) {
       setRefreshMessage(err instanceof Error ? err.message : String(err))
     } finally {
@@ -68,58 +65,53 @@ export function NvidiaNimCard() {
 
   return (
     <ProviderCard
-      icon={<Bot className="size-4.5" />}
-      title="NVIDIA NIM"
-      description="Free hosted chat models — script generation & reasoning"
+      icon={<Route className="size-4.5" />}
+      title="OpenRouter"
+      description="Free models only — routed to https://openrouter.ai/api/v1"
       enabled={cfg.enabled}
       status={<ProviderStatusBadge status={cfg.status ?? 'disabled'} />}
       onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'disconnected' : 'disabled' })}
       onSave={save}
-      onReset={() =>
-        update((draft) => ({
-          ...draft,
-          nvidiaNim: { ...defaultNvidiaNimConfig },
-        }))
-      }
+      onReset={() => update((draft) => ({ ...draft, openRouter: { ...defaultOpenRouterConfig } }))}
     >
-      <FieldRow label="API Key" htmlFor="nim-api-key" className="md:col-span-2">
+      <FieldRow label="API Key" htmlFor="or-api-key" className="md:col-span-2">
         <ApiKeyInput
-          id="nim-api-key"
+          id="or-api-key"
           value={cfg.apiKey}
-          placeholder="nvapi-..."
+          placeholder="sk-or-v1-..."
           onChange={(e) => set({ apiKey: e.target.value })}
         />
       </FieldRow>
 
-      <FieldRow label="Base URL" htmlFor="nim-base-url" className="md:col-span-2">
+      <FieldRow label="Base URL" htmlFor="or-base-url" className="md:col-span-2">
         <Input
-          id="nim-base-url"
+          id="or-base-url"
           value={cfg.baseUrl}
-          placeholder="https://integrate.api.nvidia.com/v1"
+          placeholder="https://openrouter.ai/api/v1"
           onChange={(e) => set({ baseUrl: e.target.value })}
         />
       </FieldRow>
 
-      <FieldRow label="Model" htmlFor="nim-model" className="md:col-span-2">
+      <FieldRow label="Model" htmlFor="or-model" className="md:col-span-2">
         <div className="flex gap-2">
-          <Select value={cfg.model} onValueChange={(value) => set({ model: value })}>
-            <SelectTrigger id="nim-model" className="w-full">
-              <SelectValue placeholder="Select model" />
+          <Select value={cfg.model} onValueChange={(v) => set({ model: v })}>
+            <SelectTrigger id="or-model" className="w-full">
+              <SelectValue placeholder="Select free model" />
             </SelectTrigger>
             <SelectContent>
-              {models.map((model) => (
-                <SelectItem key={model} value={model}>
-                  {model}
+              {models.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh chat models from NVIDIA catalog">
+          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh free models from OpenRouter">
             <RefreshCcw className={refreshing ? 'animate-spin' : ''} />
           </Button>
         </div>
         <p className="text-muted-foreground text-xs">
-          Prefilled with free hosted models. {refreshMessage && <span className="text-violet-500">{refreshMessage}</span>}
+          Free models only. {refreshMessage && <span className="text-violet-500">{refreshMessage}</span>}
         </p>
       </FieldRow>
 
@@ -133,9 +125,9 @@ export function NvidiaNimCard() {
         />
       </FieldRow>
 
-      <FieldRow label="Max Tokens" htmlFor="nim-max-tokens">
+      <FieldRow label="Max Tokens" htmlFor="or-max-tokens">
         <Input
-          id="nim-max-tokens"
+          id="or-max-tokens"
           type="number"
           min={256}
           step={256}
@@ -144,9 +136,9 @@ export function NvidiaNimCard() {
         />
       </FieldRow>
 
-      <FieldRow label="Timeout (ms)" htmlFor="nim-timeout">
+      <FieldRow label="Timeout (ms)" htmlFor="or-timeout">
         <Input
-          id="nim-timeout"
+          id="or-timeout"
           type="number"
           min={1000}
           step={1000}
@@ -172,7 +164,7 @@ export function NvidiaNimCard() {
         <ApiTester
           run={() =>
             testBearerEndpoint({
-              label: 'NVIDIA NIM',
+              label: 'OpenRouter',
               url: `${cfg.baseUrl.replace(/\/$/, '')}/models`,
               apiKey: cfg.apiKey,
               timeoutMs: cfg.timeoutMs,

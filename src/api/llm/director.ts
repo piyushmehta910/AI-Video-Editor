@@ -26,6 +26,7 @@ export function getDirectorProvider(): DirectorProvider | null {
   const candidates: Array<{ name: string; cfg: LLMProviderConfig }> = [
     { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
     { name: 'OpenCode Zen', cfg: config.opencodeZen },
+    { name: 'OpenRouter', cfg: config.openRouter },
   ]
   for (const { name, cfg } of candidates) {
     if (cfg.enabled && cfg.apiKey && cfg.baseUrl && cfg.model) {

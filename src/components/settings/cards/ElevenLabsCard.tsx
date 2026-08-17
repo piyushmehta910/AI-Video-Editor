@@ -11,7 +11,7 @@ import { SliderField } from '../SliderField'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const ELEVEN_MODELS = ['eleven_multilingual_v2', 'eleven_multilingual_sts_v2', 'eleven_turbo_v2_5', 'eleven_v2_5']
+const ELEVEN_MODELS = ['eleven_v3', 'eleven_ttv_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_flash_v2']
 const OUTPUT_FORMATS = ['mp3_44100_128', 'mp3_44100_192', 'pcm_16000', 'pcm_44100']
 
 export function ElevenLabsCard() {

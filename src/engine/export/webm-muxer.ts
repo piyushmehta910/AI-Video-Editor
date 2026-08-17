@@ -4,7 +4,20 @@ export interface MuxedVideoChunk {
   isKey: boolean
 }
 
+export interface MuxedAudioChunk {
+  data: Uint8Array
+  timestamp: number
+}
+
+export interface WebMAudioInfo {
+  sampleRate: number
+  channels: number
+}
+
 const TIMESTAMP_SCALE = 1_000_000
+// Opus pre-skip (6.5ms = 312 samples @ 48kHz) and the required seek preroll.
+const OPUS_CODEC_DELAY = 6_500_000
+const OPUS_SEEK_PREROLL = 80_000_000
 
 class ByteWriter {
   private buf: number[] = []
@@ -33,26 +46,23 @@ class ByteWriter {
     for (let i = 0; i < s.length; i++) this.buf.push(s.charCodeAt(i) & 0xff)
   }
   // EBML variable-length integer (element size / track number)
-  vint(value: number, markerBits?: number) {
-    if (markerBits !== undefined) {
-      const availableBits = markerBits * 7
-      if (value < 1 << (availableBits - 1)) {
-        this.buf.push((0xff >> markerBits) | (value >> (availableBits - markerBits + 1)))
-        for (let i = markerBits - 1; i >= 1; i--) {
-          this.buf.push((value >> ((i - 1) * 8)) & 0xff)
-        }
+  vint(value: number) {
+    // Smallest length with enough value bits: max value for len L is 2^(7L-1)-1.
+    for (const len of [1, 2, 3, 4, 8]) {
+      if (value <= Math.pow(2, len * 7 - 1) - 1) {
+        this.vintFixed(value, len)
         return
       }
     }
-    const lengths = [1, 2, 3, 4, 8]
-    for (const len of lengths) {
-      const bits = len * 7
-      if (value < 1 << (bits - 1)) {
-        this.vint(value, len)
-        return
-      }
+    this.vintFixed(value, 8)
+  }
+  private vintFixed(value: number, len: number) {
+    const marker = 0x80 >> (len - 1)
+    for (let i = len - 1; i >= 0; i--) {
+      let byte = (value >> (i * 8)) & 0xff
+      if (i === len - 1) byte |= marker
+      this.buf.push(byte)
     }
-    this.vint(value, 8)
   }
   element(id: number, payload: ByteWriter) {
     const arr = payload.toUint8Array()
@@ -66,26 +76,32 @@ class ByteWriter {
     this.push(data)
   }
   private pushId(id: number) {
-    if (id < 0x100) this.u8(id)
-    else if (id < 0x10000) this.u16(id)
-    else if (id < 0x1000000) this.u32(id)
-    else {
-      this.u32(id >>> 8)
-      this.u8(id & 0xff)
-    }
+    // EBML element IDs are variable-length; the byte count is implicit in the
+    // first byte's leading marker bits, so map the known IDs explicitly.
+    const len =
+      id === 0x1a45dfa3 || id === 0x18538067 || id === 0x1f43b675 || id === 0x1549a966 || id === 0x1654ae6b
+        ? 4
+        : id === 0x2ad7b1
+          ? 3
+          : id === 0x4282 || id === 0x4287 || id === 0x4285 || id === 0x4489 || id === 0x4d80 || id === 0x5741
+            ? 2
+            : 1
+    for (let i = len - 1; i >= 0; i--) this.buf.push((id >>> (i * 8)) & 0xff)
   }
   toUint8Array(): Uint8Array<ArrayBuffer> {
     return Uint8Array.from(this.buf)
   }
 }
 
+type ChunkEntry = MuxedVideoChunk & { kind: 'video' } | MuxedAudioChunk & { kind: 'audio' }
+
 export class WebMMuxer {
-  private clusters: ByteWriter[] = []
-  private currentCluster: { timestamp: number; data: ByteWriter } | null = null
+  private entries: ChunkEntry[] = []
   width: number
   height: number
   duration: number
   private codecId: string
+  audio: WebMAudioInfo | null = null
   clusterCount = 0
 
   constructor(opts: { width: number; height: number; duration: number; codec: 'vp8' | 'vp9' | 'av1' }) {
@@ -95,45 +111,63 @@ export class WebMMuxer {
     this.codecId = opts.codec === 'vp8' ? 'V_VP8' : opts.codec === 'vp9' ? 'V_VP9' : 'V_AV1'
   }
 
-  addChunk(chunk: MuxedVideoChunk) {
-    // Start a new cluster on each keyframe
-    if (!this.currentCluster || chunk.isKey) {
-      if (this.currentCluster) this.flushCluster()
-      this.currentCluster = { timestamp: chunk.timestamp, data: new ByteWriter() }
-    }
-    if (!this.currentCluster) return
-
-    const timecode = Math.round((chunk.timestamp - this.currentCluster.timestamp) * (1_000_000 / TIMESTAMP_SCALE))
-    const block = new ByteWriter()
-    block.vint(1)
-    block.u16(timecode)
-    block.u8(chunk.isKey ? 0x80 : 0x00)
-    block.push(chunk.data)
-    this.currentCluster.data.elementRaw(0xa3, block.toUint8Array())
+  setAudio(info: WebMAudioInfo) {
+    this.audio = info
   }
 
-  private flushCluster() {
-    if (!this.currentCluster) return
+  addChunk(chunk: MuxedVideoChunk) {
+    this.entries.push({ ...chunk, kind: 'video' })
+  }
+
+  addAudioChunk(chunk: MuxedAudioChunk) {
+    if (!this.audio) return
+    this.entries.push({ ...chunk, kind: 'audio' })
+  }
+
+  private buildClusters(): ByteWriter {
+    const segment = new ByteWriter()
+    let currentCluster: { timestamp: number; data: ByteWriter } | null = null
+
+    const sorted = [...this.entries].sort((a, b) => a.timestamp - b.timestamp || (a.kind === 'video' ? -1 : 1))
+    for (const entry of sorted) {
+      // Start a new cluster on each video keyframe (or when the current one is
+      // empty and we only have audio so far).
+      if (!currentCluster || (entry.kind === 'video' && entry.isKey)) {
+        if (currentCluster) this.flushCluster(segment, currentCluster)
+        currentCluster = { timestamp: entry.timestamp, data: new ByteWriter() }
+      }
+      if (!currentCluster) continue
+
+      const timecode = Math.round((entry.timestamp - currentCluster.timestamp) * (TIMESTAMP_SCALE / TIMESTAMP_SCALE))
+      const block = new ByteWriter()
+      block.vint(entry.kind === 'video' ? 1 : 2)
+      block.u16(timecode)
+      block.u8(entry.kind === 'video' ? (entry.isKey ? 0x80 : 0x00) : 0x00)
+      block.push(entry.data)
+      currentCluster.data.elementRaw(0xa3, block.toUint8Array())
+    }
+    if (currentCluster) this.flushCluster(segment, currentCluster)
+    return segment
+  }
+
+  private flushCluster(segment: ByteWriter, currentCluster: { timestamp: number; data: ByteWriter }) {
     const cluster = new ByteWriter()
     const payload = new ByteWriter()
-    payload.element(0xe7, uintWriter(this.currentCluster.timestamp * 1_000_000))
-    payload.push(this.currentCluster.data.toUint8Array())
+    payload.element(0xe7, uintWriter(currentCluster.timestamp * TIMESTAMP_SCALE))
+    payload.push(currentCluster.data.toUint8Array())
     cluster.element(0x1f43b675, payload)
-    this.clusters.push(cluster)
-    this.currentCluster = null
+    segment.push(cluster.toUint8Array())
     this.clusterCount++
   }
 
   finalize(): Blob {
-    this.flushCluster()
+    const segmentClusters = this.buildClusters()
 
     // Segment children: Info, Tracks, Clusters
     const segment = new ByteWriter()
     segment.element(0x1549a966, this.infoElement())
     segment.element(0x1654ae6b, this.tracksElement())
-    for (const cluster of this.clusters) {
-      segment.push(cluster.toUint8Array())
-    }
+    segment.push(segmentClusters.toUint8Array())
 
     // EBML header
     const ebml = new ByteWriter()
@@ -159,7 +193,7 @@ export class WebMMuxer {
     return info
   }
 
-  private tracksElement(): ByteWriter {
+  private videoTrackElement(): ByteWriter {
     const entry = new ByteWriter()
     entry.element(0xd7, uintWriter(1)) // TrackNumber
     entry.element(0x73c5, uintWriter(1)) // TrackUID
@@ -169,8 +203,28 @@ export class WebMMuxer {
     video.element(0xb0, uintWriter(this.width)) // PixelWidth
     video.element(0xba, uintWriter(this.height)) // PixelHeight
     entry.element(0xe0, video)
+    return entry
+  }
+
+  private audioTrackElement(): ByteWriter {
+    const entry = new ByteWriter()
+    entry.element(0xd7, uintWriter(2)) // TrackNumber
+    entry.element(0x73c5, uintWriter(2)) // TrackUID
+    entry.element(0x83, uintWriter(2)) // TrackType = audio
+    entry.elementRaw(0x86, textBytes('A_OPUS')) // CodecID
+    entry.element(0x56aa, uintWriter(OPUS_CODEC_DELAY)) // CodecDelay (ns)
+    entry.element(0x56bb, uintWriter(OPUS_SEEK_PREROLL)) // SeekPreRoll (ns)
+    const audio = new ByteWriter()
+    audio.element(0xb5, floatWriter(this.audio?.sampleRate ?? 48000)) // SamplingFrequency
+    audio.element(0x9f, uintWriter(this.audio?.channels ?? 2)) // Channels
+    entry.element(0xe1, audio)
+    return entry
+  }
+
+  private tracksElement(): ByteWriter {
     const tracks = new ByteWriter()
-    tracks.element(0xae, entry)
+    tracks.element(0xae, this.videoTrackElement())
+    if (this.audio) tracks.element(0xae, this.audioTrackElement())
     return tracks
   }
 }

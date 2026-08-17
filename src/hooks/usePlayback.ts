@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { readMediaFile } from '@/engine/storage/opfs'
-import { effectFilter, effectVignette, transitionAlpha } from '@/engine/render/filters'
+import { compositeFrame } from '@/engine/render/composite'
 import type { Asset, Clip, Track } from '@/engine/types'
 
 interface ElementRef {
@@ -176,34 +176,15 @@ export function usePlayback() {
     async (time: number) => {
       const canvas = canvasRef.current
       if (!canvas) return
-      const { project } = storeRef.current
       const ctx = canvas.getContext('2d')
       if (!ctx) return
-      const w = project.width
-      const h = project.height
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w
-        canvas.height = h
+      const { project, assets } = storeRef.current
+      if (canvas.width !== project.width || canvas.height !== project.height) {
+        canvas.width = project.width
+        canvas.height = project.height
       }
-      ctx.clearRect(0, 0, w, h)
-
-      const { video } = activeClipsAt(time)
-      let vignette = 0
-      for (const { clip, track } of video) {
-        void track
-        const asset = storeRef.current.assets.find((a) => a.id === clip.assetId)
-        if (!asset) continue
-        vignette = Math.max(vignette, effectVignette(clip.effects))
-        const srcTime = (time - clip.startTime) * clip.speed + clip.sourceStart
-
-        ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
-        ctx.filter = effectFilter(clip.effects)
-        ctx.save()
-        ctx.translate(w / 2, h / 2)
-        ctx.rotate((clip.rotation * Math.PI) / 180)
-        ctx.scale(clip.scale.x, clip.scale.y)
-
-        if (asset.type === 'video') {
+      await compositeFrame(ctx, project, assets, time, {
+        video: async (clip, asset, srcTime) => {
           const el = acquireVideo(asset)
           const elTime = Math.min(srcTime, Math.max(0, (asset.duration ?? srcTime) - 0.05))
           // While playing at 1x we let the element free-run and just drawImage
@@ -212,95 +193,14 @@ export function usePlayback() {
           const freeRun = playingRef.current && clip.speed === 1
           const tolerance = freeRun ? 0.25 : 0.06
           if (el.readyState >= 1 && Math.abs(el.currentTime - elTime) > tolerance) el.currentTime = elTime
-          if (el.videoWidth > 0) {
-            const scale = Math.max(w / el.videoWidth, h / el.videoHeight)
-            ctx.drawImage(el, -el.videoWidth * scale / 2, -el.videoHeight * scale / 2, el.videoWidth * scale, el.videoHeight * scale)
-          } else {
-            // Video not decodable/ready yet — show its thumbnail so the preview isn't blank.
-            const thumb = await loadThumbnail(asset)
-            if (thumb) {
-              const scale = Math.max(w / thumb.width, h / thumb.height)
-              ctx.drawImage(thumb, -thumb.width * scale / 2, -thumb.height * scale / 2, thumb.width * scale, thumb.height * scale)
-            }
-          }
-        } else if (asset.type === 'image') {
-          const img = await loadImage(asset)
-          if (img.width > 0) {
-            const scale = Math.max(w / img.width, h / img.height)
-            ctx.drawImage(img, -img.width * scale / 2, -img.height * scale / 2, img.width * scale, img.height * scale)
-          }
-        }
-        ctx.restore()
-        ctx.filter = 'none'
-        ctx.globalAlpha = 1
-      }
-
-      // Render text overlays
-      for (const { clip } of video) {
-        if (!clip.text) continue
-        const t = clip.text
-        ctx.save()
-        ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
-        ctx.translate(w / 2, h / 2)
-        ctx.rotate((clip.rotation * Math.PI) / 180)
-        ctx.scale(clip.scale.x, clip.scale.y)
-        ctx.translate(clip.position.x, clip.position.y)
-
-        const fontWeight = t.fontWeight === 'bold' ? 'bold ' : ''
-        const fontStyle = t.fontStyle === 'italic' ? 'italic ' : ''
-        ctx.font = `${fontStyle}${fontWeight}${t.fontSize}px ${t.fontFamily}`
-        ctx.textAlign = t.textAlign
-        ctx.textBaseline = 'middle'
-
-        const lines = t.text.split('\n')
-        const lineHeight = t.fontSize * 1.2
-        const totalHeight = lines.length * lineHeight
-        const startY = -totalHeight / 2 + lineHeight / 2
-
-        // Background
-        if (t.backgroundColor && t.backgroundColor !== 'transparent') {
-          const maxLineW = Math.max(...lines.map((l) => ctx.measureText(l).width))
-          const bgX = t.textAlign === 'center' ? -maxLineW / 2 - t.paddingLeft : t.textAlign === 'right' ? -maxLineW - t.paddingLeft : -t.paddingLeft
-          const bgY = startY - lineHeight / 2 - t.paddingTop
-          const bgW = maxLineW + t.paddingLeft + t.paddingRight
-          const bgH = totalHeight + t.paddingTop + t.paddingBottom
-          ctx.fillStyle = t.backgroundColor
-          if (t.borderRadius > 0) {
-            ctx.beginPath()
-            ctx.roundRect(bgX, bgY, bgW, bgH, t.borderRadius)
-            ctx.fill()
-          } else {
-            ctx.fillRect(bgX, bgY, bgW, bgH)
-          }
-        }
-
-        for (let i = 0; i < lines.length; i++) {
-          const y = startY + i * lineHeight
-          if (t.shadow) {
-            ctx.shadowColor = 'rgba(0,0,0,0.7)'
-            ctx.shadowBlur = 6
-            ctx.shadowOffsetX = 2
-            ctx.shadowOffsetY = 2
-          }
-          ctx.fillStyle = t.color
-          ctx.fillText(lines[i], 0, y)
-          ctx.shadowColor = 'transparent'
-          ctx.shadowBlur = 0
-          ctx.shadowOffsetX = 0
-          ctx.shadowOffsetY = 0
-        }
-        ctx.restore()
-      }
-
-      if (vignette > 0) {
-        const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75)
-        grad.addColorStop(0, 'rgba(0,0,0,0)')
-        grad.addColorStop(1, `rgba(0,0,0,${Math.min(0.9, vignette)})`)
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, w, h)
-      }
+          if (el.videoWidth > 0) return el
+          return null
+        },
+        image: (asset) => loadImage(asset),
+        thumbnail: (asset) => loadThumbnail(asset),
+      })
     },
-    [activeClipsAt, acquireVideo, loadImage, loadThumbnail],
+    [acquireVideo, loadImage, loadThumbnail],
   )
 
   const syncAudio = React.useCallback(

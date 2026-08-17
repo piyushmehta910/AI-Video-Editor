@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { Film, FolderUp, Image, Music, Plus, Trash2, Type } from 'lucide-react'
+import { Clapperboard, Film, FolderUp, Image, Music, Plus, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { StockMediaSearch } from './StockMediaSearch'
+import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
@@ -24,6 +25,7 @@ export function MediaBrowser() {
   const project = useTimelineStore((s) => s.project)
   const [busy, setBusy] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [avatarOpen, setAvatarOpen] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
 
@@ -77,6 +79,10 @@ export function MediaBrowser() {
         >
           <FolderUp className="size-4" />
           Import
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setAvatarOpen(true)} title="Generate an on-device lip-sync avatar">
+          <Clapperboard className="size-4" />
+          Avatar
         </Button>
       </div>
 
@@ -153,6 +159,7 @@ export function MediaBrowser() {
           <StockMediaSearch />
         </div>
       </div>
+      <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
     </div>
   )
 }

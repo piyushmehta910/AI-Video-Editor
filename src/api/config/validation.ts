@@ -149,7 +149,7 @@ export function testPixabay(apiKey: string, timeoutMs: number) {
 export function testFirecrawl(apiKey: string, timeoutMs: number) {
   return testBearerEndpoint({
     label: 'Firecrawl',
-    url: 'https://api.firecrawl.dev/v1/search',
+    url: 'https://api.firecrawl.dev/v2/search',
     apiKey,
     timeoutMs,
     init: {
@@ -189,9 +189,65 @@ export function testDeezer(timeoutMs: number) {
 export function testFreesound(apiKey: string, timeoutMs: number) {
   return testApiKeyEndpoint({
     label: 'Freesound',
-    url: 'https://freesound.org/apiv2/search/text/',
+    url: 'https://freesound.org/apiv2/search/',
     apiKey,
     keyName: 'token',
     timeoutMs,
   })
+}
+
+/**
+ * Fetch the current list of free models from OpenRouter's official API.
+ * Models are free when their id ends with the `:free` variant.
+ */
+export async function fetchOpenRouterFreeModels(timeoutMs = 20000): Promise<string[]> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(`OpenRouter catalog error ${res.status}`)
+    const data = (await res.json()) as { data?: Array<{ id?: string }> }
+    const free = (data.data ?? [])
+      .map((m) => m.id ?? '')
+      .filter((id) => id.endsWith(':free'))
+      .sort()
+    if (!free.length) throw new Error('No free models returned by OpenRouter')
+    return free
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|nemoretriever|parse|clip|ocr|vil|vila|synthetic-video|cosmos-reason|neva)/i
+
+/**
+ * Fetch the hosted model catalog from NVIDIA NIM (OpenAI-compatible endpoint)
+ * and return text-chat-capable model ids. The catalog does not expose which
+ * models are free-tier, so non-chat model families are filtered out.
+ */
+export async function fetchNvidiaNimModels(apiKey: string, timeoutMs = 20000): Promise<string[]> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+    })
+    if (!res.ok) throw new Error(`NVIDIA catalog error ${res.status}`)
+    const data = (await res.json()) as { data?: Array<{ id?: string }> }
+    const chat = (data.data ?? [])
+      .map((m) => m.id ?? '')
+      .filter((id) => !NON_CHAT_NIM.test(id))
+      .sort()
+    if (!chat.length) throw new Error('No models returned by NVIDIA')
+    return chat
+  } finally {
+    clearTimeout(timer)
+  }
 }

@@ -1,9 +1,9 @@
 import { useApiConfigStore } from '@/api/config/store'
 import { NvidiaNimCard } from '@/components/settings/cards/NvidiaNimCard'
 import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
+import { OpenRouterCard } from '@/components/settings/cards/OpenRouterCard'
 import { ElevenLabsCard } from '@/components/settings/cards/ElevenLabsCard'
 import { AvatarCard } from '@/components/settings/cards/AvatarCard'
-import { Wav2LipCard } from '@/components/settings/cards/Wav2LipCard'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
@@ -60,6 +60,7 @@ export function SettingsPage() {
           <SectionLabel>AI & Reasoning</SectionLabel>
           <NvidiaNimCard />
           <OpenCodeZenCard />
+          <OpenRouterCard />
         </section>
 
         <section className="flex flex-col gap-3">
@@ -70,7 +71,6 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>Avatar & Lip Sync</SectionLabel>
           <AvatarCard />
-          <Wav2LipCard />
         </section>
 
         <section className="flex flex-col gap-3">

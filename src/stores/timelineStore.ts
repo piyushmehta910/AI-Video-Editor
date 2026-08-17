@@ -7,6 +7,7 @@ import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
 import { detectMediaType } from '@/engine/storage/mediaType'
 import { generateProxy } from '@/engine/media/proxy'
 import { generateFilmstrip } from '@/engine/media/filmstrip'
+import { generateWaveform } from '@/engine/media/waveform'
 
 const HISTORY_LIMIT = 200
 let transactionDepth = 0
@@ -144,6 +145,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
 
           let proxyPath: string | undefined
           let filmstrip: import('@/engine/types').FilmstripData | undefined
+          let waveform: import('@/engine/types').FilmstripData | undefined
           if (type === 'video') {
             const [proxy, strip] = await Promise.all([
               generateProxy(id, file),
@@ -151,6 +153,8 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             ])
             proxyPath = proxy ?? undefined
             filmstrip = strip ?? undefined
+          } else if (type === 'audio') {
+            waveform = (await generateWaveform(file, type)) ?? undefined
           }
 
           const asset: Asset = {
@@ -166,6 +170,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             thumbnailUrl: thumb.url,
             proxyPath,
             filmstrip,
+            waveform,
             importedAt: Date.now(),
           }
           await putRecord('assets', asset)

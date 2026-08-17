@@ -3,11 +3,11 @@ import { Section } from './Section'
 const GROUPS = [
   {
     label: 'AI & Reasoning',
-    providers: ['NVIDIA NIM', 'OpenCode Zen'],
+    providers: ['NVIDIA NIM', 'OpenCode Zen', 'OpenRouter (free)'],
   },
   {
     label: 'Voice & Avatars',
-    providers: ['ElevenLabs', 'Wav2Lip', 'Avatar Gen'],
+    providers: ['ElevenLabs', 'On-device lip-sync (no API)'],
   },
   {
     label: 'Stock & Media',

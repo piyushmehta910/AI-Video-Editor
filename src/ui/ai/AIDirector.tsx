@@ -70,7 +70,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
             {
               id: crypto.randomUUID(),
               role: 'ai',
-              text: 'No AI provider is configured yet. Add an API key for NVIDIA NIM or OpenCode Zen in Settings, then I can help you edit.',
+              text: 'No AI provider is configured yet. Add an API key for NVIDIA NIM, OpenCode Zen or OpenRouter in Settings, then I can help you edit.',
               tools: [],
             },
           ])

@@ -1,13 +1,10 @@
 import { UserRound } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { defaultAvatarConfig, type AvatarConfig } from '@/api/config/types'
-import { testBearerEndpoint } from '@/api/config/validation'
-import { ApiKeyInput } from '../ApiKeyInput'
-import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
 import { ProviderCard } from '../ProviderCard'
-import { ProviderStatusBadge } from '../ProviderStatusBadge'
 import { Input } from '@/components/ui/input'
+import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const RESOLUTIONS = ['512x512', '768x768', '1024x1024']
@@ -24,50 +21,23 @@ export function AvatarCard() {
   return (
     <ProviderCard
       icon={<UserRound className="size-4.5" />}
-      title="Avatar Generation"
-      description="AI presenter avatars"
+      title="Avatar & Lip Sync"
+      description="On-device talking avatar — rendered in your browser, no API"
       enabled={cfg.enabled}
-      status={<ProviderStatusBadge status={cfg.status ?? 'disabled'} />}
-      onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'disconnected' : 'disabled' })}
+      status={
+        <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+          Browser · no API
+        </span>
+      }
+      onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'connected' : 'disabled' })}
       onSave={save}
       onReset={() => update((draft) => ({ ...draft, avatar: { ...defaultAvatarConfig } }))}
     >
-      <FieldRow label="Provider" htmlFor="avatar-provider" className="md:col-span-2">
-        <Select value={cfg.provider} onValueChange={(v) => set({ provider: v })}>
-          <SelectTrigger id="avatar-provider" className="w-full">
-            <SelectValue placeholder="Provider" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="NVIDIA NIM">NVIDIA NIM</SelectItem>
-            <SelectItem value="Custom">Custom endpoint</SelectItem>
-          </SelectContent>
-        </Select>
-      </FieldRow>
-
-      <FieldRow label="API Key" htmlFor="avatar-api-key" className="md:col-span-2">
-        <ApiKeyInput
-          id="avatar-api-key"
-          value={cfg.apiKey}
-          placeholder="API key"
-          onChange={(e) => set({ apiKey: e.target.value })}
-        />
-      </FieldRow>
-
-      <FieldRow label="Endpoint" htmlFor="avatar-endpoint" className="md:col-span-2">
-        <Input id="avatar-endpoint" value={cfg.endpoint} placeholder="https://..." onChange={(e) => set({ endpoint: e.target.value })} />
-      </FieldRow>
-
-      <FieldRow label="Model" htmlFor="avatar-model">
-        <Input id="avatar-model" value={cfg.model} placeholder="model" onChange={(e) => set({ model: e.target.value })} />
-      </FieldRow>
-
-      <FieldRow label="Avatar ID" htmlFor="avatar-id">
-        <Input id="avatar-id" value={cfg.avatarId} placeholder="avatar-id" onChange={(e) => set({ avatarId: e.target.value })} />
-      </FieldRow>
-
-      <FieldRow label="Voice" htmlFor="avatar-voice">
-        <Input id="avatar-voice" value={cfg.voice} placeholder="voice id" onChange={(e) => set({ voice: e.target.value })} />
-      </FieldRow>
+      <p className="text-muted-foreground md:col-span-2 text-xs">
+        Lip-sync avatars are generated entirely on-device: the speech audio is analyzed with the Web Audio API
+        and a mouth is animated frame-by-frame over your avatar image. Nothing leaves your computer — no API key,
+        no external service.
+      </p>
 
       <FieldRow label="Resolution" htmlFor="avatar-resolution">
         <Select value={cfg.resolution} onValueChange={(v) => set({ resolution: v })}>
@@ -85,7 +55,14 @@ export function AvatarCard() {
       </FieldRow>
 
       <FieldRow label="FPS" htmlFor="avatar-fps">
-        <Input id="avatar-fps" type="number" min={15} max={60} value={cfg.fps} onChange={(e) => set({ fps: Number(e.target.value) })} />
+        <Input
+          id="avatar-fps"
+          type="number"
+          min={15}
+          max={60}
+          value={cfg.fps}
+          onChange={(e) => set({ fps: Number(e.target.value) })}
+        />
       </FieldRow>
 
       <FieldRow label="Background" htmlFor="avatar-background">
@@ -103,31 +80,43 @@ export function AvatarCard() {
         </Select>
       </FieldRow>
 
-      <FieldRow className="md:col-span-2">
-        <ApiTester
-          run={() => {
-            if (!cfg.endpoint) {
-              return Promise.resolve({
-                ok: false,
-                status: 'disconnected' as const,
-                message: 'Avatar: endpoint not configured',
-                latencyMs: 0,
-              })
-            }
-            return testBearerEndpoint({
-              label: 'Avatar',
-              url: cfg.endpoint,
-              apiKey: cfg.apiKey,
-              timeoutMs: 15000,
-            }).then((result) => {
-              if (result.ok) {
-                set({ status: 'connected' })
-              } else if (result.status === 'disconnected') {
-                set({ status: 'disconnected' })
-              }
-              return result
-            })
-          }}
+      <FieldRow label="Mouth Position X" hint={`Current: ${Math.round(cfg.mouthX * 100)}%`}>
+        <Slider
+          min={0.2}
+          max={0.8}
+          step={0.01}
+          value={[cfg.mouthX]}
+          onValueChange={([value]) => set({ mouthX: value })}
+        />
+      </FieldRow>
+
+      <FieldRow label="Mouth Position Y" hint={`Current: ${Math.round(cfg.mouthY * 100)}%`}>
+        <Slider
+          min={0.5}
+          max={0.95}
+          step={0.01}
+          value={[cfg.mouthY]}
+          onValueChange={([value]) => set({ mouthY: value })}
+        />
+      </FieldRow>
+
+      <FieldRow label="Mouth Width" hint={`Current: ${Math.round(cfg.mouthWidth * 100)}%`}>
+        <Slider
+          min={0.05}
+          max={0.35}
+          step={0.01}
+          value={[cfg.mouthWidth]}
+          onValueChange={([value]) => set({ mouthWidth: value })}
+        />
+      </FieldRow>
+
+      <FieldRow label="Max Mouth Open" hint={`Current: ${Math.round(cfg.mouthMaxOpen * 100)}%`}>
+        <Slider
+          min={0.02}
+          max={0.2}
+          step={0.01}
+          value={[cfg.mouthMaxOpen]}
+          onValueChange={([value]) => set({ mouthMaxOpen: value })}
         />
       </FieldRow>
     </ProviderCard>
