@@ -1,4 +1,5 @@
 import type { ProviderStatus } from './types'
+import { needsProxy, proxyFetch } from '@/api/proxy'
 
 export interface TestConnectionResult {
   ok: boolean
@@ -8,6 +9,9 @@ export interface TestConnectionResult {
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  if (needsProxy(url)) {
+    return proxyFetch(url, init, timeoutMs)
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -231,25 +235,20 @@ const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|ne
  * filtered out.
  */
 export async function fetchNvidiaNimModels(apiKey: string, baseUrl = 'https://integrate.api.nvidia.com/v1', timeoutMs = 20000): Promise<string[]> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/models`, {
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      },
-    })
-    if (!res.ok) throw new Error(`NVIDIA catalog error ${res.status}`)
-    const data = (await res.json()) as { data?: Array<{ id?: string }> }
-    const chat = (data.data ?? [])
-      .map((m) => m.id ?? '')
-      .filter((id) => !NON_CHAT_NIM.test(id))
-      .sort()
-    if (!chat.length) throw new Error('No models returned by NVIDIA')
-    return chat
-  } finally {
-    clearTimeout(timer)
+  const url = `${baseUrl.replace(/\/$/, '')}/models`
+  const init: RequestInit = {
+    headers: {
+      Accept: 'application/json',
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    },
   }
+  const res = needsProxy(url) ? await proxyFetch(url, init, timeoutMs) : await fetch(url, init)
+  if (!res.ok) throw new Error(`NVIDIA catalog error ${res.status}`)
+  const data = (await res.json()) as { data?: Array<{ id?: string }> }
+  const chat = (data.data ?? [])
+    .map((m) => m.id ?? '')
+    .filter((id) => !NON_CHAT_NIM.test(id))
+    .sort()
+  if (!chat.length) throw new Error('No models returned by NVIDIA')
+  return chat
 }

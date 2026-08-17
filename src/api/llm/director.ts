@@ -1,5 +1,6 @@
 import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { needsProxy, proxyFetch } from '@/api/proxy'
 import type { LLMProviderConfig } from '@/api/config/types'
 
 export interface ChatMessage {
@@ -108,7 +109,8 @@ export async function chatCompletion(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), provider.config.timeoutMs)
   try {
-    const res = await fetch(`${provider.config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+    const url = `${provider.config.baseUrl.replace(/\/$/, '')}/chat/completions`
+    const init: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -116,7 +118,10 @@ export async function chatCompletion(
       },
       body: JSON.stringify(body),
       signal: controller.signal,
-    })
+    }
+    const res = needsProxy(url)
+      ? await proxyFetch(url, { ...init, signal: undefined }, provider.config.timeoutMs)
+      : await fetch(url, init)
     if (!res.ok) {
       const text = await res.text().catch(() => '')
       throw new Error(`AI provider error ${res.status}: ${text.slice(0, 200) || res.statusText}`)
