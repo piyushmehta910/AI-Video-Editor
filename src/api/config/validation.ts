@@ -142,14 +142,15 @@ export function testPixabay(apiKey: string, timeoutMs: number) {
     label: 'Pixabay',
     url: 'https://pixabay.com/api/',
     apiKey,
+    keyName: 'key',
     timeoutMs,
   })
 }
 
-export function testFirecrawl(apiKey: string, timeoutMs: number) {
+export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.dev', timeoutMs: number) {
   return testBearerEndpoint({
     label: 'Firecrawl',
-    url: 'https://api.firecrawl.dev/v2/search',
+    url: `${endpoint.replace(/\/$/, '')}/v2/search`,
     apiKey,
     timeoutMs,
     init: {
@@ -169,27 +170,27 @@ export function testElevenLabs(apiKey: string, timeoutMs: number) {
   })
 }
 
-export function testMusicBrainz(timeoutMs: number) {
+export function testMusicBrainz(baseUrl = 'https://musicbrainz.org', userAgent = 'ClipForgeAI/1.0', timeoutMs: number) {
   return testReachability({
     label: 'MusicBrainz',
-    url: 'https://musicbrainz.org/ws/2/artist?query=test&limit=1',
+    url: `${baseUrl.replace(/\/$/, '')}/ws/2/artist?query=test&limit=1`,
     timeoutMs,
-    headers: { 'User-Agent': 'ClipForgeAI/1.0 (clipforge@example.com)' },
+    headers: { 'User-Agent': userAgent },
   })
 }
 
-export function testDeezer(timeoutMs: number) {
+export function testDeezer(endpoint = 'https://api.deezer.com', timeoutMs: number) {
   return testReachability({
     label: 'Deezer',
-    url: 'https://api.deezer.com/search?q=test&limit=1',
+    url: `${endpoint.replace(/\/$/, '')}/search?q=test&limit=1`,
     timeoutMs,
   })
 }
 
-export function testFreesound(apiKey: string, timeoutMs: number) {
+export function testFreesound(apiKey: string, endpoint = 'https://freesound.org/apiv2', timeoutMs: number) {
   return testApiKeyEndpoint({
     label: 'Freesound',
-    url: 'https://freesound.org/apiv2/search/',
+    url: `${endpoint.replace(/\/$/, '')}/search/`,
     apiKey,
     keyName: 'token',
     timeoutMs,

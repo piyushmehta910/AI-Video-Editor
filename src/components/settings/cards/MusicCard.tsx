@@ -84,7 +84,7 @@ export function MusicCard() {
             <ApiTester
               label="Test"
               run={() =>
-                testMusicBrainz(15000).then((result) => {
+                testMusicBrainz(music.musicbrainz.baseUrl, music.musicbrainz.userAgent, 15000).then((result) => {
                   update((d) => ({
                     ...d,
                     music: {
@@ -130,7 +130,7 @@ export function MusicCard() {
             <ApiTester
               label="Test"
               run={() =>
-                testDeezer(15000).then((result) => {
+                testDeezer(music.deezer.endpoint, 15000).then((result) => {
                   update((d) => ({
                     ...d,
                     music: {
@@ -198,7 +198,7 @@ export function MusicCard() {
             <ApiTester
               label="Test"
               run={() =>
-                testFreesound(music.freesound.apiKey, 15000).then((result) => {
+                testFreesound(music.freesound.apiKey, music.freesound.endpoint, 15000).then((result) => {
                   setFreesound({ status: result.ok ? 'connected' : 'disconnected' })
                   return result
                 })

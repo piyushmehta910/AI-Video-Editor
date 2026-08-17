@@ -100,7 +100,7 @@ export function FirecrawlCard() {
       <FieldRow className="md:col-span-2">
         <ApiTester
           run={() =>
-            testFirecrawl(cfg.apiKey, cfg.timeoutMs).then((result) => {
+            testFirecrawl(cfg.apiKey, cfg.endpoint, cfg.timeoutMs).then((result) => {
               if (result.ok) {
                 set({ status: 'connected' })
               } else if (result.status === 'disconnected') {
