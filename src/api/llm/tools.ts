@@ -1,6 +1,6 @@
 import { useTimelineStore } from '@/stores/timelineStore'
 import { aspectToSize } from '@/engine/types'
-import type { Asset, Clip } from '@/engine/types'
+import type { Asset, Clip, TextAnimation } from '@/engine/types'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -155,6 +155,11 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
           durationSeconds: { type: 'number', description: 'Duration in seconds (default 4).' },
           fontSize: { type: 'number', description: 'Font size in pixels (default 48).' },
           color: { type: 'string', description: 'Text color as hex (default #ffffff).' },
+          animation: {
+            type: 'string',
+            enum: ['none', 'fade-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'zoom-in', 'zoom-out', 'typewriter', 'pop', 'bounce'],
+            description: 'Entrance animation (default none).',
+          },
         },
         required: ['text'],
       },
@@ -386,6 +391,7 @@ export function applyTool(name: string, args: Record<string, unknown>): { ok: bo
       const dur = Number(args.durationSeconds) || 4
       const fontSize = Number(args.fontSize) || 48
       const color = String(args.color || '#ffffff')
+      const animation = String(args.animation ?? 'none') as TextAnimation
       const track = s.project.tracks.find((t) => t.type === 'video')
       if (!track) return { ok: false, message: 'No video track available.' }
       const clip = s.addTextClip(text, track.id)
@@ -393,7 +399,7 @@ export function applyTool(name: string, args: Record<string, unknown>): { ok: bo
       s.updateClip(clip.id, {
         duration: dur,
         sourceEnd: dur,
-        text: { ...clip.text!, fontSize, color },
+        text: { ...clip.text!, fontSize, color, animation },
       })
       return { ok: true, message: desc }
     }

@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { AudioLines, Layers, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import type { Clip, EffectType, Transition } from '@/engine/types'
-import { createEffect } from '@/engine/types'
+import type { Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
+import { createEffect, TEXT_ANIMATIONS } from '@/engine/types'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -234,6 +234,28 @@ export function Inspector() {
                   <Switch checked={clip.text.shadow} onCheckedChange={(c) => set({ text: { ...clip.text!, shadow: c } })} aria-label="Shadow" className="scale-75" />
                   <span className="text-muted-foreground text-[10px]">Shadow</span>
                 </div>
+                <Field label="Animation">
+                  <select
+                    className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
+                    value={clip.text.animation ?? 'none'}
+                    onChange={(e) => set({ text: { ...clip.text!, animation: e.target.value as TextAnimation } })}
+                  >
+                    {TEXT_ANIMATIONS.map((a) => (
+                      <option key={a} value={a}>
+                        {a.charAt(0).toUpperCase() + a.slice(1).replace(/-/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={`Anim duration ${(clip.text.animationDuration ?? 1).toFixed(1)}s`}>
+                  <Slider
+                    min={0.2}
+                    max={3}
+                    step={0.1}
+                    value={[clip.text.animationDuration ?? 1]}
+                    onValueChange={([v]) => set({ text: { ...clip.text!, animationDuration: v } })}
+                  />
+                </Field>
               </Section>
             )}
 

@@ -20,6 +20,7 @@ export interface TimelineState {
   selection: { clipIds: string[]; trackId: string | null }
   playhead: number
   zoom: number
+  clipboard: Clip[]
   past: Project[]
   future: Project[]
 
@@ -50,6 +51,9 @@ export interface TimelineState {
   joinClips: (clipId1: string, clipId2: string) => void
   deleteClips: (clipIds: string[], ripple?: boolean) => void
   duplicateClips: (clipIds: string[]) => void
+  copyClips: (clipIds: string[]) => void
+  cutClips: (clipIds: string[]) => void
+  pasteClips: () => void
 
   toggleTrackLock: (trackId: string) => void
   toggleTrackMute: (trackId: string) => void
@@ -98,6 +102,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     selection: { clipIds: [], trackId: null },
     playhead: 0,
     zoom: 90,
+    clipboard: [],
     past: [],
     future: [],
 
@@ -351,6 +356,8 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
           paddingRight: 16,
           borderRadius: 0,
           shadow: true,
+          animation: 'none',
+          animationDuration: 1,
         },
       }
       get().begin()
@@ -551,6 +558,57 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         return p
       })
       set({ selection: { clipIds: duplicates.map((d) => d.id), trackId: null } })
+    },
+
+    copyClips: (clipIds) => {
+      const ids = new Set(clipIds)
+      const copied: Clip[] = []
+      for (const track of get().project.tracks) {
+        for (const c of track.clips) {
+          if (ids.has(c.id)) copied.push(JSON.parse(JSON.stringify(c)) as Clip)
+        }
+      }
+      set({ clipboard: copied })
+    },
+
+    cutClips: (clipIds) => {
+      const s = get()
+      const ids = new Set(clipIds)
+      const copied: Clip[] = []
+      for (const track of s.project.tracks) {
+        for (const c of track.clips) {
+          if (ids.has(c.id)) copied.push(JSON.parse(JSON.stringify(c)) as Clip)
+        }
+      }
+      set({ clipboard: copied })
+      s.deleteClips(clipIds)
+    },
+
+    pasteClips: () => {
+      const s = get()
+      const source = s.clipboard
+      if (!source.length) return
+      const playhead = s.playhead
+      const minStart = Math.min(...source.map((c) => c.startTime))
+      s.begin()
+      const created: Clip[] = []
+      mutate((p) => {
+        for (const src of source) {
+          const track = p.tracks.find((t) => t.id === src.trackId)
+          if (!track || track.locked) continue
+          const paste: Clip = {
+            ...JSON.parse(JSON.stringify(src)) as Clip,
+            id: crypto.randomUUID(),
+            startTime: playhead + (src.startTime - minStart),
+            name: src.name,
+          }
+          track.clips.push(paste)
+          track.clips.sort((a, b) => a.startTime - b.startTime)
+          created.push(paste)
+        }
+        return p
+      })
+      set({ selection: { clipIds: created.map((c) => c.id), trackId: null } })
     },
 
     toggleTrackLock: (trackId) => {

@@ -1,16 +1,21 @@
 import * as React from 'react'
 import {
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
   Eye,
   EyeOff,
   Lock,
   LockOpen,
-  Minus,
-  Plus,
+  Maximize,
   Redo2,
   Scissors,
+  Slice,
+  Trash2,
   Undo2,
   Volume2,
   VolumeX,
+  Waves,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
@@ -67,6 +72,7 @@ export function Timeline() {
   const selection = useTimelineStore((s) => s.selection)
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
+  const clipboard = useTimelineStore((s) => s.clipboard)
   const [ripple, setRipple] = React.useState(false)
   const [dragActive, setDragActive] = React.useState(false)
 
@@ -209,6 +215,20 @@ export function Timeline() {
     if (store.selection.clipIds.length) store.duplicateClips(store.selection.clipIds)
   }
 
+  const copySelected = () => {
+    const store = useTimelineStore.getState()
+    if (store.selection.clipIds.length) store.copyClips(store.selection.clipIds)
+  }
+
+  const cutSelected = () => {
+    const store = useTimelineStore.getState()
+    if (store.selection.clipIds.length) store.cutClips(store.selection.clipIds)
+  }
+
+  const paste = () => {
+    useTimelineStore.getState().pasteClips()
+  }
+
   const { step, labelEvery } = computeTicks(duration, zoom)
   const tickCount = Math.min(5000, Math.floor(duration / step) + 1)
   const ticks = Array.from({ length: tickCount }, (_, i) => i * step)
@@ -229,14 +249,23 @@ export function Timeline() {
           <Redo2 className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
-        <ToolbarButton label="Split at playhead (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
+        <ToolbarButton label="Cut selected (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
           <Scissors className="size-4" />
         </ToolbarButton>
+        <ToolbarButton label="Copy selected (Ctrl+C)" onClick={copySelected} disabled={!selection.clipIds.length}>
+          <Copy className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Paste at playhead (Ctrl+V)" onClick={paste} disabled={!clipboard.length}>
+          <ClipboardPaste className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Split at playhead (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
+          <Slice className="size-4" />
+        </ToolbarButton>
         <ToolbarButton label="Delete selected (Del)" onClick={deleteSelected} disabled={!selection.clipIds.length}>
-          <Minus className="size-4 rotate-45" />
+          <Trash2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Duplicate (Ctrl+D)" onClick={duplicateSelected} disabled={!selection.clipIds.length}>
-          <Plus className="size-4" />
+          <CopyPlus className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
         <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
@@ -254,7 +283,7 @@ export function Timeline() {
               .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
           }
         >
-          <Minus className="size-4" />
+          <Maximize className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
         <Button
@@ -263,7 +292,8 @@ export function Timeline() {
           className={cn('h-7 gap-1.5 px-2 text-xs', ripple && 'text-violet-600 dark:text-violet-400')}
           onClick={() => setRipple((r) => !r)}
         >
-          Ripple delete
+          <Waves className="size-3.5" />
+          Ripple
         </Button>
         <span className="text-muted-foreground ml-auto font-mono text-[10px]">
           {selection.clipIds.length > 0

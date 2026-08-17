@@ -26,6 +26,17 @@ export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek'
         e.preventDefault(); s.duplicateClips(s.selection.clipIds); return
       }
 
+      // Copy / Cut / Paste
+      if (mod && e.key.toLowerCase() === 'c' && s.selection.clipIds.length) {
+        e.preventDefault(); s.copyClips(s.selection.clipIds); return
+      }
+      if (mod && e.key.toLowerCase() === 'x' && s.selection.clipIds.length) {
+        e.preventDefault(); s.cutClips(s.selection.clipIds); return
+      }
+      if (mod && e.key.toLowerCase() === 'v') {
+        e.preventDefault(); s.pasteClips(); return
+      }
+
       // Split at playhead
       if ((mod && e.key.toLowerCase() === 'k') || (e.key.toLowerCase() === 'i' && s.selection.clipIds.length)) {
         e.preventDefault(); splitAtPlayhead(); return

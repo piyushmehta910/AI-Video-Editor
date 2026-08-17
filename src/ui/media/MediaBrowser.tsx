@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { StockMediaSearch } from './StockMediaSearch'
 import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
+import { AddTextDialog } from './AddTextDialog'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
@@ -26,6 +27,7 @@ export function MediaBrowser() {
   const [busy, setBusy] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [avatarOpen, setAvatarOpen] = React.useState(false)
+  const [textOpen, setTextOpen] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
 
@@ -83,6 +85,10 @@ export function MediaBrowser() {
         <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setAvatarOpen(true)} title="Generate an on-device lip-sync avatar">
           <Clapperboard className="size-4" />
           Avatar
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setTextOpen(true)} title="Add styled text with animation">
+          <Type className="size-4" />
+          Text
         </Button>
       </div>
 
@@ -160,6 +166,7 @@ export function MediaBrowser() {
         </div>
       </div>
       <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
+      <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { Asset, Clip, Project } from '@/engine/types'
+import type { Asset, Clip, Project, TextAnimation } from '@/engine/types'
 import { effectFilter, effectVignette, transitionAlpha } from './filters'
 
 export interface CompositeMedia {
@@ -14,6 +14,101 @@ function sourceSize(source: CanvasImageSource): { w: number; h: number } {
   if (source instanceof HTMLVideoElement) return { w: source.videoWidth, h: source.videoHeight }
   if (source instanceof HTMLImageElement || source instanceof HTMLCanvasElement) return { w: source.width, h: source.height }
   return { w: (source as ImageBitmap).width, h: (source as ImageBitmap).height }
+}
+
+/** Ease-out cubic: fast start, gentle settle. */
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3)
+}
+
+/** Ease-out back with a small overshoot — for "pop". */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
+}
+
+/** Ease-out bounce for "bounce". */
+function easeOutBounce(t: number): number {
+  const n1 = 7.5625
+  const d1 = 2.75
+  if (t < 1 / d1) return n1 * t * t
+  if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75
+  if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375
+  return n1 * (t -= 2.625 / d1) * t + 0.984375
+}
+
+export interface TextAnimationState {
+  /** 0..1 progress through the animation */
+  progress: number
+  /** Extra alpha multiplier */
+  alpha: number
+  /** Offset (px) applied to the text, in local clip space */
+  offsetX: number
+  offsetY: number
+  /** Scale multiplier */
+  scale: number
+  /** For typewriter: number of visible characters (0..1 fraction) */
+  reveal: number
+}
+
+/**
+ * Compute entrance animation state for a text overlay at a given timeline time.
+ * `duration` clamps progress so the animation plays within the clip's first `animationDuration` seconds.
+ */
+export function textAnimationAt(animation: TextAnimation, duration: number, time: number, clipStart: number, clipDuration: number): TextAnimationState {
+  const state: TextAnimationState = { progress: 1, alpha: 1, offsetX: 0, offsetY: 0, scale: 1, reveal: 1 }
+  if (animation === 'none' || duration <= 0) return state
+
+  const local = Math.min(Math.max(time - clipStart, 0), clipDuration)
+  const raw = local / duration
+  const p = Math.min(Math.max(raw, 0), 1)
+  state.progress = p
+  const e = easeOutCubic(p)
+
+  switch (animation) {
+    case 'fade-in':
+      state.alpha = e
+      break
+    case 'slide-up':
+      state.alpha = e
+      state.offsetY = (1 - e) * 80
+      break
+    case 'slide-down':
+      state.alpha = e
+      state.offsetY = -(1 - e) * 80
+      break
+    case 'slide-left':
+      state.alpha = e
+      state.offsetX = (1 - e) * 120
+      break
+    case 'slide-right':
+      state.alpha = e
+      state.offsetX = -(1 - e) * 120
+      break
+    case 'zoom-in':
+      state.alpha = e
+      state.scale = 0.5 + 0.5 * e
+      break
+    case 'zoom-out':
+      state.alpha = e
+      state.scale = 1.5 - 0.5 * e
+      break
+    case 'pop':
+      state.alpha = Math.min(1, e * 1.2)
+      state.scale = easeOutBack(p)
+      break
+    case 'bounce':
+      state.alpha = Math.min(1, e * 1.2)
+      state.offsetY = -(1 - easeOutBounce(p)) * 120
+      break
+    case 'typewriter':
+      state.reveal = e
+      break
+    default:
+      break
+  }
+  return state
 }
 
 /**
@@ -38,7 +133,7 @@ export async function compositeFrame(
     if (track.hidden || track.locked) return
     const clip = track.clips.find((c) => time >= c.startTime && time < c.startTime + c.duration)
     if (!clip) return
-    if (track.type === 'video') video.push({ clip, z: trackIndex })
+    if (track.type === 'video' || track.type === 'text') video.push({ clip, z: trackIndex })
   })
   video.sort((a, b) => b.z - a.z)
 
@@ -93,12 +188,15 @@ export async function compositeFrame(
   for (const { clip } of video) {
     if (!clip.text) continue
     const t = clip.text
+    const anim = textAnimationAt(t.animation ?? 'none', t.animationDuration, time, clip.startTime, clip.duration)
     ctx.save()
-    ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
+    ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out) * anim.alpha
     ctx.translate(w / 2, h / 2)
     ctx.rotate((clip.rotation * Math.PI) / 180)
     ctx.scale(clip.scale.x, clip.scale.y)
     ctx.translate(clip.position.x, clip.position.y)
+    if (anim.scale !== 1) ctx.scale(anim.scale, anim.scale)
+    if (anim.offsetX !== 0 || anim.offsetY !== 0) ctx.translate(anim.offsetX, anim.offsetY)
 
     const fontWeight = t.fontWeight === 'bold' ? 'bold ' : ''
     const fontStyle = t.fontStyle === 'italic' ? 'italic ' : ''
@@ -106,7 +204,12 @@ export async function compositeFrame(
     ctx.textAlign = t.textAlign
     ctx.textBaseline = 'middle'
 
-    const lines = t.text.split('\n')
+    let text = t.text
+    if (anim.reveal < 1) {
+      const visibleChars = Math.floor(text.length * anim.reveal)
+      text = text.slice(0, visibleChars)
+    }
+    const lines = text.split('\n')
     const lineHeight = t.fontSize * 1.2
     const totalHeight = lines.length * lineHeight
     const startY = -totalHeight / 2 + lineHeight / 2

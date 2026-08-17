@@ -38,6 +38,19 @@ export interface Transition {
   duration: number
 }
 
+export type TextAnimation =
+  | 'none'
+  | 'fade-in'
+  | 'slide-up'
+  | 'slide-down'
+  | 'slide-left'
+  | 'slide-right'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'typewriter'
+  | 'pop'
+  | 'bounce'
+
 export interface TextOverlay {
   text: string
   fontSize: number
@@ -53,7 +66,24 @@ export interface TextOverlay {
   paddingRight: number
   borderRadius: number
   shadow: boolean
+  /** Entrance animation applied over `animationDuration` seconds at clip start. */
+  animation: TextAnimation
+  animationDuration: number
 }
+
+export const TEXT_ANIMATIONS: TextAnimation[] = [
+  'none',
+  'fade-in',
+  'slide-up',
+  'slide-down',
+  'slide-left',
+  'slide-right',
+  'zoom-in',
+  'zoom-out',
+  'typewriter',
+  'pop',
+  'bounce',
+]
 
 export interface Clip {
   id: string

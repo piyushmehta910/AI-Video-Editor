@@ -56,7 +56,7 @@ export function NvidiaNimCard() {
     setRefreshing(true)
     setRefreshMessage(null)
     try {
-      const catalog = await fetchNvidiaNimModels(cfg.apiKey, cfg.timeoutMs)
+      const catalog = await fetchNvidiaNimModels(cfg.apiKey, cfg.baseUrl, cfg.timeoutMs)
       setModels(Array.from(new Set([...NIM_FREE_MODELS, ...catalog])))
       setRefreshMessage(`Catalog returned ${catalog.length} chat models`)
     } catch (err) {

@@ -224,15 +224,16 @@ export async function fetchOpenRouterFreeModels(timeoutMs = 20000): Promise<stri
 const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|nemoretriever|parse|clip|ocr|vil|vila|synthetic-video|cosmos-reason|neva)/i
 
 /**
- * Fetch the hosted model catalog from NVIDIA NIM (OpenAI-compatible endpoint)
- * and return text-chat-capable model ids. The catalog does not expose which
- * models are free-tier, so non-chat model families are filtered out.
+ * Fetch the hosted model catalog from the configured NVIDIA NIM endpoint
+ * (OpenAI-compatible) and return text-chat-capable model ids. The catalog does
+ * not expose which models are free-tier, so non-chat model families are
+ * filtered out.
  */
-export async function fetchNvidiaNimModels(apiKey: string, timeoutMs = 20000): Promise<string[]> {
+export async function fetchNvidiaNimModels(apiKey: string, baseUrl = 'https://integrate.api.nvidia.com/v1', timeoutMs = 20000): Promise<string[]> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/models`, {
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
