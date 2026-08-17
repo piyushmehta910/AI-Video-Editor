@@ -1,10 +1,59 @@
-import { forwardProxyRequest, type ProxyPayload } from '../server/proxy'
-
 /**
  * Same-origin serverless proxy so the browser app can call providers that
  * block CORS (NVIDIA NIM, OpenCode Zen, Firecrawl, Deezer). Keys pass
  * through from the client; nothing is persisted server-side.
  */
+
+interface ProxyPayload {
+  url?: string
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+/** Hosts allowed to be proxied through this endpoint. Mirrors server/proxy.ts. */
+const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.firecrawl.dev', 'api.deezer.com']
+
+function isAllowedProxyUrl(url: string): boolean {
+  try {
+    return ALLOWED_HOSTS.includes(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
+async function forwardProxyRequest(payload: ProxyPayload) {
+  const url = payload.url
+  if (!url || !isAllowedProxyUrl(url)) {
+    return {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ error: 'Host not allowed by proxy' }),
+    }
+  }
+  try {
+    const res = await fetch(url, {
+      method: payload.method ?? 'GET',
+      headers: payload.headers,
+      body: payload.body,
+    })
+    const body = await res.text()
+    const headers: Record<string, string> = {}
+    res.headers.forEach((value, key) => {
+      if (key.toLowerCase() === 'content-type') headers[key] = value
+    })
+    return { status: res.status, statusText: res.statusText, headers, body }
+  } catch (err) {
+    return {
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+    }
+  }
+}
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
