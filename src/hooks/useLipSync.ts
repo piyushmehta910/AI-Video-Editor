@@ -119,6 +119,34 @@ export function createLipSyncInput(
   })
 }
 
+export function createLipSyncInputFromImage(
+  imageFile: File,
+  audioFile: File
+): Promise<LipSyncInput> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.src = URL.createObjectURL(imageFile)
+    img.onload = async () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0)
+        const imageData = ctx.getImageData(0, 0, img.width, img.height)
+
+        const audioBuffer = await decodeAudio(audioFile)
+        resolve({ image: imageData, audioBuffer, sampleRate: 16000 })
+      } catch (err) {
+        reject(err)
+      } finally {
+        URL.revokeObjectURL(img.src)
+      }
+    }
+    img.onerror = () => reject(new Error('Failed to load image'))
+  })
+}
+
 async function extractVideoFrames(video: HTMLVideoElement): Promise<ImageData[]> {
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth

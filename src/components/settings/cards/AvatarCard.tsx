@@ -1,4 +1,4 @@
-import { UserRound, Mic, Brain, Sparkles, FileText } from 'lucide-react'
+import { UserRound, Mic, Brain, Sparkles, FileText, Volume2 } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { defaultAvatarConfig, type AvatarConfig } from '@/api/config/types'
 import { FieldRow } from '../FieldRow'
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LipSyncTimelineIntegration } from '@/components/editor/LipSync'
 import { CaptionsTimelineIntegration } from '@/components/editor/Captions'
+import { DenoiseTimelineIntegration } from '@/components/editor/Denoise'
 
 const RESOLUTIONS = ['512x512', '768x768', '1024x1024']
 const BACKGROUNDS = ['transparent', 'solid', 'blurred']
@@ -36,7 +37,7 @@ export function AvatarCard() {
       onReset={() => update((draft) => ({ ...draft, avatar: { ...defaultAvatarConfig } }))}
     >
       <Tabs defaultValue="simple" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="simple" className="flex items-center gap-2">
             <Mic className="size-3.5" />
             Simple Mouth
@@ -48,6 +49,10 @@ export function AvatarCard() {
           <TabsTrigger value="captions" className="flex items-center gap-2">
             <FileText className="size-3.5" />
             Auto Captions
+          </TabsTrigger>
+          <TabsTrigger value="denoise" className="flex items-center gap-2">
+            <Volume2 className="size-3.5" />
+            Noise Cancel
           </TabsTrigger>
         </TabsList>
 
@@ -135,6 +140,25 @@ export function AvatarCard() {
               Exports SRT/VTT for use in any video player.
             </p>
             <CaptionsTimelineIntegration />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="denoise" className="space-y-4">
+          <p className="text-muted-foreground text-xs">
+            RNNoise noise cancellation: uses Mozilla's RNNoise (via WASM) to remove background noise from audio
+            in real-time. Runs entirely in-browser with minimal latency. Great for cleaning up recordings.
+          </p>
+
+          <div className="p-3 rounded-md border bg-muted/50">
+            <div className="flex items-center gap-2 text-sm mb-2">
+              <Sparkles className="size-4 text-primary" />
+              <span className="font-medium">RNNoise Noise Cancellation</span>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Remove background noise (fan, keyboard, traffic, etc.) from audio recordings. Adjustable mix control
+              for blending original with denoised. Runs at 48kHz with minimal CPU usage.
+            </p>
+            <DenoiseTimelineIntegration />
           </div>
         </TabsContent>
       </Tabs>

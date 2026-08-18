@@ -10,9 +10,11 @@ export interface Wav2LipConfig {
 }
 
 export interface LipSyncInput {
-  videoFrames: ImageData[]
+  videoFrames?: ImageData[]
+  image?: ImageData
   audioBuffer: Float32Array
   sampleRate: number
+  fps?: number
 }
 
 export interface LipSyncResult {
@@ -251,10 +253,21 @@ export class Wav2LipEngine {
   async process(input: LipSyncInput, onProgress?: (progress: number) => void): Promise<LipSyncResult> {
     if (!this.initialized) await this.initialize()
 
-    const { videoFrames, audioBuffer, sampleRate } = input
+    const { videoFrames, image, audioBuffer, sampleRate, fps = this.config.fps } = input
     const mel = this.melSpectrogram(audioBuffer, sampleRate)
     const melFrames = Math.floor(mel.length / 80)
-    const videoFrameCount = videoFrames.length
+
+    // If image is provided instead of videoFrames, repeat it for all mel frames
+    let videoFramesToProcess: ImageData[]
+    if (image) {
+      videoFramesToProcess = new Array(melFrames).fill(null).map(() => image)
+    } else if (videoFrames && videoFrames.length > 0) {
+      videoFramesToProcess = videoFrames
+    } else {
+      throw new Error('Either videoFrames or image must be provided')
+    }
+
+    const videoFrameCount = videoFramesToProcess.length
     const outputFrames: ImageData[] = []
 
     const batchSize = this.config.batchSize
@@ -263,7 +276,7 @@ export class Wav2LipEngine {
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
       const startFrame = batchIdx * batchSize
       const endFrame = Math.min(startFrame + batchSize, videoFrameCount)
-      const batchFrames = videoFrames.slice(startFrame, endFrame)
+      const batchFrames = videoFramesToProcess.slice(startFrame, endFrame)
       const batchMel = mel.slice(startFrame * 80, endFrame * 80)
 
       if (batchFrames.length === 0) continue
@@ -305,8 +318,8 @@ export class Wav2LipEngine {
 
     return {
       frames: outputFrames,
-      fps: this.config.fps,
-      duration: outputFrames.length / this.config.fps,
+      fps,
+      duration: outputFrames.length / fps,
     }
   }
 }

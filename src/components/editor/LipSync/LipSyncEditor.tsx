@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { Mic, Video, Play, Loader2, Upload } from 'lucide-react'
-import { useLipSync, createLipSyncInput } from '@/hooks/useLipSync'
+import { Mic, Video, Play, Loader2, Upload, Image } from 'lucide-react'
+import { useLipSync, createLipSyncInput, createLipSyncInputFromImage } from '@/hooks/useLipSync'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +48,7 @@ export function LipSyncEditor({ clip, onSave, onClose }: LipSyncEditorProps) {
     ...clip?.config,
   })
   const [error, setError] = React.useState<string | null>(null)
+  const [inputMode, setInputMode] = React.useState<'video' | 'image'>('video')
 
   const { processing, initialize, process, terminate } = useLipSync({
     config: { modelUrl: config.modelUrl, inputSize: [96, 96], fps: config.fps, batchSize: config.batchSize },
@@ -92,7 +93,9 @@ export function LipSyncEditor({ clip, onSave, onClose }: LipSyncEditorProps) {
 
   const handleGenerate = async () => {
     if (!avatarFile || !audioFile) {
-      setError('Please select both avatar video and audio file')
+      setError(inputMode === 'video' 
+        ? 'Please select both avatar video and audio file'
+        : 'Please select both avatar image and audio file')
       return
     }
 
@@ -101,7 +104,9 @@ export function LipSyncEditor({ clip, onSave, onClose }: LipSyncEditorProps) {
     setError(null)
 
     try {
-      const input = await createLipSyncInput(avatarFile, audioFile)
+      const input = inputMode === 'video'
+        ? await createLipSyncInput(avatarFile, audioFile)
+        : await createLipSyncInputFromImage(avatarFile, audioFile)
       await process(input)
     } catch (err) {
       setStatus('error')
@@ -144,54 +149,89 @@ export function LipSyncEditor({ clip, onSave, onClose }: LipSyncEditorProps) {
         <Separator />
 
         <CardContent className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-3">
-              <Label>Avatar Video</Label>
-              <div className="relative aspect-video rounded-md border border-dashed">
-                {avatarPreview ? (
-                  <video
-                    src={avatarPreview}
-                    className="w-full h-full object-cover rounded-md"
-                    muted
-                    loop
-                    autoPlay
-                    playsInline
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                    <Upload className="size-8 mb-2" />
-                    <span className="text-xs">Drop avatar video or click to upload</span>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleAvatarUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">Input Mode</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={inputMode === 'video' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInputMode('video')}
+                >
+                  <Video className="size-4 mr-1" />
+                  Video
+                </Button>
+                <Button
+                  variant={inputMode === 'image' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInputMode('image')}
+                >
+                  <Image className="size-4 mr-1" />
+                  Image
+                </Button>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label>Audio</Label>
-              <div className="relative aspect-square rounded-md border border-dashed min-h-[120px]">
-                {audioPreview ? (
-                  <div className="flex flex-col items-center justify-center h-full p-4">
-                    <audio src={audioPreview} controls className="w-full" />
-                    <p className="text-xs text-muted-foreground mt-2">Audio loaded</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                    <Mic className="size-8 mb-2" />
-                    <span className="text-xs">Drop audio file or click to upload</span>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleAudioUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <Label>{inputMode === 'video' ? 'Avatar Video' : 'Avatar Image'}</Label>
+                <div className="relative aspect-video rounded-md border border-dashed">
+                  {avatarPreview ? (
+                    inputMode === 'video' ? (
+                      <video
+                        src={avatarPreview}
+                        className="w-full h-full object-cover rounded-md"
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                      />
+                    ) : (
+                      <img
+                        src={avatarPreview}
+                        className="w-full h-full object-cover rounded-md"
+                      />
+                    )
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <Upload className="size-8 mb-2" />
+                      <span className="text-xs">
+                        {inputMode === 'video' 
+                          ? 'Drop avatar video or click to upload'
+                          : 'Drop avatar image or click to upload'}
+                      </span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept={inputMode === 'video' ? 'video/*' : 'image/*'}
+                    onChange={handleAvatarUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Audio</Label>
+                <div className="relative aspect-square rounded-md border border-dashed min-h-[120px]">
+                  {audioPreview ? (
+                    <div className="flex flex-col items-center justify-center h-full p-4">
+                      <audio src={audioPreview} controls className="w-full" />
+                      <p className="text-xs text-muted-foreground mt-2">Audio loaded</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <Mic className="size-8 mb-2" />
+                      <span className="text-xs">Drop audio file or click to upload</span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleAudioUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
           </div>
