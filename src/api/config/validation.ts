@@ -172,9 +172,3 @@ export async function testMusicBrainz(baseUrl: string, userAgent: string, timeou
 export async function testDeezer(endpoint: string, timeoutMs: number): Promise<TestResult> {
   return doRequest('Deezer', `${endpoint.replace(/\/$/, '')}/search?q=test&limit=1`, {}, timeoutMs)
 }
-
-export async function testFreesound(apiKey: string, endpoint: string, timeoutMs: number): Promise<TestResult> {
-  const label = 'Freesound'
-  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
-  return doRequest(label, `${endpoint.replace(/\/$/, '')}/search/?token=${encodeURIComponent(apiKey)}`, {}, timeoutMs)
-}

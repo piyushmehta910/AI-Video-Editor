@@ -74,18 +74,9 @@ export interface DeezerConfig extends BaseConfig {
   endpoint: string
 }
 
-export interface FreesoundConfig extends BaseConfig {
-  endpoint: string
-  licenseFilter: string
-  minRating: number
-  maxDuration: number
-  priority: PriorityLevel
-}
-
 export interface MusicConfig {
   musicbrainz: MusicBrainzConfig
   deezer: DeezerConfig
-  freesound: FreesoundConfig
 }
 
 export interface AvatarConfig extends BaseConfig {
@@ -239,22 +230,9 @@ export const defaultDeezerConfig: DeezerConfig = {
   status: 'disabled',
 }
 
-export const defaultFreesoundConfig: FreesoundConfig = {
-  enabled: false,
-  apiKey: '',
-  endpoint: 'https://freesound.org/apiv2',
-  licenseFilter: 'cc0',
-  minRating: 3,
-  maxDuration: 60,
-  priority: 1,
-  timeoutMs: 30000,
-  status: 'disabled',
-}
-
 export const defaultMusicConfig: MusicConfig = {
   musicbrainz: defaultMusicBrainzConfig,
   deezer: defaultDeezerConfig,
-  freesound: defaultFreesoundConfig,
 }
 
 export const defaultPreferencesConfig: AiPreferencesConfig = {

@@ -1,17 +1,14 @@
 import { Music } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { defaultMusicConfig, type MusicConfig, type FreesoundConfig } from '@/api/config/types'
-import { testDeezer, testFreesound, testMusicBrainz } from '@/api/config/validation'
-import { ApiKeyInput } from '../ApiKeyInput'
-import { ApiTester } from '../ApiTester'
+import { defaultMusicConfig, type MusicConfig } from '@/api/config/types'
+import { testDeezer, testMusicBrainz } from '@/api/config/validation'
 import { FieldRow } from '../FieldRow'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { SliderField } from '../SliderField'
+import { ApiTester } from '../ApiTester'
 
 export function MusicCard() {
   const { config, update } = useApiConfigStore()
@@ -21,13 +18,6 @@ export function MusicCard() {
   const mbTimeoutMs = music.musicbrainz.timeoutMs ?? 30000
   const deezerEndpoint = music.deezer.endpoint ?? 'https://api.deezer.com'
   const deezerTimeoutMs = music.deezer.timeoutMs ?? 30000
-  const fsApiKey = music.freesound.apiKey ?? ''
-  const fsEndpoint = music.freesound.endpoint ?? 'https://freesound.org/apiv2'
-  const fsTimeoutMs = music.freesound.timeoutMs ?? 30000
-
-  const setFreesound = (patch: Partial<FreesoundConfig>) => {
-    update((draft) => ({ ...draft, music: { ...draft.music, freesound: { ...draft.music.freesound, ...patch } } }))
-  }
 
   return (
     <Card className="gap-0 py-0">
@@ -37,13 +27,13 @@ export function MusicCard() {
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Music & Audio</h3>
-          <p className="text-muted-foreground mt-0.5 text-xs">MusicBrainz, Deezer & Freesound search providers</p>
+          <p className="text-muted-foreground mt-0.5 text-xs">MusicBrainz & Deezer search providers</p>
         </div>
       </div>
 
       <Separator />
 
-      <CardContent className="grid grid-cols-1 gap-5 px-4 py-4 md:grid-cols-3">
+      <CardContent className="grid grid-cols-1 gap-5 px-4 py-4 md:grid-cols-2">
         <Card className="gap-4 py-4">
           <div className="flex items-center justify-between px-4">
             <h4 className="text-sm font-semibold">MusicBrainz</h4>
@@ -72,36 +62,6 @@ export function MusicCard() {
               <Input id="deezer-endpoint" value={deezerEndpoint} onChange={(e) => update((d) => ({ ...d, music: { ...d.music, deezer: { ...d.music.deezer, endpoint: e.target.value } } }))} />
             </FieldRow>
             <ApiTester run={() => testDeezer(deezerEndpoint, deezerTimeoutMs).then((r) => { update((d) => ({ ...d, music: { ...d.music, deezer: { ...d.music.deezer, status: r.ok ? 'connected' : 'disconnected' } } })); return r })} label="Test" />
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4 py-4">
-          <div className="flex items-center justify-between px-4">
-            <h4 className="text-sm font-semibold">Freesound</h4>
-            <Switch checked={music.freesound.enabled} onCheckedChange={(enabled) => setFreesound({ enabled, status: enabled ? music.freesound.status ?? 'disconnected' : 'disabled' })} aria-label="Toggle Freesound" />
-          </div>
-          <CardContent className="flex flex-col gap-3 px-4">
-            <FieldRow label="API Key" htmlFor="freesound-key">
-              <ApiKeyInput id="freesound-key" value={fsApiKey} placeholder="Freesound token" onChange={(e) => setFreesound({ apiKey: e.target.value })} />
-            </FieldRow>
-            <FieldRow label="Endpoint" htmlFor="freesound-endpoint">
-              <Input id="freesound-endpoint" value={fsEndpoint} placeholder="https://freesound.org/apiv2" onChange={(e) => setFreesound({ endpoint: e.target.value })} />
-            </FieldRow>
-            <FieldRow label="License Filter" htmlFor="freesound-license">
-              <Select value={music.freesound.licenseFilter} onValueChange={(v) => setFreesound({ licenseFilter: v })}>
-                <SelectTrigger id="freesound-license" className="w-full"><SelectValue placeholder="License" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cc0">CC0</SelectItem>
-                  <SelectItem value="attribution">CC-BY</SelectItem>
-                  <SelectItem value="attribution,cc0">CC0 + CC-BY</SelectItem>
-                </SelectContent>
-              </Select>
-            </FieldRow>
-            <FieldRow label="Max Duration (s)" htmlFor="freesound-duration">
-              <Input id="freesound-duration" type="number" min={5} max={300} value={music.freesound.maxDuration} onChange={(e) => setFreesound({ maxDuration: Number(e.target.value) })} />
-            </FieldRow>
-            <SliderField label="Min Rating" value={music.freesound.minRating} min={0} max={5} step={1} integer onChange={(v) => setFreesound({ minRating: v })} />
-            <ApiTester run={() => testFreesound(fsApiKey, fsEndpoint, fsTimeoutMs).then((r) => { setFreesound({ status: r.ok ? 'connected' : 'disconnected' }); return r })} label="Test" />
           </CardContent>
         </Card>
       </CardContent>

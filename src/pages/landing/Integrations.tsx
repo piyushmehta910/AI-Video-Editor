@@ -11,7 +11,7 @@ const GROUPS = [
   },
   {
     label: 'Stock & Media',
-    providers: ['Unsplash', 'Pexels', 'Pixabay', 'Freesound'],
+    providers: ['Unsplash', 'Pexels', 'Pixabay'],
   },
   {
     label: 'Music & Research',
