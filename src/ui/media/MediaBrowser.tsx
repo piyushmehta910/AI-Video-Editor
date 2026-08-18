@@ -84,15 +84,18 @@ export function MediaBrowser() {
           <FolderUp className="size-4" />
           Import
         </Button>
-        <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setAvatarOpen(true)} title="Generate an on-device lip-sync avatar">
+      </div>
+
+      <div className="grid grid-cols-3 gap-1.5 border-b px-2 py-2">
+        <Button variant="outline" size="sm" className="h-8 flex-col gap-0.5 px-1 text-[10px]" onClick={() => setAvatarOpen(true)} title="Generate an on-device lip-sync avatar">
           <Clapperboard className="size-4" />
           Avatar
         </Button>
-        <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setAIToolsOpen(true)} title="Wav2Lip lip-sync, auto captions & noise cancellation">
+        <Button variant="outline" size="sm" className="h-8 flex-col gap-0.5 px-1 text-[10px]" onClick={() => setAIToolsOpen(true)} title="Wav2Lip lip-sync, auto captions & noise cancellation">
           <Sparkles className="size-4" />
           AI Tools
         </Button>
-        <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setTextOpen(true)} title="Add styled text with animation">
+        <Button variant="outline" size="sm" className="h-8 flex-col gap-0.5 px-1 text-[10px]" onClick={() => setTextOpen(true)} title="Add styled text with animation">
           <Type className="size-4" />
           Text
         </Button>
