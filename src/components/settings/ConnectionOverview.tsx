@@ -32,7 +32,7 @@ export function ConnectionOverview() {
       {
         id: 'elevenlabs',
         label: 'ElevenLabs',
-        run: () => testElevenLabs(e.apiKey, e.timeoutMs, e.endpoint),
+        run: () => testElevenLabs(e.apiKey, e.timeoutMs, e.endpoint, e.voiceId),
       },
       {
         id: 'unsplash',

@@ -167,18 +167,48 @@ export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.
   })
 }
 
-export function testElevenLabs(apiKey: string, timeoutMs: number, endpoint = 'https://api.elevenlabs.io') {
+export function testElevenLabs(
+  apiKey: string,
+  timeoutMs: number,
+  endpoint = 'https://api.elevenlabs.io',
+  voiceId?: string,
+) {
   if (!apiKey.trim()) {
     return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'ElevenLabs: Enter an API key to test', latencyMs: 0 })
   }
+  const base = endpoint.replace(/\/$/, '')
+  // Validate the key against the models endpoint first, then verify the
+  // configured voice exists for the account (GET /v1/voices/{id}).
   return testReachability({
     label: 'ElevenLabs',
-    url: `${endpoint.replace(/\/$/, '')}/v1/models`,
+    url: `${base}/v1/models`,
     timeoutMs,
     headers: {
       'xi-api-key': apiKey,
       Accept: 'application/json',
     },
+  }).then(async (modelsResult) => {
+    if (!modelsResult.ok || !voiceId) return modelsResult
+    const voice = await testReachability({
+      label: 'ElevenLabs Voice',
+      url: `${base}/v1/voices/${encodeURIComponent(voiceId)}`,
+      timeoutMs,
+      headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+    })
+    if (!voice.ok) {
+      return {
+        ok: false,
+        status: 'disconnected' as const,
+        message: `ElevenLabs: Voice "${voiceId}" not found for this account`,
+        latencyMs: modelsResult.latencyMs + voice.latencyMs,
+      }
+    }
+    return {
+      ok: true,
+      status: 'connected' as const,
+      message: `ElevenLabs: Connection successful (voice "${voiceId}" verified)`,
+      latencyMs: modelsResult.latencyMs + voice.latencyMs,
+    }
   })
 }
 
