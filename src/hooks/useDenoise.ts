@@ -24,8 +24,12 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
     )
 
     worker.onmessage = (event) => {
-      const { type, result: res, error: err } = event.data
+      const { type, progress: prog, result: res, error: err } = event.data
       switch (type) {
+        case 'progress':
+          setProgress(prog as number)
+          options.onProgress?.(prog as number)
+          break
         case 'result':
           setProcessing(false)
           setProgress(1)

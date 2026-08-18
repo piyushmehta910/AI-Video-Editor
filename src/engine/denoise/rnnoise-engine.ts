@@ -40,12 +40,14 @@ export class RNNoiseEngine {
     }
   }
 
-  async denoise(audioBuffer: Float32Array, sampleRate: number): Promise<DenoiseResult> {
+  async denoise(audioBuffer: Float32Array, sampleRate: number, onProgress?: (progress: number) => void): Promise<DenoiseResult> {
     if (!this.initialized) await this.initialize()
     if (!this.denoiser) throw new Error('Denoiser not initialized')
 
     const resampled = this.resampleAudio(audioBuffer, sampleRate, this.config.sampleRate)
     const output = new Float32Array(resampled.length)
+    const totalFrames = Math.max(1, Math.ceil(resampled.length / this.config.frameSize))
+    let processedFrames = 0
 
     for (let i = 0; i < resampled.length; i += this.config.frameSize) {
       let frame = resampled.slice(i, i + this.config.frameSize)
@@ -57,6 +59,9 @@ export class RNNoiseEngine {
       }
       this.denoiser!.processFrame(frame)
       output.set(frame, i)
+
+      processedFrames++
+      if (onProgress) onProgress(processedFrames / totalFrames)
     }
 
     return {

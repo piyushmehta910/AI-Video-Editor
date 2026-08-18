@@ -3,10 +3,11 @@ import type { DenoiseResult, RNNoiseConfig } from './rnnoise-engine'
 import { RNNoiseEngine } from './rnnoise-engine'
 
 interface WorkerMessage {
-  type: 'init' | 'denoise' | 'result' | 'error'
+  type: 'init' | 'denoise' | 'progress' | 'result' | 'error'
   config?: RNNoiseConfig
   audioBuffer?: Float32Array
   sampleRate?: number
+  progress?: number
   result?: DenoiseResult
   error?: string
 }
@@ -33,7 +34,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           self.postMessage({ type: 'error', error: 'No audio buffer provided' })
           break
         }
-        const result = await engine.denoise(audioBuffer, sampleRate!)
+        const result = await engine.denoise(audioBuffer, sampleRate!, (progress) => {
+          self.postMessage({ type: 'progress', progress })
+        })
         self.postMessage({ type: 'result', result })
         break
       }
