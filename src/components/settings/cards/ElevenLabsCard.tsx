@@ -70,7 +70,7 @@ export function ElevenLabsCard() {
       const blob = await synthesizeSpeech({
         apiKey, endpoint, voiceId,
         text: 'Hi, this is a quick voiceover preview from ClipForge.',
-        model, stability, similarity, style, speed, outputFormat, timeoutMs,
+        model, language, stability, similarity, style, speed, outputFormat, timeoutMs,
       })
       const url = URL.createObjectURL(blob)
       if (audioRef.current) { audioRef.current.src = url; await audioRef.current.play() }

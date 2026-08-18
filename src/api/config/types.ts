@@ -130,7 +130,9 @@ export const defaultNvidiaNimConfig: NvidiaNimConfig = {
   enabled: true,
   apiKey: '',
   baseUrl: 'https://integrate.api.nvidia.com/v1',
-  model: 'nvidia/nemotron-3-super-120b-a12b',
+  // A broadly available chat model; users can refresh the catalog for their
+  // account before selecting a different one.
+  model: 'meta/llama-3.1-8b-instruct',
   temperature: 0.7,
   maxTokens: 2048,
   timeoutMs: 30000,

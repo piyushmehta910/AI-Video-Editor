@@ -6,6 +6,7 @@ export interface TtsRequest {
   voiceId: string
   text: string
   model?: string
+  language?: string
   stability?: number
   similarity?: number
   style?: number
@@ -25,7 +26,7 @@ export async function synthesizeSpeech(req: TtsRequest): Promise<Blob> {
   if (!apiKey.trim()) throw new Error('ElevenLabs: missing API key')
   if (!voiceId.trim()) throw new Error('ElevenLabs: no voice selected')
   const base = req.endpoint.replace(/\/$/, '')
-  const body = JSON.stringify({
+  const requestBody: Record<string, unknown> = {
     text,
     model_id: req.model ?? 'eleven_multilingual_v2',
     voice_settings: {
@@ -33,18 +34,22 @@ export async function synthesizeSpeech(req: TtsRequest): Promise<Blob> {
       similarity_boost: req.similarity ?? 0.75,
       style: req.style ?? 0.3,
       use_speaker_boost: true,
+      speed: req.speed ?? 1.0,
     },
-    speed: req.speed ?? 1.0,
-    output_format: req.outputFormat ?? 'mp3_44100_128',
-  })
+  }
+  if (req.language && req.language !== 'auto') requestBody.language_code = req.language
+  const body = JSON.stringify(requestBody)
   const headers: Record<string, string> = {
     'xi-api-key': apiKey,
     'Content-Type': 'application/json',
     Accept: 'audio/mpeg',
   }
 
-  const voicesUrl = `${base}/v1/text-to-speech/${encodeURIComponent(voiceId)}`
-  for (const url of [`${voicesUrl}/stream`, voicesUrl]) {
+  // ElevenLabs defines output_format as a query parameter, not a JSON field.
+  const outputFormat = encodeURIComponent(req.outputFormat ?? 'mp3_44100_128')
+  const voiceUrl = `${base}/v1/text-to-speech/${encodeURIComponent(voiceId)}`
+  const query = `?output_format=${outputFormat}`
+  for (const url of [`${voiceUrl}/stream${query}`, `${voiceUrl}${query}`]) {
     const res = await fetchWithTimeout(url, { method: 'POST', headers, body }, req.timeoutMs)
     if (res.ok) {
       return await res.blob()

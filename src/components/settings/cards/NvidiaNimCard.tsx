@@ -65,7 +65,7 @@ export function NvidiaNimCard() {
   const cfg: NvidiaNimConfig = config.nvidiaNim
   const apiKey = cfg.apiKey ?? ''
   const baseUrl = cfg.baseUrl ?? 'https://integrate.api.nvidia.com/v1'
-  const model = cfg.model ?? 'nvidia/nemotron-3-super-120b-a12b'
+  const model = cfg.model ?? 'meta/llama-3.1-8b-instruct'
   const temperature = cfg.temperature ?? 0.7
   const maxTokens = cfg.maxTokens ?? 2048
   const timeoutMs = cfg.timeoutMs ?? 30000

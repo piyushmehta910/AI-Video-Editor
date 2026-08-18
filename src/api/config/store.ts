@@ -36,7 +36,13 @@ function mergeApiConfig(stored: Partial<ApiConfig>): ApiConfig {
       merged[key] = value ?? fallback
     }
   }
-  return merged as unknown as ApiConfig
+  const config = merged as unknown as ApiConfig
+  // Upgrade the app's previous default model for people who already have
+  // settings saved, while preserving any model selected intentionally.
+  if (config.nvidiaNim.model === 'nvidia/nemotron-3-super-120b-a12b') {
+    config.nvidiaNim.model = 'meta/llama-3.1-8b-instruct'
+  }
+  return config
 }
 
 function loadFromStorage(): ApiConfig {

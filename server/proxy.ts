@@ -23,8 +23,20 @@ export interface ProxyResult {
   body: string
 }
 
-/** Hosts that block browser CORS and are routed through this proxy. */
-const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
+/**
+ * Provider hosts the client may call through this proxy. This keeps API keys
+ * out of CORS preflight failures without turning the endpoint into an open
+ * proxy. Keep this list in sync with src/api/proxy.ts.
+ */
+const ALLOWED_HOSTS = [
+  'integrate.api.nvidia.com',
+  'opencode.ai',
+  'api.deezer.com',
+  'api.elevenlabs.io',
+  'pixabay.com',
+  'api.unsplash.com',
+  'api.pexels.com',
+]
 
 export function isAllowedProxyUrl(url: string): boolean {
   try {

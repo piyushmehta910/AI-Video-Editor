@@ -4,6 +4,7 @@ import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { needsProxy, proxyFetch } from '@/api/proxy'
 
 interface StockResult {
   id: string
@@ -11,6 +12,10 @@ interface StockResult {
   full: string
   author: string
   source: string
+}
+
+async function providerFetch(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  return needsProxy(url) ? proxyFetch(url, init, timeoutMs) : fetch(url, init)
 }
 
 export function StockMediaSearch() {
@@ -40,12 +45,13 @@ export function StockMediaSearch() {
         if (provider === 'unsplash') {
           const accessKey = config.stockImages.unsplash.accessKey || config.stockImages.unsplash.apiKey
           if (!accessKey) continue
-          const res = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=12`, {
+          const res = await providerFetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=12`, {
             headers: {
               Authorization: `Client-ID ${accessKey}`,
               'Accept-Version': 'v1',
             },
-          })
+          }, config.stockImages.unsplash.timeoutMs)
+          if (!res.ok) throw new Error(`Unsplash HTTP ${res.status}`)
           const data = await res.json()
           for (const photo of data.results ?? []) {
             allResults.push({
@@ -59,9 +65,10 @@ export function StockMediaSearch() {
         }
 
         if (provider === 'pexels' && config.stockImages.pexels.apiKey) {
-          const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=12`, {
+          const res = await providerFetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=12`, {
             headers: { Authorization: config.stockImages.pexels.apiKey },
-          })
+          }, config.stockImages.pexels.timeoutMs)
+          if (!res.ok) throw new Error(`Pexels HTTP ${res.status}`)
           const data = await res.json()
           for (const photo of data.photos ?? []) {
             allResults.push({
@@ -75,7 +82,15 @@ export function StockMediaSearch() {
         }
 
         if (provider === 'pixabay' && config.stockImages.pixabay.apiKey) {
-          const res = await fetch(`https://pixabay.com/api/?key=${config.stockImages.pixabay.apiKey}&q=${encodeURIComponent(query)}&per_page=12&image_type=photo`)
+          const params = new URLSearchParams({
+            key: config.stockImages.pixabay.apiKey,
+            q: query,
+            per_page: '12',
+            image_type: 'photo',
+            safesearch: String(config.stockImages.pixabay.safeSearch),
+          })
+          const res = await providerFetch(`https://pixabay.com/api/?${params}`, {}, config.stockImages.pixabay.timeoutMs)
+          if (!res.ok) throw new Error(`Pixabay HTTP ${res.status}`)
           const data = await res.json()
           for (const photo of data.hits ?? []) {
             allResults.push({

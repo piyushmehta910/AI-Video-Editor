@@ -1,4 +1,14 @@
-const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
+// Provider APIs are proxied so valid keys do not fail because of browser CORS
+// policies. Keep this list in sync with the server-side allowlist.
+const PROXIED_HOSTS = [
+  'integrate.api.nvidia.com',
+  'opencode.ai',
+  'api.deezer.com',
+  'api.elevenlabs.io',
+  'pixabay.com',
+  'api.unsplash.com',
+  'api.pexels.com',
+]
 
 export function needsProxy(url: string): boolean {
   try {
