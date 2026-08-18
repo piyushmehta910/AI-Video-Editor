@@ -167,49 +167,81 @@ export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.
   })
 }
 
-export function testElevenLabs(
+export async function testElevenLabs(
   apiKey: string,
   timeoutMs: number,
   endpoint = 'https://api.elevenlabs.io',
   voiceId?: string,
-) {
+): Promise<TestConnectionResult> {
   if (!apiKey.trim()) {
-    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'ElevenLabs: Enter an API key to test', latencyMs: 0 })
+    return { ok: false, status: 'disconnected' as const, message: 'ElevenLabs: Enter an API key to test', latencyMs: 0 }
   }
   const base = endpoint.replace(/\/$/, '')
-  // Validate the key against the models endpoint first, then verify the
-  // configured voice exists for the account (GET /v1/voices/{id}).
-  return testReachability({
+  // Validate the key against the models endpoint first (returns 401 on bad
+  // key), then pull subscription info and verify the configured voice exists.
+  const models = await testReachability({
     label: 'ElevenLabs',
     url: `${base}/v1/models`,
     timeoutMs,
-    headers: {
-      'xi-api-key': apiKey,
-      Accept: 'application/json',
-    },
-  }).then(async (modelsResult) => {
-    if (!modelsResult.ok || !voiceId) return modelsResult
+    headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+  })
+  if (!models.ok) return models
+  let latency = models.latencyMs
+  let tier = ''
+  let charsUsed = 0
+  let charsLimit = 0
+
+  const user = await testReachability({
+    label: 'ElevenLabs',
+    url: `${base}/v1/user`,
+    timeoutMs,
+    headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+  })
+  latency += user.latencyMs
+  if (user.ok) {
+    try {
+      const res = await fetchWithTimeout(
+        `${base}/v1/user`,
+        { headers: { 'xi-api-key': apiKey, Accept: 'application/json' } },
+        timeoutMs,
+      )
+      const data = (await res.json()) as {
+        subscription?: { tier?: string; character_count?: number; character_limit?: number }
+      }
+      tier = data.subscription?.tier ?? ''
+      charsUsed = data.subscription?.character_count ?? 0
+      charsLimit = data.subscription?.character_limit ?? 0
+    } catch {
+      // Subscription info is non-blocking
+    }
+  }
+
+  let message = 'ElevenLabs: Connection successful'
+  const bits: string[] = []
+  if (tier) bits.push(`${tier} tier`)
+  if (charsLimit > 0) bits.push(`${charsUsed.toLocaleString()}/${charsLimit.toLocaleString()} chars`)
+  if (bits.length) message += ` (${bits.join(', ')})`
+
+  if (voiceId) {
     const voice = await testReachability({
       label: 'ElevenLabs Voice',
       url: `${base}/v1/voices/${encodeURIComponent(voiceId)}`,
       timeoutMs,
       headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
     })
+    latency += voice.latencyMs
     if (!voice.ok) {
       return {
         ok: false,
         status: 'disconnected' as const,
         message: `ElevenLabs: Voice "${voiceId}" not found for this account`,
-        latencyMs: modelsResult.latencyMs + voice.latencyMs,
+        latencyMs: latency,
       }
     }
-    return {
-      ok: true,
-      status: 'connected' as const,
-      message: `ElevenLabs: Connection successful (voice "${voiceId}" verified)`,
-      latencyMs: modelsResult.latencyMs + voice.latencyMs,
-    }
-  })
+    message += ` (voice "${voiceId}" verified)`
+  }
+
+  return { ok: true, status: 'connected' as const, message, latencyMs: latency }
 }
 
 /**
@@ -307,6 +339,7 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
             model,
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
+            temperature: 0,
           }),
         },
         timeoutMs,
@@ -319,7 +352,15 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
         return { ok: false, status: 'disconnected', message: `${label}: Invalid API key or unauthorized` }
       }
       if (res.status === 404) {
-        return { ok: false, status: 'disconnected', message: `${label}: Model not found — "${model}". Pick a different model or refresh the list.` }
+        return { ok: false, status: 'disconnected', message: `${label}: Endpoint not found — check the base URL (should end with /v1)` }
+      }
+      if (res.status === 400 || res.status === 422) {
+        // Key authenticated but the model isn't available at this endpoint.
+        return {
+          ok: false,
+          status: 'disconnected',
+          message: `${label}: API key valid, but model "${model}" is not available here. Pick another model or refresh the list.${body ? ` (${body.slice(0, 120)})` : ''}`,
+        }
       }
       if (res.status === 429) {
         return { ok: false, status: 'disconnected', message: `${label}: Rate limit exceeded` }
