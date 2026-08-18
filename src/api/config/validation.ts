@@ -125,6 +125,9 @@ export async function testReachability(params: {
 }
 
 export function testUnsplash(accessKey: string, timeoutMs: number) {
+  if (!accessKey.trim()) {
+    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'Unsplash: Enter an API key (Access Key) to test', latencyMs: 0 })
+  }
   return testReachability({
     label: 'Unsplash',
     url: 'https://api.unsplash.com/search/photos?query=test&per_page=1',
@@ -137,6 +140,9 @@ export function testUnsplash(accessKey: string, timeoutMs: number) {
 }
 
 export function testPexels(apiKey: string, timeoutMs: number) {
+  if (!apiKey.trim()) {
+    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'Pexels: Enter an API key to test', latencyMs: 0 })
+  }
   return testBearerEndpoint({
     label: 'Pexels',
     url: 'https://api.pexels.com/v1/search?query=nature&per_page=1',
@@ -147,6 +153,9 @@ export function testPexels(apiKey: string, timeoutMs: number) {
 }
 
 export function testPixabay(apiKey: string, timeoutMs: number) {
+  if (!apiKey.trim()) {
+    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'Pixabay: Enter an API key to test', latencyMs: 0 })
+  }
   return testApiKeyEndpoint({
     label: 'Pixabay',
     url: 'https://pixabay.com/api/',
@@ -157,6 +166,9 @@ export function testPixabay(apiKey: string, timeoutMs: number) {
 }
 
 export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.dev', timeoutMs: number) {
+  if (!apiKey.trim()) {
+    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'Firecrawl: Enter an API key to test', latencyMs: 0 })
+  }
   return testBearerEndpoint({
     label: 'Firecrawl',
     url: `${endpoint.replace(/\/$/, '')}/v2/team/credit-usage`,
@@ -250,6 +262,9 @@ export function testDeezer(endpoint = 'https://api.deezer.com', timeoutMs: numbe
 }
 
 export function testFreesound(apiKey: string, endpoint = 'https://freesound.org/apiv2', timeoutMs: number) {
+  if (!apiKey.trim()) {
+    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'Freesound: Enter an API key to test', latencyMs: 0 })
+  }
   return testApiKeyEndpoint({
     label: 'Freesound',
     url: `${endpoint.replace(/\/$/, '')}/search/`,
