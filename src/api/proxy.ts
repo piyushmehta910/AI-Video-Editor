@@ -1,4 +1,4 @@
-const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai']
+const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
 
 export function needsProxy(url: string): boolean {
   try {
