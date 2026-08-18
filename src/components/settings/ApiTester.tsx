@@ -2,17 +2,17 @@ import * as React from 'react'
 import { Loader2, Plug, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { TestConnectionResult } from '@/api/config/validation'
+import type { TestResult } from '@/api/config/validation'
 
 interface ApiTesterProps {
-  run: () => Promise<TestConnectionResult>
+  run: () => Promise<TestResult>
   label?: string
   className?: string
 }
 
 export function ApiTester({ run, label = 'Test Connection', className }: ApiTesterProps) {
   const [state, setState] = React.useState<'idle' | 'testing' | 'done'>('idle')
-  const [result, setResult] = React.useState<TestConnectionResult | null>(null)
+  const [result, setResult] = React.useState<TestResult | null>(null)
 
   const handleClick = async () => {
     setState('testing')

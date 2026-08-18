@@ -1,33 +1,30 @@
 export type ProviderStatus = 'connected' | 'disconnected' | 'disabled'
-
 export type PriorityLevel = 1 | 2 | 3
 
-export interface BaseProviderConfig {
+export interface BaseConfig {
   enabled: boolean
+  apiKey?: string
+  baseUrl?: string
+  timeoutMs: number
   status?: ProviderStatus
-  lastCheckedAt?: number
 }
 
-export interface LLMProviderConfig extends BaseProviderConfig {
-  apiKey: string
-  baseUrl: string
+export interface LLMConfig extends BaseConfig {
   model: string
   temperature: number
   maxTokens: number
-  timeoutMs: number
   priority: PriorityLevel
 }
 
-export interface NvidiaNimConfig extends LLMProviderConfig {}
+export interface NvidiaNimConfig extends LLMConfig {}
 
-export interface OpenCodeZenConfig extends LLMProviderConfig {
+export interface OpenCodeZenConfig extends LLMConfig {
   reasoningLevel: string
 }
 
-export interface OpenRouterConfig extends LLMProviderConfig {}
+export interface OpenRouterConfig extends LLMConfig {}
 
-export interface ElevenLabsConfig extends BaseProviderConfig {
-  apiKey: string
+export interface ElevenLabsConfig extends BaseConfig {
   endpoint: string
   voiceId: string
   model: string
@@ -37,38 +34,18 @@ export interface ElevenLabsConfig extends BaseProviderConfig {
   style: number
   speed: number
   outputFormat: string
-  timeoutMs: number
 }
 
-/**
- * Browser-only avatar & lip-sync generation settings. Lip sync is rendered
- * on-device (Web Audio + canvas + WebCodecs) — no API, no external service.
- */
-export interface AvatarConfig extends BaseProviderConfig {
-  resolution: string
-  fps: number
-  background: string
-  mouthX: number
-  mouthY: number
-  mouthWidth: number
-  mouthMaxOpen: number
-}
-
-export interface StockProviderConfig extends BaseProviderConfig {
-  apiKey: string
+export interface StockProviderConfig extends BaseConfig {
   priority: PriorityLevel
   orientation: string
   safeSearch: boolean
   minResolution?: string
-  timeoutMs: number
 }
 
-/**
- * Unsplash app credentials from the developer dashboard.
- */
 export interface UnsplashProviderConfig extends StockProviderConfig {
-  applicationId: string
   accessKey: string
+  applicationId: string
   secretKey: string
 }
 
@@ -79,36 +56,30 @@ export interface StockImagesConfig {
   order: Array<'unsplash' | 'pexels' | 'pixabay'>
 }
 
-export interface FirecrawlConfig extends BaseProviderConfig {
-  apiKey: string
+export interface FirecrawlConfig extends BaseConfig {
   endpoint: string
   searchEngine: string
-  timeoutMs: number
   maxResults: number
   useForResearch: boolean
   useForFactCheck: boolean
   useForArticleExtraction: boolean
 }
 
-export interface MusicBrainzConfig extends BaseProviderConfig {
+export interface MusicBrainzConfig extends BaseConfig {
   baseUrl: string
   userAgent: string
-  timeoutMs: number
 }
 
-export interface DeezerConfig extends BaseProviderConfig {
+export interface DeezerConfig extends BaseConfig {
   endpoint: string
-  timeoutMs: number
 }
 
-export interface FreesoundConfig extends BaseProviderConfig {
-  apiKey: string
+export interface FreesoundConfig extends BaseConfig {
   endpoint: string
   licenseFilter: string
   minRating: number
   maxDuration: number
   priority: PriorityLevel
-  timeoutMs: number
 }
 
 export interface MusicConfig {
@@ -117,12 +88,14 @@ export interface MusicConfig {
   freesound: FreesoundConfig
 }
 
-export interface SecurityConfig {
-  encryptKeys: boolean
-  hasMasterPassword: boolean
-  masterPasswordSetAt?: number
-  algorithm: 'AES-GCM'
-  iterations: number
+export interface AvatarConfig extends BaseConfig {
+  resolution: string
+  fps: number
+  background: string
+  mouthX: number
+  mouthY: number
+  mouthWidth: number
+  mouthMaxOpen: number
 }
 
 export interface AiPreferencesConfig {
@@ -150,7 +123,6 @@ export interface ApiConfig {
   stockImages: StockImagesConfig
   firecrawl: FirecrawlConfig
   music: MusicConfig
-  security: SecurityConfig
   preferences: AiPreferencesConfig
 }
 
@@ -216,6 +188,7 @@ export const defaultAvatarConfig: AvatarConfig = {
   mouthY: 0.78,
   mouthWidth: 0.16,
   mouthMaxOpen: 0.1,
+  timeoutMs: 30000,
   status: 'disabled',
 }
 
@@ -230,7 +203,7 @@ const defaultStockProvider = (): StockProviderConfig => ({
 })
 
 export const defaultStockImagesConfig: StockImagesConfig = {
-  unsplash: { ...defaultStockProvider(), priority: 1, minResolution: '1920x1080', applicationId: '', accessKey: '', secretKey: '' },
+  unsplash: { ...defaultStockProvider(), priority: 1, minResolution: '1920x1080', accessKey: '', applicationId: '', secretKey: '' },
   pexels: { ...defaultStockProvider(), priority: 2 },
   pixabay: { ...defaultStockProvider(), priority: 3 },
   order: ['unsplash', 'pexels', 'pixabay'],
@@ -282,13 +255,6 @@ export const defaultMusicConfig: MusicConfig = {
   freesound: defaultFreesoundConfig,
 }
 
-export const defaultSecurityConfig: SecurityConfig = {
-  encryptKeys: true,
-  hasMasterPassword: false,
-  algorithm: 'AES-GCM',
-  iterations: 100000,
-}
-
 export const defaultPreferencesConfig: AiPreferencesConfig = {
   language: 'en',
   defaultAspectRatio: '16:9',
@@ -314,6 +280,7 @@ export const defaultApiConfig: ApiConfig = {
   stockImages: defaultStockImagesConfig,
   firecrawl: defaultFirecrawlConfig,
   music: defaultMusicConfig,
-  security: defaultSecurityConfig,
   preferences: defaultPreferencesConfig,
 }
+
+export const STORAGE_KEY = 'clipforge-api-config'

@@ -19,7 +19,7 @@ const CONFIRMATION_OPTIONS: Array<{ value: ConfirmationLevel; label: string }> =
 ]
 
 export function PreferencesCard() {
-  const { config, update, save } = useApiConfigStore()
+  const { config, update } = useApiConfigStore()
   const prefs = config.preferences
 
   const set = (patch: Partial<AiPreferencesConfig>) => {
@@ -172,9 +172,6 @@ export function PreferencesCard() {
       <div className="flex justify-end gap-2 px-4 py-3">
         <Button type="button" variant="ghost" size="sm" onClick={() => update((d) => ({ ...d, preferences: { ...defaultPreferencesConfig } }))}>
           Reset
-        </Button>
-        <Button type="button" size="sm" onClick={save}>
-          Save
         </Button>
       </div>
     </Card>

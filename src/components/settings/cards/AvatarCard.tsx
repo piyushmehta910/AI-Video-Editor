@@ -11,7 +11,7 @@ const RESOLUTIONS = ['512x512', '768x768', '1024x1024']
 const BACKGROUNDS = ['transparent', 'solid', 'blurred']
 
 export function AvatarCard() {
-  const { config, update, save } = useApiConfigStore()
+  const { config, update } = useApiConfigStore()
   const cfg: AvatarConfig = config.avatar
 
   const set = (patch: Partial<AvatarConfig>) => {
@@ -30,7 +30,6 @@ export function AvatarCard() {
         </span>
       }
       onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'connected' : 'disabled' })}
-      onSave={save}
       onReset={() => update((draft) => ({ ...draft, avatar: { ...defaultAvatarConfig } }))}
     >
       <p className="text-muted-foreground md:col-span-2 text-xs">

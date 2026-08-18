@@ -1,6 +1,6 @@
 /**
  * Same-origin serverless proxy so the browser app can call providers that
- * block CORS (NVIDIA NIM, OpenCode Zen, Deezer). Keys pass through from the
+ * block CORS (NVIDIA NIM, OpenCode Zen). Keys pass through from the
  * client; nothing is persisted server-side. CORS-friendly providers are
  * fetched directly from the browser and never hit this endpoint.
  */
@@ -14,7 +14,7 @@ interface ProxyPayload {
 }
 
 /** Hosts allowed to be proxied through this endpoint. Mirrors server/proxy.ts. */
-const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'ai.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
+const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai']
 
 function isAllowedProxyUrl(url: string): boolean {
   try {
@@ -28,7 +28,6 @@ async function doFetch(url: string, init: RequestInit, timeoutMs?: number): Prom
   try {
     return await fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
   } catch (err) {
-    // Transient network failures (DNS, socket reset, TLS). Retry once.
     await new Promise((resolve) => setTimeout(resolve, 250))
     return fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
   }

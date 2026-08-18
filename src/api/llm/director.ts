@@ -1,7 +1,7 @@
 import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { needsProxy, proxyFetch } from '@/api/proxy'
-import type { LLMProviderConfig } from '@/api/config/types'
+import type { LLMConfig } from '@/api/config/types'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -19,21 +19,21 @@ export interface ToolCall {
 
 export interface DirectorProvider {
   name: string
-  config: LLMProviderConfig
+  config: LLMConfig
 }
 
 export function getDirectorProvider(): DirectorProvider | null {
   const { config } = useApiConfigStore.getState()
   const preferred = config.preferences.preferredAiProvider
-  const candidates: Array<{ name: string; cfg: LLMProviderConfig }> = [
+  const candidates: Array<{ name: string; cfg: LLMConfig }> = [
     { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
     { name: 'OpenCode Zen', cfg: config.opencodeZen },
     { name: 'OpenRouter', cfg: config.openRouter },
   ]
-  const tryCandidate = (name: string, cfg: LLMProviderConfig): DirectorProvider | null =>
+  const tryCandidate = (name: string, cfg: LLMConfig): DirectorProvider | null =>
     cfg.enabled && cfg.apiKey && cfg.baseUrl && cfg.model ? { name, config: cfg } : null
   if (preferred) {
-    const prefs: Record<string, { name: string; cfg: LLMProviderConfig }> = {
+    const prefs: Record<string, { name: string; cfg: LLMConfig }> = {
       'nvidia-nim': { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
       'opencode-zen': { name: 'OpenCode Zen', cfg: config.opencodeZen },
       'openrouter': { name: 'OpenRouter', cfg: config.openRouter },
@@ -123,12 +123,14 @@ export async function chatCompletion(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), provider.config.timeoutMs)
   try {
-    const url = `${provider.config.baseUrl.replace(/\/$/, '')}/chat/completions`
+    const baseUrl = provider.config.baseUrl ?? ''
+    const apiKey = provider.config.apiKey ?? ''
+    const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`
     const init: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${provider.config.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,

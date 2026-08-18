@@ -2,7 +2,7 @@ import * as React from 'react'
 import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFreesound, testFirecrawl } from '@/api/config/validation'
-import type { TestConnectionResult } from '@/api/config/validation'
+import type { TestResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -10,71 +10,99 @@ import { cn } from '@/lib/utils'
 type OverviewItem = {
   id: string
   label: string
-  run: () => Promise<TestConnectionResult>
+  run: () => Promise<TestResult>
 }
 
 export function ConnectionOverview() {
   const { config } = useApiConfigStore()
-  const [results, setResults] = React.useState<Record<string, TestConnectionResult | null>>({})
+  const [results, setResults] = React.useState<Record<string, TestResult | null>>({})
   const [busy, setBusy] = React.useState(false)
 
-  const items: OverviewItem[] = React.useMemo(() => {
-    const n = config.nvidiaNim
-    const e = config.elevenLabs
-    const s = config.stockImages
-    const m = config.music
-    return [
-      {
-        id: 'nvidia',
-        label: 'NVIDIA NIM',
-        run: () => testNvidiaNim(n.apiKey, n.baseUrl, n.model, n.timeoutMs),
-      },
-      {
-        id: 'elevenlabs',
-        label: 'ElevenLabs',
-        run: () => testElevenLabs(e.apiKey, e.timeoutMs, e.endpoint, e.voiceId),
-      },
-      {
-        id: 'unsplash',
-        label: 'Unsplash',
-        run: () => testUnsplash(s.unsplash.accessKey || s.unsplash.apiKey, s.unsplash.timeoutMs),
-      },
-      {
-        id: 'pexels',
-        label: 'Pexels',
-        run: () => testPexels(s.pexels.apiKey, s.pexels.timeoutMs),
-      },
-      {
-        id: 'pixabay',
-        label: 'Pixabay',
-        run: () => testPixabay(s.pixabay.apiKey, s.pixabay.timeoutMs),
-      },
-      {
-        id: 'deezer',
-        label: 'Deezer',
-        run: () => testDeezer(m.deezer.endpoint, m.deezer.timeoutMs),
-      },
-      {
-        id: 'musicbrainz',
-        label: 'MusicBrainz',
-        run: () => testMusicBrainz(m.musicbrainz.baseUrl, m.musicbrainz.userAgent, m.musicbrainz.timeoutMs),
-      },
-      {
-        id: 'freesound',
-        label: 'Freesound',
-        run: () => testFreesound(m.freesound.apiKey, m.freesound.endpoint, m.freesound.timeoutMs),
-      },
-      {
-        id: 'firecrawl',
-        label: 'Firecrawl',
-        run: () => testFirecrawl(config.firecrawl.apiKey, config.firecrawl.endpoint, config.firecrawl.timeoutMs),
-      },
-    ]
-  }, [config])
+  const n = config.nvidiaNim
+  const nvidiaApiKey = n.apiKey ?? ''
+  const nvidiaBaseUrl = n.baseUrl ?? 'https://integrate.api.nvidia.com/v1'
+  const nvidiaModel = n.model ?? 'nvidia/nemotron-3-super-120b-a12b'
+  const nvidiaTimeoutMs = n.timeoutMs ?? 30000
+
+  const e = config.elevenLabs
+  const elevenApiKey = e.apiKey ?? ''
+  const elevenEndpoint = e.endpoint ?? 'https://api.elevenlabs.io'
+  const elevenTimeoutMs = e.timeoutMs ?? 30000
+  const elevenVoiceId = e.voiceId ?? ''
+
+  const s = config.stockImages
+  const unsplashAccessKey = s.unsplash.accessKey ?? s.unsplash.apiKey ?? ''
+  const unsplashTimeoutMs = s.unsplash.timeoutMs ?? 30000
+  const pexelsApiKey = s.pexels.apiKey ?? ''
+  const pexelsTimeoutMs = s.pexels.timeoutMs ?? 30000
+  const pixabayApiKey = s.pixabay.apiKey ?? ''
+  const pixabayTimeoutMs = s.pixabay.timeoutMs ?? 30000
+
+  const m = config.music
+  const deezerEndpoint = m.deezer.endpoint ?? 'https://api.deezer.com'
+  const deezerTimeoutMs = m.deezer.timeoutMs ?? 30000
+  const mbBaseUrl = m.musicbrainz.baseUrl ?? 'https://musicbrainz.org'
+  const mbUserAgent = m.musicbrainz.userAgent ?? 'ClipForgeAI/1.0'
+  const mbTimeoutMs = m.musicbrainz.timeoutMs ?? 30000
+  const fsApiKey = m.freesound.apiKey ?? ''
+  const fsEndpoint = m.freesound.endpoint ?? 'https://freesound.org/apiv2'
+  const fsTimeoutMs = m.freesound.timeoutMs ?? 30000
+
+  const fcApiKey = config.firecrawl.apiKey ?? ''
+  const fcEndpoint = config.firecrawl.endpoint ?? 'https://api.firecrawl.dev'
+  const fcTimeoutMs = config.firecrawl.timeoutMs ?? 30000
+
+  const items: OverviewItem[] = React.useMemo(() => [
+    {
+      id: 'nvidia',
+      label: 'NVIDIA NIM',
+      run: () => testNvidiaNim(nvidiaApiKey, nvidiaBaseUrl, nvidiaModel, nvidiaTimeoutMs),
+    },
+    {
+      id: 'elevenlabs',
+      label: 'ElevenLabs',
+      run: () => testElevenLabs(elevenApiKey, elevenEndpoint, elevenTimeoutMs, elevenVoiceId),
+    },
+    {
+      id: 'unsplash',
+      label: 'Unsplash',
+      run: () => testUnsplash(unsplashAccessKey, unsplashTimeoutMs),
+    },
+    {
+      id: 'pexels',
+      label: 'Pexels',
+      run: () => testPexels(pexelsApiKey, pexelsTimeoutMs),
+    },
+    {
+      id: 'pixabay',
+      label: 'Pixabay',
+      run: () => testPixabay(pixabayApiKey, pixabayTimeoutMs),
+    },
+    {
+      id: 'deezer',
+      label: 'Deezer',
+      run: () => testDeezer(deezerEndpoint, deezerTimeoutMs),
+    },
+    {
+      id: 'musicbrainz',
+      label: 'MusicBrainz',
+      run: () => testMusicBrainz(mbBaseUrl, mbUserAgent, mbTimeoutMs),
+    },
+    {
+      id: 'freesound',
+      label: 'Freesound',
+      run: () => testFreesound(fsApiKey, fsEndpoint, fsTimeoutMs),
+    },
+    {
+      id: 'firecrawl',
+      label: 'Firecrawl',
+      run: () => testFirecrawl(fcApiKey, fcEndpoint, fcTimeoutMs),
+    },
+  ], [config])
 
   const testAll = async () => {
     setBusy(true)
-    const out: Record<string, TestConnectionResult | null> = {}
+    const out: Record<string, TestResult | null> = {}
     for (const item of items) {
       out[item.id] = null
       setResults({ ...out })
@@ -86,7 +114,7 @@ export function ConnectionOverview() {
           status: 'disconnected',
           message: err instanceof Error ? err.message : String(err),
           latencyMs: 0,
-        }
+        } satisfies TestResult
       }
       setResults({ ...out })
     }
