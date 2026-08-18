@@ -2,9 +2,13 @@
  * Browser-side helper for providers that block CORS. Requests are POSTed as
  * JSON to the same-origin proxy (api/proxy.ts on Vercel, middleware in dev),
  * which forwards them server-side. Mirrors the allowlist in server/proxy.ts.
+ *
+ * Only CORS-blocked providers are proxied (NVIDIA NIM, OpenCode Zen, Deezer).
+ * ElevenLabs, Firecrawl, OpenRouter, Unsplash, Pexels, Pixabay, MusicBrainz
+ * and Freesound all allow browser CORS and are fetched directly.
  */
 
-const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.firecrawl.dev', 'api.deezer.com', 'api.elevenlabs.io']
+const PROXIED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
 
 export function needsProxy(url: string): boolean {
   try {

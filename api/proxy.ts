@@ -1,7 +1,8 @@
 /**
  * Same-origin serverless proxy so the browser app can call providers that
- * block CORS (NVIDIA NIM, OpenCode Zen, Firecrawl, Deezer). Keys pass
- * through from the client; nothing is persisted server-side.
+ * block CORS (NVIDIA NIM, OpenCode Zen, Deezer). Keys pass through from the
+ * client; nothing is persisted server-side. CORS-friendly providers are
+ * fetched directly from the browser and never hit this endpoint.
  */
 
 interface ProxyPayload {
@@ -13,7 +14,7 @@ interface ProxyPayload {
 }
 
 /** Hosts allowed to be proxied through this endpoint. Mirrors server/proxy.ts. */
-const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.firecrawl.dev', 'api.deezer.com', 'api.elevenlabs.io']
+const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
 
 function isAllowedProxyUrl(url: string): boolean {
   try {
