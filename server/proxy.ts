@@ -1,6 +1,6 @@
 /**
  * Shared server-side proxy for providers that block browser CORS
- * (NVIDIA NIM, OpenCode Zen, Deezer). The browser sends the request as JSON
+ * (NVIDIA NIM, NVIDIA GenAI, OpenCode Zen, Deezer). The browser sends the request as JSON
  * to the same-origin proxy endpoint, which forwards it server-side and
  * returns the upstream response. API keys are never stored server-side —
  * they pass through from the user's browser. Providers that support browser
@@ -24,7 +24,7 @@ export interface ProxyResult {
 }
 
 /** Hosts that block browser CORS and are routed through this proxy. */
-const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
+const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'ai.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
 
 export function isAllowedProxyUrl(url: string): boolean {
   try {

@@ -20,6 +20,23 @@ export interface LLMProviderConfig extends BaseProviderConfig {
 
 export interface NvidiaNimConfig extends LLMProviderConfig {}
 
+/** NVIDIA Visual GenAI — text/image-to-video (Cosmos WFM, Wan2.2, SVD). */
+export interface NvidiaGenVideoConfig extends BaseProviderConfig {
+  apiKey: string
+  baseUrl: string
+  /** Model id. Empty = auto-discovered on refresh. */
+  model: string
+  /** Cosmos WFM `/v1/infer` (default) or OpenAI-compatible `/v1/videos`. */
+  apiStyle: 'cosmos' | 'openai'
+  resolution: string
+  numFrames: number
+  fps: number
+  seed: number
+  guidanceScale: number
+  negativePrompt: string
+  timeoutMs: number
+}
+
 export interface OpenCodeZenConfig extends LLMProviderConfig {
   reasoningLevel: string
 }
@@ -147,6 +164,7 @@ export interface AiPreferencesConfig {
 
 export interface ApiConfig {
   nvidiaNim: NvidiaNimConfig
+  nvidiaGenVideo: NvidiaGenVideoConfig
   opencodeZen: OpenCodeZenConfig
   openRouter: OpenRouterConfig
   elevenLabs: ElevenLabsConfig
@@ -167,6 +185,22 @@ export const defaultNvidiaNimConfig: NvidiaNimConfig = {
   maxTokens: 2048,
   timeoutMs: 30000,
   priority: 1,
+  status: 'disabled',
+}
+
+export const defaultNvidiaGenVideoConfig: NvidiaGenVideoConfig = {
+  enabled: false,
+  apiKey: '',
+  baseUrl: 'https://ai.api.nvidia.com/v1/genai/nvidia/cosmos-wfm',
+  model: 'Cosmos3-Generator',
+  apiStyle: 'cosmos',
+  resolution: '480_16_9',
+  numFrames: 49,
+  fps: 24,
+  seed: 42,
+  guidanceScale: 6.0,
+  negativePrompt: 'blurry, low quality, artifacts, distorted',
+  timeoutMs: 120000,
   status: 'disabled',
 }
 
@@ -311,6 +345,7 @@ export const defaultPreferencesConfig: AiPreferencesConfig = {
 
 export const defaultApiConfig: ApiConfig = {
   nvidiaNim: defaultNvidiaNimConfig,
+  nvidiaGenVideo: defaultNvidiaGenVideoConfig,
   opencodeZen: defaultOpenCodeZenConfig,
   openRouter: defaultOpenRouterConfig,
   elevenLabs: defaultElevenLabsConfig,

@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { AudioLines, RefreshCcw } from 'lucide-react'
+import { AudioLines, Play, RefreshCcw } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { defaultElevenLabsConfig, type ElevenLabsConfig } from '@/api/config/types'
 import { testElevenLabs, fetchElevenLabsModels } from '@/api/config/validation'
+import { synthesizeSpeech } from '@/api/generation'
 import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
@@ -40,6 +41,9 @@ export function ElevenLabsCard() {
   const [models, setModels] = React.useState<string[]>(ELEVEN_MODELS)
   const [refreshing, setRefreshing] = React.useState(false)
   const [refreshMessage, setRefreshMessage] = React.useState<string | null>(null)
+  const [previewing, setPreviewing] = React.useState(false)
+  const [previewMessage, setPreviewMessage] = React.useState<string | null>(null)
+  const audioRef = React.useRef<HTMLAudioElement | null>(null)
 
   const set = (patch: Partial<ElevenLabsConfig>) => {
     update((draft) => ({ ...draft, elevenLabs: { ...draft.elevenLabs, ...patch } }))
@@ -61,6 +65,40 @@ export function ElevenLabsCard() {
       setRefreshMessage(err instanceof Error ? err.message : String(err))
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const preview = async () => {
+    if (!cfg.apiKey.trim() || !cfg.voiceId.trim()) {
+      setPreviewMessage('Enter an API key and voice ID to preview')
+      return
+    }
+    setPreviewing(true)
+    setPreviewMessage(null)
+    try {
+      const blob = await synthesizeSpeech({
+        apiKey: cfg.apiKey,
+        endpoint: cfg.endpoint,
+        voiceId: cfg.voiceId,
+        text: 'Hi, this is a quick voiceover preview from ClipForge.',
+        model: cfg.model,
+        stability: cfg.stability,
+        similarity: cfg.similarity,
+        style: cfg.style,
+        speed: cfg.speed,
+        outputFormat: cfg.outputFormat,
+        timeoutMs: cfg.timeoutMs,
+      })
+      const url = URL.createObjectURL(blob)
+      if (audioRef.current) {
+        audioRef.current.src = url
+        await audioRef.current.play()
+      }
+      setPreviewMessage('Played voice preview')
+    } catch (err) {
+      setPreviewMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPreviewing(false)
     }
   }
 
@@ -165,6 +203,19 @@ export function ElevenLabsCard() {
           value={cfg.timeoutMs}
           onChange={(e) => set({ timeoutMs: Number(e.target.value) })}
         />
+      </FieldRow>
+
+      <FieldRow className="md:col-span-2">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void preview()} disabled={previewing}>
+              <Play />
+              {previewing ? 'Generating…' : 'Preview Voice'}
+            </Button>
+            <audio ref={audioRef} className="h-8 w-full max-w-sm" controls />
+          </div>
+          {previewMessage && <p className="text-muted-foreground text-xs">{previewMessage}</p>}
+        </div>
       </FieldRow>
 
       <FieldRow className="md:col-span-2">

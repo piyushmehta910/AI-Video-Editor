@@ -14,7 +14,7 @@ interface ProxyPayload {
 }
 
 /** Hosts allowed to be proxied through this endpoint. Mirrors server/proxy.ts. */
-const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
+const ALLOWED_HOSTS = ['integrate.api.nvidia.com', 'ai.api.nvidia.com', 'opencode.ai', 'api.deezer.com']
 
 function isAllowedProxyUrl(url: string): boolean {
   try {
