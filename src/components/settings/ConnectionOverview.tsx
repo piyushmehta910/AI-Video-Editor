@@ -21,7 +21,7 @@ export function ConnectionOverview() {
   const n = config.nvidiaNim
   const nvidiaApiKey = n.apiKey ?? ''
   const nvidiaBaseUrl = n.baseUrl ?? 'https://integrate.api.nvidia.com/v1'
-  const nvidiaModel = n.model ?? 'nvidia/nemotron-3-super-120b-a12b'
+  const nvidiaModel = n.model ?? 'meta/llama-3.1-8b-instruct'
   const nvidiaTimeoutMs = n.timeoutMs ?? 30000
 
   const e = config.elevenLabs

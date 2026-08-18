@@ -19,9 +19,6 @@ const ALLOWED_HOSTS = [
   'opencode.ai',
   'api.deezer.com',
   'api.elevenlabs.io',
-  'pixabay.com',
-  'api.unsplash.com',
-  'api.pexels.com',
 ]
 
 function isAllowedProxyUrl(url: string): boolean {
