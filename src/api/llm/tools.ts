@@ -1,6 +1,11 @@
 import { useTimelineStore } from '@/stores/timelineStore'
 import { aspectToSize } from '@/engine/types'
 import type { Asset, Clip, TextAnimation } from '@/engine/types'
+import { searchStockImages, downloadStockImage } from '@/api/stock/search'
+import { searchMusic } from '@/api/music/search'
+import { transcribeAsset } from '@/api/llm/understanding'
+import { generateVoiceover, isElevenLabsConfigured } from '@/api/tts/elevenlabs'
+import { readMediaFile } from '@/engine/storage/opfs'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -181,6 +186,102 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'search_stock_image',
+      description: 'Search stock image providers (Unsplash / Pexels / Pixabay) for a query, download the best match, import it as a media asset and add it to the timeline. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to search for, e.g. "sunset over mountains".' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_music',
+      description: 'Search music providers (Deezer / Freesound) for background music or a sound effect, download the preview, import it as an audio asset and add it to the timeline. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Mood or track to search for, e.g. "calm piano background music".' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_captions',
+      description: 'Transcribe the audio of a clip locally (Whisper) and add a captions text overlay clip that matches the spoken content. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clipName: { type: 'string', description: 'The clip name whose audio should be captioned. Omit to caption the first audio/video clip with audio.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'denoise_clip',
+      description: 'Remove background noise from a clip using RNNoise (WASM). The clip should contain audio. Replaces the clip audio with a cleaned version. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to denoise.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_voiceover',
+      description: 'Generate a voiceover from text using ElevenLabs TTS and add it as an audio clip on the timeline. Requires an ElevenLabs API key. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'The script / narration text to speak.' },
+          durationSeconds: { type: 'number', description: 'Optional target duration in seconds to reserve on the timeline (default auto).' },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'duplicate_clip',
+      description: 'Duplicate an existing clip so it can be used again later in the timeline. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to duplicate.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'understand_video',
+      description: 'Generate (or refresh) a local transcript of every clip with audio so you can understand what the video says before making edits. Applied immediately.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
 ]
 
 /** Tools that change timeline state and therefore must be reviewed before applying. */
@@ -195,6 +296,12 @@ const STAGED_TOOLS = new Set<string>([
   'set_clip_property',
   'add_text_overlay',
   'set_transition',
+  'search_stock_image',
+  'search_music',
+  'generate_captions',
+  'denoise_clip',
+  'generate_voiceover',
+  'duplicate_clip',
 ])
 
 export function isStagedTool(name: string): boolean {
@@ -302,6 +409,38 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       const dur = Number(args.durationSeconds) || 0.5
       return `Add ${type} transition (${dur}s) to "${clip.name}"`
     }
+    case 'search_stock_image': {
+      const query = String(args.query ?? '')
+      if (!query.trim()) return null
+      return `Search stock images for "${query}" and add the best match to the timeline`
+    }
+    case 'search_music': {
+      const query = String(args.query ?? '')
+      if (!query.trim()) return null
+      return `Search music for "${query}" and add the best match to the timeline`
+    }
+    case 'generate_captions': {
+      const name = String(args.clipName ?? '').trim()
+      if (name && !findClip(name)) return null
+      return name
+        ? `Generate captions for "${name}"`
+        : 'Generate captions for the first clip with audio'
+    }
+    case 'denoise_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      return `Denoise "${clip.name}" with RNNoise`
+    }
+    case 'generate_voiceover': {
+      const text = String(args.text ?? '')
+      if (!text.trim()) return null
+      return `Generate voiceover: "${text.slice(0, 40)}${text.length > 40 ? '...' : ''}"`
+    }
+    case 'duplicate_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      return `Duplicate "${clip.name}"`
+    }
     default:
       return null
   }
@@ -312,7 +451,7 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
  * proposal may have become stale since it was created, in which case it is
  * not applied and an explanation is returned.
  */
-export function applyTool(name: string, args: Record<string, unknown>): { ok: boolean; message: string } {
+export async function applyTool(name: string, args: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
   const desc = describeTool(name, args)
   if (!desc) return { ok: false, message: 'This action is no longer valid, so it was not applied.' }
 
@@ -411,7 +550,240 @@ export function applyTool(name: string, args: Record<string, unknown>): { ok: bo
       s.updateClip(clip.id, { transitions: { ...clip.transitions, in: { type, duration: dur } } })
       return { ok: true, message: desc }
     }
+    case 'search_stock_image': {
+      const query = String(args.query ?? '')
+      const results = await searchStockImages(query, { maxResults: 5 })
+      if (!results.length) return { ok: false, message: `No stock images found for "${query}". Check your API keys in Settings.` }
+      try {
+        const file = await downloadStockImage(results[0])
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Downloaded image could not be imported.' }
+        const track = s.project.tracks.find((t) => t.type === 'video')
+        if (!track) return { ok: false, message: 'No video track available.' }
+        s.addClip(asset.id, track.id)
+        return { ok: true, message: `${desc} (added "${asset.name}")` }
+      } catch (err) {
+        return { ok: false, message: `Stock image download failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'search_music': {
+      const query = String(args.query ?? '')
+      const tracks = await searchMusic(query, { maxResults: 5 })
+      if (!tracks.length) return { ok: false, message: `No music found for "${query}".` }
+      const track = tracks[0]
+      if (!track.previewUrl) return { ok: false, message: 'No downloadable preview for the best match.' }
+      try {
+        const res = await fetch(track.previewUrl)
+        const blob = await res.blob()
+        const file = new File([blob], `music-${track.source}-${track.id}.mp3`, { type: blob.type || 'audio/mpeg' })
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Music could not be imported.' }
+        const audioTrack = s.project.tracks.find((t) => t.type === 'audio')
+        if (!audioTrack) return { ok: false, message: 'No audio track available.' }
+        s.addClip(asset.id, audioTrack.id)
+        return { ok: true, message: `${desc} (added "${track.title}" by ${track.artist})` }
+      } catch (err) {
+        return { ok: false, message: `Music download failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'generate_captions': {
+      const name = String(args.clipName ?? '').trim()
+      const s = useTimelineStore.getState()
+      let targetClip: Clip | null = null
+      for (const t of s.project.tracks) {
+        for (const c of t.clips) {
+          const asset = s.assets.find((a) => a.id === c.assetId)
+          if (!asset || asset.type === 'image') continue
+          if (!name || c.name.toLowerCase().includes(name.toLowerCase())) {
+            targetClip = c
+            break
+          }
+        }
+        if (targetClip) break
+      }
+      if (!targetClip) {
+        return { ok: false, message: name ? `No clip with audio named "${name}".` : 'No clip with audio found to caption.' }
+      }
+      const asset = s.assets.find((a) => a.id === targetClip!.assetId)
+      if (!asset) return { ok: false, message: 'Clip asset not found.' }
+      const transcript = await transcribeAsset(asset)
+      if (!transcript) return { ok: false, message: `Could not transcribe "${targetClip.name}" (audio may be silent or the model could not load).` }
+      const videoTrack = s.project.tracks.find((t) => t.type === 'video')
+      if (!videoTrack) return { ok: false, message: 'No video track available for captions.' }
+      const textClip = s.addTextClip(transcript.text.slice(0, 120), videoTrack.id, targetClip.startTime)
+      if (!textClip) return { ok: false, message: 'Failed to create captions clip.' }
+      s.updateClip(textClip.id, {
+        duration: targetClip.duration,
+        sourceEnd: targetClip.duration,
+        text: { ...textClip.text!, fontSize: 24, color: '#ffffff', backgroundColor: 'rgba(0,0,0,0.6)', animation: 'fade-in', animationDuration: 0.3 },
+      })
+      return { ok: true, message: `${desc} — captions added for "${targetClip.name}"` }
+    }
+    case 'denoise_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const asset = s.assets.find((a) => a.id === clip.assetId)
+      if (!asset) return { ok: false, message: 'Clip asset not found.' }
+      try {
+        const file = await readMediaFile(asset.filePath)
+        const result = await denoiseFile(file, asset.type === 'video')
+        const wav = await encodeWav(result.denoisedAudio, result.sampleRate)
+        const audioFile = new File([wav], `${clip.name}-denoised.wav`, { type: 'audio/wav' })
+        const imported = await s.importFiles([audioFile])
+        const asset2 = imported.imported[0]
+        if (!asset2) return { ok: false, message: 'Denoised audio could not be imported.' }
+        const audioTrack = s.project.tracks.find((t) => t.type === 'audio')
+        if (!audioTrack) return { ok: false, message: 'No audio track available.' }
+        const added = s.addClip(asset2.id, audioTrack.id, clip.startTime)
+        if (!added) return { ok: false, message: 'Could not add denoised clip.' }
+        s.updateClip(added.id, { duration: clip.duration, sourceEnd: clip.duration })
+        return { ok: true, message: `${desc} — added cleaned audio to the timeline` }
+      } catch (err) {
+        return { ok: false, message: `Denoise failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'generate_voiceover': {
+      const text = String(args.text ?? '')
+      if (!isElevenLabsConfigured()) {
+        return { ok: false, message: 'ElevenLabs is not configured. Add an API key in Settings → Voice first.' }
+      }
+      try {
+        const result = await generateVoiceover({ text })
+        const file = new File([result.blob], `voiceover-${Date.now()}.mp3`, { type: result.blob.type || 'audio/mpeg' })
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Voiceover could not be imported.' }
+        const audioTrack = s.project.tracks.find((t) => t.type === 'audio')
+        if (!audioTrack) return { ok: false, message: 'No audio track available.' }
+        s.addClip(asset.id, audioTrack.id)
+        return { ok: true, message: `${desc} — voiceover added to the timeline` }
+      } catch (err) {
+        return { ok: false, message: `Voiceover generation failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'duplicate_clip': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      s.duplicateClips([clip.id])
+      return { ok: true, message: desc }
+    }
     default:
       return { ok: false, message: `Unknown action "${name}".` }
+  }
+}
+
+function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+  const buffer = new ArrayBuffer(44 + samples.length * 2)
+  const view = new DataView(buffer)
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+  }
+  writeStr(0, 'RIFF')
+  view.setUint32(4, 36 + samples.length * 2, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeStr(36, 'data')
+  view.setUint32(40, samples.length * 2, true)
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.max(-1, Math.min(1, samples[i]))
+    view.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true)
+  }
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+function denoiseWorker(): Worker {
+  return new Worker(new URL('@/engine/denoise/denoise-worker.ts?worker', import.meta.url), { type: 'module' })
+}
+
+async function denoiseFile(file: File, isVideo: boolean): Promise<{ denoisedAudio: Float32Array; sampleRate: number }> {
+  const worker = denoiseWorker()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const handler = (e: MessageEvent) => {
+        if (e.data.type === 'init') {
+          worker.removeEventListener('message', handler)
+          if (e.data.payload?.success) resolve()
+          else reject(new Error('RNNoise init failed'))
+        }
+      }
+      worker.addEventListener('message', handler)
+      worker.postMessage({ type: 'init' })
+    })
+
+    let channel: Float32Array
+    let sampleRate: number
+    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ sampleRate: 48000 })
+    try {
+      if (!isVideo) {
+        const arrayBuffer = await file.arrayBuffer()
+        const buf = await audioContext.decodeAudioData(arrayBuffer)
+        channel = buf.getChannelData(0)
+        sampleRate = buf.sampleRate
+      } else {
+        const video = document.createElement('video')
+        video.preload = 'metadata'
+        video.muted = true
+        video.src = URL.createObjectURL(file)
+        channel = await new Promise<Float32Array>((resolve, reject) => {
+          video.onloadedmetadata = async () => {
+            try {
+              const dest = audioContext.createMediaStreamDestination()
+              const source = audioContext.createMediaElementSource(video)
+              source.connect(dest)
+              const stream = (video as unknown as { captureStream: () => MediaStream }).captureStream()
+              stream.getAudioTracks().forEach((t) => dest.stream.addTrack(t))
+              const recorder = new MediaRecorder(dest.stream)
+              const chunks: BlobPart[] = []
+              recorder.ondataavailable = (e) => chunks.push(e.data)
+              recorder.onstop = async () => {
+                const blob = new Blob(chunks, { type: 'audio/wav' })
+                const buf = await audioContext.decodeAudioData(await blob.arrayBuffer())
+                resolve(buf.getChannelData(0))
+              }
+              recorder.onerror = reject
+              recorder.start()
+              void video.play()
+              video.onended = () => recorder.stop()
+            } catch (err) {
+              URL.revokeObjectURL(video.src)
+              reject(err)
+            }
+          }
+          video.onerror = () => {
+            URL.revokeObjectURL(video.src)
+            reject(new Error('Failed to load video'))
+          }
+        })
+        sampleRate = 48000
+      }
+    } finally {
+      void audioContext.close()
+    }
+
+    const result = await new Promise<{ denoisedAudio: Float32Array; sampleRate: number }>((resolve, reject) => {
+      const handler = (e: MessageEvent) => {
+        if (e.data.type === 'result') {
+          worker.removeEventListener('message', handler)
+          resolve(e.data.result)
+        } else if (e.data.type === 'error') {
+          worker.removeEventListener('message', handler)
+          reject(new Error(e.data.error))
+        }
+      }
+      worker.addEventListener('message', handler)
+      worker.postMessage({ type: 'denoise', audioBuffer: channel, sampleRate })
+    })
+    return result
+  } finally {
+    worker.terminate()
   }
 }

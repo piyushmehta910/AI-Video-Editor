@@ -5,6 +5,7 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import { chatCompletion, getDirectorProvider, getProjectContextSystemPrompt, type ChatMessage } from '@/api/llm/director'
 import { DIRECTOR_TOOLS, applyTool, describeTool, isStagedTool } from '@/api/llm/tools'
+import { buildProjectUnderstanding } from '@/api/llm/understanding'
 import { Button } from '@/components/ui/button'
 
 interface UiMessage {
@@ -13,6 +14,7 @@ interface UiMessage {
   text: string
   tools?: string[]
   proposed?: boolean
+  followups?: string[]
 }
 
 interface Proposal {
@@ -30,6 +32,28 @@ const SUGGESTIONS = [
   'Remove silent parts',
   'Make this into a 30-second short',
 ]
+
+const FOLLOWUP_SUGGESTIONS: Record<string, string[]> = {
+  search_stock_image: ['Add a stock image for the intro', 'Search for background music', 'Add captions'],
+  search_music: ['Search for another music track', 'Adjust music volume', 'Add captions'],
+  generate_captions: ['Style the captions bold', 'Add a stock image', 'Generate a voiceover'],
+  generate_voiceover: ['Generate a longer voiceover', 'Search for music', 'Add captions'],
+  denoise_clip: ['Denoise another clip', 'Add music', 'Add captions'],
+  duplicate_clip: ['Duplicate another clip', 'Trim the duplicate', 'Add a transition'],
+  generate_transcript: ['Add captions from the transcript', 'Remove silent parts', 'Summarize the content'],
+  understand_video: ['Add captions from the transcript', 'Remove silent parts', 'Summarize the content'],
+  default: ['Add captions', 'Search for music', 'Search for a stock image'],
+}
+
+function suggestFollowups(usedTools: string[]): string[] {
+  const picks = new Set<string>()
+  for (const t of usedTools) {
+    const list = FOLLOWUP_SUGGESTIONS[t] || FOLLOWUP_SUGGESTIONS.default
+    for (const s of list) picks.add(s)
+    if (picks.size >= 3) break
+  }
+  return [...picks].slice(0, 3)
+}
 
 const MAX_PROPOSALS = 20
 
@@ -81,8 +105,21 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
         const autoApply = confirmationLevel === 'none'
 
+        const baseSystem = getProjectContextSystemPrompt()
+        let understanding = ''
+        try {
+          understanding = await buildProjectUnderstanding()
+        } catch {
+          understanding = ''
+        }
+
         const apiMessages: ChatMessage[] = [
-          { role: 'system', content: getProjectContextSystemPrompt() },
+          {
+            role: 'system',
+            content: understanding
+              ? `${baseSystem}\n\nVIDEO UNDERSTANDING (from a local transcript, so trust it):\n${understanding}`
+              : baseSystem,
+          },
         ]
         for (const m of messages) {
           apiMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })
@@ -101,7 +138,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
             for (const tc of reply.tool_calls) {
               if (isStagedTool(tc.name)) {
                 if (autoApply) {
-                  const result = applyTool(tc.name, tc.arguments)
+                  const result = await applyTool(tc.name, tc.arguments)
                   usedTools.push(tc.name)
                   apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
                 } else if (stagedCount < MAX_PROPOSALS) {
@@ -133,7 +170,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                   })
                 }
               } else {
-                const result = applyTool(tc.name, tc.arguments)
+                const result = await applyTool(tc.name, tc.arguments)
                 usedTools.push(tc.name)
                 apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
               }
@@ -156,6 +193,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           } above before it takes effect.`
         }
         if (!finalText) finalText = 'I could not complete that request. Please rephrase it.'
+        const followups = suggestFollowups(usedTools.length ? usedTools : proposedTools)
         setMessages((prev) => [
           ...prev,
           {
@@ -164,6 +202,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
             text: finalText,
             tools: proposedTools.length ? proposedTools : usedTools.length ? usedTools : undefined,
             proposed: !autoApply && proposedTools.length > 0,
+            followups,
           },
         ])
       } catch (err) {
@@ -191,15 +230,17 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPrompt, timelineHydrated, configHydrated])
 
-  const applyOne = (id: string) => {
+  const applyOne = async (id: string) => {
     const target = proposals.find((p) => p.id === id)
     if (!target || target.status !== 'pending') return
     const store = useTimelineStore.getState()
     store.withTransaction(() => {
-      const result = applyTool(target.name, target.args)
-      setProposals((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
-      )
+      void (async () => {
+        const result = await applyTool(target.name, target.args)
+        setProposals((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
+        )
+      })()
     })
   }
 
@@ -209,12 +250,14 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
     const store = useTimelineStore.getState()
     store.withTransaction(() => {
       for (const target of pending) {
-        const result = applyTool(target.name, target.args)
-        setProposals((prev) =>
-          prev.map((p) =>
-            p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
-          ),
-        )
+        void (async () => {
+          const result = await applyTool(target.name, target.args)
+          setProposals((prev) =>
+            prev.map((p) =>
+              p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
+            ),
+          )
+        })()
       }
     })
   }
@@ -302,6 +345,21 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                   {m.tools && m.tools.length > 0 && (
                     <div className="text-muted-foreground text-[10px]">
                       {m.proposed ? 'Proposed' : 'Used'}: {m.tools.join(', ')}
+                    </div>
+                  )}
+                  {m.followups && m.followups.length > 0 && (
+                    <div className="flex flex-wrap justify-start gap-1 pt-0.5">
+                      {m.followups.map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => void send(f)}
+                          disabled={busy}
+                          className="rounded-full border border-violet-500/30 bg-violet-500/5 px-2.5 py-1 text-[11px] text-violet-600 transition-colors hover:bg-violet-500/15 disabled:opacity-50 dark:text-violet-400"
+                        >
+                          {f}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>

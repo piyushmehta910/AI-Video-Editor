@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFirecrawl } from '@/api/config/validation'
+import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFreesound, testFirecrawl } from '@/api/config/validation'
 import type { TestResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,9 @@ export function ConnectionOverview() {
   const mbBaseUrl = m.musicbrainz.baseUrl ?? 'https://musicbrainz.org'
   const mbUserAgent = m.musicbrainz.userAgent ?? 'ClipForgeAI/1.0'
   const mbTimeoutMs = m.musicbrainz.timeoutMs ?? 30000
+  const fsKey = m.freesound.apiKey ?? ''
+  const fsEndpoint = m.freesound.endpoint ?? 'https://freesound.org/apiv2'
+  const fsTimeoutMs = m.freesound.timeoutMs ?? 30000
 
   const fcApiKey = config.firecrawl.apiKey ?? ''
   const fcEndpoint = config.firecrawl.endpoint ?? 'https://api.firecrawl.dev'
@@ -84,6 +87,11 @@ export function ConnectionOverview() {
       id: 'musicbrainz',
       label: 'MusicBrainz',
       run: () => testMusicBrainz(mbBaseUrl, mbUserAgent, mbTimeoutMs),
+    },
+    {
+      id: 'freesound',
+      label: 'Freesound',
+      run: () => testFreesound(fsKey, fsEndpoint, fsTimeoutMs),
     },
     {
       id: 'firecrawl',
