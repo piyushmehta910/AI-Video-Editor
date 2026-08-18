@@ -93,6 +93,31 @@
 }
 
 @layer utilities {
+  .timeline-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .timeline-scroll::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .timeline-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .timeline-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .timeline-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+    background-clip: content-box;
+  }
+  .timeline-scroll::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }

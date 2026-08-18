@@ -1,6 +1,7 @@
 import * as React from 'react'
 import {
   ClipboardPaste,
+  Clapperboard,
   Copy,
   CopyPlus,
   Eye,
@@ -8,10 +9,12 @@ import {
   Lock,
   LockOpen,
   Maximize,
+  Music,
   Redo2,
   Scissors,
   Slice,
   Trash2,
+  Type,
   Undo2,
   Volume2,
   VolumeX,
@@ -25,6 +28,9 @@ import { projectDuration } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
+import { AddTextDialog } from '@/ui/media/AddTextDialog'
+import { AddAudioDialog } from '@/ui/media/AddAudioDialog'
 
 const HEADER_WIDTH = 64
 const TRACK_HEIGHT = 44
@@ -75,6 +81,9 @@ export function Timeline() {
   const clipboard = useTimelineStore((s) => s.clipboard)
   const [ripple, setRipple] = React.useState(false)
   const [dragActive, setDragActive] = React.useState(false)
+  const [avatarOpen, setAvatarOpen] = React.useState(false)
+  const [audioOpen, setAudioOpen] = React.useState(false)
+  const [textOpen, setTextOpen] = React.useState(false)
 
   const duration = projectDuration(project.tracks)
   const contentWidth = Math.max((duration + 5) * zoom, 0)
@@ -268,6 +277,16 @@ export function Timeline() {
           <CopyPlus className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
+        <ToolbarButton label="Add avatar lip-sync" onClick={() => setAvatarOpen(true)}>
+          <Clapperboard className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Add audio" onClick={() => setAudioOpen(true)}>
+          <Music className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Add text" onClick={() => setTextOpen(true)}>
+          <Type className="size-4" />
+        </ToolbarButton>
+        <SeparatorLine />
         <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
           <ZoomOut className="size-4" />
         </ToolbarButton>
@@ -306,7 +325,7 @@ export function Timeline() {
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={viewportRef}
-          className="absolute inset-0 overflow-x-auto overflow-y-auto"
+          className="timeline-scroll absolute inset-0 overflow-x-auto overflow-y-auto"
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               e.preventDefault()
@@ -381,6 +400,10 @@ export function Timeline() {
 
         {dragActive && <div className="pointer-events-none absolute inset-0 z-40 cursor-grabbing" />}
       </div>
+
+      <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
+      <AddAudioDialog open={audioOpen} onClose={() => setAudioOpen(false)} />
+      <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
     </div>
   )
 }

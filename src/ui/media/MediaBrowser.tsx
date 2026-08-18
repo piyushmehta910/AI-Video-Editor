@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { StockMediaSearch } from './StockMediaSearch'
 import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
-import { AIToolsDialog } from '@/ui/tools/AIToolsDialog'
 import { AddTextDialog } from './AddTextDialog'
 
 const ACCEPTED =
@@ -29,13 +28,6 @@ const TOOLS = [
     color: 'text-violet-600 dark:text-violet-400',
   },
   {
-    key: 'ai',
-    icon: Sparkles,
-    label: 'AI Tools',
-    desc: 'Wav2Lip neural lip-sync, auto captions & noise cancellation',
-    color: 'text-fuchsia-600 dark:text-fuchsia-400',
-  },
-  {
     key: 'text',
     icon: Type,
     label: 'Text & Titles',
@@ -53,7 +45,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
   const [busy, setBusy] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [avatarOpen, setAvatarOpen] = React.useState(false)
-  const [aiToolsOpen, setAIToolsOpen] = React.useState(false)
   const [textOpen, setTextOpen] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
@@ -96,7 +87,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
 
   const openTool = (key: string) => {
     if (key === 'avatar') setAvatarOpen(true)
-    else if (key === 'ai') setAIToolsOpen(true)
     else setTextOpen(true)
   }
 
@@ -137,7 +127,7 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
             <Image className="size-3.5" /> Stock
           </TabsTrigger>
           <TabsTrigger value="tools" className="px-3 text-xs">
-            <Sparkles className="size-3.5" /> AI Tools
+            <Sparkles className="size-3.5" /> Tools
           </TabsTrigger>
         </TabsList>
 
@@ -239,7 +229,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
       </Tabs>
 
       <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
-      <AIToolsDialog open={aiToolsOpen} onClose={() => setAIToolsOpen(false)} />
       <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
     </div>
   )

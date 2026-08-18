@@ -54,12 +54,6 @@ const TECH = [
     note: 'onnxruntime-web on WebGL/WebGPU + mel spectrogram, on-device',
   },
   {
-    icon: AudioWaveform,
-    name: 'RNNoise (WASM)',
-    role: 'Noise cancellation',
-    note: 'RNNoise C compiled to WASM via @shiguredo/rnnoise-wasm',
-  },
-  {
     icon: Workflow,
     name: 'Web Workers',
     role: 'Background processing',

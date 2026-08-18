@@ -23,12 +23,31 @@ const RESOLUTIONS = [
   { label: '4K', w: 3840, h: 2160 },
 ]
 
+const ASPECT_RATIOS = [
+  { label: '16:9', ratio: 16 / 9 },
+  { label: '9:16', ratio: 9 / 16 },
+  { label: '1:1', ratio: 1 },
+  { label: '4:5', ratio: 4 / 5 },
+  { label: '21:9', ratio: 21 / 9 },
+  { label: '3:2', ratio: 3 / 2 },
+  { label: '2:3', ratio: 2 / 3 },
+] as const
+
+function dimsForAspect(current: { width: number; height: number }, ratio: number): { width: number; height: number } {
+  const max = Math.max(current.width, current.height)
+  if (ratio >= 1) {
+    const h = Math.round(max / ratio)
+    return { width: max, height: Math.max(2, h) }
+  }
+  const w = Math.round(max * ratio)
+  return { width: Math.max(2, w), height: max }
+}
+
 export function ProjectHeader() {
   const project = useTimelineStore((s) => s.project)
   const saving = useTimelineStore((s) => s.saving)
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
-  const renameProject = useTimelineStore((s) => s.renameProject)
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
   const save = useTimelineStore((s) => s.save)
 
@@ -38,13 +57,6 @@ export function ProjectHeader() {
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-b px-3">
-      <input
-        value={project.name}
-        onChange={(e) => renameProject(e.target.value)}
-        className="min-w-0 max-w-56 flex-1 truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium outline-none transition-colors hover:border-border focus:border-border"
-        aria-label="Project name"
-      />
-
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1">
@@ -52,7 +64,11 @@ export function ProjectHeader() {
               value={`${project.width}x${project.height}`}
               onValueChange={(v) => {
                 const [w, h] = v.split('x').map(Number)
-                setProjectSettings({ width: w, height: h })
+                const ratio = w / h
+                const match = ASPECT_RATIOS.reduce((best, a) =>
+                  Math.abs(a.ratio - ratio) < Math.abs(best.ratio - ratio) ? a : best,
+                )
+                setProjectSettings({ width: w, height: h, aspectRatio: match.label })
               }}
             >
               <SelectTrigger size="sm" className="h-7 w-auto px-2 font-mono text-[11px]">
@@ -80,14 +96,22 @@ export function ProjectHeader() {
               </SelectContent>
             </Select>
             <span className="text-muted-foreground text-xs">·</span>
-            <Select value={project.aspectRatio} onValueChange={(v) => setProjectSettings({ aspectRatio: v })}>
+            <Select value={project.aspectRatio} onValueChange={(v) => {
+              const preset = ASPECT_RATIOS.find((a) => a.label === v)
+              if (preset) {
+                const dims = dimsForAspect(project, preset.ratio)
+                setProjectSettings({ aspectRatio: v, width: dims.width, height: dims.height })
+              } else {
+                setProjectSettings({ aspectRatio: v })
+              }
+            }}>
               <SelectTrigger size="sm" className="h-7 w-auto px-2 text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['16:9', '9:16', '1:1', '4:5', '21:9'].map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {a}
+                {ASPECT_RATIOS.map((a) => (
+                  <SelectItem key={a.label} value={a.label}>
+                    {a.label}
                   </SelectItem>
                 ))}
               </SelectContent>

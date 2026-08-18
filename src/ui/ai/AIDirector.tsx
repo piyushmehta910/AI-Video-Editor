@@ -38,7 +38,6 @@ const FOLLOWUP_SUGGESTIONS: Record<string, string[]> = {
   search_music: ['Search for another music track', 'Adjust music volume', 'Add captions'],
   generate_captions: ['Style the captions bold', 'Add a stock image', 'Generate a voiceover'],
   generate_voiceover: ['Generate a longer voiceover', 'Search for music', 'Add captions'],
-  denoise_clip: ['Denoise another clip', 'Add music', 'Add captions'],
   duplicate_clip: ['Duplicate another clip', 'Trim the duplicate', 'Add a transition'],
   generate_transcript: ['Add captions from the transcript', 'Remove silent parts', 'Summarize the content'],
   understand_video: ['Add captions from the transcript', 'Remove silent parts', 'Summarize the content'],
