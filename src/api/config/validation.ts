@@ -59,7 +59,6 @@ export async function testBearerEndpoint(params: {
   timeoutMs: number
   headers?: Record<string, string>
   init?: Omit<RequestInit, 'headers'>
-  /** Prefix for the Authorization header value. Defaults to `Bearer `. Set to empty string for raw-key auth (e.g. Pexels). */
   authPrefix?: string
 }): Promise<TestConnectionResult> {
   const { label, url, apiKey, timeoutMs } = params
@@ -160,7 +159,6 @@ export function testPixabay(apiKey: string, timeoutMs: number) {
 export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.dev', timeoutMs: number) {
   return testBearerEndpoint({
     label: 'Firecrawl',
-    // Free endpoint per docs — returns credit usage without consuming credits.
     url: `${endpoint.replace(/\/$/, '')}/v2/team/credit-usage`,
     apiKey,
     timeoutMs,
@@ -177,8 +175,6 @@ export async function testElevenLabs(
     return { ok: false, status: 'disconnected' as const, message: 'ElevenLabs: Enter an API key to test', latencyMs: 0 }
   }
   const base = endpoint.replace(/\/$/, '')
-  // Validate the key against the models endpoint first (returns 401 on bad
-  // key), then pull subscription info and verify the configured voice exists.
   const models = await testReachability({
     label: 'ElevenLabs',
     url: `${base}/v1/models`,
@@ -187,9 +183,6 @@ export async function testElevenLabs(
   })
   if (!models.ok) return models
   let latency = models.latencyMs
-  let tier = ''
-  let charsUsed = 0
-  let charsLimit = 0
 
   const user = await testReachability({
     label: 'ElevenLabs',
@@ -198,29 +191,8 @@ export async function testElevenLabs(
     headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
   })
   latency += user.latencyMs
-  if (user.ok) {
-    try {
-      const res = await fetchWithTimeout(
-        `${base}/v1/user`,
-        { headers: { 'xi-api-key': apiKey, Accept: 'application/json' } },
-        timeoutMs,
-      )
-      const data = (await res.json()) as {
-        subscription?: { tier?: string; character_count?: number; character_limit?: number }
-      }
-      tier = data.subscription?.tier ?? ''
-      charsUsed = data.subscription?.character_count ?? 0
-      charsLimit = data.subscription?.character_limit ?? 0
-    } catch {
-      // Subscription info is non-blocking
-    }
-  }
 
   let message = 'ElevenLabs: Connection successful'
-  const bits: string[] = []
-  if (tier) bits.push(`${tier} tier`)
-  if (charsLimit > 0) bits.push(`${charsUsed.toLocaleString()}/${charsLimit.toLocaleString()} chars`)
-  if (bits.length) message += ` (${bits.join(', ')})`
 
   if (voiceId) {
     const voice = await testReachability({
@@ -244,10 +216,6 @@ export async function testElevenLabs(
   return { ok: true, status: 'connected' as const, message, latencyMs: latency }
 }
 
-/**
- * Fetch the live model roster from the configured ElevenLabs endpoint so the
- * dropdown always reflects what the account can actually use.
- */
 export async function fetchElevenLabsModels(apiKey: string, endpoint = 'https://api.elevenlabs.io', timeoutMs = 20000): Promise<string[]> {
   const res = await fetchWithTimeout(
     `${endpoint.replace(/\/$/, '')}/v1/models`,
@@ -291,10 +259,6 @@ export function testFreesound(apiKey: string, endpoint = 'https://freesound.org/
   })
 }
 
-/**
- * Fetch the current list of free models from OpenRouter's official API.
- * Models are free when their id ends with the `:free` variant.
- */
 export async function fetchOpenRouterFreeModels(baseUrl = 'https://openrouter.ai/api/v1', timeoutMs = 20000): Promise<string[]> {
   const res = await fetchWithTimeout(
     `${baseUrl.replace(/\/$/, '')}/models`,
@@ -313,12 +277,6 @@ export async function fetchOpenRouterFreeModels(baseUrl = 'https://openrouter.ai
 
 const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|nemoretriever|parse|clip|ocr|vil|vila|synthetic-video|cosmos-reason|neva)/i
 
-/**
- * Validate an NVIDIA NIM API key by posting a minimal chat completion to the
- * OpenAI-compatible endpoint. `GET /v1/models` returns 200 even without a
- * valid key, so only `POST /v1/chat/completions` actually validates auth
- * (401/403 on bad/missing key, 404 on unknown model, 429 on rate limit).
- */
 export async function testNvidiaNim(apiKey: string, baseUrl: string, model: string, timeoutMs: number): Promise<TestConnectionResult> {
   const label = 'NVIDIA NIM'
   if (!apiKey.trim()) {
@@ -356,9 +314,6 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
         }
       }
       if (res.status === 403) {
-        // NVIDIA: key authenticates (GET /v1/models works) but the account's
-        // organization is missing the "Public API Endpoints" entitlement —
-        // a known widespread issue in 2026. Not a code problem.
         return {
           ok: false,
           status: 'disconnected',
@@ -369,7 +324,6 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
         return { ok: false, status: 'disconnected', message: `${label}: Endpoint not found — check the base URL (should end with /v1)` }
       }
       if (res.status === 400 || res.status === 422) {
-        // Key authenticated but the model isn't available at this endpoint.
         return {
           ok: false,
           status: 'disconnected',
@@ -386,12 +340,6 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
   }
 }
 
-/**
- * Fetch the hosted model catalog from the configured NVIDIA NIM endpoint
- * (OpenAI-compatible) and return text-chat-capable model ids. The catalog does
- * not expose which models are free-tier, so non-chat model families are
- * filtered out.
- */
 export async function fetchNvidiaNimModels(apiKey: string, baseUrl = 'https://integrate.api.nvidia.com/v1', timeoutMs = 20000): Promise<string[]> {
   const url = `${baseUrl.replace(/\/$/, '')}/models`
   const init: RequestInit = {
@@ -409,164 +357,4 @@ export async function fetchNvidiaNimModels(apiKey: string, baseUrl = 'https://in
     .sort()
   if (!chat.length) throw new Error('No models returned by NVIDIA')
   return chat
-}
-
-/**
- * Validate an NVIDIA Visual GenAI API key without paying for a full video
- * generation. The GenAI endpoints don't expose a cheap liveness probe, so this
- * validates auth against the OpenAI-compatible models catalog (Bearer token)
- * and verifies the requested model is known to the catalog. Generation itself
- * is exercised separately via `generateNvidiaVideo`.
- */
-export async function testNvidiaGenVideo(params: {
-  apiKey: string
-  baseUrl: string
-  model: string
-  timeoutMs: number
-}): Promise<TestConnectionResult> {
-  const label = 'NVIDIA GenAI'
-  if (!params.apiKey.trim()) {
-    return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
-  }
-  const base = params.baseUrl.replace(/\/$/, '')
-  try {
-    return await measure(async () => {
-      // NVIDIA's GET /v1/models returns 200 even with an invalid key, so auth
-      // is validated with a real POST probe. A 400/422 here means the key is
-      // valid but the model isn't a chat model — expected for video models.
-      const probe = await fetchWithTimeout(
-        `${base}/chat/completions`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: params.model || 'nvidia/nemotron-3-super-120b-a12b',
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-            temperature: 0,
-          }),
-        },
-        params.timeoutMs,
-      )
-      const probeBody = await probe.text().catch(() => '')
-      if (probe.status === 401) {
-        return { ok: false, status: 'disconnected' as const, message: `${label}: Invalid API key (must start with nvapi-)` }
-      }
-      if (probe.status === 403) {
-        return { ok: false, status: 'disconnected' as const, message: `${label}: Account is missing the "Public API Endpoints" entitlement — email help@build.nvidia.com` }
-      }
-      if (probe.ok || probe.status === 400 || probe.status === 422) {
-        // Key authenticates (200, or 400/422 = valid key, non-chat model).
-        let known = true
-        if (params.model) {
-          try {
-            const catRes = await fetchWithTimeout(
-              `${base}/models`,
-              { headers: { Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' } },
-              params.timeoutMs,
-            )
-            if (catRes.ok) {
-              const data = (await catRes.json().catch(() => null)) as { data?: Array<{ id?: string }> } | null
-              known = (data?.data ?? []).some((m) => m.id === params.model)
-            }
-          } catch {
-            known = true
-          }
-        }
-        const message = params.model
-          ? known
-            ? `${label}: API key valid, model "${params.model}" found in catalog`
-            : `${label}: API key valid, but model "${params.model}" is not in the catalog. Refresh the list and pick a video-generation model.`
-          : `${label}: API key valid — select a video model to generate`
-        return { ok: true, status: 'connected' as const, message }
-      }
-      return {
-        ok: false,
-        status: 'disconnected' as const,
-        message: `${label}: HTTP ${probe.status}${probeBody ? `: ${probeBody.slice(0, 120)}` : ''}`,
-      }
-    }).then(({ result, latencyMs }) => ({ ...result, latencyMs }) as TestConnectionResult)
-  } catch (err) {
-    return handleError(err, label)
-  }
-}
-
-/**
- * Generate a short video clip via NVIDIA Visual GenAI.
- * - `cosmos` style: `POST {base}/infer` with { prompt, negative_prompt, seed,
- *   guidance_scale, num_output_frames, fps, resolution } → { b64_video }.
- * - `openai` style: `POST {base}/videos` with { prompt, size, n } → { data: [{ b64_json }] }.
- * Returns the raw b64 payload plus the mime type.
- */
-export async function generateNvidiaVideo(params: {
-  apiKey: string
-  baseUrl: string
-  apiStyle: 'cosmos' | 'openai'
-  model: string
-  prompt: string
-  negativePrompt?: string
-  resolution?: string
-  numFrames?: number
-  fps?: number
-  seed?: number
-  guidanceScale?: number
-  timeoutMs: number
-}): Promise<{ mimeType: string; b64: string }> {
-  const base = params.baseUrl.replace(/\/$/, '')
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${params.apiKey}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  }
-  let url: string
-  let body: Record<string, unknown>
-  let mimeType = 'video/mp4'
-
-  if (params.apiStyle === 'cosmos') {
-    url = `${base}/infer`
-    body = {
-      prompt: params.prompt,
-      negative_prompt: params.negativePrompt ?? '',
-      seed: params.seed ?? 42,
-      guidance_scale: params.guidanceScale ?? 6.0,
-      num_output_frames: params.numFrames ?? 49,
-      fps: params.fps ?? 24,
-      resolution: params.resolution ?? '480_16_9',
-    }
-    if (params.model) body.model = params.model
-  } else {
-    url = `${base}/videos`
-    body = {
-      model: params.model,
-      prompt: params.prompt,
-      size: params.resolution ?? '1280x720',
-      n: 1,
-    }
-  }
-
-  const res = await fetchWithTimeout(
-    url,
-    { method: 'POST', headers, body: JSON.stringify(body) },
-    params.timeoutMs,
-  )
-  const text = await res.text().catch(() => '')
-  if (!res.ok) {
-    throw new Error(`NVIDIA GenAI HTTP ${res.status}: ${text.slice(0, 300) || res.statusText}`)
-  }
-  let parsed: unknown = null
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    parsed = null
-  }
-  const obj = parsed as { b64_video?: string; data?: Array<{ b64_json?: string }> } | null
-  const b64 = obj?.b64_video ?? obj?.data?.[0]?.b64_json ?? ''
-  if (!b64) throw new Error('NVIDIA GenAI returned no video payload (b64_video/b64_json missing)')
-  // OpenAI-style image/video payloads are JSON-encoded data URIs; the first
-  // comma splits off the data-uri prefix.
-  const b64Body = b64.includes(',') ? b64.slice(b64.indexOf(',') + 1) : b64
-  return { mimeType, b64: b64Body }
 }

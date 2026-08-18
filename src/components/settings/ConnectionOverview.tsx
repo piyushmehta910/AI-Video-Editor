@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { testNvidiaNim, testNvidiaGenVideo, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFreesound, testFirecrawl } from '@/api/config/validation'
+import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFreesound, testFirecrawl } from '@/api/config/validation'
 import type { TestConnectionResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,6 @@ export function ConnectionOverview() {
 
   const items: OverviewItem[] = React.useMemo(() => {
     const n = config.nvidiaNim
-    const g = config.nvidiaGenVideo
     const e = config.elevenLabs
     const s = config.stockImages
     const m = config.music
@@ -29,11 +28,6 @@ export function ConnectionOverview() {
         id: 'nvidia',
         label: 'NVIDIA NIM',
         run: () => testNvidiaNim(n.apiKey, n.baseUrl, n.model, n.timeoutMs),
-      },
-      {
-        id: 'nvidia-genvideo',
-        label: 'NVIDIA Video',
-        run: () => testNvidiaGenVideo({ apiKey: g.apiKey, baseUrl: g.baseUrl, model: g.model, timeoutMs: g.timeoutMs }),
       },
       {
         id: 'elevenlabs',

@@ -1,7 +1,6 @@
 import { useApiConfigStore } from '@/api/config/store'
 import { ConnectionOverview } from '@/components/settings/ConnectionOverview'
 import { NvidiaNimCard } from '@/components/settings/cards/NvidiaNimCard'
-import { NvidiaGenVideoCard } from '@/components/settings/cards/NvidiaGenVideoCard'
 import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
 import { OpenRouterCard } from '@/components/settings/cards/OpenRouterCard'
 import { ElevenLabsCard } from '@/components/settings/cards/ElevenLabsCard'
@@ -65,7 +64,6 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>AI & Reasoning</SectionLabel>
           <NvidiaNimCard />
-          <NvidiaGenVideoCard />
           <OpenCodeZenCard />
           <OpenRouterCard />
         </section>

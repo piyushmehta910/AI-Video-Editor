@@ -70,11 +70,3 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
     clearTimeout(timer)
   }
 }
-
-/** Decode a base64 video payload into a Blob for import into the timeline. */
-export function b64VideoToBlob(b64: string, mimeType = 'video/mp4'): Blob {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Blob([bytes], { type: mimeType })
-}
