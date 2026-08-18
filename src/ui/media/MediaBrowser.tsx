@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Clapperboard, Film, FolderUp, Image, Music, Plus, Trash2, Type } from 'lucide-react'
+import { Clapperboard, Film, FolderUp, Image, Music, Plus, Sparkles, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { StockMediaSearch } from './StockMediaSearch'
 import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
+import { AIToolsDialog } from '@/ui/tools/AIToolsDialog'
 import { AddTextDialog } from './AddTextDialog'
 
 const ACCEPTED =
@@ -27,6 +28,7 @@ export function MediaBrowser() {
   const [busy, setBusy] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [avatarOpen, setAvatarOpen] = React.useState(false)
+  const [aiToolsOpen, setAIToolsOpen] = React.useState(false)
   const [textOpen, setTextOpen] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
@@ -85,6 +87,10 @@ export function MediaBrowser() {
         <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setAvatarOpen(true)} title="Generate an on-device lip-sync avatar">
           <Clapperboard className="size-4" />
           Avatar
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setAIToolsOpen(true)} title="Wav2Lip lip-sync, auto captions & noise cancellation">
+          <Sparkles className="size-4" />
+          AI Tools
         </Button>
         <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setTextOpen(true)} title="Add styled text with animation">
           <Type className="size-4" />
@@ -166,6 +172,7 @@ export function MediaBrowser() {
         </div>
       </div>
       <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
+      <AIToolsDialog open={aiToolsOpen} onClose={() => setAIToolsOpen(false)} />
       <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
     </div>
   )

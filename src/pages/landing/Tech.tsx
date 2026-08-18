@@ -48,6 +48,18 @@ const TECH = [
     note: 'Whisper transcription and vision models in-tab',
   },
   {
+    icon: AudioWaveform,
+    name: 'Wav2Lip (ONNX Runtime)',
+    role: 'Neural lip-sync',
+    note: 'onnxruntime-web on WebGL/WebGPU + mel spectrogram, on-device',
+  },
+  {
+    icon: AudioWaveform,
+    name: 'RNNoise (WASM)',
+    role: 'Noise cancellation',
+    note: 'RNNoise C compiled to WASM via @shiguredo/rnnoise-wasm',
+  },
+  {
     icon: Workflow,
     name: 'Web Workers',
     role: 'Background processing',
