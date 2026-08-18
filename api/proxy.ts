@@ -74,7 +74,7 @@ async function forwardProxyRequest(payload: ProxyPayload) {
   }
 }
 
-export default async function handler(req: Request): Promise<Response> {
+async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -99,3 +99,6 @@ export default async function handler(req: Request): Promise<Response> {
     headers: result.headers,
   })
 }
+
+// Vercel's Vite function runtime dispatches Web API handlers via `fetch`.
+export default { fetch: handler }
