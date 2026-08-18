@@ -8,7 +8,6 @@ import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
 import { EngineCard } from '@/components/settings/cards/EngineCard'
-import { SecurityCard } from '@/components/settings/cards/SecurityCard'
 import { PreferencesCard } from '@/components/settings/cards/PreferencesCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -46,7 +45,7 @@ export function SettingsPage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Configure external API providers. All keys are stored locally and encrypted with your master password.
+          Configure external API providers. All keys are stored locally.
         </p>
         {error && (
           <p className="mt-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -86,11 +85,6 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>Music & Audio</SectionLabel>
           <MusicCard />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <SectionLabel>Security</SectionLabel>
-          <SecurityCard />
         </section>
 
         <section className="flex flex-col gap-3">
