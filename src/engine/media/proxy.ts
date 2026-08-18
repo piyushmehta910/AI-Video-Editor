@@ -3,6 +3,7 @@ import { writeMediaFile } from '@/engine/storage/opfs'
 const PROXY_HEIGHT = 360
 const PROXY_MIME = 'video/webm;codecs=vp8'
 const PROXY_BITRATE = 1_000_000
+const PROXY_MAX_DURATION = 30
 
 function createVideoElement(url: string): Promise<HTMLVideoElement> {
   return new Promise((resolve, reject) => {
@@ -45,6 +46,7 @@ export async function generateProxy(assetId: string, file: File): Promise<string
     const srcH = el.videoHeight || 1080
     const duration = el.duration || 0
     if (!isFinite(duration) || duration <= 0 || srcW === 0 || srcH === 0) return null
+    if (duration > PROXY_MAX_DURATION) return null
 
     const scale = PROXY_HEIGHT / srcH
     const dstW = Math.round(srcW * scale)
@@ -79,12 +81,17 @@ export async function generateProxy(assetId: string, file: File): Promise<string
     const fps = 30
     const totalFrames = Math.ceil(duration * fps)
     const frameInterval = 1 / fps
+    const recordingStart = performance.now()
 
     for (let i = 0; i < totalFrames; i++) {
       const time = Math.min(i * frameInterval, duration - 0.01)
       await waitForSeek(el, time)
+      // MediaRecorder captures in real time, so pace the loop to match the
+      // source duration or the proxy will come out shorter than the clip.
+      const targetElapsed = i * frameInterval * 1000
+      const wait = targetElapsed - (performance.now() - recordingStart)
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait))
       ctx.drawImage(el, 0, 0, dstW, dstH)
-      if (i % 30 === 0) await new Promise((r) => setTimeout(r, 0))
     }
 
     recorder.stop()
@@ -95,7 +102,7 @@ export async function generateProxy(assetId: string, file: File): Promise<string
     const blob = new Blob(chunks, { type: 'video/webm' })
     if (blob.size < 1024) return null
 
-    return writeMediaFile(`${assetId}/proxy`, new File([blob], `proxy.webm`, { type: 'video/webm' }))
+    return writeMediaFile(assetId, new File([blob], `proxy.webm`, { type: 'video/webm' }), 'proxy.webm')
   } catch {
     return null
   } finally {

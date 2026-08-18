@@ -204,7 +204,7 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
     type: 'function',
     function: {
       name: 'search_music',
-      description: 'Search music providers (Deezer / Freesound) for background music or a sound effect, download the preview, import it as an audio asset and add it to the timeline. Runs on approval.',
+      description: 'Search music providers (Deezer) for background music or a sound effect, download the preview, import it as an audio asset and add it to the timeline. Runs on approval.',
       parameters: {
         type: 'object',
         properties: {

@@ -20,10 +20,12 @@ function hashName(name: string): string {
   return (h >>> 0).toString(36)
 }
 
-export async function writeMediaFile(id: string, file: File): Promise<string> {
+export async function writeMediaFile(id: string, file: File, fileName?: string): Promise<string> {
   const root = await getRoot()
   const dir = await root.getDirectoryHandle(id, { create: true })
-  const safeName = `${hashName(file.name)}-${file.name.replace(/[^\w.\- ]/g, '_')}`
+  const safeName = fileName
+    ? fileName.replace(/[^\w.\- ]/g, '_')
+    : `${hashName(file.name)}-${file.name.replace(/[^\w.\- ]/g, '_')}`
   const handle = await dir.getFileHandle(safeName, { create: true })
   const writable = await handle.createWritable()
   await writable.write(file)

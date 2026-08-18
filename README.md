@@ -18,7 +18,7 @@ Phase 1 (Foundation) is implemented:
 - [x] Settings page with all API provider cards:
   - NVIDIA NIM, OpenCode Zen, ElevenLabs, Avatar, Wav2Lip
   - Stock Images (Unsplash / Pexels / Pixabay with priority ordering)
-  - Firecrawl, Music & Audio (MusicBrainz / Deezer / Freesound)
+  - Firecrawl, Music & Audio (MusicBrainz / Deezer)
   - Security (master password), AI Director preferences
 - [x] Web Crypto AES-256-GCM + PBKDF2 (100k iterations) key encryption
 - [x] IndexedDB persistence of API config (encrypted at rest when password set)
