@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Clapperboard, SlidersHorizontal, X } from 'lucide-react'
+import { Clapperboard, ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { usePlayback } from '@/hooks/usePlayback'
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts'
@@ -30,6 +30,8 @@ export function EditorPage() {
 
   const [initialPrompt, setInitialPrompt] = React.useState<string | undefined>(undefined)
   const [mobilePanel, setMobilePanel] = React.useState<'media' | 'inspector' | null>(null)
+  const [leftOpen, setLeftOpen] = React.useState(true)
+  const [rightOpen, setRightOpen] = React.useState(true)
 
   React.useEffect(() => {
     void hydrate()
@@ -67,16 +69,44 @@ export function EditorPage() {
       </div>
 
       <div className="relative flex min-h-0 flex-1">
-        <aside className="hidden w-64 shrink-0 border-r md:block">
-          <MediaBrowser />
-        </aside>
+        {leftOpen ? (
+          <aside className="hidden w-64 shrink-0 border-r md:block">
+            <MediaBrowser onCollapse={() => setLeftOpen(false)} />
+          </aside>
+        ) : (
+          <div className="hidden w-8 shrink-0 flex-col items-center border-r py-2 md:flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => setLeftOpen(true)}
+              title="Show Media panel"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        )}
         <div className="flex min-w-0 flex-1 flex-col">
           <Preview playback={playback} />
           <Timeline />
         </div>
-        <aside className="hidden w-72 shrink-0 border-l lg:block">
-          <Inspector />
-        </aside>
+        {rightOpen ? (
+          <aside className="hidden w-72 shrink-0 border-l lg:block">
+            <Inspector onCollapse={() => setRightOpen(false)} />
+          </aside>
+        ) : (
+          <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 lg:flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => setRightOpen(true)}
+              title="Show Inspector panel"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+          </div>
+        )}
 
         {mobilePanel && (
           <div className="absolute inset-0 z-40 flex md:hidden">

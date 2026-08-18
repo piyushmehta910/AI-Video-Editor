@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { AudioLines, Layers, Scissors, Sparkles, Type } from 'lucide-react'
+import { AudioLines, ChevronRight, Layers, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
 import { createEffect, TEXT_ANIMATIONS } from '@/engine/types'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 const EFFECT_DEFS: Array<{
@@ -26,7 +27,7 @@ const EFFECT_DEFS: Array<{
   { type: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.05, format: (v) => `${Math.round(v * 100)}%` },
 ]
 
-export function Inspector() {
+export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
   const selection = useTimelineStore((s) => s.selection)
   const project = useTimelineStore((s) => s.project)
   const updateClip = useTimelineStore((s) => s.updateClip)
@@ -43,8 +44,8 @@ export function Inspector() {
 
   if (selectedClips.length === 0) {
     return (
-      <div className="flex w-64 shrink-0 flex-col border-l bg-muted/30">
-        <InspectorHeader />
+      <div className="flex w-full h-full flex-col bg-muted/30">
+        <InspectorHeader title="Inspector" onCollapse={onCollapse} />
         <div className="flex flex-1 items-center justify-center p-4 text-center">
           <p className="text-muted-foreground text-xs leading-relaxed">
             Select a clip on the timeline to edit its transform, effects and audio.
@@ -101,175 +102,193 @@ export function Inspector() {
   }
 
   return (
-    <div className="flex w-64 shrink-0 flex-col border-l bg-muted/30">
-      <InspectorHeader />
-      <div className="flex-1 space-y-4 overflow-y-auto p-3">
+    <div className="flex w-full h-full flex-col bg-muted/30">
+      <InspectorHeader title={single ? clip.name : `${selectedClips.length} clips`} onCollapse={onCollapse} />
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {single ? (
-          <>
-            <Section icon={<Layers className="size-3.5" />} title="Transform">
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Position X">
-                  <Input type="number" value={clip.position.x} onChange={(e) => set({ position: { ...clip.position, x: Number(e.target.value) } })} />
-                </Field>
-                <Field label="Position Y">
-                  <Input type="number" value={clip.position.y} onChange={(e) => set({ position: { ...clip.position, y: Number(e.target.value) } })} />
-                </Field>
-                <Field label="Scale %">
-                  <Input type="number" value={Math.round(clip.scale.x * 100)} onChange={(e) => { const v = Number(e.target.value) / 100; set({ scale: { x: v, y: v } }) }} />
-                </Field>
-                <Field label="Rotation °">
-                  <Input type="number" value={clip.rotation} onChange={(e) => set({ rotation: Number(e.target.value) })} />
-                </Field>
-              </div>
-              <SliderRow label="Opacity" value={clip.opacity} min={0} max={1} step={0.01} onChange={(v) => set({ opacity: v })} display={`${Math.round(clip.opacity * 100)}%`} />
-            </Section>
+          <Tabs defaultValue="transform" className="gap-0">
+            <TabsList className="mb-3 grid w-full grid-cols-3 rounded-md bg-muted">
+              <TabsTrigger value="transform" className="px-2 text-xs">
+                <Layers className="size-3.5" /> Transform
+              </TabsTrigger>
+              <TabsTrigger value="effects" className="px-2 text-xs">
+                <Sparkles className="size-3.5" /> Effects
+              </TabsTrigger>
+              <TabsTrigger value="audio" className="px-2 text-xs">
+                <AudioLines className="size-3.5" /> Audio
+              </TabsTrigger>
+            </TabsList>
 
-            <Section icon={<Layers className="size-3.5" />} title="Transitions">
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="In">
-                  <select
-                    className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
-                    value={clip.transitions.in?.type ?? ''}
-                    onChange={(e) => {
-                      const type = e.target.value as Transition['type'] | ''
-                      set({ transitions: { ...clip.transitions, in: type ? { type, duration: 0.5 } : undefined } })
-                    }}
-                  >
-                    <option value="">None</option>
-                    <option value="dissolve">Dissolve</option>
-                    <option value="wipe-left">Wipe Left</option>
-                    <option value="wipe-right">Wipe Right</option>
-                    <option value="slide">Slide</option>
-                    <option value="zoom">Zoom</option>
-                  </select>
-                </Field>
-                <Field label="Duration">
-                  <Input
-                    type="number"
-                    min={0.1}
-                    max={5}
-                    step={0.1}
-                    value={clip.transitions.in?.duration ?? 0.5}
-                    onChange={(e) => {
-                      if (!clip.transitions.in) return
-                      set({ transitions: { ...clip.transitions, in: { ...clip.transitions.in, duration: Number(e.target.value) } } })
-                    }}
-                    disabled={!clip.transitions.in}
-                  />
-                </Field>
-              </div>
-            </Section>
-
-            <Section icon={<AudioLines className="size-3.5" />} title="Audio">
-              <SliderRow label="Volume" value={clip.volume} min={0} max={1} step={0.01} onChange={(v) => set({ volume: v })} display={`${Math.round(clip.volume * 100)}%`} />
-              <SliderRow label="Fade in" value={clip.fadeIn} min={0} max={5} step={0.1} onChange={(v) => set({ fadeIn: v })} display={`${clip.fadeIn.toFixed(1)}s`} />
-              <SliderRow label="Fade out" value={clip.fadeOut} min={0} max={5} step={0.1} onChange={(v) => set({ fadeOut: v })} display={`${clip.fadeOut.toFixed(1)}s`} />
-            </Section>
-
-            <Section icon={<Layers className="size-3.5" />} title="Effects">
-              {EFFECT_DEFS.map((def) => {
-                const effect = clip.effects.find((e) => e.type === def.type)
-                const enabled = Boolean(effect)
-                const value = effect?.value ?? 0
-                return (
-                  <div key={def.type} className="flex items-center gap-2">
-                    <Switch
-                      checked={enabled}
-                      onCheckedChange={(c) => toggleEffect(def.type, c)}
-                      aria-label={`Toggle ${def.label}`}
-                      className="scale-75"
-                    />
-                    <div className="flex-1">
-                      <Slider
-                        disabled={!enabled}
-                        min={def.min}
-                        max={def.max}
-                        step={def.step}
-                        value={[value]}
-                        onValueChange={([v]) => setEffectValue(def.type, v)}
-                      />
-                    </div>
-                    <span className={cn('text-muted-foreground w-12 text-right font-mono text-[10px]', !enabled && 'opacity-40')}>
-                      {def.format(value)}
-                    </span>
-                  </div>
-                )
-              })}
-            </Section>
-
-            {clip.text && (
-              <Section icon={<Type className="size-3.5" />} title="Text">
-                <textarea
-                  className="w-full rounded-md border bg-background px-2 py-1 text-xs"
-                  rows={3}
-                  value={clip.text.text}
-                  onChange={(e) => set({ text: { ...clip.text!, text: e.target.value } })}
-                  placeholder="Enter text..."
-                />
+            <TabsContent value="transform" className="space-y-4">
+              <Section icon={<Layers className="size-3.5" />} title="Transform">
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="Font Size">
-                    <Input type="number" value={clip.text.fontSize} onChange={(e) => set({ text: { ...clip.text!, fontSize: Number(e.target.value) } })} />
+                  <Field label="Position X">
+                    <Input type="number" value={clip.position.x} onChange={(e) => set({ position: { ...clip.position, x: Number(e.target.value) } })} />
                   </Field>
-                  <Field label="Color">
-                    <input type="color" value={clip.text.color} className="size-7 cursor-pointer rounded border" onChange={(e) => set({ text: { ...clip.text!, color: e.target.value } })} />
+                  <Field label="Position Y">
+                    <Input type="number" value={clip.position.y} onChange={(e) => set({ position: { ...clip.position, y: Number(e.target.value) } })} />
                   </Field>
-                  <Field label="BG Color">
-                    <input type="color" value={clip.text.backgroundColor === 'transparent' ? '#000000' : clip.text.backgroundColor} className="size-7 cursor-pointer rounded border" onChange={(e) => set({ text: { ...clip.text!, backgroundColor: e.target.value } })} />
+                  <Field label="Scale %">
+                    <Input type="number" value={Math.round(clip.scale.x * 100)} onChange={(e) => { const v = Number(e.target.value) / 100; set({ scale: { x: v, y: v } }) }} />
                   </Field>
-                  <Field label="Align">
+                  <Field label="Rotation °">
+                    <Input type="number" value={clip.rotation} onChange={(e) => set({ rotation: Number(e.target.value) })} />
+                  </Field>
+                </div>
+                <SliderRow label="Opacity" value={clip.opacity} min={0} max={1} step={0.01} onChange={(v) => set({ opacity: v })} display={`${Math.round(clip.opacity * 100)}%`} />
+              </Section>
+
+              <Section icon={<Layers className="size-3.5" />} title="Transitions">
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="In">
                     <select
                       className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
-                      value={clip.text.textAlign}
-                      onChange={(e) => set({ text: { ...clip.text!, textAlign: e.target.value as 'left' | 'center' | 'right' } })}
+                      value={clip.transitions.in?.type ?? ''}
+                      onChange={(e) => {
+                        const type = e.target.value as Transition['type'] | ''
+                        set({ transitions: { ...clip.transitions, in: type ? { type, duration: 0.5 } : undefined } })
+                      }}
                     >
-                      <option value="left">Left</option>
-                      <option value="center">Center</option>
-                      <option value="right">Right</option>
+                      <option value="">None</option>
+                      <option value="dissolve">Dissolve</option>
+                      <option value="wipe-left">Wipe Left</option>
+                      <option value="wipe-right">Wipe Right</option>
+                      <option value="slide">Slide</option>
+                      <option value="zoom">Zoom</option>
                     </select>
                   </Field>
+                  <Field label="Duration">
+                    <Input
+                      type="number"
+                      min={0.1}
+                      max={5}
+                      step={0.1}
+                      value={clip.transitions.in?.duration ?? 0.5}
+                      onChange={(e) => {
+                        if (!clip.transitions.in) return
+                        set({ transitions: { ...clip.transitions, in: { ...clip.transitions.in, duration: Number(e.target.value) } } })
+                      }}
+                      disabled={!clip.transitions.in}
+                    />
+                  </Field>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={clip.text.fontWeight === 'bold'} onCheckedChange={(c) => set({ text: { ...clip.text!, fontWeight: c ? 'bold' : 'normal' } })} aria-label="Bold" className="scale-75" />
-                  <span className="text-muted-foreground text-[10px]">Bold</span>
-                  <Switch checked={clip.text.shadow} onCheckedChange={(c) => set({ text: { ...clip.text!, shadow: c } })} aria-label="Shadow" className="scale-75" />
-                  <span className="text-muted-foreground text-[10px]">Shadow</span>
-                </div>
-                <Field label="Animation">
-                  <select
-                    className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
-                    value={clip.text.animation ?? 'none'}
-                    onChange={(e) => set({ text: { ...clip.text!, animation: e.target.value as TextAnimation } })}
-                  >
-                    {TEXT_ANIMATIONS.map((a) => (
-                      <option key={a} value={a}>
-                        {a.charAt(0).toUpperCase() + a.slice(1).replace(/-/g, ' ')}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={`Anim duration ${(clip.text.animationDuration ?? 1).toFixed(1)}s`}>
-                  <Slider
-                    min={0.2}
-                    max={3}
-                    step={0.1}
-                    value={[clip.text.animationDuration ?? 1]}
-                    onValueChange={([v]) => set({ text: { ...clip.text!, animationDuration: v } })}
-                  />
-                </Field>
               </Section>
-            )}
 
-            {first.track.type === 'audio' && (
-              <Section icon={<Sparkles className="size-3.5" />} title="AI Assist">
-                <Button variant="outline" size="sm" className="w-full" onClick={() => void handleRemoveSilence()}>
-                  <Scissors className="size-3.5" /> Trim silence
-                </Button>
-                <p className="text-muted-foreground text-[10px]">
-                  Removes quiet leading and trailing audio within the clip.
-                </p>
+              {clip.text && (
+                <Section icon={<Type className="size-3.5" />} title="Text">
+                  <textarea
+                    className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                    rows={3}
+                    value={clip.text.text}
+                    onChange={(e) => set({ text: { ...clip.text!, text: e.target.value } })}
+                    placeholder="Enter text..."
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Font Size">
+                      <Input type="number" value={clip.text.fontSize} onChange={(e) => set({ text: { ...clip.text!, fontSize: Number(e.target.value) } })} />
+                    </Field>
+                    <Field label="Color">
+                      <input type="color" value={clip.text.color} className="size-7 cursor-pointer rounded border" onChange={(e) => set({ text: { ...clip.text!, color: e.target.value } })} />
+                    </Field>
+                    <Field label="BG Color">
+                      <input type="color" value={clip.text.backgroundColor === 'transparent' ? '#000000' : clip.text.backgroundColor} className="size-7 cursor-pointer rounded border" onChange={(e) => set({ text: { ...clip.text!, backgroundColor: e.target.value } })} />
+                    </Field>
+                    <Field label="Align">
+                      <select
+                        className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
+                        value={clip.text.textAlign}
+                        onChange={(e) => set({ text: { ...clip.text!, textAlign: e.target.value as 'left' | 'center' | 'right' } })}
+                      >
+                        <option value="left">Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={clip.text.fontWeight === 'bold'} onCheckedChange={(c) => set({ text: { ...clip.text!, fontWeight: c ? 'bold' : 'normal' } })} aria-label="Bold" className="scale-75" />
+                    <span className="text-muted-foreground text-[10px]">Bold</span>
+                    <Switch checked={clip.text.shadow} onCheckedChange={(c) => set({ text: { ...clip.text!, shadow: c } })} aria-label="Shadow" className="scale-75" />
+                    <span className="text-muted-foreground text-[10px]">Shadow</span>
+                  </div>
+                  <Field label="Animation">
+                    <select
+                      className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
+                      value={clip.text.animation ?? 'none'}
+                      onChange={(e) => set({ text: { ...clip.text!, animation: e.target.value as TextAnimation } })}
+                    >
+                      {TEXT_ANIMATIONS.map((a) => (
+                        <option key={a} value={a}>
+                          {a.charAt(0).toUpperCase() + a.slice(1).replace(/-/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label={`Anim duration ${(clip.text.animationDuration ?? 1).toFixed(1)}s`}>
+                    <Slider
+                      min={0.2}
+                      max={3}
+                      step={0.1}
+                      value={[clip.text.animationDuration ?? 1]}
+                      onValueChange={([v]) => set({ text: { ...clip.text!, animationDuration: v } })}
+                    />
+                  </Field>
+                </Section>
+              )}
+            </TabsContent>
+
+            <TabsContent value="effects" className="space-y-4">
+              <Section icon={<Sparkles className="size-3.5" />} title="Effects">
+                {EFFECT_DEFS.map((def) => {
+                  const effect = clip.effects.find((e) => e.type === def.type)
+                  const enabled = Boolean(effect)
+                  const value = effect?.value ?? 0
+                  return (
+                    <div key={def.type} className="flex items-center gap-2">
+                      <Switch
+                        checked={enabled}
+                        onCheckedChange={(c) => toggleEffect(def.type, c)}
+                        aria-label={`Toggle ${def.label}`}
+                        className="scale-75"
+                      />
+                      <div className="flex-1">
+                        <Slider
+                          disabled={!enabled}
+                          min={def.min}
+                          max={def.max}
+                          step={def.step}
+                          value={[value]}
+                          onValueChange={([v]) => setEffectValue(def.type, v)}
+                        />
+                      </div>
+                      <span className={cn('text-muted-foreground w-12 text-right font-mono text-[10px]', !enabled && 'opacity-40')}>
+                        {def.format(value)}
+                      </span>
+                    </div>
+                  )
+                })}
               </Section>
-            )}
-          </>
+            </TabsContent>
+
+            <TabsContent value="audio" className="space-y-4">
+              <Section icon={<AudioLines className="size-3.5" />} title="Audio">
+                <SliderRow label="Volume" value={clip.volume} min={0} max={1} step={0.01} onChange={(v) => set({ volume: v })} display={`${Math.round(clip.volume * 100)}%`} />
+                <SliderRow label="Fade in" value={clip.fadeIn} min={0} max={5} step={0.1} onChange={(v) => set({ fadeIn: v })} display={`${clip.fadeIn.toFixed(1)}s`} />
+                <SliderRow label="Fade out" value={clip.fadeOut} min={0} max={5} step={0.1} onChange={(v) => set({ fadeOut: v })} display={`${clip.fadeOut.toFixed(1)}s`} />
+              </Section>
+
+              {first.track.type === 'audio' && (
+                <Section icon={<Sparkles className="size-3.5" />} title="AI Assist">
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => void handleRemoveSilence()}>
+                    <Scissors className="size-3.5" /> Trim silence
+                  </Button>
+                  <p className="text-muted-foreground text-[10px]">
+                    Removes quiet leading and trailing audio within the clip.
+                  </p>
+                </Section>
+              )}
+            </TabsContent>
+          </Tabs>
         ) : (
           <div className="flex flex-col gap-3">
             <p className="text-muted-foreground text-xs">
@@ -300,16 +319,25 @@ export function Inspector() {
           </div>
         )}
       </div>
-      <span className="sr-only">{single ? clip.name : `${selectedClips.length} clips`}</span>
     </div>
   )
 }
 
-function InspectorHeader() {
+function InspectorHeader({ title, onCollapse }: { title: string; onCollapse?: () => void }) {
   return (
-    <div className="flex items-center border-b px-3 py-2">
-      <span className="text-xs font-semibold tracking-wide uppercase">Inspector</span>
-      <Type className="text-muted-foreground ml-auto size-4" />
+    <div className="flex items-center gap-2 border-b px-3 py-2">
+      <span className="min-w-0 truncate text-xs font-semibold tracking-wide uppercase">{title}</span>
+      {onCollapse ? (
+        <button
+          onClick={onCollapse}
+          className="text-muted-foreground hover:text-foreground ml-auto"
+          title="Hide panel"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      ) : (
+        <Type className="text-muted-foreground ml-auto size-4" />
+      )}
     </div>
   )
 }
