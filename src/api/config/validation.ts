@@ -59,8 +59,11 @@ export async function testBearerEndpoint(params: {
   timeoutMs: number
   headers?: Record<string, string>
   init?: Omit<RequestInit, 'headers'>
+  /** Prefix for the Authorization header value. Defaults to `Bearer `. Set to empty string for raw-key auth (e.g. Pexels). */
+  authPrefix?: string
 }): Promise<TestConnectionResult> {
   const { label, url, apiKey, timeoutMs } = params
+  const prefix = params.authPrefix ?? 'Bearer '
   try {
     return await measure(async () => {
       const res = await fetchWithTimeout(
@@ -69,7 +72,7 @@ export async function testBearerEndpoint(params: {
           method: params.init?.method ?? 'GET',
           ...params.init,
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `${prefix}${apiKey}`,
             'Content-Type': 'application/json',
             ...params.headers,
           },
@@ -122,22 +125,25 @@ export async function testReachability(params: {
   }
 }
 
-export function testUnsplash(apiKey: string, timeoutMs: number) {
-  return testApiKeyEndpoint({
+export function testUnsplash(accessKey: string, timeoutMs: number) {
+  return testReachability({
     label: 'Unsplash',
-    url: 'https://api.unsplash.com/search/photos',
-    apiKey,
-    keyName: 'client_id',
+    url: 'https://api.unsplash.com/search/photos?query=test&per_page=1',
     timeoutMs,
+    headers: {
+      Authorization: `Client-ID ${accessKey}`,
+      'Accept-Version': 'v1',
+    },
   })
 }
 
 export function testPexels(apiKey: string, timeoutMs: number) {
   return testBearerEndpoint({
     label: 'Pexels',
-    url: 'https://api.pexels.com/v1/search',
+    url: 'https://api.pexels.com/v1/search?query=nature&per_page=1',
     apiKey,
     timeoutMs,
+    authPrefix: '',
   })
 }
 

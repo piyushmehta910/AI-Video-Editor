@@ -62,8 +62,20 @@ export interface StockProviderConfig extends BaseProviderConfig {
   minResolution?: string
 }
 
+/**
+ * Unsplash app credentials from the developer dashboard. Per the official
+ * docs, the public API only needs the Access Key (sent as
+ * `Authorization: Client-ID <accessKey>`); the Secret Key is used for OAuth
+ * user auth and the Application ID is informational.
+ */
+export interface UnsplashProviderConfig extends StockProviderConfig {
+  applicationId: string
+  accessKey: string
+  secretKey: string
+}
+
 export interface StockImagesConfig {
-  unsplash: StockProviderConfig
+  unsplash: UnsplashProviderConfig
   pexels: StockProviderConfig
   pixabay: StockProviderConfig
   order: Array<'unsplash' | 'pexels' | 'pixabay'>
@@ -215,7 +227,7 @@ const defaultStockProvider = (): StockProviderConfig => ({
 })
 
 export const defaultStockImagesConfig: StockImagesConfig = {
-  unsplash: { ...defaultStockProvider(), priority: 1, minResolution: '1920x1080' },
+  unsplash: { ...defaultStockProvider(), priority: 1, minResolution: '1920x1080', applicationId: '', accessKey: '', secretKey: '' },
   pexels: { ...defaultStockProvider(), priority: 2 },
   pixabay: { ...defaultStockProvider(), priority: 3 },
   order: ['unsplash', 'pexels', 'pixabay'],

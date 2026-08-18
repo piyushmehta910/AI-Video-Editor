@@ -1,6 +1,11 @@
 import { ArrowDown, ArrowUp, ImageIcon } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { defaultStockImagesConfig, type StockImagesConfig, type StockProviderConfig } from '@/api/config/types'
+import {
+  defaultStockImagesConfig,
+  type StockImagesConfig,
+  type StockProviderConfig,
+  type UnsplashProviderConfig,
+} from '@/api/config/types'
 import { testUnsplash, testPexels, testPixabay } from '@/api/config/validation'
 import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
@@ -25,10 +30,13 @@ export function StockImagesCard() {
   const { config, update, save } = useApiConfigStore()
   const stock: StockImagesConfig = config.stockImages
 
-  const setProvider = (key: ProviderKey, patch: Partial<StockProviderConfig>) => {
+  const setProvider = (key: ProviderKey, patch: Partial<StockProviderConfig> | Partial<UnsplashProviderConfig>) => {
     update((draft) => ({
       ...draft,
-      stockImages: { ...draft.stockImages, [key]: { ...draft.stockImages[key], ...patch } },
+      stockImages: {
+        ...draft.stockImages,
+        [key]: { ...draft.stockImages[key], ...patch },
+      },
     }))
   }
 
@@ -46,14 +54,15 @@ export function StockImagesCard() {
   }
 
   const testerFor = (key: ProviderKey, timeout: number) => {
-    const p = stock[key]
     switch (key) {
-      case 'unsplash':
-        return testUnsplash(p.apiKey, timeout)
+      case 'unsplash': {
+        const u = stock.unsplash
+        return testUnsplash(u.accessKey || u.apiKey, timeout)
+      }
       case 'pexels':
-        return testPexels(p.apiKey, timeout)
+        return testPexels(stock.pexels.apiKey, timeout)
       case 'pixabay':
-        return testPixabay(p.apiKey, timeout)
+        return testPixabay(stock.pixabay.apiKey, timeout)
     }
   }
 
@@ -98,6 +107,35 @@ export function StockImagesCard() {
                     onChange={(e) => setProvider(key, { apiKey: e.target.value })}
                   />
                 </FieldRow>
+
+                {key === 'unsplash' && (
+                  <>
+                    <FieldRow label="Application ID" htmlFor="stock-unsplash-app-id">
+                      <ApiKeyInput
+                        id="stock-unsplash-app-id"
+                        value={stock.unsplash.applicationId}
+                        placeholder="Unsplash Application ID"
+                        onChange={(e) => setProvider(key, { applicationId: e.target.value })}
+                      />
+                    </FieldRow>
+                    <FieldRow label="Access Key" htmlFor="stock-unsplash-access-key">
+                      <ApiKeyInput
+                        id="stock-unsplash-access-key"
+                        value={stock.unsplash.accessKey}
+                        placeholder="Unsplash Access Key"
+                        onChange={(e) => setProvider(key, { accessKey: e.target.value })}
+                      />
+                    </FieldRow>
+                    <FieldRow label="Secret Key" htmlFor="stock-unsplash-secret-key">
+                      <ApiKeyInput
+                        id="stock-unsplash-secret-key"
+                        value={stock.unsplash.secretKey}
+                        placeholder="Unsplash Secret Key (OAuth only)"
+                        onChange={(e) => setProvider(key, { secretKey: e.target.value })}
+                      />
+                    </FieldRow>
+                  </>
+                )}
 
                 <FieldRow label="Priority">
                   <Select

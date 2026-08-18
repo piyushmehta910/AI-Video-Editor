@@ -32,9 +32,14 @@ export function StockMediaSearch() {
 
     for (const provider of providers) {
       try {
-        if (provider === 'unsplash' && config.stockImages.unsplash.apiKey) {
+        if (provider === 'unsplash') {
+          const accessKey = config.stockImages.unsplash.accessKey || config.stockImages.unsplash.apiKey
+          if (!accessKey) continue
           const res = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=12`, {
-            headers: { Authorization: `Client-ID ${config.stockImages.unsplash.apiKey}` },
+            headers: {
+              Authorization: `Client-ID ${accessKey}`,
+              'Accept-Version': 'v1',
+            },
           })
           const data = await res.json()
           for (const photo of data.results ?? []) {
@@ -101,7 +106,11 @@ export function StockMediaSearch() {
     }
   }
 
-  const hasAnyKey = config.stockImages.unsplash.apiKey || config.stockImages.pexels.apiKey || config.stockImages.pixabay.apiKey
+  const hasAnyKey =
+    config.stockImages.unsplash.accessKey ||
+    config.stockImages.unsplash.apiKey ||
+    config.stockImages.pexels.apiKey ||
+    config.stockImages.pixabay.apiKey
 
   return (
     <div className="flex flex-col gap-2 p-3">
