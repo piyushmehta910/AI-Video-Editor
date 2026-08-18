@@ -14,45 +14,56 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /**
- * Free hosted chat models on the NVIDIA NIM catalog (build.nvidia.com) verified
- * against the official /v1/models catalog on 2026-08-17. Non-chat model
- * families (embeddings, safety, RAG, vision, OCR...) are excluded.
+ * Free hosted chat models on the NVIDIA NIM catalog (build.nvidia.com).
+ * Verified against the live official /v1/models catalog on 2026-08-18 —
+ * chat-capable families only (embeddings, safety, vision, OCR, image and
+ * video generation excluded).
  */
 const NIM_FREE_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b',
   'nvidia/nemotron-3-ultra-550b-a55b',
   'nvidia/nemotron-3.5-lightning-30b-a3b',
   'nvidia/nemotron-3-nano-30b-a3b',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+  'nvidia/nemotron-4-340b-instruct',
   'nvidia/llama-3.3-nemotron-super-49b-v1',
+  'nvidia/llama-3.3-nemotron-super-49b-v1.5',
   'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'nvidia/llama-3.1-nemotron-70b-instruct',
+  'nvidia/llama-3.1-nemotron-51b-instruct',
+  'nvidia/llama-3.1-nemotron-nano-8b-v1',
   'nvidia/nvidia-nemotron-nano-9b-v2',
-  'deepseek-ai/deepseek-v4-flash',
-  'deepseek-ai/deepseek-v4-pro',
+  'nvidia/nemotron-nano-3-30b-a3b',
+  'nvidia/mistral-nemo-minitron-8b-8k-instruct',
+  'nv-mistralai/mistral-nemo-12b-instruct',
+  'deepseek-ai/deepseek-v4-flash-0731',
+  'deepseek-ai/deepseek-coder-6.7b-instruct',
+  'google/codegemma-1.1-7b',
   'google/codegemma-7b',
-  'google/gemma-7b',
+  'google/gemma-3-12b-it',
+  'google/gemma-3-4b-it',
+  'google/gemma-4-31b-it',
   'meta/llama-3.1-8b-instruct',
   'meta/llama-3.1-70b-instruct',
   'meta/llama-3.2-1b-instruct',
   'meta/llama-3.2-3b-instruct',
   'meta/llama-3.3-70b-instruct',
-  'microsoft/phi-4-mini-instruct',
-  'microsoft/phi-4-mini-flash-reasoning',
-  'minimaxai/minimax-m2.5',
-  'minimaxai/minimax-m2.7',
+  'microsoft/phi-3.5-moe-instruct',
   'mistralai/mistral-nemotron',
-  'moonshotai/kimi-k2-instruct',
-  'moonshotai/kimi-k2-thinking',
+  'mistralai/mistral-large-2-instruct',
+  'mistralai/mixtral-8x22b-v0.1',
+  'moonshotai/kimi-k2.6',
   'openai/gpt-oss-20b',
   'openai/gpt-oss-120b',
-  'poolside/laguna-xs-2-1',
-  'qwen/qwen2.5-coder-32b-instruct',
-  'qwen/qwen3-coder-480b-a35b-instruct',
-  'sarvamai/sarvam-m',
-  'stepfun-ai/step-3.5-flash',
+  'poolside/laguna-xs-2.1',
+  'stepfun-ai/step-3.7-flash',
   'thinkingmachines/inkling',
-  'upstage/solar-10.7b-instruct',
-  'z-ai/glm4.7',
-  'z-ai/glm5.1',
+  'writer/palmyra-creative-122b',
+  'z-ai/glm-5.2',
+  'zyphra/zamba2-7b-instruct',
+  'ai21labs/jamba-1.5-large-instruct',
+  'bigcode/starcoder2-15b',
+  '01-ai/yi-large',
 ]
 
 export function NvidiaNimCard() {

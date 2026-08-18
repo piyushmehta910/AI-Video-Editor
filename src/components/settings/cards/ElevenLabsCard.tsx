@@ -1,7 +1,8 @@
-import { AudioLines } from 'lucide-react'
+import * as React from 'react'
+import { AudioLines, RefreshCcw } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { defaultElevenLabsConfig, type ElevenLabsConfig } from '@/api/config/types'
-import { testElevenLabs } from '@/api/config/validation'
+import { testElevenLabs, fetchElevenLabsModels } from '@/api/config/validation'
 import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
@@ -9,6 +10,7 @@ import { ProviderCard } from '../ProviderCard'
 import { ProviderStatusBadge } from '../ProviderStatusBadge'
 import { SliderField } from '../SliderField'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const ELEVEN_MODELS = ['eleven_v3', 'eleven_ttv_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_flash_v2']
@@ -35,9 +37,31 @@ const OUTPUT_FORMATS = [
 export function ElevenLabsCard() {
   const { config, update, save } = useApiConfigStore()
   const cfg: ElevenLabsConfig = config.elevenLabs
+  const [models, setModels] = React.useState<string[]>(ELEVEN_MODELS)
+  const [refreshing, setRefreshing] = React.useState(false)
+  const [refreshMessage, setRefreshMessage] = React.useState<string | null>(null)
 
   const set = (patch: Partial<ElevenLabsConfig>) => {
     update((draft) => ({ ...draft, elevenLabs: { ...draft.elevenLabs, ...patch } }))
+  }
+
+  const refresh = async () => {
+    if (!cfg.apiKey.trim()) {
+      setRefreshMessage('Enter an API key to load the model list')
+      return
+    }
+    setRefreshing(true)
+    setRefreshMessage(null)
+    try {
+      const roster = await fetchElevenLabsModels(cfg.apiKey, cfg.endpoint, cfg.timeoutMs)
+      setModels(roster)
+      if (!roster.includes(cfg.model)) set({ model: roster[0] })
+      setRefreshMessage(`Loaded ${roster.length} models from your account`)
+    } catch (err) {
+      setRefreshMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   return (
@@ -74,18 +98,26 @@ export function ElevenLabsCard() {
       </FieldRow>
 
       <FieldRow label="Model" htmlFor="eleven-model">
-        <Select value={cfg.model} onValueChange={(v) => set({ model: v })}>
-          <SelectTrigger id="eleven-model" className="w-full">
-            <SelectValue placeholder="Model" />
-          </SelectTrigger>
-          <SelectContent>
-            {ELEVEN_MODELS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={cfg.model} onValueChange={(v) => set({ model: v })}>
+            <SelectTrigger id="eleven-model" className="w-full">
+              <SelectValue placeholder="Model" />
+            </SelectTrigger>
+            <SelectContent>
+              {models.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh models from your ElevenLabs account">
+            <RefreshCcw className={refreshing ? 'animate-spin' : ''} />
+          </Button>
+        </div>
+        <p className="text-muted-foreground text-xs">
+          {refreshMessage && <span className="text-violet-500">{refreshMessage}</span>}
+        </p>
       </FieldRow>
 
       <FieldRow label="Output Format" htmlFor="eleven-format">

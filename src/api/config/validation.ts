@@ -168,6 +168,9 @@ export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.
 }
 
 export function testElevenLabs(apiKey: string, timeoutMs: number, endpoint = 'https://api.elevenlabs.io') {
+  if (!apiKey.trim()) {
+    return Promise.resolve({ ok: false, status: 'disconnected' as const, message: 'ElevenLabs: Enter an API key to test', latencyMs: 0 })
+  }
   return testReachability({
     label: 'ElevenLabs',
     url: `${endpoint.replace(/\/$/, '')}/v1/models`,
@@ -177,6 +180,23 @@ export function testElevenLabs(apiKey: string, timeoutMs: number, endpoint = 'ht
       Accept: 'application/json',
     },
   })
+}
+
+/**
+ * Fetch the live model roster from the configured ElevenLabs endpoint so the
+ * dropdown always reflects what the account can actually use.
+ */
+export async function fetchElevenLabsModels(apiKey: string, endpoint = 'https://api.elevenlabs.io', timeoutMs = 20000): Promise<string[]> {
+  const res = await fetchWithTimeout(
+    `${endpoint.replace(/\/$/, '')}/v1/models`,
+    { headers: { 'xi-api-key': apiKey, Accept: 'application/json' } },
+    timeoutMs,
+  )
+  if (!res.ok) throw new Error(`ElevenLabs catalog error ${res.status}`)
+  const data = (await res.json()) as Array<{ model_id?: string }>
+  const models = (data ?? []).map((m) => m.model_id ?? '').filter(Boolean).sort()
+  if (!models.length) throw new Error('No models returned by ElevenLabs')
+  return models
 }
 
 export function testMusicBrainz(baseUrl = 'https://musicbrainz.org', userAgent = 'ClipForgeAI/1.0', timeoutMs: number) {
@@ -239,6 +259,9 @@ const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|ne
  */
 export async function testNvidiaNim(apiKey: string, baseUrl: string, model: string, timeoutMs: number): Promise<TestConnectionResult> {
   const label = 'NVIDIA NIM'
+  if (!apiKey.trim()) {
+    return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
+  }
   try {
     return await measure(async () => {
       const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`
@@ -266,7 +289,7 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
         return { ok: false, status: 'disconnected', message: `${label}: Invalid API key or unauthorized` }
       }
       if (res.status === 404) {
-        return { ok: false, status: 'disconnected', message: `${label}: Model not found: ${model}` }
+        return { ok: false, status: 'disconnected', message: `${label}: Model not found — "${model}". Pick a different model or refresh the list.` }
       }
       if (res.status === 429) {
         return { ok: false, status: 'disconnected', message: `${label}: Rate limit exceeded` }

@@ -4,7 +4,6 @@ import { NvidiaNimCard } from '@/components/settings/cards/NvidiaNimCard'
 import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
 import { OpenRouterCard } from '@/components/settings/cards/OpenRouterCard'
 import { ElevenLabsCard } from '@/components/settings/cards/ElevenLabsCard'
-import { AvatarCard } from '@/components/settings/cards/AvatarCard'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
@@ -72,11 +71,6 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>Voice</SectionLabel>
           <ElevenLabsCard />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <SectionLabel>Avatar & Lip Sync</SectionLabel>
-          <AvatarCard />
         </section>
 
         <section className="flex flex-col gap-3">
