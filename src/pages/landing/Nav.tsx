@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Clapperboard, Menu, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
@@ -56,6 +57,7 @@ export function Nav() {
         </nav>
 
         <div className="ml-auto hidden items-center gap-2 sm:flex">
+          <ThemeToggle />
           <Button variant="ghost" asChild>
             <Link to="/settings">Settings</Link>
           </Button>

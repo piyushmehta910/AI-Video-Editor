@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Save, Settings, Share2 } from 'lucide-react'
+import { Play, Save, Settings, Share2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { formatTimecode, formatSeconds } from '@/engine/types'
@@ -115,14 +115,22 @@ export function ProjectHeader() {
           </TooltipTrigger>
           <TooltipContent>{saving ? 'Saving…' : 'Save project'}</TooltipContent>
         </Tooltip>
-        <Button size="sm" onClick={() => setExportOpen(true)} disabled={duration === 0}>
+        <div className="bg-muted text-muted-foreground hidden h-8 items-center gap-1.5 rounded-md px-2.5 font-mono text-[11px] md:flex">
+          <Play className="size-3" />
+          {formatTimecode(playhead, project.fps)}
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setExportOpen(true)}
+          disabled={duration === 0}
+          className="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm shadow-fuchsia-600/30 hover:from-violet-500 hover:to-fuchsia-500"
+        >
           <Share2 />
           Export
         </Button>
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
-      <span className="sr-only">{formatTimecode(playhead, project.fps)}</span>
     </div>
   )
 }

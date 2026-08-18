@@ -327,8 +327,8 @@ export function Timeline() {
             style={{ width: HEADER_WIDTH + contentWidth, minWidth: '100%', height: '100%', position: 'relative' }}
           >
             {/* Ruler */}
-            <div className="absolute top-0" style={{ left: HEADER_WIDTH, width: contentWidth, height: RULER_HEIGHT }}>
-              <div className="relative h-full">
+            <div className="absolute top-0 border-b border-border/60" style={{ left: HEADER_WIDTH, width: contentWidth, height: RULER_HEIGHT }}>
+              <div className="relative h-full bg-muted/20">
                 {ticks.map((t, i) => (
                   <div key={i} className="absolute top-0 h-full" style={{ left: t * zoom }}>
                     <div className={cn('bg-border w-px', i % labelEvery === 0 ? 'h-3' : 'h-1.5')} />
@@ -371,7 +371,7 @@ export function Timeline() {
 
         {/* Track header gutter (fixed) */}
         <div data-header-gutter className="absolute top-0 bottom-0 left-0 z-20 w-16 border-r bg-card">
-          <div className="bg-border flex h-6 items-center px-2 text-[9px] font-semibold tracking-wider text-muted-foreground uppercase">
+          <div className="flex h-6 items-center justify-center border-b bg-muted/50 text-[9px] font-semibold tracking-wider text-muted-foreground uppercase">
             Track
           </div>
           {project.tracks.map((track) => (
@@ -431,9 +431,9 @@ function TrackRow({
                 ? 'border-violet-500 ring-2 ring-violet-500/40'
                 : isUnderPlayhead
                   ? 'border-red-400/60'
-                  : 'border-white/10',
+                  : 'border-black/40 shadow-sm',
             )}
-            style={{ left, width }}
+            style={{ left, width, background: 'linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))' }}
             onPointerDown={(e) => {
               e.stopPropagation()
               onPointerDownClip(e, clip, 'move')
@@ -501,6 +501,12 @@ function TrackRow({
 }
 
 function TrackHeader({ track }: { track: Track }) {
+  const badgeColor =
+    track.type === 'video'
+      ? 'bg-sky-500/20 text-sky-500'
+      : track.type === 'audio'
+        ? 'bg-emerald-500/20 text-emerald-500'
+        : 'bg-violet-500/20 text-violet-500'
   return (
     <div
       className={cn(
@@ -509,7 +515,14 @@ function TrackHeader({ track }: { track: Track }) {
       )}
       style={{ height: TRACK_HEIGHT }}
     >
-      <span className="text-muted-foreground w-6 text-right font-mono text-[11px]">{track.name}</span>
+      <span
+        className={cn(
+          'w-6 shrink-0 rounded text-center font-mono text-[10px] font-semibold',
+          badgeColor,
+        )}
+      >
+        {track.name}
+      </span>
       <TrackHeaderButton
         active={track.locked}
         onClick={() => useTimelineStore.getState().toggleTrackLock(track.id)}

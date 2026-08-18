@@ -99,11 +99,22 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
     >
       <div ref={previewAreaRef} className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
         {canvasCssSize && (
-          <canvas
-            ref={playback.canvasRef}
-            className={cn('rounded-lg shadow-2xl shadow-black/50', fullscreen && 'rounded-none shadow-none')}
+          <div
+            className={cn(
+              'relative rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60',
+              fullscreen && 'rounded-none border-transparent shadow-none',
+            )}
             style={{ width: canvasCssSize.w, height: canvasCssSize.h }}
-          />
+          >
+            <canvas ref={playback.canvasRef} className="block size-full" />
+          </div>
+        )}
+
+        {!fullscreen && (
+          <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-medium text-white/80 backdrop-blur">
+            <span className="size-1.5 rounded-full bg-violet-400" />
+            {project.width}×{project.height} · {project.fps} fps
+          </div>
         )}
 
         {duration === 0 && (

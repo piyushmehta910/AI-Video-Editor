@@ -1,6 +1,7 @@
 import { Clapperboard, Home, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { cn } from '@/lib/utils'
 import { Outlet } from '@tanstack/react-router'
 
@@ -45,6 +46,7 @@ export function AppShell() {
             <span className="text-muted-foreground hidden text-xs sm:block">
               Browser-native · WebGPU · WebCodecs
             </span>
+            <ThemeToggle />
           </div>
         </div>
       </header>
