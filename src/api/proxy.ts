@@ -39,10 +39,6 @@ export async function proxyFetch(url: string, init: RequestInit, timeoutMs: numb
       }),
       signal: controller.signal,
     })
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Proxy error ${res.status}: ${text.slice(0, 200) || res.statusText}`)
-    }
     return res
   } finally {
     clearTimeout(timer)

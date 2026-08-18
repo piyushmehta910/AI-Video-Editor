@@ -348,8 +348,22 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
       if (res.ok) {
         return { ok: true, status: 'connected', message: `${label}: Connection successful` }
       }
-      if (res.status === 401 || res.status === 403) {
-        return { ok: false, status: 'disconnected', message: `${label}: Invalid API key or unauthorized` }
+      if (res.status === 401) {
+        return {
+          ok: false,
+          status: 'disconnected',
+          message: `${label}: Authentication failed — the API key was rejected. Regenerate it at build.nvidia.com/settings/api-keys.${body ? ` (${body.slice(0, 120)})` : ''}`,
+        }
+      }
+      if (res.status === 403) {
+        // NVIDIA: key authenticates (GET /v1/models works) but the account's
+        // organization is missing the "Public API Endpoints" entitlement —
+        // a known widespread issue in 2026. Not a code problem.
+        return {
+          ok: false,
+          status: 'disconnected',
+          message: `${label}: API key is valid but your NVIDIA account is missing the "Public API Endpoints" entitlement. Request it by emailing help@build.nvidia.com with your registered email address.${body ? ` (${body.slice(0, 120)})` : ''}`,
+        }
       }
       if (res.status === 404) {
         return { ok: false, status: 'disconnected', message: `${label}: Endpoint not found — check the base URL (should end with /v1)` }
