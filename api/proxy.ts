@@ -22,6 +22,16 @@ function isAllowedProxyUrl(url: string): boolean {
   }
 }
 
+async function doFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch (err) {
+    // Transient network failures (DNS, socket reset, TLS). Retry once.
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    return fetch(url, init)
+  }
+}
+
 async function forwardProxyRequest(payload: ProxyPayload) {
   const url = payload.url
   if (!url || !isAllowedProxyUrl(url)) {
@@ -33,7 +43,7 @@ async function forwardProxyRequest(payload: ProxyPayload) {
     }
   }
   try {
-    const res = await fetch(url, {
+    const res = await doFetch(url, {
       method: payload.method ?? 'GET',
       headers: payload.headers,
       body: payload.body,

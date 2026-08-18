@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Bot, RefreshCcw } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { defaultNvidiaNimConfig, type NvidiaNimConfig } from '@/api/config/types'
-import { fetchNvidiaNimModels, testBearerEndpoint } from '@/api/config/validation'
+import { fetchNvidiaNimModels, testNvidiaNim } from '@/api/config/validation'
 import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
@@ -185,12 +185,7 @@ export function NvidiaNimCard() {
       <FieldRow className="md:col-span-2">
         <ApiTester
           run={() =>
-            testBearerEndpoint({
-              label: 'NVIDIA NIM',
-              url: `${cfg.baseUrl.replace(/\/$/, '')}/models`,
-              apiKey: cfg.apiKey,
-              timeoutMs: cfg.timeoutMs,
-            }).then((result) => {
+            testNvidiaNim(cfg.apiKey, cfg.baseUrl, cfg.model, cfg.timeoutMs).then((result) => {
               if (result.ok) {
                 set({ status: 'connected' })
               } else if (result.status === 'disconnected') {

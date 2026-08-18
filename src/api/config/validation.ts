@@ -237,6 +237,53 @@ export async function fetchOpenRouterFreeModels(timeoutMs = 20000): Promise<stri
 const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|nemoretriever|parse|clip|ocr|vil|vila|synthetic-video|cosmos-reason|neva)/i
 
 /**
+ * Validate an NVIDIA NIM API key by posting a minimal chat completion to the
+ * OpenAI-compatible endpoint. `GET /v1/models` returns 200 even without a
+ * valid key, so only `POST /v1/chat/completions` actually validates auth
+ * (401/403 on bad/missing key, 404 on unknown model, 429 on rate limit).
+ */
+export async function testNvidiaNim(apiKey: string, baseUrl: string, model: string, timeoutMs: number): Promise<TestConnectionResult> {
+  const label = 'NVIDIA NIM'
+  try {
+    return await measure(async () => {
+      const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`
+      const res = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+        },
+        timeoutMs,
+      )
+      const body = await res.text().catch(() => '')
+      if (res.ok) {
+        return { ok: true, status: 'connected', message: `${label}: Connection successful` }
+      }
+      if (res.status === 401 || res.status === 403) {
+        return { ok: false, status: 'disconnected', message: `${label}: Invalid API key or unauthorized` }
+      }
+      if (res.status === 404) {
+        return { ok: false, status: 'disconnected', message: `${label}: Model not found: ${model}` }
+      }
+      if (res.status === 429) {
+        return { ok: false, status: 'disconnected', message: `${label}: Rate limit exceeded` }
+      }
+      return { ok: false, status: 'disconnected', message: `${label}: HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ''}` }
+    }).then(({ result, latencyMs }) => ({ ...result, latencyMs }) as TestConnectionResult)
+  } catch (err) {
+    return handleError(err, label)
+  }
+}
+
+/**
  * Fetch the hosted model catalog from the configured NVIDIA NIM endpoint
  * (OpenAI-compatible) and return text-chat-capable model ids. The catalog does
  * not expose which models are free-tier, so non-chat model families are

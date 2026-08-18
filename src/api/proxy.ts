@@ -38,17 +38,7 @@ export async function proxyFetch(url: string, init: RequestInit, timeoutMs: numb
       const text = await res.text().catch(() => '')
       throw new Error(`Proxy error ${res.status}: ${text.slice(0, 200) || res.statusText}`)
     }
-    const data = (await res.json()) as {
-      status: number
-      statusText: string
-      headers: Record<string, string>
-      body: string
-    }
-    return new Response(data.body, {
-      status: data.status,
-      statusText: data.statusText,
-      headers: data.headers,
-    })
+    return res
   } finally {
     clearTimeout(timer)
   }
