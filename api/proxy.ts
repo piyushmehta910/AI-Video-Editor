@@ -9,6 +9,7 @@ interface ProxyPayload {
   method?: string
   headers?: Record<string, string>
   body?: string
+  timeoutMs?: number
 }
 
 /** Hosts allowed to be proxied through this endpoint. Mirrors server/proxy.ts. */
@@ -22,13 +23,13 @@ function isAllowedProxyUrl(url: string): boolean {
   }
 }
 
-async function doFetch(url: string, init: RequestInit): Promise<Response> {
+async function doFetch(url: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
   try {
-    return await fetch(url, init)
+    return await fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
   } catch (err) {
     // Transient network failures (DNS, socket reset, TLS). Retry once.
     await new Promise((resolve) => setTimeout(resolve, 250))
-    return fetch(url, init)
+    return fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
   }
 }
 
@@ -43,11 +44,15 @@ async function forwardProxyRequest(payload: ProxyPayload) {
     }
   }
   try {
-    const res = await doFetch(url, {
-      method: payload.method ?? 'GET',
-      headers: payload.headers,
-      body: payload.body,
-    })
+    const res = await doFetch(
+      url,
+      {
+        method: payload.method ?? 'GET',
+        headers: payload.headers,
+        body: payload.body,
+      },
+      payload.timeoutMs,
+    )
     const body = await res.text()
     const headers: Record<string, string> = {}
     res.headers.forEach((value, key) => {

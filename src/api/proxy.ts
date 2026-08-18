@@ -31,6 +31,7 @@ export async function proxyFetch(url: string, init: RequestInit, timeoutMs: numb
         method: init.method ?? 'GET',
         headers,
         body: typeof init.body === 'string' ? init.body : undefined,
+        timeoutMs,
       }),
       signal: controller.signal,
     })

@@ -124,10 +124,21 @@ export function ElevenLabsCard() {
       <SliderField label="Style" value={cfg.style} onChange={(v) => set({ style: v })} />
       <SliderField label="Speed" value={cfg.speed} min={0.5} max={2} step={0.1} onChange={(v) => set({ speed: v })} />
 
+      <FieldRow label="Timeout (ms)" htmlFor="eleven-timeout">
+        <Input
+          id="eleven-timeout"
+          type="number"
+          min={1000}
+          step={1000}
+          value={cfg.timeoutMs}
+          onChange={(e) => set({ timeoutMs: Number(e.target.value) })}
+        />
+      </FieldRow>
+
       <FieldRow className="md:col-span-2">
         <ApiTester
           run={() =>
-            testElevenLabs(cfg.apiKey, 15000).then((result) => {
+            testElevenLabs(cfg.apiKey, cfg.timeoutMs).then((result) => {
               if (result.ok) {
                 set({ status: 'connected' })
               } else if (result.status === 'disconnected') {

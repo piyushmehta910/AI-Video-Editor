@@ -37,6 +37,7 @@ export interface ElevenLabsConfig extends BaseProviderConfig {
   style: number
   speed: number
   outputFormat: string
+  timeoutMs: number
 }
 
 /**
@@ -202,6 +203,7 @@ export const defaultElevenLabsConfig: ElevenLabsConfig = {
   style: 0.3,
   speed: 1.0,
   outputFormat: 'mp3_44100_128',
+  timeoutMs: 30000,
   status: 'disabled',
 }
 

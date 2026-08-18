@@ -99,16 +99,7 @@ export function StockImagesCard() {
                 />
               </div>
               <CardContent className="flex flex-col gap-3 px-4">
-                <FieldRow label="API Key" htmlFor={`stock-${key}-key`}>
-                  <ApiKeyInput
-                    id={`stock-${key}-key`}
-                    value={p.apiKey}
-                    placeholder={meta.placeholder}
-                    onChange={(e) => setProvider(key, { apiKey: e.target.value })}
-                  />
-                </FieldRow>
-
-                {key === 'unsplash' && (
+                {key === 'unsplash' ? (
                   <>
                     <FieldRow label="Application ID" htmlFor="stock-unsplash-app-id">
                       <ApiKeyInput
@@ -135,6 +126,15 @@ export function StockImagesCard() {
                       />
                     </FieldRow>
                   </>
+                ) : (
+                  <FieldRow label="API Key" htmlFor={`stock-${key}-key`}>
+                    <ApiKeyInput
+                      id={`stock-${key}-key`}
+                      value={p.apiKey}
+                      placeholder={meta.placeholder}
+                      onChange={(e) => setProvider(key, { apiKey: e.target.value })}
+                    />
+                  </FieldRow>
                 )}
 
                 <FieldRow label="Priority">
