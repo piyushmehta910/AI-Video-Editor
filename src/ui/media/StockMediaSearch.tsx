@@ -28,7 +28,12 @@ export function StockMediaSearch() {
     setResults([])
 
     const allResults: StockResult[] = []
-    const providers = config.stockImages.order ?? ['unsplash', 'pexels', 'pixabay']
+    const ordered = [...(config.stockImages.order ?? ['unsplash', 'pexels', 'pixabay'])]
+    const preferred = config.preferences.preferredStock
+    if (preferred && ordered.includes(preferred as 'unsplash' | 'pexels' | 'pixabay')) {
+      ordered.sort((a, b) => (a === preferred ? -1 : b === preferred ? 1 : 0))
+    }
+    const providers = ordered
 
     for (const provider of providers) {
       try {

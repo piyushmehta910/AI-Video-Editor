@@ -89,13 +89,24 @@ export function SecurityCard() {
   }
 
   const toggleEncrypt = (encryptKeys: boolean) => {
+    if (encryptKeys && !security.hasMasterPassword) {
+      setMessage({ type: 'error', text: 'Set a master password first to enable encryption.' })
+      return
+    }
+    if (!encryptKeys) {
+      update((draft) => ({
+        ...draft,
+        security: { ...draft.security, encryptKeys: false, hasMasterPassword: false },
+      }))
+      setMasterPassword(null)
+      setMessage({ type: 'ok', text: 'Encryption disabled. Keys will be stored in plaintext.' })
+      return
+    }
     update((draft) => ({
       ...draft,
-      security: { ...draft.security, encryptKeys },
+      security: { ...draft.security, encryptKeys: true },
     }))
-    if (!encryptKeys && security.hasMasterPassword) {
-      setMessage({ type: 'error', text: 'Disabling encryption stores keys in plaintext. Save to apply.' })
-    }
+    setMessage({ type: 'ok', text: 'Encryption enabled. Save to apply.' })
   }
 
   return (

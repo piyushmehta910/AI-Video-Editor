@@ -19,7 +19,26 @@ function mergeApiConfig(stored: Partial<ApiConfig>): ApiConfig {
       typeof fallback === 'object' &&
       !Array.isArray(fallback)
     ) {
-      merged[key] = { ...(fallback as unknown as Record<string, unknown>), ...(value as Record<string, unknown>) }
+      const fb = fallback as unknown as Record<string, unknown>
+      const val = value as unknown as Record<string, unknown>
+      // Deep-merge one more level so new fields on nested provider configs
+      // (e.g. Unsplash accessKey) inherit defaults for previously-saved configs.
+      const mergedValue: Record<string, unknown> = { ...fb, ...val }
+      for (const nestedKey of Object.keys(val)) {
+        const nestedFallback = fb[nestedKey]
+        const nestedStored = val[nestedKey]
+        if (
+          nestedStored != null &&
+          typeof nestedStored === 'object' &&
+          !Array.isArray(nestedStored) &&
+          nestedFallback != null &&
+          typeof nestedFallback === 'object' &&
+          !Array.isArray(nestedFallback)
+        ) {
+          mergedValue[nestedKey] = { ...(nestedFallback as Record<string, unknown>), ...(nestedStored as Record<string, unknown>) }
+        }
+      }
+      merged[key] = mergedValue
     } else {
       merged[key] = value ?? fallback
     }
@@ -82,12 +101,18 @@ export const useApiConfigStore = create<ApiConfigState>()((set, get) => ({
   },
 
   save: async () => {
-    const { config } = get()
+    const { config, locked, masterPassword } = get()
+    if (locked) {
+      throw new Error('Vault is locked. Unlock it before saving changes.')
+    }
     set({ isSaving: true, error: null })
     try {
       let stored: StoredApiConfig
-      if (shouldEncrypt(config) && get().masterPassword) {
-        const encrypted = await encryptWithPassword(JSON.stringify(config), get().masterPassword!)
+      if (shouldEncrypt(config)) {
+        if (!masterPassword) {
+          throw new Error('A master password is required to encrypt API keys.')
+        }
+        const encrypted = await encryptWithPassword(JSON.stringify(config), masterPassword)
         stored = { encrypted }
       } else {
         stored = { plain: JSON.stringify(config) }

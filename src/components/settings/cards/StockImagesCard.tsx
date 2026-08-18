@@ -11,6 +11,7 @@ import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -170,6 +171,17 @@ export function StockImagesCard() {
                   </FieldRow>
                 )}
 
+                <FieldRow label="Timeout (ms)" htmlFor={`stock-${key}-timeout`}>
+                  <Input
+                    id={`stock-${key}-timeout`}
+                    type="number"
+                    min={1000}
+                    step={1000}
+                    value={p.timeoutMs}
+                    onChange={(e) => setProvider(key, { timeoutMs: Number(e.target.value) })}
+                  />
+                </FieldRow>
+
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id={`stock-${key}-safe`}
@@ -184,7 +196,7 @@ export function StockImagesCard() {
                 <ApiTester
                   label="Test"
                   run={() =>
-                    testerFor(key, 15000).then((result) => {
+                    testerFor(key, p.timeoutMs ?? 15000).then((result) => {
                       if (result.ok) {
                         setProvider(key, { status: 'connected' })
                       } else if (result.status === 'disconnected') {

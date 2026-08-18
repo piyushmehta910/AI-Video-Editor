@@ -50,7 +50,7 @@ export function OpenRouterCard() {
     setRefreshing(true)
     setRefreshMessage(null)
     try {
-      const free = await fetchOpenRouterFreeModels(cfg.timeoutMs)
+      const free = await fetchOpenRouterFreeModels(cfg.baseUrl, cfg.timeoutMs)
       setModels(Array.from(new Set(['openrouter/free', ...free])))
       if (!free.includes(cfg.model) && cfg.model !== 'openrouter/free') {
         set({ model: 'openrouter/free' })

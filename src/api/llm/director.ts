@@ -24,15 +24,29 @@ export interface DirectorProvider {
 
 export function getDirectorProvider(): DirectorProvider | null {
   const { config } = useApiConfigStore.getState()
+  const preferred = config.preferences.preferredAiProvider
   const candidates: Array<{ name: string; cfg: LLMProviderConfig }> = [
     { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
     { name: 'OpenCode Zen', cfg: config.opencodeZen },
     { name: 'OpenRouter', cfg: config.openRouter },
   ]
-  for (const { name, cfg } of candidates) {
-    if (cfg.enabled && cfg.apiKey && cfg.baseUrl && cfg.model) {
-      return { name, config: cfg }
+  const tryCandidate = (name: string, cfg: LLMProviderConfig): DirectorProvider | null =>
+    cfg.enabled && cfg.apiKey && cfg.baseUrl && cfg.model ? { name, config: cfg } : null
+  if (preferred) {
+    const prefs: Record<string, { name: string; cfg: LLMProviderConfig }> = {
+      'nvidia-nim': { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
+      'opencode-zen': { name: 'OpenCode Zen', cfg: config.opencodeZen },
+      'openrouter': { name: 'OpenRouter', cfg: config.openRouter },
     }
+    const chosen = prefs[preferred]
+    if (chosen) {
+      const direct = tryCandidate(chosen.name, chosen.cfg)
+      if (direct) return direct
+    }
+  }
+  for (const candidate of candidates) {
+    const direct = tryCandidate(candidate.name, candidate.cfg)
+    if (direct) return direct
   }
   return null
 }

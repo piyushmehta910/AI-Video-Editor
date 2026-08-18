@@ -32,7 +32,7 @@ export function classifyResponse(
     return { ok: false, status: 'disconnected', message: 'Invalid API key or unauthorized' }
   }
   if (status >= 400 && status < 500) {
-    return { ok: true, status: 'connected', message: 'Endpoint reachable' }
+    return { ok: false, status: 'disconnected', message: `Request rejected (HTTP ${status})` }
   }
   return { ok: false, status: 'disconnected', message: `HTTP ${status}` }
 }
@@ -160,20 +160,17 @@ export function testPixabay(apiKey: string, timeoutMs: number) {
 export function testFirecrawl(apiKey: string, endpoint = 'https://api.firecrawl.dev', timeoutMs: number) {
   return testBearerEndpoint({
     label: 'Firecrawl',
-    url: `${endpoint.replace(/\/$/, '')}/v2/search`,
+    // Free endpoint per docs — returns credit usage without consuming credits.
+    url: `${endpoint.replace(/\/$/, '')}/v2/team/credit-usage`,
     apiKey,
     timeoutMs,
-    init: {
-      method: 'POST',
-      body: JSON.stringify({ query: 'test', limit: 1 }),
-    },
   })
 }
 
-export function testElevenLabs(apiKey: string, timeoutMs: number) {
+export function testElevenLabs(apiKey: string, timeoutMs: number, endpoint = 'https://api.elevenlabs.io') {
   return testReachability({
     label: 'ElevenLabs',
-    url: 'https://api.elevenlabs.io/v1/user',
+    url: `${endpoint.replace(/\/$/, '')}/v1/models`,
     timeoutMs,
     headers: {
       'xi-api-key': apiKey,
@@ -185,9 +182,12 @@ export function testElevenLabs(apiKey: string, timeoutMs: number) {
 export function testMusicBrainz(baseUrl = 'https://musicbrainz.org', userAgent = 'ClipForgeAI/1.0', timeoutMs: number) {
   return testReachability({
     label: 'MusicBrainz',
-    url: `${baseUrl.replace(/\/$/, '')}/ws/2/artist?query=test&limit=1`,
+    url: `${baseUrl.replace(/\/$/, '')}/ws/2/artist?query=test&limit=1&fmt=json`,
     timeoutMs,
-    headers: { 'User-Agent': userAgent },
+    headers: {
+      'User-Agent': userAgent,
+      Accept: 'application/json',
+    },
   })
 }
 
@@ -213,25 +213,20 @@ export function testFreesound(apiKey: string, endpoint = 'https://freesound.org/
  * Fetch the current list of free models from OpenRouter's official API.
  * Models are free when their id ends with the `:free` variant.
  */
-export async function fetchOpenRouterFreeModels(timeoutMs = 20000): Promise<string[]> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/models', {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    })
-    if (!res.ok) throw new Error(`OpenRouter catalog error ${res.status}`)
-    const data = (await res.json()) as { data?: Array<{ id?: string }> }
-    const free = (data.data ?? [])
-      .map((m) => m.id ?? '')
-      .filter((id) => id.endsWith(':free'))
-      .sort()
-    if (!free.length) throw new Error('No free models returned by OpenRouter')
-    return free
-  } finally {
-    clearTimeout(timer)
-  }
+export async function fetchOpenRouterFreeModels(baseUrl = 'https://openrouter.ai/api/v1', timeoutMs = 20000): Promise<string[]> {
+  const res = await fetchWithTimeout(
+    `${baseUrl.replace(/\/$/, '')}/models`,
+    { headers: { Accept: 'application/json' } },
+    timeoutMs,
+  )
+  if (!res.ok) throw new Error(`OpenRouter catalog error ${res.status}`)
+  const data = (await res.json()) as { data?: Array<{ id?: string }> }
+  const free = (data.data ?? [])
+    .map((m) => m.id ?? '')
+    .filter((id) => id.endsWith(':free'))
+    .sort()
+  if (!free.length) throw new Error('No free models returned by OpenRouter')
+  return free
 }
 
 const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|nemoretriever|parse|clip|ocr|vil|vila|synthetic-video|cosmos-reason|neva)/i

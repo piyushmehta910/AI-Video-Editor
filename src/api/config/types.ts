@@ -61,6 +61,7 @@ export interface StockProviderConfig extends BaseProviderConfig {
   orientation: string
   safeSearch: boolean
   minResolution?: string
+  timeoutMs: number
 }
 
 /**
@@ -96,10 +97,12 @@ export interface FirecrawlConfig extends BaseProviderConfig {
 export interface MusicBrainzConfig extends BaseProviderConfig {
   baseUrl: string
   userAgent: string
+  timeoutMs: number
 }
 
 export interface DeezerConfig extends BaseProviderConfig {
   endpoint: string
+  timeoutMs: number
 }
 
 export interface FreesoundConfig extends BaseProviderConfig {
@@ -109,6 +112,7 @@ export interface FreesoundConfig extends BaseProviderConfig {
   minRating: number
   maxDuration: number
   priority: PriorityLevel
+  timeoutMs: number
 }
 
 export interface MusicConfig {
@@ -225,6 +229,7 @@ const defaultStockProvider = (): StockProviderConfig => ({
   priority: 3,
   orientation: 'all',
   safeSearch: true,
+  timeoutMs: 30000,
   status: 'disabled',
 })
 
@@ -252,12 +257,14 @@ export const defaultMusicBrainzConfig: MusicBrainzConfig = {
   enabled: true,
   baseUrl: 'https://musicbrainz.org',
   userAgent: 'ClipForgeAI/1.0',
+  timeoutMs: 30000,
   status: 'disabled',
 }
 
 export const defaultDeezerConfig: DeezerConfig = {
   enabled: true,
   endpoint: 'https://api.deezer.com',
+  timeoutMs: 30000,
   status: 'disabled',
 }
 
@@ -269,6 +276,7 @@ export const defaultFreesoundConfig: FreesoundConfig = {
   minRating: 3,
   maxDuration: 60,
   priority: 1,
+  timeoutMs: 30000,
   status: 'disabled',
 }
 

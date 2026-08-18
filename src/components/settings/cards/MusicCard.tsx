@@ -84,7 +84,7 @@ export function MusicCard() {
             <ApiTester
               label="Test"
               run={() =>
-                testMusicBrainz(music.musicbrainz.baseUrl, music.musicbrainz.userAgent, 15000).then((result) => {
+                testMusicBrainz(music.musicbrainz.baseUrl, music.musicbrainz.userAgent, music.musicbrainz.timeoutMs).then((result) => {
                   update((d) => ({
                     ...d,
                     music: {
@@ -130,7 +130,7 @@ export function MusicCard() {
             <ApiTester
               label="Test"
               run={() =>
-                testDeezer(music.deezer.endpoint, 15000).then((result) => {
+                testDeezer(music.deezer.endpoint, music.deezer.timeoutMs).then((result) => {
                   update((d) => ({
                     ...d,
                     music: {
@@ -165,6 +165,14 @@ export function MusicCard() {
                 onChange={(e) => setFreesound({ apiKey: e.target.value })}
               />
             </FieldRow>
+            <FieldRow label="Endpoint" htmlFor="freesound-endpoint">
+              <Input
+                id="freesound-endpoint"
+                value={music.freesound.endpoint}
+                placeholder="https://freesound.org/apiv2"
+                onChange={(e) => setFreesound({ endpoint: e.target.value })}
+              />
+            </FieldRow>
             <FieldRow label="License Filter" htmlFor="freesound-license">
               <Select value={music.freesound.licenseFilter} onValueChange={(v) => setFreesound({ licenseFilter: v })}>
                 <SelectTrigger id="freesound-license" className="w-full">
@@ -193,12 +201,13 @@ export function MusicCard() {
               min={0}
               max={5}
               step={1}
+              integer
               onChange={(v) => setFreesound({ minRating: v })}
             />
             <ApiTester
               label="Test"
               run={() =>
-                testFreesound(music.freesound.apiKey, music.freesound.endpoint, 15000).then((result) => {
+                testFreesound(music.freesound.apiKey, music.freesound.endpoint, music.freesound.timeoutMs).then((result) => {
                   setFreesound({ status: result.ok ? 'connected' : 'disconnected' })
                   return result
                 })

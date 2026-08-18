@@ -138,7 +138,7 @@ export function ElevenLabsCard() {
       <FieldRow className="md:col-span-2">
         <ApiTester
           run={() =>
-            testElevenLabs(cfg.apiKey, cfg.timeoutMs).then((result) => {
+            testElevenLabs(cfg.apiKey, cfg.timeoutMs, cfg.endpoint).then((result) => {
               if (result.ok) {
                 set({ status: 'connected' })
               } else if (result.status === 'disconnected') {

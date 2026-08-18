@@ -113,6 +113,7 @@ export function PreferencesCard() {
             <SelectContent>
               <SelectItem value="nvidia-nim">NVIDIA NIM</SelectItem>
               <SelectItem value="opencode-zen">OpenCode Zen</SelectItem>
+              <SelectItem value="openrouter">OpenRouter</SelectItem>
             </SelectContent>
           </Select>
         </FieldRow>
