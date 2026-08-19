@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { DenoiseResult, RNNoiseConfig } from '@/engine/denoise/rnnoise-engine'
+import { RNNoiseEngine } from '@/engine/denoise/rnnoise-engine'
 
 interface UseDenoiseOptions {
   config?: RNNoiseConfig
@@ -10,10 +11,18 @@ interface UseDenoiseOptions {
 
 export function useDenoise(options: UseDenoiseOptions = {}) {
   const workerRef = useRef<Worker | null>(null)
+  const lastReportedRef = useRef(0)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<DenoiseResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const reportProgress = useCallback((prog: number) => {
+    if (lastReportedRef.current + 0.01 > prog) return
+    lastReportedRef.current = prog
+    setProgress(prog)
+    options.onProgress?.(prog)
+  }, [options])
 
   const initWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current
@@ -27,8 +36,7 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
       const { type, progress: prog, result: res, error: err } = event.data
       switch (type) {
         case 'progress':
-          setProgress(prog as number)
-          options.onProgress?.(prog as number)
+          reportProgress(prog as number)
           break
         case 'result':
           setProcessing(false)
@@ -52,7 +60,7 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
 
     workerRef.current = worker
     return worker
-  }, [options])
+  }, [options, reportProgress])
 
   const initialize = useCallback(async (config?: RNNoiseConfig) => {
     const worker = initWorker()
@@ -75,6 +83,7 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
     setProgress(0)
     setError(null)
     setResult(null)
+    lastReportedRef.current = 0
 
     return new Promise<DenoiseResult>((resolve, reject) => {
       const handler = (event: MessageEvent) => {
@@ -91,13 +100,38 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
     })
   }, [initialize])
 
+  const denoiseBuffer = useCallback(async (audioBuffer: Float32Array, sampleRate: number): Promise<DenoiseResult> => {
+    setProcessing(true)
+    setProgress(0)
+    setError(null)
+    setResult(null)
+    lastReportedRef.current = 0
+    try {
+      const engine = new RNNoiseEngine({ ...options.config })
+      await engine.initialize()
+      const res = await engine.denoise(audioBuffer, sampleRate, (p) => reportProgress(p))
+      engine.destroy()
+      setProcessing(false)
+      setProgress(1)
+      setResult(res)
+      options.onComplete?.(res)
+      return res
+    } catch (err) {
+      setProcessing(false)
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      options.onError?.(message)
+      throw err
+    }
+  }, [options, reportProgress])
+
   const denoiseFromFile = useCallback(async (file: File): Promise<DenoiseResult> => {
     const arrayBuffer = await file.arrayBuffer()
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 })
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
     const channelData = audioBuffer.getChannelData(0)
-    return denoise(channelData, audioBuffer.sampleRate)
-  }, [denoise])
+    return denoiseBuffer(channelData, audioBuffer.sampleRate)
+  }, [denoiseBuffer])
 
   const denoiseFromVideo = useCallback(async (videoFile: File): Promise<DenoiseResult> => {
     const video = document.createElement('video')
@@ -122,8 +156,8 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
             const audioBufferDecoded = await audioContext.decodeAudioData(arrayBuffer)
             const channelData = audioBufferDecoded.getChannelData(0)
             URL.revokeObjectURL(video.src)
-            const result = await denoise(channelData, audioBufferDecoded.sampleRate)
-            resolve(result)
+            const res = await denoiseBuffer(channelData, audioBufferDecoded.sampleRate)
+            resolve(res)
           }
           recorder.onerror = reject
 
@@ -137,7 +171,7 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
       }
       video.onerror = () => reject(new Error('Failed to load video'))
     })
-  }, [denoise])
+  }, [denoiseBuffer])
 
   const terminate = useCallback(() => {
     workerRef.current?.terminate()
@@ -153,6 +187,7 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
     error,
     initialize,
     denoise,
+    denoiseBuffer,
     denoiseFromFile,
     denoiseFromVideo,
     terminate,

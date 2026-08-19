@@ -61,7 +61,9 @@ export class RNNoiseEngine {
       output.set(frame.subarray(0, remaining), i)
 
       processedFrames++
-      if (onProgress) onProgress(processedFrames / totalFrames)
+      if (onProgress && (processedFrames % 100 === 0 || processedFrames === totalFrames)) {
+        onProgress(processedFrames / totalFrames)
+      }
     }
 
     return {

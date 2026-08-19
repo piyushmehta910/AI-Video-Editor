@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronLeft, Film, FolderUp, Image, Music, Plus, Trash2, Type } from 'lucide-react'
+import { ChevronLeft, Film, FolderUp, Image, Music, Plus, Radio, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { StockMediaSearch } from './StockMediaSearch'
+import { MusicSearch } from './MusicSearch'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
@@ -100,6 +101,9 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
           <TabsTrigger value="stock" className="px-3 text-xs">
             <Image className="size-3.5" /> Stock
           </TabsTrigger>
+          <TabsTrigger value="music" className="px-3 text-xs">
+            <Radio className="size-3.5" /> Music
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="assets" className="min-h-0 flex-1">
@@ -175,6 +179,10 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
 
         <TabsContent value="stock" className="min-h-0 flex-1 overflow-y-auto">
           <StockMediaSearch />
+        </TabsContent>
+
+        <TabsContent value="music" className="min-h-0 flex-1 overflow-y-auto">
+          <MusicSearch />
         </TabsContent>
       </Tabs>
     </div>
