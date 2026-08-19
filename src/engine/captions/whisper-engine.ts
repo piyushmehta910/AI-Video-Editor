@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { pipeline, env } from '@xenova/transformers'
+import { groupWordsIntoSentences } from './transcript'
 
 env.allowLocalModels = false
 env.useBrowserCache = true
@@ -10,6 +11,7 @@ export interface WhisperConfig {
   task: 'transcribe' | 'translate'
   chunkLengthSeconds: number
   strideLengthSeconds: number
+  timestamps?: 'word' | 'segment'
 }
 
 export interface TranscriptionSegment {
@@ -21,9 +23,17 @@ export interface TranscriptionSegment {
   noSpeechProb?: number
 }
 
+export interface TranscriptionWord {
+  word: string
+  start: number
+  end: number
+}
+
 export interface TranscriptionResult {
   text: string
   segments: TranscriptionSegment[]
+  words?: TranscriptionWord[]
+  sentences: Array<{ start: number; end: number; text: string }>
   language: string
   duration: number
 }
@@ -34,6 +44,7 @@ const DEFAULT_CONFIG: WhisperConfig = {
   task: 'transcribe',
   chunkLengthSeconds: 30,
   strideLengthSeconds: 5,
+  timestamps: 'word',
 }
 
 export class WhisperEngine {
@@ -67,13 +78,23 @@ export class WhisperEngine {
 
     const audioData = this.resampleAudio(audioBuffer, sampleRate, 16000)
 
-    const result = await this.pipe!(audioData, {
+    const baseArgs = {
       chunk_length_s: this.config.chunkLengthSeconds,
       stride_length_s: this.config.strideLengthSeconds,
-      return_timestamps: true,
       language: this.config.language,
       task: this.config.task,
-    })
+    }
+
+    let result: unknown
+    try {
+      result = await this.pipe!(audioData, {
+        ...baseArgs,
+        return_timestamps: this.config.timestamps !== 'segment' ? 'word' : true,
+      })
+    } catch {
+      // Word-level timestamps unsupported for this model — fall back to segment-level.
+      result = await this.pipe!(audioData, { ...baseArgs, return_timestamps: true })
+    }
 
     return this.parseResult(result)
   }
@@ -97,17 +118,33 @@ export class WhisperEngine {
 
   private parseResult(result: unknown): TranscriptionResult {
     const r = result as { text: string; chunks?: Array<{ timestamp: [number, number]; text: string }>; language?: string }
-    const segments: TranscriptionSegment[] = (r.chunks || []).map((chunk) => ({
+    const chunks = (r.chunks || []).map((chunk) => ({
       start: chunk.timestamp[0],
       end: chunk.timestamp[1],
       text: chunk.text.trim(),
     }))
+    const wordLevel = chunks.length > 0 && chunks.every((c) => c.text && !c.text.includes(' '))
+    const duration = chunks.length > 0 ? chunks[chunks.length - 1].end : 0
+
+    let segments: TranscriptionSegment[]
+    let words: TranscriptionWord[] | undefined
+
+    if (wordLevel) {
+      words = chunks.map((c) => ({ word: c.text, start: c.start, end: c.end }))
+      segments = groupWordsIntoSentences(words).map((s) => ({ start: s.start, end: s.end, text: s.text }))
+    } else {
+      segments = chunks
+    }
+
+    const sentences = segments.map((s) => ({ start: s.start, end: s.end, text: s.text }))
 
     return {
       text: r.text.trim(),
       segments,
+      words,
+      sentences,
       language: r.language || this.config.language || 'en',
-      duration: segments.length > 0 ? segments[segments.length - 1].end : 0,
+      duration,
     }
   }
 

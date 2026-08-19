@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { ChevronLeft, Film, FolderUp, Image, Music, Plus, Radio, Smile, Trash2, Type } from 'lucide-react'
+import { Check, ChevronLeft, Film, FolderUp, Image, Music, Plus, Radio, Scan, Smile, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
+import { analyzeAsset } from '@/api/llm/analysis'
 import { StockMediaSearch } from './StockMediaSearch'
 import { MusicSearch } from './MusicSearch'
 import { StickerSearch } from './StickerSearch'
@@ -197,6 +198,52 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
   )
 }
 
+function AnalyzeButton({ asset }: { asset: Asset }) {
+  const [state, setState] = React.useState<'idle' | 'running' | 'done'>('idle')
+  const [progress, setProgress] = React.useState(0)
+
+  const run = async () => {
+    if (state === 'running') return
+    setState('running')
+    setProgress(0)
+    try {
+      await analyzeAsset(asset, {
+        onProgress: (p) => setProgress(Math.round(p.progress * 100)),
+      })
+      setState('done')
+      window.setTimeout(() => setState('idle'), 4000)
+    } catch {
+      setState('idle')
+    }
+  }
+
+  if (state === 'running') {
+    return (
+      <div className="ml-auto flex flex-col items-end gap-0.5" title={`Analyzing ${asset.name}… ${progress}%`}>
+        <span className="text-[10px] tabular-nums">{progress}%</span>
+        <div className="bg-muted h-1 w-10 overflow-hidden rounded-full">
+          <div className="bg-violet-500 h-full rounded-full transition-[width]" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn('ml-auto size-5', state === 'done' && 'text-emerald-500')}
+      onClick={(e) => {
+        e.stopPropagation()
+        void run()
+      }}
+      title={state === 'done' ? 'Analyzed — transcript + scenes ready' : `Analyze ${asset.name} (transcript + scenes)`}
+    >
+      {state === 'done' ? <Check className="size-3" /> : <Scan className="size-3" />}
+    </Button>
+  )
+}
+
 function MediaItem({
   asset,
   onAdd,
@@ -225,6 +272,7 @@ function MediaItem({
       <div className="flex items-center gap-1 px-1.5 py-1">
         <AssetIcon type={asset.type} />
         <span className="truncate text-[11px]">{asset.name}</span>
+        {asset.type !== 'image' && <AnalyzeButton asset={asset} />}
       </div>
       <div className="absolute top-1 right-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <Button

@@ -2,13 +2,23 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset } from '@/engine/types'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { getRecord, putRecord } from '@/engine/storage/db'
-import type { TranscriptionResult, WhisperConfig } from '@/engine/captions/whisper-engine'
+import type { TranscriptionResult, TranscriptionWord, WhisperConfig } from '@/engine/captions/whisper-engine'
+import type { Scene } from '@/engine/analysis/scenes'
 
 export interface StoredTranscript {
   assetId: string
   text: string
   segments: Array<{ start: number; end: number; text: string }>
+  words?: TranscriptionWord[]
+  sentences: Array<{ start: number; end: number; text: string }>
   language: string
+  updatedAt: number
+}
+
+export interface StoredScenes {
+  assetId: string
+  duration: number
+  scenes: Scene[]
   updatedAt: number
 }
 
@@ -26,6 +36,14 @@ export async function getStoredTranscript(assetId: string): Promise<StoredTransc
 
 export async function storeTranscript(t: StoredTranscript): Promise<void> {
   await putRecord('settings', { key: `transcript:${t.assetId}`, ...t })
+}
+
+export async function getStoredScenes(assetId: string): Promise<StoredScenes | undefined> {
+  return getRecord<StoredScenes>('settings', `scenes:${assetId}`)
+}
+
+export async function storeScenes(s: StoredScenes): Promise<void> {
+  await putRecord('settings', { key: `scenes:${s.assetId}`, ...s })
 }
 
 function makeWhisperWorker(): Worker {
@@ -144,6 +162,8 @@ export async function transcribeAsset(asset: Asset, onProgress?: (p: number) => 
         assetId: asset.id,
         text: result.text,
         segments: result.segments.map((s) => ({ start: s.start, end: s.end, text: s.text })),
+        words: result.words?.map((w) => ({ word: w.word, start: w.start, end: w.end })),
+        sentences: result.sentences.map((s) => ({ start: s.start, end: s.end, text: s.text })),
         language: result.language,
         updatedAt: Date.now(),
       }
@@ -167,11 +187,18 @@ export async function buildProjectUnderstanding(): Promise<string> {
       const asset = assets.find((a) => a.id === clip.assetId)
       if (!asset || asset.type === 'image') continue
       const transcript = await getStoredTranscript(asset.id)
+      const scenes = await getStoredScenes(asset.id)
       const timeRange = `${clip.startTime.toFixed(1)}s–${(clip.startTime + clip.duration).toFixed(1)}s`
       if (transcript) {
         lines.push(`- Clip "${clip.name}" (${timeRange}): "${transcript.text}"`)
       } else {
         lines.push(`- Clip "${clip.name}" (${timeRange}): (no transcript yet)`)
+      }
+      if (scenes && scenes.scenes.length) {
+        for (const sc of scenes.scenes) {
+          const kw = sc.keywords.length ? ` keywords: ${sc.keywords.join(', ')}` : ''
+          lines.push(`  - Scene ${sc.id} [${sc.start.toFixed(1)}s–${sc.end.toFixed(1)}s]: "${sc.summary}"${kw}`)
+        }
       }
     }
   }
