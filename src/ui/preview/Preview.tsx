@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Maximize, Pause, Play, SkipBack, SkipForward, StepBack, StepForward, Volume2, VolumeX } from 'lucide-react'
+import { Film, Maximize, Pause, Play, SkipBack, SkipForward, StepBack, StepForward, Volume2, VolumeX } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { formatSeconds } from '@/engine/types'
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 
-export function Preview({ playback }: { playback: PlaybackApi }) {
+export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOpenMedia?: () => void }) {
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
@@ -118,10 +118,20 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
         )}
 
         {duration === 0 && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
             <p className="rounded-full bg-black/60 px-4 py-1.5 text-sm text-white/80">
               Add media to your timeline to see the preview
             </p>
+            {onOpenMedia && (
+              <Button
+                variant="secondary"
+                className="gap-2 bg-white/90 text-black hover:bg-white"
+                onClick={onOpenMedia}
+              >
+                <Film className="size-4" />
+                Add media
+              </Button>
+            )}
           </div>
         )}
       </div>

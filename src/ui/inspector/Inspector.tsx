@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { AudioLines, ChevronRight, Layers, Scissors, Sparkles, Type } from 'lucide-react'
+import { AudioLines, ChevronRight, Clapperboard, Layers, Loader2, Music, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
-import { createEffect, TEXT_ANIMATIONS } from '@/engine/types'
+import { createEffect, formatSeconds, TEXT_ANIMATIONS } from '@/engine/types'
+import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +11,12 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+
+const TYPE_META = {
+  video: { label: 'Video', icon: Clapperboard, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400' },
+  audio: { label: 'Audio', icon: Music, className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
+  text: { label: 'Text', icon: Type, className: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' },
+} as const
 
 const EFFECT_DEFS: Array<{
   type: EffectType
@@ -31,6 +38,7 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
   const selection = useTimelineStore((s) => s.selection)
   const project = useTimelineStore((s) => s.project)
   const updateClip = useTimelineStore((s) => s.updateClip)
+  const denoise = useDenoiseAction()
 
   const selectedClips = selection.clipIds
     .map((id) => {
@@ -58,6 +66,7 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
   const first = selectedClips[0]
   const single = selectedClips.length === 1
   const clip = first.clip
+  const canDenoise = single && first.track.type === 'audio' && !denoise.busy
 
   const set = (patch: Partial<Clip>) => {
     updateClip(clip.id, patch)
@@ -103,7 +112,8 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
 
   return (
     <div className="flex w-full h-full flex-col bg-muted/30">
-      <InspectorHeader title={single ? clip.name : `${selectedClips.length} clips`} onCollapse={onCollapse} />
+      <InspectorHeader title={single ? 'Clip' : `${selectedClips.length} clips`} onCollapse={onCollapse} />
+      <ClipSummary clip={clip} trackType={first.track.type} />
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {single ? (
           <Tabs defaultValue="transform" className="gap-0">
@@ -279,11 +289,22 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
 
               {first.track.type === 'audio' && (
                 <Section icon={<Sparkles className="size-3.5" />} title="AI Assist">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => void denoise.run(clip.id)}
+                    disabled={!canDenoise}
+                  >
+                    {denoise.busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-400" />}
+                    {denoise.busy ? 'Denoising…' : 'Denoise audio'}
+                  </Button>
+                  {denoise.error && <p className="text-destructive text-[10px]">{denoise.error}</p>}
                   <Button variant="outline" size="sm" className="w-full" onClick={() => void handleRemoveSilence()}>
                     <Scissors className="size-3.5" /> Trim silence
                   </Button>
                   <p className="text-muted-foreground text-[10px]">
-                    Removes quiet leading and trailing audio within the clip.
+                    Denoise removes background noise (RNNoise). Trim silence removes quiet leading and trailing audio.
                   </p>
                 </Section>
               )}
@@ -338,6 +359,31 @@ function InspectorHeader({ title, onCollapse }: { title: string; onCollapse?: ()
       ) : (
         <Type className="text-muted-foreground ml-auto size-4" />
       )}
+    </div>
+  )
+}
+
+function ClipSummary({
+  clip,
+  trackType,
+}: {
+  clip: Clip
+  trackType: 'video' | 'audio' | 'text'
+}) {
+  const meta = TYPE_META[trackType]
+  const Icon = meta.icon
+  return (
+    <div className="flex items-center gap-2.5 border-b px-3 py-2">
+      <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-md', meta.className)}>
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium">{clip.name}</p>
+        <p className="text-muted-foreground font-mono text-[10px]">{formatSeconds(clip.duration)}</p>
+      </div>
+      <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold', meta.className)}>
+        {meta.label}
+      </span>
     </div>
   )
 }

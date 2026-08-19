@@ -77,6 +77,9 @@
   * {
     @apply border-border outline-ring/50;
   }
+  button:focus-visible {
+    @apply outline-2 outline-offset-2;
+  }
   html {
     -webkit-text-size-adjust: 100%;
   }

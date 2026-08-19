@@ -1,9 +1,7 @@
 import { Clapperboard, Home, Settings } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
+import { Link, Outlet } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
-import { cn } from '@/lib/utils'
-import { Outlet } from '@tanstack/react-router'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
@@ -22,14 +20,14 @@ export function AppShell() {
             </div>
             <span className="text-sm font-semibold">ClipForge AI Studio</span>
           </div>
-          <nav className="ml-2 flex items-center gap-1">
+          <nav className="ml-2 hidden items-center gap-1 md:flex">
             {NAV_ITEMS.map((item) => (
               <Button
                 key={item.to}
                 asChild
                 variant="ghost"
                 size="sm"
-                className={cn('gap-1.5')}
+                className="gap-1.5"
               >
                 <Link
                   to={item.to}
@@ -47,9 +45,30 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <main className="flex-1">
+      <main className="flex min-h-0 flex-1 flex-col">
         <Outlet />
       </main>
+      <nav className="border-t bg-background/95 fixed inset-x-0 bottom-0 z-40 flex backdrop-blur md:hidden">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-stretch justify-around px-2 pb-safe">
+          {NAV_ITEMS.map((item) => (
+            <Button
+              key={item.to}
+              asChild
+              variant="ghost"
+              className="h-full flex-1 flex-col gap-0.5 rounded-none text-[10px]"
+            >
+              <Link
+                to={item.to}
+                activeProps={{ className: 'text-primary' }}
+                activeOptions={{ exact: item.to === '/' }}
+              >
+                <item.icon className="size-5" />
+                {item.label}
+              </Link>
+            </Button>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

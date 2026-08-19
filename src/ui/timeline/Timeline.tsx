@@ -1,6 +1,8 @@
 import * as React from 'react'
 import {
   ArrowLeftRight,
+  ChevronDown,
+  ChevronRight,
   ClipboardPaste,
   Clapperboard,
   Copy,
@@ -12,6 +14,7 @@ import {
   Lock,
   LockOpen,
   Maximize,
+  MoreHorizontal,
   Music,
   Redo2,
   Scissors,
@@ -36,16 +39,17 @@ import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
 import { AddTextDialog } from '@/ui/media/AddTextDialog'
 import { AddAudioDialog } from '@/ui/media/AddAudioDialog'
 import { ShortcutsDialog } from '@/ui/common/ShortcutsDialog'
-import { useDenoise } from '@/hooks/useDenoise'
-import { readMediaFile } from '@/engine/storage/opfs'
-import { float32ToWav } from '@/engine/audio/wav'
+import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 
 const HEADER_WIDTH = 64
-const TRACK_HEIGHT = 44
 const MIN_CLIP_PX = 6
 const RULER_HEIGHT = 24
-const SECTION_HEIGHT = 20
+const SECTION_HEIGHT = 24
 const AUDIO_BAR_H = 34
+
+function trackHeight(): number {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 48 : 44
+}
 
 type DragMode = 'move' | 'trim-start' | 'trim-end'
 
@@ -67,14 +71,16 @@ function snapTo(value: number, zoom: number, candidates: number[]): number {
   return value
 }
 
-function computeRowOffsets(tracks: Track[]): Record<string, number> {
+function computeRowOffsets(tracks: Track[], collapsed: Record<string, boolean>): Record<string, number> {
   const offsets: Record<string, number> = {}
   let y = RULER_HEIGHT
   let prevType: Track['type'] | null = null
   for (const t of tracks) {
     if (prevType !== t.type) y += SECTION_HEIGHT
-    offsets[t.id] = y
-    y += TRACK_HEIGHT
+    if (!collapsed[t.type]) {
+      offsets[t.id] = y
+      y += trackHeight()
+    }
     prevType = t.type
   }
   return offsets
@@ -113,7 +119,7 @@ const TYPE_META: Record<Track['type'], { label: string; badge: string; gradient:
   },
 }
 
-export function Timeline() {
+export function Timeline({ height, fill }: { height?: number; fill?: boolean }) {
   const project = useTimelineStore((s) => s.project)
   const zoom = useTimelineStore((s) => s.zoom)
   const selection = useTimelineStore((s) => s.selection)
@@ -126,9 +132,23 @@ export function Timeline() {
   const [audioOpen, setAudioOpen] = React.useState(false)
   const [textOpen, setTextOpen] = React.useState(false)
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
-  const [denoiseBusy, setDenoiseBusy] = React.useState(false)
-  const [denoiseError, setDenoiseError] = React.useState<string | null>(null)
   const [trimMode, setTrimMode] = React.useState(false)
+  const [moreOpen, setMoreOpen] = React.useState(false)
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {}
+    const counts: Partial<Record<Track['type'], number>> = {}
+    for (const t of useTimelineStore.getState().project.tracks) {
+      counts[t.type] = (counts[t.type] ?? 0) + t.clips.length
+    }
+    for (const type of Object.keys(counts) as Track['type'][]) {
+      if (counts[type] === 0) init[type] = true
+    }
+    return init
+  })
+  const collapsedRef = React.useRef(collapsed)
+  collapsedRef.current = collapsed
+  const denoise = useDenoiseAction()
+  const lastFitRef = React.useRef(0)
 
   const duration = projectDuration(project.tracks)
   const contentWidth = Math.max((duration + 5) * zoom, 0)
@@ -160,9 +180,13 @@ export function Timeline() {
       bar.style.display = 'none'
       return
     }
-    const offsets = computeRowOffsets(store.project.tracks)
+    const offsets = computeRowOffsets(store.project.tracks, collapsedRef.current)
     for (const t of store.project.tracks) {
       if (t.type !== 'audio') continue
+      if (collapsedRef.current.audio) {
+        bar.style.display = 'none'
+        return
+      }
       const clip = t.clips.find((c) => c.id === id)
       if (!clip) continue
       const left = HEADER_WIDTH + clip.startTime * store.zoom - vp.scrollLeft
@@ -177,7 +201,7 @@ export function Timeline() {
 
   React.useEffect(() => {
     layoutAudioBar()
-  }, [layoutAudioBar, selection, zoom, trimMode, denoiseBusy])
+  }, [layoutAudioBar, selection, zoom, trimMode, denoise.busy])
 
   React.useEffect(() => {
     movePlayheadDom(playhead, zoom)
@@ -222,50 +246,37 @@ export function Timeline() {
   }, [layoutAudioBar, selectedClipInfo?.clip?.startTime, selectedClipInfo?.track?.id])
 
   const selectedAsset = selectedClipInfo ? assetById(selectedClipInfo.clip.assetId) : null
-  const canDenoise = Boolean(selectedAsset && selectedAsset.type === 'audio' && !denoiseBusy)
-
-  const denoise = useDenoise(
-    React.useMemo(
-      () => ({
-        onProgress: () => {},
-        onError: (err: string) => setDenoiseError(err),
-      }),
-      [],
-    ),
-  )
+  const canDenoise = Boolean(selectedAsset && selectedAsset.type === 'audio' && !denoise.busy)
 
   React.useEffect(() => {
-    return () => denoise.terminate()
-  }, [denoise])
-
-  const runDenoise = async () => {
-    if (!selectedClipInfo || !selectedAsset || denoiseBusy) return
-    setDenoiseBusy(true)
-    setDenoiseError(null)
-    try {
-      const file = await readMediaFile(selectedAsset.filePath)
-      const result = await denoise.denoiseFromFile(file)
-      const wav = float32ToWav(result.denoisedAudio, result.sampleRate)
-      const outFile = new File([wav], `${selectedAsset.name}-denoised.wav`, { type: 'audio/wav' })
-      const { imported, errors } = await useTimelineStore.getState().importFiles([outFile])
-      if (imported.length) {
-        const store = useTimelineStore.getState()
-        const audioTrack = store.project.tracks.find((t) => t.type === 'audio')
-        const autoClip = audioTrack?.clips.find((c) => c.assetId === imported[0].id)
-        if (autoClip && audioTrack) {
-          const targetStart = selectedClipInfo.clip.startTime + selectedClipInfo.clip.duration
-          store.moveClip(autoClip.id, targetStart - autoClip.startTime)
-          store.select([autoClip.id], audioTrack.id)
-        }
-      } else {
-        setDenoiseError(errors[0] ?? 'Could not import denoised audio')
+    const n = assets.length
+    if (n > lastFitRef.current && duration > 0) {
+      const vp = viewportRef.current
+      if (vp) {
+        const w = Math.max(240, vp.clientWidth - HEADER_WIDTH)
+        useTimelineStore.getState().setZoom(Math.max(15, Math.min(200, w / Math.max(duration, 1))))
       }
-    } catch (err) {
-      setDenoiseError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setDenoiseBusy(false)
     }
-  }
+    if (n !== lastFitRef.current) lastFitRef.current = n
+  }, [assets.length, duration])
+
+  React.useEffect(() => {
+    const counts: Record<string, number> = {}
+    for (const t of project.tracks) {
+      if (t.clips.length > 0) counts[t.type] = (counts[t.type] ?? 0) + t.clips.length
+    }
+    setCollapsed((c) => {
+      let changed = false
+      const next = { ...c }
+      for (const type of Object.keys(next)) {
+        if (next[type] && (counts[type] ?? 0) > 0) {
+          next[type] = false
+          changed = true
+        }
+      }
+      return changed ? next : c
+    })
+  }, [project.tracks])
 
   const startDrag = (e: React.PointerEvent, clip: Clip, mode: DragMode) => {
     if (dragRef.current) return
@@ -398,20 +409,24 @@ export function Timeline() {
 
   return (
     <div
-      className="flex h-44 shrink-0 flex-col border-t bg-muted/20 sm:h-56 md:h-64"
+      className={cn(
+        'flex flex-col border-t bg-muted/20',
+        fill ? 'min-h-0 flex-1' : height ? 'shrink-0' : 'h-44 shrink-0 sm:h-56 md:h-64',
+      )}
+      style={height ? { height } : undefined}
       onPointerMove={handleDragMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
       {/* Toolbar */}
-      <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b px-2">
+      <div className="relative flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b px-1.5 sm:h-9 sm:gap-1 sm:px-2">
         <ToolbarButton label="Undo (Ctrl+Z)" onClick={() => useTimelineStore.getState().undo()} disabled={!useTimelineStore.getState().past.length}>
           <Undo2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Redo (Ctrl+Shift+Z)" onClick={() => useTimelineStore.getState().redo()} disabled={!useTimelineStore.getState().future.length}>
           <Redo2 className="size-4" />
         </ToolbarButton>
-        <SeparatorLine />
+        <SeparatorLine className="hidden sm:block" />
         <ToolbarButton label="Cut selected (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
           <Scissors className="size-4" />
         </ToolbarButton>
@@ -430,50 +445,95 @@ export function Timeline() {
         <ToolbarButton label="Duplicate (Ctrl+D)" onClick={duplicateSelected} disabled={!selection.clipIds.length}>
           <CopyPlus className="size-4" />
         </ToolbarButton>
-        <SeparatorLine />
-        <ToolbarButton label="Add avatar lip-sync" onClick={() => setAvatarOpen(true)}>
-          <Clapperboard className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Add audio" onClick={() => setAudioOpen(true)}>
-          <Music className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Add text" onClick={() => setTextOpen(true)}>
-          <Type className="size-4" />
-        </ToolbarButton>
-        <SeparatorLine />
-        <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
-          <ZoomOut className="size-4" />
-        </ToolbarButton>
-        <span className="text-muted-foreground w-11 text-center font-mono text-[10px]">{Math.round(zoom)}px/s</span>
-        <ToolbarButton label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
-          <ZoomIn className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          label="Fit timeline"
-          onClick={() =>
-            useTimelineStore
-              .getState()
-              .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
-          }
-        >
-          <Maximize className="size-4" />
-        </ToolbarButton>
-        <SeparatorLine />
-        <Button
-          variant={ripple ? 'secondary' : 'ghost'}
-          size="sm"
-          className={cn('h-7 gap-1.5 px-2 text-xs', ripple && 'text-violet-600 dark:text-violet-400')}
-          onClick={() => setRipple((r) => !r)}
-        >
-          <Waves className="size-3.5" />
-          Ripple
-        </Button>
-        <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
-          {denoiseError ? <span className="text-destructive">{denoiseError}</span> : selection.clipIds.length > 0 ? `${selection.clipIds.length} selected` : null}
+
+        {/* Secondary tools: inline on desktop, behind "…" on mobile */}
+        <span className="hidden items-center gap-0.5 sm:flex sm:gap-1">
+          <SeparatorLine />
+          <ToolbarButton label="Add avatar lip-sync" onClick={() => setAvatarOpen(true)}>
+            <Clapperboard className="size-4" />
+          </ToolbarButton>
+          <ToolbarButton label="Add audio" onClick={() => setAudioOpen(true)}>
+            <Music className="size-4" />
+          </ToolbarButton>
+          <ToolbarButton label="Add text" onClick={() => setTextOpen(true)}>
+            <Type className="size-4" />
+          </ToolbarButton>
+          <SeparatorLine />
+          <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
+            <ZoomOut className="size-4" />
+          </ToolbarButton>
+          <span className="text-muted-foreground w-11 text-center font-mono text-[10px]">{Math.round(zoom)}px/s</span>
+          <ToolbarButton label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
+            <ZoomIn className="size-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Fit timeline"
+            onClick={() =>
+              useTimelineStore
+                .getState()
+                .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
+            }
+          >
+            <Maximize className="size-4" />
+          </ToolbarButton>
+          <Button
+            variant={ripple ? 'secondary' : 'ghost'}
+            size="sm"
+            className={cn('h-7 gap-1.5 px-2 text-xs', ripple && 'text-violet-600 dark:text-violet-400')}
+            onClick={() => setRipple((r) => !r)}
+          >
+            <Waves className="size-3.5" />
+            Ripple
+          </Button>
+          <SeparatorLine />
+          <ToolbarButton label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}>
+            <Keyboard className="size-4" />
+          </ToolbarButton>
         </span>
-        <ToolbarButton label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}>
-          <Keyboard className="size-4" />
-        </ToolbarButton>
+
+        <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
+          {denoise.error ? (
+            <span className="text-destructive">{denoise.error}</span>
+          ) : selection.clipIds.length > 0 ? (
+            `${selection.clipIds.length} selected`
+          ) : null}
+        </span>
+
+        <div className="relative sm:hidden">
+          <ToolbarButton label="More tools" onClick={() => setMoreOpen((o) => !o)}>
+            <MoreHorizontal className="size-4" />
+          </ToolbarButton>
+          {moreOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setMoreOpen(false)}
+                aria-hidden
+              />
+              <div className="absolute top-full right-0 z-50 mt-1 flex w-52 flex-col gap-0.5 rounded-lg border bg-card p-1.5 shadow-xl">
+                <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Add</p>
+                <MenuRow icon={<Clapperboard className="size-4" />} label="Add avatar lip-sync" onClick={() => { setAvatarOpen(true); setMoreOpen(false) }} />
+                <MenuRow icon={<Music className="size-4" />} label="Add audio" onClick={() => { setAudioOpen(true); setMoreOpen(false) }} />
+                <MenuRow icon={<Type className="size-4" />} label="Add text" onClick={() => { setTextOpen(true); setMoreOpen(false) }} />
+                <div className="bg-border my-1 h-px" />
+                <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">View</p>
+                <MenuRow icon={<ZoomOut className="size-4" />} label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)} />
+                <MenuRow icon={<ZoomIn className="size-4" />} label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)} />
+                <MenuRow
+                  icon={<Maximize className="size-4" />}
+                  label="Fit timeline"
+                  onClick={() =>
+                    useTimelineStore
+                      .getState()
+                      .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
+                  }
+                />
+                <MenuRow icon={<Waves className="size-4" />} label={`Ripple: ${ripple ? 'on' : 'off'}`} onClick={() => setRipple((r) => !r)} />
+                <MenuRow icon={<Keyboard className="size-4" />} label="Keyboard shortcuts" onClick={() => { setShortcutsOpen(true); setMoreOpen(false) }} />
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -529,23 +589,35 @@ export function Timeline() {
 
             {/* Tracks, grouped by type */}
             <div>
-              {groups.map((group) => (
-                <div key={group.type}>
-                  <SectionHeader label={TYPE_META[group.type].label} color={TYPE_META[group.type].badge} />
-                  {group.tracks.map((track) => (
-                    <TrackRow
-                      key={track.id}
-                      track={track}
-                      zoom={zoom}
-                      assetById={assetById}
-                      selected={selection.clipIds}
-                      playhead={playhead}
-                      trimMode={trimMode}
-                      onPointerDownClip={startDrag}
+              {groups.map((group) => {
+                const clipCount = group.tracks.reduce((sum, t) => sum + t.clips.length, 0)
+                const isCollapsed = Boolean(collapsed[group.type])
+                return (
+                  <div key={group.type}>
+                    <SectionHeader
+                      label={TYPE_META[group.type].label}
+                      color={TYPE_META[group.type].badge}
+                      count={clipCount}
+                      trackCount={group.tracks.length}
+                      collapsed={isCollapsed}
+                      onToggle={() => setCollapsed((c) => ({ ...c, [group.type]: !c[group.type] }))}
                     />
-                  ))}
-                </div>
-              ))}
+                    {!isCollapsed &&
+                      group.tracks.map((track) => (
+                        <TrackRow
+                          key={track.id}
+                          track={track}
+                          zoom={zoom}
+                          assetById={assetById}
+                          selected={selection.clipIds}
+                          playhead={playhead}
+                          trimMode={trimMode}
+                          onPointerDownClip={startDrag}
+                        />
+                      ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -570,10 +642,10 @@ export function Timeline() {
           >
             <ToolbarButton
               label={canDenoise ? 'Denoise audio (RNNoise)' : 'Denoise unavailable'}
-              onClick={() => void runDenoise()}
+              onClick={() => selectedClipInfo && void denoise.run(selectedClipInfo.clip.id)}
               disabled={!canDenoise}
             >
-              {denoiseBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-400" />}
+              {denoise.busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-400" />}
             </ToolbarButton>
             <ToolbarButton label="Split at playhead" onClick={splitSelected}>
               <Slice className="size-3.5" />
@@ -608,13 +680,38 @@ export function Timeline() {
   )
 }
 
-function SectionHeader({ label, color }: { label: string; color: string }) {
+function SectionHeader({
+  label,
+  color,
+  count,
+  trackCount,
+  collapsed,
+  onToggle,
+}: {
+  label: string
+  color: string
+  count: number
+  trackCount: number
+  collapsed: boolean
+  onToggle: () => void
+}) {
   return (
     <div
-      className="sticky left-0 z-10 flex items-center gap-2 bg-card/90 px-2 backdrop-blur"
+      className="bg-card/90 sticky left-0 z-10 flex items-center gap-2 px-2 backdrop-blur"
       style={{ height: SECTION_HEIGHT }}
     >
-      <span className={cn('font-semibold tracking-widest uppercase', color, 'text-[9px]')}>{label}</span>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex shrink-0 items-center gap-1.5"
+        title={collapsed ? `Expand ${label} section` : `Collapse ${label} section`}
+      >
+        {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+        <span className={cn('font-semibold tracking-widest uppercase', color, 'text-[10px]')}>{label}</span>
+        <span className="text-muted-foreground font-mono text-[10px]">
+          {collapsed ? `${trackCount} tracks · ${count} clips` : `${count} clip${count === 1 ? '' : 's'}`}
+        </span>
+      </button>
       <div className="flex-1 border-t border-border/40" />
     </div>
   )
@@ -642,15 +739,15 @@ function TrackRow({
   return (
     <div
       className="relative flex border-b"
-      style={{ height: TRACK_HEIGHT }}
+      style={{ height: trackHeight() }}
       data-timeline-track={track.id}
     >
       <div
         data-header-gutter
         className="bg-card sticky left-0 z-10 flex w-16 shrink-0 items-center gap-0.5 border-r px-1.5"
-        style={{ height: TRACK_HEIGHT }}
+        style={{ height: trackHeight() }}
       >
-        <span className={cn('w-6 shrink-0 rounded text-center font-mono text-[10px] font-semibold', meta.badge)}>
+        <span className={cn('w-6 shrink-0 rounded text-center font-mono text-[11px] font-semibold', meta.badge)}>
           {track.name}
         </span>
         <TrackHeaderButton
@@ -737,7 +834,7 @@ function TrackRow({
               <div className="relative z-10 flex h-full items-center gap-1 px-1.5">
                 {clip.volume < 1 && track.type === 'audio' && <Volume2 className="size-3 text-white/70" />}
                 {clip.opacity < 1 && <Eye className="size-3 text-white/70" />}
-                <span className="truncate text-[10px] font-medium text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
+                <span className="truncate text-[11px] font-medium text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
                   {clip.name}
                   {clip.speed !== 1 ? ` ×${clip.speed}` : ''}
                 </span>
@@ -813,7 +910,7 @@ function ToolbarButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" onClick={onClick} disabled={disabled}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 sm:h-7 sm:w-7" onClick={onClick} disabled={disabled}>
           {children}
         </Button>
       </TooltipTrigger>
@@ -822,6 +919,19 @@ function ToolbarButton({
   )
 }
 
-function SeparatorLine() {
-  return <div className="bg-border mx-1 h-5 w-px shrink-0" />
+function MenuRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-9 items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-muted"
+    >
+      <span className="text-muted-foreground">{icon}</span>
+      {label}
+    </button>
+  )
+}
+
+function SeparatorLine({ className }: { className?: string }) {
+  return <div className={cn('bg-border mx-1 h-5 w-px shrink-0', className)} />
 }

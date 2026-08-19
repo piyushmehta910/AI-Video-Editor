@@ -281,14 +281,14 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="fixed right-5 bottom-5 z-50 flex size-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-2xl shadow-violet-600/30 transition-all hover:bg-violet-500"
+        className="fixed right-5 bottom-20 z-50 flex size-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-2xl shadow-violet-600/30 transition-all hover:bg-violet-500 md:bottom-5"
         aria-label="AI Director"
       >
         {open ? <X className="size-6" /> : <Bot className="size-7" />}
       </button>
 
       {open && (
-        <div className="fixed right-5 bottom-24 z-50 flex h-[560px] max-h-[70svh] w-[min(24rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl">
+        <div className="fixed right-5 bottom-[5.5rem] z-50 flex h-[560px] max-h-[70svh] w-[min(24rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl md:bottom-24">
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
               <Bot className="size-4" />
