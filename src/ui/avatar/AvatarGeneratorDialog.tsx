@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Clapperboard, Loader2, X } from 'lucide-react'
+import { Clapperboard, FolderUp, Loader2, X } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import { readMediaFile } from '@/engine/storage/opfs'
@@ -36,11 +36,13 @@ export function AvatarGeneratorDialog({ open, onClose }: Props) {
     maxOpen: avatar.mouthMaxOpen,
   })
   const [busy, setBusy] = React.useState(false)
+  const [browseBusy, setBrowseBusy] = React.useState(false)
   const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
   const abortRef = React.useRef<AbortController | null>(null)
   const previewRef = React.useRef<HTMLCanvasElement>(null)
+  const imageInputRef = React.useRef<HTMLInputElement>(null)
 
   const images = React.useMemo(() => assets.filter((a) => a.type === 'image'), [assets])
   const audios = React.useMemo(() => assets.filter((a) => a.type === 'audio'), [assets])
@@ -133,6 +135,23 @@ export function AvatarGeneratorDialog({ open, onClose }: Props) {
     abortRef.current?.abort()
   }
 
+  const browseImage = async (file: File) => {
+    setBrowseBusy(true)
+    setError(null)
+    try {
+      const { imported, errors } = await importFiles([file])
+      if (imported.length) {
+        setImageAssetId(imported[0].id)
+      } else {
+        setError(errors[0] ?? 'Could not import the image.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBrowseBusy(false)
+    }
+  }
+
   const handleClose = () => {
     cancel()
     onClose()
@@ -217,18 +236,43 @@ export function AvatarGeneratorDialog({ open, onClose }: Props) {
             <div className="flex min-w-0 flex-1 flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="avatar-img">Avatar image</Label>
-                <Select value={imageAssetId} onValueChange={setImageAssetId}>
-                  <SelectTrigger id="avatar-img" className="w-full">
-                    <SelectValue placeholder="Pick an image" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {images.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-1.5">
+                  <Select value={imageAssetId} onValueChange={setImageAssetId} disabled={browseBusy}>
+                    <SelectTrigger id="avatar-img" className="w-full">
+                      <SelectValue placeholder="Pick an image" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {images.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) void browseImage(f)
+                      e.target.value = ''
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 px-2"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={browseBusy}
+                    title="Browse a local image file"
+                  >
+                    {browseBusy ? <Loader2 className="size-4 animate-spin" /> : <FolderUp className="size-4" />}
+                    Browse
+                  </Button>
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="avatar-audio">Speech audio</Label>

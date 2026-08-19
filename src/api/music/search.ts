@@ -7,7 +7,7 @@ export interface MusicTrackResult {
   artist: string
   duration: number
   previewUrl?: string
-  source: 'deezer'
+  source: 'deezer' | 'internetarchive'
 }
 
 export interface MusicSearchOptions {
@@ -49,7 +49,54 @@ async function searchDeezer(query: string, limit: number): Promise<MusicTrackRes
   }
 }
 
+async function searchInternetArchive(query: string, limit: number): Promise<MusicTrackResult[]> {
+  const searchUrl = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(`${query} AND mediatype:audio AND collection:opensource_audio`)}&fl[]=identifier&fl[]=title&fl[]=creator&rows=${limit * 4}&page=1&output=json`
+  let data: { response?: { docs?: Array<{ identifier?: string; title?: string; creator?: string | string[] }> } }
+  try {
+    data = (await fetchJson(searchUrl, {}, 30000)) as typeof data
+  } catch {
+    return []
+  }
+  const docs = data.response?.docs ?? []
+  if (!docs.length) return []
+
+  const rows = await Promise.all(
+    docs.map(async (doc): Promise<MusicTrackResult | null> => {
+      const id = doc.identifier ?? ''
+      if (!id) return null
+      const title = doc.title ?? 'Untitled'
+      const artist = Array.isArray(doc.creator) ? doc.creator.join(', ') : (doc.creator ?? 'Internet Archive')
+      try {
+        const meta = (await fetchJson(`https://archive.org/metadata/${encodeURIComponent(id)}`, {}, 30000)) as {
+          files?: Array<{ name?: string; format?: string; length?: string | number }>
+          metadata?: { 'access-restricted-item'?: string }
+        }
+        if (meta.metadata?.['access-restricted-item'] === 'true') return null
+        const files = meta.files ?? []
+        const file =
+          files.find((f) => f.name && /(mp3|ogg|vorbis)/i.test(f.format ?? f.name)) ??
+          files.find((f) => f.name && /(wav|flac|m4a)/i.test(f.format ?? f.name))
+        if (!file?.name) return null
+        const duration = Number(file.length ?? 0) || 0
+        return {
+          id: `${id}:${file.name}`,
+          title,
+          artist,
+          duration,
+          previewUrl: `https://archive.org/download/${encodeURIComponent(id)}/${encodeURIComponent(file.name)}`,
+          source: 'internetarchive',
+        }
+      } catch {
+        return null
+      }
+    }),
+  )
+  return rows.filter((r): r is MusicTrackResult => r !== null).slice(0, limit)
+}
+
 export async function searchMusic(query: string, options: MusicSearchOptions = {}): Promise<MusicTrackResult[]> {
   const limit = options.maxResults ?? 6
-  return searchDeezer(query, limit)
+  const deezer = await searchDeezer(query, limit)
+  if (deezer.length) return deezer
+  return searchInternetArchive(query, limit)
 }

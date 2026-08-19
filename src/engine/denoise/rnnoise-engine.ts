@@ -1,0 +1,106 @@
+import { Rnnoise, DenoiseState } from '@shiguredo/rnnoise-wasm'
+
+export interface RNNoiseConfig {
+  sampleRate: number
+  frameSize: number
+}
+
+export interface DenoiseResult {
+  denoisedAudio: Float32Array
+  sampleRate: number
+}
+
+const DEFAULT_CONFIG: RNNoiseConfig = {
+  sampleRate: 48000,
+  frameSize: 480,
+}
+
+export class RNNoiseEngine {
+  private denoiser: DenoiseState | null = null
+  private rnnoise: Rnnoise | null = null
+  private config: RNNoiseConfig
+  private initialized = false
+
+  constructor(config: Partial<RNNoiseConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config }
+  }
+
+  async initialize(): Promise<void> {
+    if (this.initialized) return
+
+    try {
+      this.rnnoise = await Rnnoise.load()
+      this.denoiser = this.rnnoise.createDenoiseState()
+      this.config.frameSize = this.rnnoise.frameSize
+      this.initialized = true
+      console.log('RNNoise engine initialized, frameSize:', this.config.frameSize)
+    } catch (err) {
+      console.error('Failed to initialize RNNoise:', err)
+      throw new Error(`RNNoise initialization failed: ${err}`)
+    }
+  }
+
+  async denoise(audioBuffer: Float32Array, sampleRate: number, onProgress?: (progress: number) => void): Promise<DenoiseResult> {
+    if (!this.initialized) await this.initialize()
+    if (!this.denoiser) throw new Error('Denoiser not initialized')
+
+    const resampled = this.resampleAudio(audioBuffer, sampleRate, this.config.sampleRate)
+    const output = new Float32Array(resampled.length)
+    const totalFrames = Math.max(1, Math.ceil(resampled.length / this.config.frameSize))
+    let processedFrames = 0
+
+    for (let i = 0; i < resampled.length; i += this.config.frameSize) {
+      const remaining = Math.min(this.config.frameSize, resampled.length - i)
+      let frame = resampled.slice(i, i + remaining)
+      if (frame.length < this.config.frameSize) {
+        const padded = new Float32Array(this.config.frameSize)
+        padded.set(frame)
+        frame = padded
+      }
+      this.denoiser!.processFrame(frame)
+      output.set(frame.subarray(0, remaining), i)
+
+      processedFrames++
+      if (onProgress) onProgress(processedFrames / totalFrames)
+    }
+
+    return {
+      denoisedAudio: output,
+      sampleRate: this.config.sampleRate,
+    }
+  }
+
+  private resampleAudio(input: Float32Array, fromRate: number, toRate: number): Float32Array {
+    if (fromRate === toRate) return input
+
+    const ratio = fromRate / toRate
+    const outputLength = Math.round(input.length / ratio)
+    const output = new Float32Array(outputLength)
+
+    for (let i = 0; i < outputLength; i++) {
+      const srcIndex = i * ratio
+      const idx = Math.floor(srcIndex)
+      const frac = srcIndex - idx
+      output[i] = input[idx] * (1 - frac) + (input[idx + 1] || 0) * frac
+    }
+
+    return output
+  }
+
+  getConfig(): RNNoiseConfig {
+    return { ...this.config }
+  }
+
+  destroy(): void {
+    this.denoiser?.destroy()
+    this.denoiser = null
+    this.rnnoise = null
+    this.initialized = false
+  }
+}
+
+export async function createRNNoiseEngine(config?: Partial<RNNoiseConfig>): Promise<RNNoiseEngine> {
+  const engine = new RNNoiseEngine(config)
+  await engine.initialize()
+  return engine
+}

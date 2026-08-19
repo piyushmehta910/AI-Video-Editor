@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronLeft, Clapperboard, Film, FolderUp, Image, Music, Plus, Sparkles, Trash2, Type } from 'lucide-react'
+import { ChevronLeft, Film, FolderUp, Image, Music, Plus, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -7,8 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { StockMediaSearch } from './StockMediaSearch'
-import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
-import { AddTextDialog } from './AddTextDialog'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
@@ -19,23 +17,6 @@ function AssetIcon({ type }: { type: Asset['type'] }) {
   return <Image className="size-3.5" />
 }
 
-const TOOLS = [
-  {
-    key: 'avatar',
-    icon: Clapperboard,
-    label: 'Avatar Lip-Sync',
-    desc: 'Generate an on-device lip-sync avatar from an image + audio',
-    color: 'text-violet-600 dark:text-violet-400',
-  },
-  {
-    key: 'text',
-    icon: Type,
-    label: 'Text & Titles',
-    desc: 'Add styled text overlays with animation',
-    color: 'text-sky-600 dark:text-sky-400',
-  },
-] as const
-
 export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
   const assets = useTimelineStore((s) => s.assets)
   const importFiles = useTimelineStore((s) => s.importFiles)
@@ -44,8 +25,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
   const project = useTimelineStore((s) => s.project)
   const [busy, setBusy] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
-  const [avatarOpen, setAvatarOpen] = React.useState(false)
-  const [textOpen, setTextOpen] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
 
@@ -85,11 +64,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
     addClip(asset.id, trackId)
   }
 
-  const openTool = (key: string) => {
-    if (key === 'avatar') setAvatarOpen(true)
-    else setTextOpen(true)
-  }
-
   return (
     <div className="flex h-full w-full flex-col bg-muted/30">
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
@@ -125,9 +99,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
           </TabsTrigger>
           <TabsTrigger value="stock" className="px-3 text-xs">
             <Image className="size-3.5" /> Stock
-          </TabsTrigger>
-          <TabsTrigger value="tools" className="px-3 text-xs">
-            <Sparkles className="size-3.5" /> Tools
           </TabsTrigger>
         </TabsList>
 
@@ -205,31 +176,7 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
         <TabsContent value="stock" className="min-h-0 flex-1 overflow-y-auto">
           <StockMediaSearch />
         </TabsContent>
-
-        <TabsContent value="tools" className="min-h-0 flex-1 overflow-y-auto p-3">
-          <div className="space-y-2">
-            {TOOLS.map((tool) => (
-              <button
-                key={tool.key}
-                type="button"
-                onClick={() => openTool(tool.key)}
-                className="group flex w-full items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-violet-500/50 hover:bg-accent"
-              >
-                <div className="bg-muted group-hover:bg-background flex size-9 shrink-0 items-center justify-center rounded-md">
-                  <tool.icon className={cn('size-4.5', tool.color)} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{tool.label}</p>
-                  <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">{tool.desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </TabsContent>
       </Tabs>
-
-      <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
-      <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
     </div>
   )
 }
