@@ -79,6 +79,11 @@ export interface MusicConfig {
   deezer: DeezerConfig
 }
 
+export interface GiphyConfig extends BaseConfig {
+  rating: string
+  limit: number
+}
+
 export interface AvatarConfig extends BaseConfig {
   resolution: string
   fps: number
@@ -114,6 +119,7 @@ export interface ApiConfig {
   stockImages: StockImagesConfig
   firecrawl: FirecrawlConfig
   music: MusicConfig
+  giphy: GiphyConfig
   preferences: AiPreferencesConfig
 }
 
@@ -235,6 +241,15 @@ export const defaultMusicConfig: MusicConfig = {
   deezer: defaultDeezerConfig,
 }
 
+export const defaultGiphyConfig: GiphyConfig = {
+  enabled: true,
+  apiKey: '',
+  rating: 'g',
+  limit: 24,
+  timeoutMs: 30000,
+  status: 'disabled',
+}
+
 export const defaultPreferencesConfig: AiPreferencesConfig = {
   language: 'en',
   defaultAspectRatio: '16:9',
@@ -260,6 +275,7 @@ export const defaultApiConfig: ApiConfig = {
   stockImages: defaultStockImagesConfig,
   firecrawl: defaultFirecrawlConfig,
   music: defaultMusicConfig,
+  giphy: defaultGiphyConfig,
   preferences: defaultPreferencesConfig,
 }
 

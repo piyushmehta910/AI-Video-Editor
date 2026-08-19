@@ -172,3 +172,9 @@ export async function testMusicBrainz(baseUrl: string, userAgent: string, timeou
 export async function testDeezer(endpoint: string, timeoutMs: number): Promise<TestResult> {
   return doRequest('Deezer', `${endpoint.replace(/\/$/, '')}/search?q=test&limit=1`, {}, timeoutMs)
 }
+
+export async function testGiphy(apiKey: string, timeoutMs: number, rating = 'g'): Promise<TestResult> {
+  const label = 'Giphy'
+  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
+  return doRequest(label, `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(apiKey)}&q=test&limit=1&rating=${encodeURIComponent(rating)}`, {}, timeoutMs)
+}

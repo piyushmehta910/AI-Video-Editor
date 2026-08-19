@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFirecrawl } from '@/api/config/validation'
+import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFirecrawl, testGiphy } from '@/api/config/validation'
 import type { TestResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -49,6 +49,10 @@ export function ConnectionOverview() {
   const fcEndpoint = config.firecrawl.endpoint ?? 'https://api.firecrawl.dev'
   const fcTimeoutMs = config.firecrawl.timeoutMs ?? 30000
 
+  const giphyApiKey = config.giphy.apiKey ?? ''
+  const giphyRating = config.giphy.rating ?? 'g'
+  const giphyTimeoutMs = config.giphy.timeoutMs ?? 30000
+
   const items: OverviewItem[] = React.useMemo(() => [
     {
       id: 'nvidia',
@@ -89,6 +93,11 @@ export function ConnectionOverview() {
       id: 'firecrawl',
       label: 'Firecrawl',
       run: () => testFirecrawl(fcApiKey, fcEndpoint, fcTimeoutMs),
+    },
+    {
+      id: 'giphy',
+      label: 'Giphy',
+      run: () => testGiphy(giphyApiKey, giphyTimeoutMs, giphyRating),
     },
   ], [config])
 

@@ -5,6 +5,7 @@ import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
 import { OpenRouterCard } from '@/components/settings/cards/OpenRouterCard'
 import { ElevenLabsCard } from '@/components/settings/cards/ElevenLabsCard'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
+import { GiphyCard } from '@/components/settings/cards/GiphyCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
 import { EngineCard } from '@/components/settings/cards/EngineCard'
@@ -75,6 +76,11 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>Stock Images</SectionLabel>
           <StockImagesCard />
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <SectionLabel>Stickers</SectionLabel>
+          <GiphyCard />
         </section>
 
         <section className="flex flex-col gap-3">
