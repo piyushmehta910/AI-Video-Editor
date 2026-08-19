@@ -644,7 +644,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     },
 
     setPlayhead: (time) => {
-      set({ playhead: Math.max(0, time) })
+      set({ playhead: Math.max(0, Math.min(time, projectDuration(get().project.tracks))) })
     },
 
     setZoom: (zoom) => {

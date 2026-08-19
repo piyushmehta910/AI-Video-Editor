@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Play, Save, Settings, Share2 } from 'lucide-react'
+import { Pencil, Play, Save, Settings, Share2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { formatTimecode, formatSeconds } from '@/engine/types'
@@ -49,14 +49,51 @@ export function ProjectHeader() {
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
+  const renameProject = useTimelineStore((s) => s.renameProject)
   const save = useTimelineStore((s) => s.save)
 
   const [exportOpen, setExportOpen] = React.useState(false)
+  const [editingName, setEditingName] = React.useState(false)
+  const [nameDraft, setNameDraft] = React.useState(project.name)
+
+  const commitName = () => {
+    renameProject(nameDraft.trim() || 'Untitled Project')
+    setEditingName(false)
+  }
 
   const fpsLabel = project.fps.toString()
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-b px-3">
+      {editingName ? (
+        <input
+          autoFocus
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitName()
+            if (e.key === 'Escape') {
+              setNameDraft(project.name)
+              setEditingName(false)
+            }
+          }}
+          className="h-7 w-44 rounded-md border bg-muted/40 px-2 text-sm font-semibold outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setNameDraft(project.name)
+            setEditingName(true)
+          }}
+          title="Rename project"
+          className="group flex max-w-[180px] items-center gap-1 text-sm font-semibold"
+        >
+          <span className="truncate">{project.name}</span>
+          <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+        </button>
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1">

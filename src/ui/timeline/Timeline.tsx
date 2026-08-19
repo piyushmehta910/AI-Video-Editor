@@ -1,5 +1,6 @@
 import * as React from 'react'
 import {
+  ArrowLeftRight,
   ClipboardPaste,
   Clapperboard,
   Copy,
@@ -44,6 +45,7 @@ const TRACK_HEIGHT = 44
 const MIN_CLIP_PX = 6
 const RULER_HEIGHT = 24
 const SECTION_HEIGHT = 20
+const AUDIO_BAR_H = 34
 
 type DragMode = 'move' | 'trim-start' | 'trim-end'
 
@@ -63,6 +65,19 @@ function snapTo(value: number, zoom: number, candidates: number[]): number {
     if (Math.abs(c - value) < threshold) return c
   }
   return value
+}
+
+function computeRowOffsets(tracks: Track[]): Record<string, number> {
+  const offsets: Record<string, number> = {}
+  let y = RULER_HEIGHT
+  let prevType: Track['type'] | null = null
+  for (const t of tracks) {
+    if (prevType !== t.type) y += SECTION_HEIGHT
+    offsets[t.id] = y
+    y += TRACK_HEIGHT
+    prevType = t.type
+  }
+  return offsets
 }
 
 function computeTicks(duration: number, zoom: number): { step: number; labelEvery: number } {
@@ -113,12 +128,14 @@ export function Timeline() {
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
   const [denoiseBusy, setDenoiseBusy] = React.useState(false)
   const [denoiseError, setDenoiseError] = React.useState<string | null>(null)
+  const [trimMode, setTrimMode] = React.useState(false)
 
   const duration = projectDuration(project.tracks)
   const contentWidth = Math.max((duration + 5) * zoom, 0)
 
   const viewportRef = React.useRef<HTMLDivElement>(null)
   const playheadRef = React.useRef<HTMLDivElement>(null)
+  const audioBarRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
 
   const assetById = React.useCallback(
@@ -132,6 +149,35 @@ export function Timeline() {
     const scrollLeft = viewportRef.current?.scrollLeft ?? 0
     el.style.transform = `translateX(${HEADER_WIDTH + time * z - scrollLeft}px)`
   }, [])
+
+  const layoutAudioBar = React.useCallback(() => {
+    const bar = audioBarRef.current
+    const vp = viewportRef.current
+    if (!bar || !vp) return
+    const store = useTimelineStore.getState()
+    const id = store.selection.clipIds.length === 1 ? store.selection.clipIds[0] : null
+    if (!id) {
+      bar.style.display = 'none'
+      return
+    }
+    const offsets = computeRowOffsets(store.project.tracks)
+    for (const t of store.project.tracks) {
+      if (t.type !== 'audio') continue
+      const clip = t.clips.find((c) => c.id === id)
+      if (!clip) continue
+      const left = HEADER_WIDTH + clip.startTime * store.zoom - vp.scrollLeft
+      const top = offsets[t.id] - vp.scrollTop - AUDIO_BAR_H - 8
+      const barW = bar.offsetWidth || 210
+      bar.style.display = 'flex'
+      bar.style.transform = `translate(${Math.min(Math.max(8, left), Math.max(8, vp.clientWidth - barW - 8))}px, ${Math.max(8, top)}px)`
+      return
+    }
+    bar.style.display = 'none'
+  }, [])
+
+  React.useEffect(() => {
+    layoutAudioBar()
+  }, [layoutAudioBar, selection, zoom, trimMode, denoiseBusy])
 
   React.useEffect(() => {
     movePlayheadDom(playhead, zoom)
@@ -148,7 +194,8 @@ export function Timeline() {
 
   const handleViewportScroll = React.useCallback(() => {
     movePlayheadDom(useTimelineStore.getState().playhead, useTimelineStore.getState().zoom)
-  }, [movePlayheadDom])
+    layoutAudioBar()
+  }, [movePlayheadDom, layoutAudioBar])
 
   const groups = React.useMemo(() => {
     const out: Array<{ type: Track['type']; tracks: Track[] }> = []
@@ -169,6 +216,10 @@ export function Timeline() {
     }
     return null
   }, [project.tracks, selection.clipIds])
+
+  React.useEffect(() => {
+    layoutAudioBar()
+  }, [layoutAudioBar, selectedClipInfo?.clip?.startTime, selectedClipInfo?.track?.id])
 
   const selectedAsset = selectedClipInfo ? assetById(selectedClipInfo.clip.assetId) : null
   const canDenoise = Boolean(selectedAsset && selectedAsset.type === 'audio' && !denoiseBusy)
@@ -218,6 +269,7 @@ export function Timeline() {
 
   const startDrag = (e: React.PointerEvent, clip: Clip, mode: DragMode) => {
     if (dragRef.current) return
+    if (trimMode && mode === 'move') return
     const store = useTimelineStore.getState()
     const clipIds = selection.clipIds.includes(clip.id) ? selection.clipIds : [clip.id]
     store.select(clipIds, clip.trackId)
@@ -379,14 +431,6 @@ export function Timeline() {
           <CopyPlus className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
-        <ToolbarButton
-          label={canDenoise ? 'Denoise selected audio (RNNoise)' : 'Select an audio clip to denoise'}
-          onClick={() => void runDenoise()}
-          disabled={!canDenoise}
-        >
-          {denoiseBusy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-        </ToolbarButton>
-        <SeparatorLine />
         <ToolbarButton label="Add avatar lip-sync" onClick={() => setAvatarOpen(true)}>
           <Clapperboard className="size-4" />
         </ToolbarButton>
@@ -496,6 +540,7 @@ export function Timeline() {
                       assetById={assetById}
                       selected={selection.clipIds}
                       playhead={playhead}
+                      trimMode={trimMode}
                       onPointerDownClip={startDrag}
                     />
                   ))}
@@ -515,6 +560,44 @@ export function Timeline() {
         </div>
 
         {dragActive && <div className="pointer-events-none absolute inset-0 z-40 cursor-grabbing" />}
+
+        {/* Contextual audio-clip action bar */}
+        {selectedClipInfo && selectedClipInfo.track.type === 'audio' && (
+          <div
+            ref={audioBarRef}
+            data-audio-bar
+            className="absolute top-0 left-0 z-50 hidden items-center gap-0.5 rounded-lg border bg-card/95 py-0.5 pr-1 shadow-xl backdrop-blur"
+          >
+            <ToolbarButton
+              label={canDenoise ? 'Denoise audio (RNNoise)' : 'Denoise unavailable'}
+              onClick={() => void runDenoise()}
+              disabled={!canDenoise}
+            >
+              {denoiseBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-400" />}
+            </ToolbarButton>
+            <ToolbarButton label="Split at playhead" onClick={splitSelected}>
+              <Slice className="size-3.5" />
+            </ToolbarButton>
+            <ToolbarButton label="Cut (Ctrl+X)" onClick={cutSelected}>
+              <Scissors className="size-3.5" />
+            </ToolbarButton>
+            <ToolbarButton label="Duplicate (Ctrl+D)" onClick={duplicateSelected}>
+              <CopyPlus className="size-3.5" />
+            </ToolbarButton>
+            <ToolbarButton
+              label={trimMode ? 'Trim mode on — drag the clip edges' : 'Trim (drag the clip edges)'}
+              onClick={() => setTrimMode((m) => !m)}
+            >
+              <ArrowLeftRight className={cn('size-3.5', trimMode && 'text-violet-500')} />
+            </ToolbarButton>
+            <ToolbarButton label="Delete (Del)" onClick={deleteSelected}>
+              <Trash2 className="size-3.5" />
+            </ToolbarButton>
+            <span className="text-muted-foreground max-w-[140px] truncate pl-1 font-mono text-[10px]">
+              {trimMode ? 'Drag edges to trim' : selectedClipInfo.clip.name}
+            </span>
+          </div>
+        )}
       </div>
 
       <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
@@ -543,6 +626,7 @@ function TrackRow({
   assetById,
   selected,
   playhead,
+  trimMode,
   onPointerDownClip,
 }: {
   track: Track
@@ -550,6 +634,7 @@ function TrackRow({
   assetById: (id: string) => Asset | undefined
   selected: string[]
   playhead: number
+  trimMode: boolean
   onPointerDownClip: (e: React.PointerEvent, clip: Clip, mode: DragMode) => void
 }) {
   const meta = TYPE_META[track.type]
@@ -613,6 +698,7 @@ function TrackRow({
               style={{ left, width, background: 'linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))' }}
               onPointerDown={(e) => {
                 e.stopPropagation()
+                if (trimMode && isSelected) return
                 onPointerDownClip(e, clip, 'move')
               }}
             >
@@ -657,14 +743,20 @@ function TrackRow({
                 </span>
               </div>
               <div
-                className="absolute top-0 bottom-0 left-0 w-1.5 cursor-ew-resize hover:bg-white/30"
+                className={cn(
+                  'absolute top-0 bottom-0 left-0 cursor-ew-resize',
+                  trimMode && isSelected ? 'w-2 bg-white/50' : 'w-1.5 hover:bg-white/30',
+                )}
                 onPointerDown={(e) => {
                   e.stopPropagation()
                   onPointerDownClip(e, clip, 'trim-start')
                 }}
               />
               <div
-                className="absolute top-0 right-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/30"
+                className={cn(
+                  'absolute top-0 right-0 bottom-0 cursor-ew-resize',
+                  trimMode && isSelected ? 'w-2 bg-white/50' : 'w-1.5 hover:bg-white/30',
+                )}
                 onPointerDown={(e) => {
                   e.stopPropagation()
                   onPointerDownClip(e, clip, 'trim-end')

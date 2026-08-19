@@ -148,11 +148,11 @@ export function Preview({ playback }: { playback: PlaybackApi }) {
           <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15" />
           <div
             className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-violet-500"
-            style={{ width: `${(playhead / (duration || 1)) * 100}%` }}
+            style={{ width: `${Math.min(100, (playhead / (duration || 1)) * 100)}%` }}
           />
           <div
             className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow"
-            style={{ left: `${(playhead / (duration || 1)) * 100}%` }}
+            style={{ left: `${Math.min(100, (playhead / (duration || 1)) * 100)}%` }}
           />
         </div>
 
