@@ -1,12 +1,13 @@
 import { useTimelineStore } from '@/stores/timelineStore'
-import { aspectToSize } from '@/engine/types'
-import type { Asset, Clip, TextAnimation } from '@/engine/types'
+import { aspectToSize, CAMERA_MODES, clampRig } from '@/engine/types'
+import type { Asset, CameraMode, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
 import { transcribeAsset, ensureProjectTranscripts } from '@/api/llm/understanding'
 import { generateVoiceover, isElevenLabsConfigured } from '@/api/tts/elevenlabs'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
+import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -261,6 +262,51 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
   {
     type: 'function',
     function: {
+      name: 'add_3d_model',
+      description: 'Search Poly Haven (free CC0 3D models) for a query, download the best match, convert it to GLB, import it as a 3D model asset and add it to the timeline with a camera animation. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to search for, e.g. "wooden armchair" or "skull".' },
+          durationSeconds: { type: 'number', description: 'Clip duration in seconds (default 4).' },
+          mode: {
+            type: 'string',
+            enum: [...CAMERA_MODES],
+            description: 'Camera animation: turntable (spin around), orbit, dolly (zoom in), or static.',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_3d_camera',
+      description: 'Set the camera animation rig for a 3D model clip on the timeline. Only applies to clips whose asset is a 3D model. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to edit.' },
+          mode: {
+            type: 'string',
+            enum: [...CAMERA_MODES],
+            description: 'Camera animation mode.',
+          },
+          azimuthStart: { type: 'number', description: 'Starting angle around the model in degrees.' },
+          azimuthEnd: { type: 'number', description: 'Ending angle in degrees (360 = full spin).' },
+          elevation: { type: 'number', description: 'Camera height angle in degrees (default 20).' },
+          radius: { type: 'number', description: 'Camera distance from the model in world units (default ~6).' },
+          fov: { type: 'number', description: 'Field of view in degrees (default 40).' },
+          pan: { type: 'number', description: 'How much of the sweep plays across the clip (0.05–1, default 1).' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'understand_video',
       description: 'Generate (or refresh) a local transcript of every clip with audio so you can understand what the video says before making edits. Applied immediately.',
       parameters: {
@@ -299,6 +345,8 @@ const STAGED_TOOLS = new Set<string>([
   'generate_captions',
   'generate_voiceover',
   'duplicate_clip',
+  'add_3d_model',
+  'set_3d_camera',
 ])
 
 export function isStagedTool(name: string): boolean {
@@ -432,6 +480,24 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       const clip = findClip(String(args.assetName ?? ''))
       if (!clip) return null
       return `Duplicate "${clip.name}"`
+    }
+    case 'add_3d_model': {
+      const query = String(args.query ?? '')
+      if (!query.trim()) return null
+      return `Search 3D models for "${query}" and add the best match to the timeline`
+    }
+    case 'set_3d_camera': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip || !clip.modelRig) return null
+      const parts: string[] = []
+      if (args.mode != null) parts.push(`mode ${String(args.mode)}`)
+      if (args.azimuthStart != null) parts.push(`azimuth ${Number(args.azimuthStart)}°→${args.azimuthEnd != null ? `${Number(args.azimuthEnd)}°` : 'end'}`)
+      if (args.elevation != null) parts.push(`elevation ${Number(args.elevation)}°`)
+      if (args.radius != null) parts.push(`radius ${Number(args.radius)}`)
+      if (args.fov != null) parts.push(`fov ${Number(args.fov)}°`)
+      return parts.length
+        ? `Set 3D camera on "${clip.name}": ${parts.join(', ')}`
+        : `Reset 3D camera on "${clip.name}"`
     }
     default:
       return null
@@ -636,6 +702,48 @@ export async function applyTool(name: string, args: Record<string, unknown>): Pr
       const clip = findClip(String(args.assetName ?? ''))
       if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
       s.duplicateClips([clip.id])
+      return { ok: true, message: desc }
+    }
+    case 'add_3d_model': {
+      const query = String(args.query ?? '')
+      const results = await searchModels(query, { maxResults: 5 })
+      if (!results.length) return { ok: false, message: `No 3D models found for "${query}".` }
+      const model = results[0]
+      try {
+        const file = await downloadModelAsGlb(model.id)
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Downloaded model could not be imported.' }
+        const dur = Math.max(1, Number(args.durationSeconds) || 4)
+        const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
+        if (clip) {
+          s.updateClip(clip.id, { duration: dur, sourceEnd: dur })
+        }
+        return { ok: true, message: `${desc} (added "${asset.name}")` }
+      } catch (err) {
+        return { ok: false, message: `3D model download failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'set_3d_camera': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip || !clip.modelRig) {
+        return { ok: false, message: `"${String(args.assetName)}" is not a 3D model clip.` }
+      }
+      const rig = { ...clip.modelRig }
+      if (args.mode != null) rig.mode = String(args.mode) as CameraMode
+      if (args.azimuthStart != null) rig.azimuthStart = Number(args.azimuthStart)
+      if (args.azimuthEnd != null) rig.azimuthEnd = Number(args.azimuthEnd)
+      if (args.elevation != null) {
+        rig.elevationStart = Number(args.elevation)
+        rig.elevationEnd = Number(args.elevation)
+      }
+      if (args.radius != null) {
+        rig.radiusStart = Number(args.radius)
+        rig.radiusEnd = Number(args.radius)
+      }
+      if (args.fov != null) rig.fov = Number(args.fov)
+      if (args.pan != null) rig.pan = Number(args.pan)
+      s.updateClip(clip.id, { modelRig: clampRig(rig) })
       return { ok: true, message: desc }
     }
     case 'understand_video': {

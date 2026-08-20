@@ -20,14 +20,17 @@ function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   })
 }
 
-async function makeThumbnail(canvas: HTMLCanvasElement, target = 320): Promise<Thumbnail> {
-  const scale = Math.min(1, target / Math.max(canvas.width, canvas.height))
-  const w = Math.max(1, Math.round(canvas.width * scale))
-  const h = Math.max(1, Math.round(canvas.height * scale))
+async function makeThumbnail(source: CanvasImageSource, target = 320): Promise<Thumbnail> {
+  const s = source as HTMLCanvasElement | ImageBitmap
+  const sw = s.width
+  const sh = s.height
+  const scale = Math.min(1, target / Math.max(sw, sh))
+  const w = Math.max(1, Math.round(sw * scale))
+  const h = Math.max(1, Math.round(sh * scale))
   const out = document.createElement('canvas')
   out.width = w
   out.height = h
-  out.getContext('2d')!.drawImage(canvas, 0, 0, w, h)
+  out.getContext('2d')!.drawImage(source, 0, 0, w, h)
   return { url: out.toDataURL('image/jpeg', 0.7), width: w, height: h }
 }
 
@@ -118,9 +121,19 @@ async function audioWaveform(blob: Blob): Promise<Thumbnail> {
   return { url: canvas.toDataURL('image/png'), width: 320, height: 90 }
 }
 
+async function modelThumbnail(blob: Blob): Promise<Thumbnail> {
+  const { defaultCameraRig } = await import('@/engine/types')
+  const { renderBlobFrame, probeModel } = await import('@/engine/three/modelRenderer')
+  const { radius } = await probeModel(blob)
+  const rig = { ...defaultCameraRig(), radiusStart: radius * 2.5, radiusEnd: radius * 2.5, azimuthStart: 30, mode: 'turntable' as const }
+  const canvas = await renderBlobFrame(blob, rig, 640, 360)
+  if (!canvas) return placeholderThumbnail()
+  return makeThumbnail(canvas)
+}
+
 export async function generateThumbnail(
   blob: Blob,
-  type: 'video' | 'image' | 'audio',
+  type: 'video' | 'image' | 'audio' | 'model',
 ): Promise<Thumbnail> {
   switch (type) {
     case 'video':
@@ -129,6 +142,8 @@ export async function generateThumbnail(
       return imageThumbnail(blob)
     case 'audio':
       return audioWaveform(blob)
+    case 'model':
+      return modelThumbnail(blob)
   }
 }
 
@@ -138,7 +153,7 @@ export interface MediaProbe {
   duration?: number
 }
 
-export async function probeMedia(blob: Blob, type: 'video' | 'image' | 'audio'): Promise<MediaProbe> {
+export async function probeMedia(blob: Blob, type: 'video' | 'image' | 'audio' | 'model'): Promise<MediaProbe> {
   const url = URL.createObjectURL(blob)
   try {
     if (type === 'video' || type === 'audio') {

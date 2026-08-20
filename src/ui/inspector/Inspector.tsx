@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { AudioLines, ChevronRight, Clapperboard, Layers, Loader2, Music, Scissors, Sparkles, Type } from 'lucide-react'
+import { AudioLines, Box, ChevronRight, Clapperboard, Layers, Loader2, Music, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import type { Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
-import { createEffect, formatSeconds, TEXT_ANIMATIONS } from '@/engine/types'
+import type { CameraMode, Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
+import { CAMERA_MODES, clampRig, createEffect, formatSeconds, TEXT_ANIMATIONS } from '@/engine/types'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -67,6 +67,7 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
   const single = selectedClips.length === 1
   const clip = first.clip
   const canDenoise = single && first.track.type === 'audio' && !denoise.busy
+  const isModel = single && Boolean(clip.modelRig)
 
   const set = (patch: Partial<Clip>) => {
     updateClip(clip.id, patch)
@@ -117,7 +118,7 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {single ? (
           <Tabs defaultValue="transform" className="gap-0">
-            <TabsList className="mb-3 grid w-full grid-cols-3 rounded-md bg-muted">
+            <TabsList className={cn('mb-3 grid w-full rounded-md bg-muted', isModel ? 'grid-cols-4' : 'grid-cols-3')}>
               <TabsTrigger value="transform" className="px-2 text-xs">
                 <Layers className="size-3.5" /> Transform
               </TabsTrigger>
@@ -127,6 +128,11 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
               <TabsTrigger value="audio" className="px-2 text-xs">
                 <AudioLines className="size-3.5" /> Audio
               </TabsTrigger>
+              {isModel && (
+                <TabsTrigger value="3d" className="px-2 text-xs">
+                  <Box className="size-3.5" /> 3D
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="transform" className="space-y-4">
@@ -309,6 +315,79 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
                 </Section>
               )}
             </TabsContent>
+
+            {isModel && clip.modelRig && (
+              <TabsContent value="3d" className="space-y-4">
+                <Section icon={<Box className="size-3.5" />} title="Camera animation">
+                  <Field label="Mode">
+                    <select
+                      className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
+                      value={clip.modelRig.mode}
+                      onChange={(e) => set({ modelRig: clampRig({ ...clip.modelRig!, mode: e.target.value as CameraMode }) })}
+                    >
+                      {CAMERA_MODES.map((m) => (
+                        <option key={m} value={m}>
+                          {m.charAt(0).toUpperCase() + m.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Azimuth start °">
+                      <Input
+                        type="number"
+                        value={clip.modelRig.azimuthStart}
+                        onChange={(e) => set({ modelRig: clampRig({ ...clip.modelRig!, azimuthStart: Number(e.target.value) }) })}
+                      />
+                    </Field>
+                    <Field label="Azimuth end °">
+                      <Input
+                        type="number"
+                        value={clip.modelRig.azimuthEnd}
+                        onChange={(e) => set({ modelRig: clampRig({ ...clip.modelRig!, azimuthEnd: Number(e.target.value) }) })}
+                      />
+                    </Field>
+                    <Field label="Elevation °">
+                      <Input
+                        type="number"
+                        value={clip.modelRig.elevationStart}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          set({ modelRig: clampRig({ ...clip.modelRig!, elevationStart: v, elevationEnd: v }) })
+                        }}
+                      />
+                    </Field>
+                    <Field label="Radius">
+                      <Input
+                        type="number"
+                        step={0.1}
+                        value={clip.modelRig.radiusStart}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          set({ modelRig: clampRig({ ...clip.modelRig!, radiusStart: v, radiusEnd: v }) })
+                        }}
+                      />
+                    </Field>
+                    <Field label="FOV °">
+                      <Input
+                        type="number"
+                        value={clip.modelRig.fov}
+                        onChange={(e) => set({ modelRig: clampRig({ ...clip.modelRig!, fov: Number(e.target.value) }) })}
+                      />
+                    </Field>
+                  </div>
+                  <SliderRow
+                    label="Sweep"
+                    value={clip.modelRig.pan}
+                    min={0.05}
+                    max={1}
+                    step={0.05}
+                    onChange={(v) => set({ modelRig: clampRig({ ...clip.modelRig!, pan: v }) })}
+                    display={`${Math.round(clip.modelRig.pan * 100)}%`}
+                  />
+                </Section>
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           <div className="flex flex-col gap-3">

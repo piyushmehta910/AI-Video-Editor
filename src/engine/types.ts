@@ -1,5 +1,57 @@
 export type TrackType = 'video' | 'audio' | 'text'
-export type AssetType = 'video' | 'image' | 'audio'
+export type AssetType = 'video' | 'image' | 'audio' | 'model'
+
+export type CameraMode = 'turntable' | 'orbit' | 'dolly' | 'static'
+
+export const CAMERA_MODES: CameraMode[] = ['turntable', 'orbit', 'dolly', 'static']
+
+/**
+ * Camera animation rig for a 3D model clip. Angles are degrees, radius is in
+ * world units relative to the model's fitted size (see modelRenderer.ts).
+ * `pan` (0..1) controls how much of the sweep plays across the clip duration.
+ */
+export interface CameraRig {
+  mode: CameraMode
+  azimuthStart: number
+  azimuthEnd: number
+  elevationStart: number
+  elevationEnd: number
+  radiusStart: number
+  radiusEnd: number
+  targetX: number
+  targetY: number
+  targetZ: number
+  fov: number
+  pan: number
+}
+
+export function defaultCameraRig(): CameraRig {
+  return {
+    mode: 'turntable',
+    azimuthStart: 0,
+    azimuthEnd: 360,
+    elevationStart: 20,
+    elevationEnd: 20,
+    radiusStart: 6,
+    radiusEnd: 6,
+    targetX: 0,
+    targetY: 0,
+    targetZ: 0,
+    fov: 40,
+    pan: 1,
+  }
+}
+
+export function clampRig(partial: Partial<CameraRig>): CameraRig {
+  const d = defaultCameraRig()
+  const rig: CameraRig = { ...d, ...partial }
+  rig.mode = CAMERA_MODES.includes(rig.mode) ? rig.mode : d.mode
+  rig.pan = Math.min(1, Math.max(0.05, rig.pan))
+  rig.radiusStart = Math.max(0.1, rig.radiusStart)
+  rig.radiusEnd = Math.max(0.1, rig.radiusEnd)
+  rig.fov = Math.min(120, Math.max(10, rig.fov))
+  return rig
+}
 
 export interface Vec2 {
   x: number
@@ -112,6 +164,8 @@ export interface Clip {
   thumbnailUrl?: string
   /** Text overlay (for text clips or caption overlays) */
   text?: TextOverlay
+  /** Camera animation rig for 3D model clips. */
+  modelRig?: CameraRig
 }
 
 export interface Track {
@@ -152,6 +206,8 @@ export interface Asset {
   filmstrip?: FilmstripData
   /** Peak-amplitude waveform strip data (audio assets) */
   waveform?: FilmstripData
+  /** Fitted bounding-sphere radius after normalization (model assets) */
+  modelRadius?: number
   importedAt: number
 }
 

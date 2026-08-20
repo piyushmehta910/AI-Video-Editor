@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Asset, Clip, Project, Track } from '@/engine/types'
-import { newProject, projectDuration } from '@/engine/types'
+import { newProject, projectDuration, defaultCameraRig } from '@/engine/types'
 import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
@@ -151,6 +151,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
           let proxyPath: string | undefined
           let filmstrip: import('@/engine/types').FilmstripData | undefined
           let waveform: import('@/engine/types').FilmstripData | undefined
+          let modelRadius: number | undefined
           if (type === 'video') {
             const [proxy, strip] = await Promise.all([
               generateProxy(id, file),
@@ -160,6 +161,10 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             filmstrip = strip ?? undefined
           } else if (type === 'audio') {
             waveform = (await generateWaveform(file, type)) ?? undefined
+          } else if (type === 'model') {
+            const { probeModel } = await import('@/engine/three/modelRenderer')
+            const probe = await probeModel(file)
+            modelRadius = probe.radius
           }
 
           const asset: Asset = {
@@ -176,6 +181,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             proxyPath,
             filmstrip,
             waveform,
+            modelRadius,
             importedAt: Date.now(),
           }
           await putRecord('assets', asset)
@@ -283,7 +289,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
       const track = project.tracks.find((t) => t.id === trackId)
       if (!track) return undefined
 
-      const duration = asset.type === 'image' ? 4 : Math.min(asset.duration || 5, 30)
+      const duration = asset.type === 'image' || asset.type === 'model' ? 4 : Math.min(asset.duration || 5, 30)
       const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
       const clip: Clip = {
         id: crypto.randomUUID(),
@@ -292,7 +298,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         startTime: start,
         duration,
         sourceStart: 0,
-        sourceEnd: asset.type === 'image' ? duration : Math.min(asset.duration ?? duration, duration),
+        sourceEnd: asset.type === 'image' || asset.type === 'model' ? duration : Math.min(asset.duration ?? duration, duration),
         speed: 1,
         name: asset.name,
         position: { x: 0, y: 0 },
@@ -305,6 +311,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         effects: [],
         transitions: {},
         thumbnailUrl: asset.thumbnailUrl,
+        modelRig: asset.type === 'model' ? { ...defaultCameraRig(), radiusStart: (asset.modelRadius ?? 2.4) * 2.5, radiusEnd: (asset.modelRadius ?? 2.4) * 2.5 } : undefined,
       }
       get().begin()
       mutate((p) => {

@@ -1,8 +1,9 @@
-export type MediaType = 'video' | 'audio' | 'image'
+export type MediaType = 'video' | 'audio' | 'image' | 'model'
 
 const VIDEO_EXT = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'mpg', 'mpeg', 'ts', 'ogv', 'ogm', '3gp', '3g2'])
 const AUDIO_EXT = new Set(['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'weba', 'wma', 'aiff', 'aif', 'amr'])
 const IMAGE_EXT = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'svg', 'ico', 'tif', 'tiff', 'jfif'])
+const MODEL_EXT = new Set(['glb', 'gltf'])
 
 /**
  * Detect the media type of a file from its MIME type first, then falling back
@@ -14,11 +15,16 @@ export function detectMediaType(file: { name: string; type: string }): MediaType
   if (mime.startsWith('video/')) return 'video'
   if (mime.startsWith('audio/')) return 'audio'
   if (mime.startsWith('image/')) return 'image'
+  if (mime === 'model/gltf-binary' || mime === 'model/gltf+json' || mime === 'application/gltf+json' || mime === 'application/json') {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (MODEL_EXT.has(ext)) return 'model'
+  }
   if (mime === 'application/octet-stream' || mime === '' || mime === 'application/x-msdownload') {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (VIDEO_EXT.has(ext)) return 'video'
     if (AUDIO_EXT.has(ext)) return 'audio'
     if (IMAGE_EXT.has(ext)) return 'image'
+    if (MODEL_EXT.has(ext)) return 'model'
   }
   return null
 }

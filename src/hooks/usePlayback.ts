@@ -3,6 +3,7 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { compositeFrame } from '@/engine/render/composite'
 import type { Asset, Clip, Track } from '@/engine/types'
+import { defaultCameraRig } from '@/engine/types'
 
 interface ElementRef {
   clipId: string | null
@@ -198,6 +199,18 @@ export function usePlayback() {
         },
         image: (asset) => loadImage(asset),
         thumbnail: (asset) => loadThumbnail(asset),
+        model: async (clip, asset, time, size) => {
+          const { renderModelFrame } = await import('@/engine/three/modelRenderer')
+          return renderModelFrame({
+            asset,
+            rig: clip.modelRig ?? defaultCameraRig(),
+            time,
+            clipStart: clip.startTime,
+            clipDuration: clip.duration,
+            width: size.width,
+            height: size.height,
+          })
+        },
       })
     },
     [acquireVideo, loadImage, loadThumbnail],

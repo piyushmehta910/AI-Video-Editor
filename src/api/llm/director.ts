@@ -73,7 +73,10 @@ export function getProjectContextSystemPrompt(): string {
   }
   if (assets.length) {
     lines.push('Available media:')
-    for (const a of assets) lines.push(`  - "${a.name}" (${a.type})`)
+    for (const a of assets) {
+      const label = a.type === 'model' ? '3D model' : a.type
+      lines.push(`  - "${a.name}" (${label})`)
+    }
   }
   lines.push(
     `User preferences: language=${prefs.language}, aspect=${prefs.defaultAspectRatio}, confirm=${prefs.confirmationLevel}.`,
@@ -87,6 +90,8 @@ export function getProjectContextSystemPrompt(): string {
     'Editing capabilities: You can split clips at any time position, trim start/end edges to shorten or extend, ' +
       'move clips to different positions, join adjacent clips on the same track into one, delete clips, ' +
       'adjust properties (opacity, volume, speed, rotation), and change the project aspect ratio. ' +
+      'You can also add 3D models from Poly Haven (add_3d_model) and animate their camera with set_3d_camera ' +
+      '(turntable spin, orbit, dolly zoom, or static; set azimuth/elevation/radius/fov to frame the shot). ' +
       'Always target clips by name. To remove a section from the middle of a clip, split it twice then delete the middle part. ' +
       'Before making big changes, consider running check_quality (applies immediately, read-only) to spot problems ' +
       'such as overlapping clips, missing media, or a weak opening/ending.',
