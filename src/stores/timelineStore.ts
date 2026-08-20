@@ -14,6 +14,7 @@ import type { StoredOcr, StoredScenes, StoredTranscript } from '@/engine/analysi
 
 const HISTORY_LIMIT = 200
 let transactionDepth = 0
+let suppressDepth = 0
 
 export interface TimelineState {
   project: Project
@@ -48,6 +49,8 @@ export interface TimelineState {
   redo: () => void
   /** Run fn as a single undoable transaction: one begin snapshot, inner begins suppressed. */
   withTransaction: (fn: () => void) => void
+  /** Suppress automatic inner snapshots while running an async batch (e.g. a plan). */
+  suspendHistory: (on: boolean) => void
 
   renameProject: (name: string) => void
   setProjectSettings: (patch: Partial<Pick<Project, 'width' | 'height' | 'fps' | 'aspectRatio'>>) => void
@@ -254,13 +257,23 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
       set((state) => ({ assets: state.assets.filter((a) => a.id !== assetId) }))
     },
 
-    begin: () => {
-      if (transactionDepth > 0) return
-      set((state) => {
-        const past = [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT)
-        return { past, future: [] }
-      })
-    },
+begin: () => {
+    if (transactionDepth > 0 || suppressDepth > 0) return
+    set((state) => {
+      const past = [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT)
+      return { past, future: [] }
+    })
+  },
+
+  /**
+   * While true, suppress the automatic undo snapshots that mutating actions
+   * take. Used by batch operations (e.g. applyPlan) that want a single undo
+   * step: call begin() first, then suspendHistory(true), run all mutations,
+   * then suspendHistory(false).
+   */
+  suspendHistory: (on: boolean) => {
+    suppressDepth = Math.max(0, suppressDepth + (on ? 1 : -1))
+  },
 
     withTransaction: (fn) => {
       get().begin()

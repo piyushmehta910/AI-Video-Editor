@@ -51,7 +51,7 @@ export function getDirectorProvider(): DirectorProvider | null {
   return null
 }
 
-export function getProjectContextSystemPrompt(): string {
+export function getProjectContextSystemPrompt(askedQuestions: string[] = []): string {
   const { project, assets } = useTimelineStore.getState()
   const prefs = useApiConfigStore.getState().config.preferences
   const lines: string[] = [
@@ -87,11 +87,32 @@ export function getProjectContextSystemPrompt(): string {
       'When you propose actions, summarize what is awaiting approval. Keep replies short and friendly.',
   )
   lines.push(
+    'Before making ANY non-trivial set of edits, call plan_edit first with the goal, the scenes/clips affected, ' +
+      'and the exact tool actions plus a one-line reason for each. The plan is shown to the user and nothing is ' +
+      'applied until they approve it. For a single obvious action you may call the tool directly instead.',
+  )
+  lines.push(
+    'If a request is genuinely ambiguous, call ask_user exactly once with one concise question, then use the ' +
+      'answer. Never ask a question that has already been asked in this project.' +
+      (askedQuestions.length ? ` Already asked: ${askedQuestions.join(' | ')}.` : ''),
+  )
+  lines.push(
+    'For open-ended improvement requests such as "make this better", "improve this" or "polish it", call ' +
+      'review_project to produce an itemized issue list with Fix All / Review Changes options. Never silently ' +
+      'rewrite the project in response to a vague request.',
+  )
+  lines.push(
+    'After any AI edits are applied, a quality check runs automatically and the findings are shown as notes — ' +
+      'they are never auto-fixed without your say-so.',
+  )
+  lines.push(
     'Editing capabilities: You can split clips at any time position, trim start/end edges to shorten or extend, ' +
       'move clips to different positions, join adjacent clips on the same track into one, delete clips, ' +
       'adjust properties (opacity, volume, speed, rotation), and change the project aspect ratio. ' +
       'You can also add 3D models from Poly Haven (add_3d_model) and animate their camera with set_3d_camera ' +
       '(turntable spin, orbit, dolly zoom, or static; set azimuth/elevation/radius/fov to frame the shot). ' +
+      'You can analyze the video locally (analyze_video), add a captions layer (add_caption), and render a ' +
+      'preview (render_preview). ' +
       'Always target clips by name. To remove a section from the middle of a clip, split it twice then delete the middle part. ' +
       'Before making big changes, consider running check_quality (applies immediately, read-only) to spot problems ' +
       'such as overlapping clips, missing media, or a weak opening/ending.',

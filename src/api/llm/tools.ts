@@ -3,11 +3,13 @@ import { aspectToSize, CAMERA_MODES, clampRig } from '@/engine/types'
 import type { Asset, CameraMode, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
-import { transcribeAsset, ensureProjectTranscripts } from '@/api/llm/understanding'
+import { transcribeAsset, ensureProjectTranscripts, getStoredTranscript, type StoredTranscript } from '@/api/llm/understanding'
 import { generateVoiceover, isElevenLabsConfigured } from '@/api/tts/elevenlabs'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
+import { analyzeProject } from '@/api/llm/analysis'
+import { exportProject } from '@/engine/export/exportVideo'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -326,6 +328,150 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'plan_edit',
+      description: 'Propose an execution plan for a non-trivial request BEFORE making any edits. Provide the goal, the scenes/clips affected, and the exact tool actions with a one-line plain-English reason each. The plan is shown to the user for approval — nothing is applied until they approve it. Call this FIRST for anything more than a single obvious action.',
+      parameters: {
+        type: 'object',
+        properties: {
+          goal: { type: 'string', description: 'The user\'s request restated as a clear editing goal.' },
+          scenesAffected: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'The scenes or clips this plan touches, e.g. ["clip intro 0s-4s", "clip b-roll 4s-12s"].',
+          },
+          actions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                tool: { type: 'string', description: 'A tool name from the available tools.' },
+                arguments: { type: 'object', description: 'The tool arguments (must match the tool\'s parameters).' },
+                reason: { type: 'string', description: 'One-line plain-English reason for this action.' },
+              },
+              required: ['tool', 'arguments', 'reason'],
+            },
+            description: 'The concrete tool actions to run once approved, in order.',
+          },
+        },
+        required: ['goal', 'scenesAffected', 'actions'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'ask_user',
+      description: 'Ask the user ONE concise clarifying question when a request is genuinely ambiguous (e.g. which clip, what length, which style). Applied immediately and read-only. Never ask a question that has already been asked in this project — make your best guess instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          question: { type: 'string', description: 'A single, concise question for the user.' },
+        },
+        required: ['question'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'review_project',
+      description: 'Review the project for open-ended improvements ("make this better", "improve", "polish"). Returns an itemized list of issues with a Fix All / Review Changes option. Read-only and applied immediately: it never rewrites the project. Use this instead of guessing when the user asks for general improvement.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'analyze_video',
+      description: 'Run the local analysis pipeline on every clip with audio/video on the timeline: transcription, scene detection with summaries, and OCR protected regions. Applied immediately and read-only (it only adds analysis data, it does not edit the timeline).',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'render_preview',
+      description: 'Render the current timeline to a WebM video at the project resolution and download it. Applied immediately and read-only (produces a file, does not edit the timeline). Use this to preview the final output.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Optional output file name (default "clipforge-render").' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_caption',
+      description: 'Transcribe the audio of a clip (Whisper, local) and enable the automatic captions layer for it — timed, styled captions rendered over the video. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clipName: { type: 'string', description: 'The clip name whose audio should be captioned. Omit to caption the first clip with audio.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_transcript',
+      description: 'Generate (or refresh) a local transcript of every clip with audio so you can understand what the video says before making edits. Alias for understand_video. Applied immediately.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_text',
+      description: 'Add a text overlay / title card to the timeline. Creates a text clip with the given content. Alias for add_text_overlay. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'The text content to display. Use \\n for line breaks.' },
+          durationSeconds: { type: 'number', description: 'Duration in seconds (default 4).' },
+          fontSize: { type: 'number', description: 'Font size in pixels (default 48).' },
+          color: { type: 'string', description: 'Text color as hex (default #ffffff).' },
+          animation: {
+            type: 'string',
+            enum: ['none', 'fade-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'zoom-in', 'zoom-out', 'typewriter', 'pop', 'bounce'],
+            description: 'Entrance animation (default none).',
+          },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_transition',
+      description: 'Set a transition effect on a clip (e.g. dissolve, wipe). The transition plays at the start of the clip. Alias for set_transition. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to add a transition to.' },
+          type: { type: 'string', enum: ['dissolve', 'wipe-left', 'wipe-right', 'slide', 'zoom'], description: 'Transition type.' },
+          durationSeconds: { type: 'number', description: 'Transition duration in seconds (default 0.5).' },
+        },
+        required: ['assetName', 'type'],
+      },
+    },
+  },
 ]
 
 /** Tools that change timeline state and therefore must be reviewed before applying. */
@@ -339,18 +485,44 @@ const STAGED_TOOLS = new Set<string>([
   'join_clips',
   'set_clip_property',
   'add_text_overlay',
+  'add_text',
   'set_transition',
+  'add_transition',
   'search_stock_image',
   'search_music',
   'generate_captions',
+  'add_caption',
   'generate_voiceover',
   'duplicate_clip',
   'add_3d_model',
   'set_3d_camera',
 ])
 
+/** Tools that never mutate timeline state and therefore need no undo snapshot. */
+const NON_MUTATING_TOOLS = new Set<string>([
+  'set_playhead',
+  'understand_video',
+  'generate_transcript',
+  'check_quality',
+  'ask_user',
+  'review_project',
+  'analyze_video',
+  'render_preview',
+])
+
+/** Friendly aliases so the model can use either naming style. */
+const ALIASES: Record<string, string> = {
+  generate_transcript: 'understand_video',
+  add_text: 'add_text_overlay',
+  add_transition: 'set_transition',
+}
+
 export function isStagedTool(name: string): boolean {
-  return STAGED_TOOLS.has(name)
+  return STAGED_TOOLS.has(ALIASES[name] ?? name) || STAGED_TOOLS.has(name)
+}
+
+export function canonicalTool(name: string): string {
+  return ALIASES[name] ?? name
 }
 
 /** An AI-proposed timeline change awaiting user approval. */
@@ -382,6 +554,7 @@ function findAsset(assetName: string): Asset | null {
  * arguments are invalid or the referenced timeline object no longer exists.
  */
 export function describeTool(name: string, args: Record<string, unknown>): string | null {
+  name = canonicalTool(name)
   switch (name) {
     case 'set_project_ratio': {
       const aspect = String(args.aspect ?? '')
@@ -471,6 +644,27 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
         ? `Generate captions for "${name}"`
         : 'Generate captions for the first clip with audio'
     }
+    case 'add_caption': {
+      const clipName = String(args.clipName ?? '').trim()
+      if (clipName && !findClip(clipName)) return null
+      return clipName
+        ? `Add captions layer for "${clipName}"`
+        : 'Add captions layer for the first clip with audio'
+    }
+    case 'ask_user': {
+      const question = String(args.question ?? '').trim()
+      if (!question) return null
+      return `Ask the user: ${question}`
+    }
+    case 'review_project': {
+      return 'Review the project and list improvement opportunities'
+    }
+    case 'analyze_video': {
+      return 'Run local analysis (transcript + scenes + OCR) on all clips'
+    }
+    case 'render_preview': {
+      return `Render the timeline to ${String(args.name || 'clipforge-render').replace(/\.webm$/i, '')}.webm`
+    }
     case 'generate_voiceover': {
       const text = String(args.text ?? '')
       if (!text.trim()) return null
@@ -508,12 +702,29 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
  * Apply a tool call. Re-validates against current timeline state first — a
  * proposal may have become stale since it was created, in which case it is
  * not applied and an explanation is returned.
+ *
+ * Unless `undoStep: false`, a mutating tool records a single undo snapshot so
+ * every AI edit is reversible exactly like a manual edit.
  */
-export async function applyTool(name: string, args: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
+export interface ApplyToolOptions {
+  /** Set false when the caller already opened an undo transaction. */
+  undoStep?: boolean
+}
+
+export async function applyTool(
+  name: string,
+  args: Record<string, unknown>,
+  opts: ApplyToolOptions = {},
+): Promise<{ ok: boolean; message: string }> {
+  const requestedName = name
+  name = canonicalTool(name)
   const desc = describeTool(name, args)
   if (!desc) return { ok: false, message: 'This action is no longer valid, so it was not applied.' }
 
   const s = useTimelineStore.getState()
+  const mutating =
+    !NON_MUTATING_TOOLS.has(requestedName) && !NON_MUTATING_TOOLS.has(name)
+  if (opts.undoStep !== false && mutating) s.begin()
   switch (name) {
     case 'set_project_ratio': {
       const aspect = String(args.aspect)
@@ -760,6 +971,75 @@ export async function applyTool(name: string, args: Record<string, unknown>): Pr
         return `- [${i.severity}] ${i.message}${action}`
       })
       return { ok: true, message: `Quality check found ${issues.length} issue${issues.length > 1 ? 's' : ''}:\n${lines.join('\n')}` }
+    }
+    case 'add_caption': {
+      const clipName = String(args.clipName ?? '').trim()
+      let targetClip: Clip | null = null
+      for (const t of s.project.tracks) {
+        for (const c of t.clips) {
+          const asset = s.assets.find((a) => a.id === c.assetId)
+          if (!asset || asset.type === 'image') continue
+          if (!clipName || c.name.toLowerCase().includes(clipName.toLowerCase())) {
+            targetClip = c
+            break
+          }
+        }
+        if (targetClip) break
+      }
+      if (!targetClip) {
+        return { ok: false, message: clipName ? `No clip with audio named "${clipName}".` : 'No clip with audio found to caption.' }
+      }
+      const asset = s.assets.find((a) => a.id === targetClip!.assetId)
+      if (!asset) return { ok: false, message: 'Clip asset not found.' }
+      let transcript: StoredTranscript | null | undefined = await getStoredTranscript(asset.id).catch(() => undefined)
+      if (!transcript) {
+        transcript = await transcribeAsset(asset)
+      }
+      if (!transcript) {
+        return { ok: false, message: `Could not transcribe "${targetClip.name}" (audio may be silent or the model could not load).` }
+      }
+      const next = useTimelineStore.getState()
+      if (!next.project.captions?.enabled) next.setCaptions({ enabled: true })
+      return { ok: true, message: `${desc} — captions enabled for "${targetClip.name}"` }
+    }
+    case 'ask_user': {
+      const question = String(args.question ?? '').trim()
+      if (!question) return { ok: false, message: 'Missing question.' }
+      return { ok: true, message: `Question for the user: ${question}` }
+    }
+    case 'review_project': {
+      const review = useTimelineStore.getState()
+      const scenes = await collectTimelineScenes()
+      const issues = checkTimeline(review.project, review.assets, { scenes })
+      if (!issues.length) return { ok: true, message: 'The project looks clean — no improvements needed right now.' }
+      const lines = issues.map((i) => {
+        const action = i.fix.kind !== 'none' ? ` (${i.fix.label})` : ''
+        return `- [${i.severity}] ${i.message}${action}`
+      })
+      return { ok: true, message: `${issues.length} improvement${issues.length > 1 ? 's' : ''} found:\n${lines.join('\n')}` }
+    }
+    case 'analyze_video': {
+      const count = await analyzeProject()
+      return { ok: true, message: count ? `Analysis ready for ${count} clip${count > 1 ? 's' : ''} (transcript, scenes, OCR).` : 'No clips to analyze.' }
+    }
+    case 'render_preview': {
+      const { project, assets } = useTimelineStore.getState()
+      const name = String(args.name || 'clipforge-render').replace(/\.webm$/i, '')
+      const { blob, frames } = await exportProject(project, assets, {
+        width: project.width,
+        height: project.height,
+        fps: project.fps,
+        bitrate: 8_000_000,
+        codec: 'vp9',
+        onProgress: () => {},
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name}.webm`
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
+      return { ok: true, message: `${desc} (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${frames} frames)` }
     }
     default:
       return { ok: false, message: `Unknown action "${name}".` }

@@ -1,12 +1,26 @@
 import * as React from 'react'
-import { Bot, Check, ListChecks, MessageSquare, Send, Settings, Trash2, X, User } from 'lucide-react'
+import { Bot, Check, ListChecks, MessageSquare, Send, Settings, Trash2, User, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import { chatCompletion, getDirectorProvider, getProjectContextSystemPrompt, type ChatMessage } from '@/api/llm/director'
-import { DIRECTOR_TOOLS, applyTool, describeTool, isStagedTool } from '@/api/llm/tools'
+import {
+  DIRECTOR_TOOLS,
+  applyTool,
+  canonicalTool,
+  describeTool,
+  isStagedTool,
+} from '@/api/llm/tools'
 import { buildDirectorContext, collectTimelineScenes } from '@/api/llm/context'
 import { checkTimeline, type QualityIssue } from '@/ai/quality/checker'
+import {
+  applyPlan,
+  normalizePlan,
+  qualityNotes,
+  runQualityReview,
+  type EditPlan,
+} from '@/api/llm/plan'
+import { loadAskedQuestions, rememberAskedQuestion } from '@/api/llm/askedQuestions'
 import { Button } from '@/components/ui/button'
 
 interface UiMessage {
@@ -16,6 +30,7 @@ interface UiMessage {
   tools?: string[]
   proposed?: boolean
   followups?: string[]
+  review?: QualityIssue[] | null
 }
 
 interface Proposal {
@@ -27,21 +42,29 @@ interface Proposal {
   message?: string
 }
 
+interface PendingPlan {
+  plan: EditPlan
+  status: 'pending' | 'applied' | 'failed'
+}
+
 const SUGGESTIONS = [
   'Reframe this project to a vertical Reel (9:16)',
   'Add captions to this video',
   'Remove silent parts',
   'Make this into a 30-second short',
+  'Make this better',
 ]
 
 const FOLLOWUP_SUGGESTIONS: Record<string, string[]> = {
   search_stock_image: ['Add a stock image for the intro', 'Search for background music', 'Add captions'],
   search_music: ['Search for another music track', 'Adjust music volume', 'Add captions'],
   generate_captions: ['Style the captions bold', 'Add a stock image', 'Generate a voiceover'],
+  add_caption: ['Style the captions', 'Add a stock image', 'Generate a voiceover'],
   generate_voiceover: ['Generate a longer voiceover', 'Search for music', 'Add captions'],
   duplicate_clip: ['Duplicate another clip', 'Trim the duplicate', 'Add a transition'],
   generate_transcript: ['Add captions from the transcript', 'Remove silent parts', 'Summarize the content'],
   understand_video: ['Add captions from the transcript', 'Remove silent parts', 'Summarize the content'],
+  review_project: ['Fix all issues', 'Make this into a 30-second short', 'Add captions'],
   default: ['Add captions', 'Search for music', 'Search for a stock image'],
 }
 
@@ -72,12 +95,20 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const [showQuality, setShowQuality] = React.useState(false)
   const [issues, setIssues] = React.useState<QualityIssue[]>([])
   const [checking, setChecking] = React.useState(false)
+  const [plan, setPlan] = React.useState<PendingPlan | null>(null)
+  const [pendingQuestion, setPendingQuestion] = React.useState<string | null>(null)
+  const [questionAnswer, setQuestionAnswer] = React.useState('')
+  const [revising, setRevising] = React.useState(false)
+  const [reviseInput, setReviseInput] = React.useState('')
+  const [askedQuestions, setAskedQuestions] = React.useState<string[]>([])
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const pendingAnswerRef = React.useRef<((answer: string) => void) | null>(null)
 
   const hydrateTimeline = useTimelineStore((s) => s.hydrate)
   const hydrateConfig = useApiConfigStore((s) => s.hydrate)
   const configHydrated = useApiConfigStore((s) => s.hydrated)
   const timelineHydrated = useTimelineStore((s) => s.hydrated)
+  const projectId = useTimelineStore((s) => s.project.id)
 
   React.useEffect(() => {
     void hydrateTimeline()
@@ -85,8 +116,41 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   }, [hydrateTimeline, hydrateConfig])
 
   React.useEffect(() => {
+    if (timelineHydrated) setAskedQuestions(loadAskedQuestions(projectId))
+  }, [timelineHydrated, projectId])
+
+  React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, busy])
+
+  const runQualityCheck = React.useCallback(async () => {
+    setChecking(true)
+    try {
+      const store = useTimelineStore.getState()
+      const scenes = await collectTimelineScenes()
+      setIssues(checkTimeline(store.project, store.assets, { scenes }))
+    } finally {
+      setChecking(false)
+    }
+  }, [])
+
+  /** Prompt the user for the answer to an AI question and resolve with it. */
+  const promptQuestion = React.useCallback((question: string): Promise<string> => {
+    return new Promise((resolve) => {
+      pendingAnswerRef.current = resolve
+      setQuestionAnswer('')
+      setPendingQuestion(question)
+    })
+  }, [])
+
+  const submitAnswer = () => {
+    const answer = questionAnswer.trim()
+    if (!answer || !pendingAnswerRef.current) return
+    const resolve = pendingAnswerRef.current
+    pendingAnswerRef.current = null
+    setPendingQuestion(null)
+    resolve(answer)
+  }
 
   const send = React.useCallback(
     async (text: string) => {
@@ -110,11 +174,10 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           return
         }
 
-        // "Fully Automatic" confirmation level applies proposals immediately; otherwise changes are staged for review.
         const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
         const autoApply = confirmationLevel === 'none'
 
-        const baseSystem = getProjectContextSystemPrompt()
+        const baseSystem = getProjectContextSystemPrompt(askedQuestions)
         let understanding = ''
         try {
           understanding = await buildDirectorContext()
@@ -123,10 +186,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         }
 
         const apiMessages: ChatMessage[] = [
-          {
-            role: 'system',
-            content: understanding ? `${baseSystem}\n\n${understanding}` : baseSystem,
-          },
+          { role: 'system', content: understanding ? `${baseSystem}\n\n${understanding}` : baseSystem },
         ]
         for (const m of messages) {
           apiMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })
@@ -137,59 +197,123 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         const usedTools: string[] = []
         const proposedTools: string[] = []
         let stagedCount = 0
+        let appliedThisTurn = false
+        let reviewIssues: QualityIssue[] | null = null
+        let reviewDone = false
+        let pendingPlan: EditPlan | null = null
+        let planned = false
         let loops = 0
         while (loops < 6) {
+          loops++
           const reply = await chatCompletion(provider, apiMessages, DIRECTOR_TOOLS)
           apiMessages.push(reply)
-          if (reply.tool_calls?.length) {
-            for (const tc of reply.tool_calls) {
-              if (isStagedTool(tc.name)) {
-                if (autoApply) {
-                  const result = await applyTool(tc.name, tc.arguments)
-                  usedTools.push(tc.name)
-                  apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
-                } else if (stagedCount < MAX_PROPOSALS) {
-                  const label = describeTool(tc.name, tc.arguments)
-                  if (label) {
-                    stagedCount++
-                    proposedTools.push(tc.name)
-                    setProposals((prev) => [
-                      ...prev,
-                      { id: crypto.randomUUID(), name: tc.name, args: tc.arguments, label, status: 'pending' },
-                    ])
-                    apiMessages.push({
-                      role: 'tool',
-                      content: `Staged for user review (not yet applied): ${label}`,
-                      tool_call_id: tc.id,
-                    })
-                  } else {
-                    apiMessages.push({
-                      role: 'tool',
-                      content: 'Invalid arguments for that action; do not call it again.',
-                      tool_call_id: tc.id,
-                    })
-                  }
-                } else {
-                  apiMessages.push({
-                    role: 'tool',
-                    content: `Too many pending actions (max ${MAX_PROPOSALS}). The user must approve or discard pending actions before more can be staged.`,
-                    tool_call_id: tc.id,
-                  })
-                }
-              } else {
-                const result = await applyTool(tc.name, tc.arguments)
-                usedTools.push(tc.name)
-                apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
-              }
+          if (!reply.tool_calls?.length) {
+            if (reply.content) {
+              finalText = reply.content
+              break
             }
             loops++
             continue
           }
-          if (reply.content) {
-            finalText = reply.content
-            break
+
+          planned = false
+          let asked = false
+          for (const tc of reply.tool_calls) {
+            const name = canonicalTool(tc.name)
+            if (name === 'plan_edit') {
+              const p = normalizePlan(tc.arguments)
+              if (p) {
+                pendingPlan = p
+                setPlan({ plan: p, status: 'pending' })
+                planned = true
+                apiMessages.push({ role: 'tool', content: `Plan staged for approval: ${p.goal}`, tool_call_id: tc.id })
+              } else {
+                apiMessages.push({
+                  role: 'tool',
+                  content: 'The proposed plan was invalid (unknown tool or bad arguments). Re-plan with valid tool actions.',
+                  tool_call_id: tc.id,
+                })
+              }
+              break
+            } else if (name === 'ask_user') {
+              const q = String(tc.arguments.question ?? '').trim()
+              if (q && !askedQuestions.includes(q)) {
+                const next = rememberAskedQuestion(projectId, q)
+                setAskedQuestions(next)
+                const answer = await promptQuestion(q)
+                apiMessages.push({ role: 'tool', content: `User answered: ${answer}`, tool_call_id: tc.id })
+                asked = true
+              } else {
+                apiMessages.push({
+                  role: 'tool',
+                  content: 'You already asked that question in this project. Make your best guess instead.',
+                  tool_call_id: tc.id,
+                })
+              }
+            } else if (name === 'review_project') {
+              const found = await runQualityReview()
+              setIssues(found)
+              setShowQuality(true)
+              reviewIssues = found
+              reviewDone = true
+              const msg = found.length
+                ? found.map((i) => `- [${i.severity}] ${i.message}${i.fix.kind !== 'none' ? ` (${i.fix.label})` : ''}`).join('\n')
+                : 'The project looks clean — no improvements needed right now.'
+              apiMessages.push({ role: 'tool', content: msg, tool_call_id: tc.id })
+            } else if (isStagedTool(name)) {
+              if (autoApply) {
+                const result = await applyTool(name, tc.arguments)
+                appliedThisTurn = true
+                usedTools.push(name)
+                apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
+              } else if (stagedCount < MAX_PROPOSALS) {
+                const label = describeTool(name, tc.arguments)
+                if (label) {
+                  stagedCount++
+                  proposedTools.push(name)
+                  setProposals((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), name, args: tc.arguments, label, status: 'pending' },
+                  ])
+                  apiMessages.push({
+                    role: 'tool',
+                    content: `Staged for user review (not yet applied): ${label}`,
+                    tool_call_id: tc.id,
+                  })
+                } else {
+                  apiMessages.push({
+                    role: 'tool',
+                    content: 'Invalid arguments for that action; do not call it again.',
+                    tool_call_id: tc.id,
+                  })
+                }
+              } else {
+                apiMessages.push({
+                  role: 'tool',
+                  content: `Too many pending actions (max ${MAX_PROPOSALS}). The user must approve or discard pending actions before more can be staged.`,
+                  tool_call_id: tc.id,
+                })
+              }
+            } else {
+              const result = await applyTool(name, tc.arguments)
+              usedTools.push(name)
+              apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
+            }
           }
+          if (planned) break
+          if (asked) continue
+          if (reviewDone) break
           loops++
+        }
+
+        if (pendingPlan) {
+          finalText = `Here's my plan for "${pendingPlan.goal}" — approve it to apply the edits, or tell me what to change.`
+        }
+        if (reviewDone) {
+          finalText =
+            reviewIssues && reviewIssues.length
+              ? `${reviewIssues.length} improvement${reviewIssues.length > 1 ? 's' : ''} available — use Fix All or review the changes below.`
+              : 'The project looks clean — no improvements needed right now.'
         }
         if (!finalText && usedTools.length) {
           finalText = `Done — applied ${usedTools.join(', ')}.`
@@ -200,16 +324,44 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           } above before it takes effect.`
         }
         if (!finalText) finalText = 'I could not complete that request. Please rephrase it.'
-        const followups = suggestFollowups(usedTools.length ? usedTools : proposedTools)
+
+        let notes: string[] = []
+        if (appliedThisTurn) {
+          const found = await runQualityReview()
+          setIssues(found)
+          notes = qualityNotes(found)
+          if (notes.length) {
+            finalText += `\n\nQuality notes after my edits:\n${notes.map((n) => `- ${n}`).join('\n')}`
+          }
+        }
+        if (reviewIssues && reviewIssues.length) {
+          finalText += `\n\n${reviewIssues.length} improvement${reviewIssues.length > 1 ? 's' : ''} available — use Fix All or review the changes below.`
+        }
+
+        const isPlan = pendingPlan !== null
+        const followups = suggestFollowups(
+          pendingPlan
+            ? pendingPlan.actions.map((a) => a.tool)
+            : usedTools.length
+              ? usedTools
+              : proposedTools,
+        )
         setMessages((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
             role: 'ai',
             text: finalText,
-            tools: proposedTools.length ? proposedTools : usedTools.length ? usedTools : undefined,
-            proposed: !autoApply && proposedTools.length > 0,
+            tools: pendingPlan
+              ? pendingPlan.actions.map((a) => a.tool)
+              : proposedTools.length
+                ? proposedTools
+                : usedTools.length
+                  ? usedTools
+                  : undefined,
+            proposed: isPlan || (!autoApply && proposedTools.length > 0),
             followups,
+            review: reviewIssues,
           },
         ])
       } catch (err) {
@@ -225,7 +377,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         setBusy(false)
       }
     },
-    [busy, messages],
+    [busy, messages, askedQuestions, projectId, promptQuestion],
   )
 
   React.useEffect(() => {
@@ -243,10 +395,11 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
     const store = useTimelineStore.getState()
     store.withTransaction(() => {
       void (async () => {
-        const result = await applyTool(target.name, target.args)
+        const result = await applyTool(target.name, target.args, { undoStep: false })
         setProposals((prev) =>
           prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
         )
+        void refreshQualityAfterEdit()
       })()
     })
   }
@@ -258,7 +411,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
     store.withTransaction(() => {
       for (const target of pending) {
         void (async () => {
-          const result = await applyTool(target.name, target.args)
+          const result = await applyTool(target.name, target.args, { undoStep: false })
           setProposals((prev) =>
             prev.map((p) =>
               p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
@@ -266,7 +419,66 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           )
         })()
       }
+      void refreshQualityAfterEdit()
     })
+  }
+
+  const refreshQualityAfterEdit = React.useCallback(async () => {
+    const found = await runQualityReview()
+    setIssues(found)
+    if (found.length) setShowQuality(true)
+  }, [])
+
+  const approvePlan = async () => {
+    if (!plan || plan.status !== 'pending') return
+    setPlan({ ...plan, status: 'applied' })
+    try {
+      const result = await applyPlan(plan.plan)
+      let text = `Applied ${result.applied.length} change${result.applied.length !== 1 ? 's' : ''}:`
+      text +=
+        '\n' +
+        result.applied.map((a) => `- ${a.label}${a.reason ? ` — ${a.reason}` : ''}`).join('\n')
+      if (result.skipped.length) {
+        text += `\nSkipped ${result.skipped.length} (no longer valid): ${result.skipped.map((s) => s.label).join(', ')}`
+      }
+      const found = await runQualityReview()
+      setIssues(found)
+      const notes = qualityNotes(found)
+      if (notes.length) {
+        text += `\n\nQuality notes after my edits:\n${notes.map((n) => `- ${n}`).join('\n')}`
+      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text,
+          tools: plan.plan.actions.map((a) => a.tool),
+        },
+      ])
+    } catch (err) {
+      setPlan({ ...plan, status: 'failed' })
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: `Applying the plan failed: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      ])
+    }
+  }
+
+  const startRevise = () => {
+    setRevising(true)
+    setReviseInput('')
+  }
+
+  const submitRevise = () => {
+    const revised = reviseInput.trim()
+    setRevising(false)
+    setPlan(null)
+    if (revised) void send(revised)
   }
 
   const discardOne = (id: string) => {
@@ -284,17 +496,6 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const pendingCount = proposals.filter((p) => p.status === 'pending').length
   const resolvedCount = proposals.length - pendingCount
 
-  const runQualityCheck = React.useCallback(async () => {
-    setChecking(true)
-    try {
-      const store = useTimelineStore.getState()
-      const scenes = await collectTimelineScenes()
-      setIssues(checkTimeline(store.project, store.assets, { scenes }))
-    } finally {
-      setChecking(false)
-    }
-  }, [])
-
   const applyIssueFix = (issue: QualityIssue) => {
     if (issue.fix.kind === 'none') return
     const store = useTimelineStore.getState()
@@ -310,7 +511,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         if (Math.abs(delta) >= 0.01) store.moveClip(clip.id, delta)
       }
     })
-    void runQualityCheck()
+    void refreshQualityAfterEdit()
   }
 
   const applyAllFixes = () => {
@@ -331,7 +532,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         }
       }
     })
-    void runQualityCheck()
+    void refreshQualityAfterEdit()
   }
 
   const fixableCount = issues.filter((i) => i.fix.kind !== 'none').length
@@ -396,6 +597,66 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
               </div>
             )}
 
+            {plan && plan.status === 'pending' && (
+              <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400">
+                  <Bot className="size-3.5" />
+                  Proposed plan — nothing has been changed yet
+                </div>
+                <p className="text-sm font-medium">{plan.plan.goal}</p>
+                {plan.plan.scenesAffected.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    Affects: {plan.plan.scenesAffected.join(', ')}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {plan.plan.actions.map((a, i) => (
+                    <div key={i} className="flex gap-2 rounded-md border border-violet-500/20 bg-background/60 px-2 py-1.5 text-xs">
+                      <span className="mt-0.5 size-4 shrink-0 rounded-full bg-violet-600/15 text-center text-[10px] leading-4 text-violet-600 dark:text-violet-400">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{describeTool(a.tool, a.arguments)}</div>
+                        {a.reason && <div className="text-muted-foreground">Why: {a.reason}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {revising ? (
+                  <div className="space-y-1.5">
+                    <input
+                      autoFocus
+                      value={reviseInput}
+                      onChange={(e) => setReviseInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitRevise()
+                      }}
+                      placeholder="What should change? (e.g. 'instead, trim the start')"
+                      className="w-full rounded-lg border bg-background px-2 py-1.5 text-xs outline-none focus:border-violet-500"
+                    />
+                    <div className="flex gap-1.5">
+                      <Button type="button" size="sm" className="h-7 flex-1 text-xs" onClick={submitRevise}>
+                        Send revision
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setRevising(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <Button type="button" size="sm" className="h-7 flex-1 text-xs" onClick={() => void approvePlan()}>
+                      <Check className="size-3" />
+                      Approve plan
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={startRevise}>
+                      Revise
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {messages.map((m) => (
               <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div
@@ -418,6 +679,17 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                       {m.proposed ? 'Proposed' : 'Used'}: {m.tools.join(', ')}
                     </div>
                   )}
+                  {m.review && m.review.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      <Button type="button" size="sm" className="h-6 px-2 text-[11px]" onClick={applyAllFixes}>
+                        <Check className="size-3" />
+                        Fix All ({m.review.filter((i) => i.fix.kind !== 'none').length})
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => setShowQuality(true)}>
+                        Review Changes
+                      </Button>
+                    </div>
+                  )}
                   {m.followups && m.followups.length > 0 && (
                     <div className="flex flex-wrap justify-start gap-1 pt-0.5">
                       {m.followups.map((f) => (
@@ -436,6 +708,28 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                 </div>
               </div>
             ))}
+
+            {pendingQuestion && (
+              <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
+                <p className="text-xs font-semibold text-violet-600 dark:text-violet-400">The director needs to know:</p>
+                <p className="text-sm">{pendingQuestion}</p>
+                <div className="flex gap-1.5">
+                  <input
+                    autoFocus
+                    value={questionAnswer}
+                    onChange={(e) => setQuestionAnswer(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitAnswer()
+                    }}
+                    placeholder="Type your answer…"
+                    className="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus:border-violet-500"
+                  />
+                  <Button size="sm" className="h-8" onClick={submitAnswer} disabled={!questionAnswer.trim()} aria-label="Send answer">
+                    <Send className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {busy && (
               <div className="flex gap-2">
