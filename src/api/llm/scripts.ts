@@ -3,6 +3,8 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { projectDuration } from '@/engine/types'
 import type { ProjectScript, ScriptScene } from '@/stores/scriptStore'
 
+export type { ProjectScript, ScriptScene }
+
 export const WORDS_PER_SECOND = 2.5
 export const HOOK_SECONDS = 4
 export const CTA_SECONDS = 4

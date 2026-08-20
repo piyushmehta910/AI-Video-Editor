@@ -18,11 +18,14 @@ import { useScriptStore, type ProjectScript } from '@/stores/scriptStore'
 import { generateMotionCode } from '@/api/llm/motionGenerator'
 import { renderMotionClip } from '@/engine/motion/sandbox'
 import { generateSlides, renderSlidePng, type SlideTheme } from '@/api/llm/slides'
+import type { AvatarRole } from '@/api/llm/avatarGenerator'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 import { analyzeProject } from '@/api/llm/analysis'
 import { exportProject } from '@/engine/export/exportVideo'
+import { computeReframingKeyframes } from '@/engine/reframing'
+import { renderFramesToVideo } from '@/hooks/useLipSync'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -572,6 +575,106 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
   {
     type: 'function',
     function: {
+      name: 'generate_avatar_intro',
+      description: 'Generate a lip-synced avatar intro for a topic. Creates a talking-head video with generated script + TTS voiceover + lip-sync, and inserts it at the start of the timeline. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'The topic the intro must introduce.' },
+          durationSeconds: { type: 'number', description: 'Target duration in seconds (default 8).' },
+          language: { type: 'string', description: 'Optional narration language.' },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_avatar_outro',
+      description: 'Generate a lip-synced avatar outro for a topic. Creates a talking-head video with generated script + TTS voiceover + lip-sync, and inserts it at the end of the timeline. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'The topic the outro must conclude.' },
+          durationSeconds: { type: 'number', description: 'Target duration in seconds (default 6).' },
+          language: { type: 'string', description: 'Optional narration language.' },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_avatar_presenter',
+      description: 'Generate a lip-synced avatar presenter segment. Inserts at the playhead position. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'The topic the presenter must explain.' },
+          durationSeconds: { type: 'number', description: 'Target duration in seconds (default 12).' },
+          language: { type: 'string', description: 'Optional narration language.' },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_avatar_narrator',
+      description: 'Generate a lip-synced avatar narrator segment (documentary style). Inserts at the playhead position. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'The topic the narrator must describe.' },
+          durationSeconds: { type: 'number', description: 'Target duration in seconds (default 15).' },
+          language: { type: 'string', description: 'Optional narration language.' },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'smart_reframe',
+      description: 'Analyze a clip and compute dynamic crop keyframes to reframe it for a target aspect ratio (e.g., 16:9 → 9:16). Uses face/subject tracking to keep the subject centered. Stores crop keyframes on the clip for smooth rendering. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to reframe.' },
+          targetAspect: { type: 'string', enum: ['9:16', '16:9', '1:1', '4:5', '21:9'], description: 'Target aspect ratio (default 9:16).' },
+          followStrength: { type: 'number', description: 'How aggressively to follow the subject (0-1, default 0.8).' },
+          margin: { type: 'number', description: 'Margin around subject as fraction of crop size (default 0.15).' },
+          smoothing: { type: 'number', description: 'Crop movement smoothing factor (0-1, default 0.15).' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'remove_background',
+      description: 'Remove the background from a video clip using AI segmentation. Replaces background with transparency, blur, solid color, or an image. Runs in-browser using ONNX model. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The clip name to remove background from.' },
+          backgroundType: { type: 'string', enum: ['transparent', 'blur', 'color', 'image'], description: 'What to replace the background with (default transparent).' },
+          backgroundColor: { type: 'string', description: 'Hex color for solid background (e.g., #ffffff).' },
+          backgroundBlur: { type: 'number', description: 'Blur radius for blurred background (default 20).' },
+          backgroundImageUrl: { type: 'string', description: 'URL of image to use as background.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'add_text',
       description: 'Add a text overlay / title card to the timeline. Creates a text clip with the given content. Alias for add_text_overlay. Staged for user review.',
       parameters: {
@@ -639,6 +742,12 @@ const STAGED_TOOLS = new Set<string>([
   'script_cta',
   'generate_motion_graphics',
   'generate_slides',
+  'generate_avatar_intro',
+  'generate_avatar_outro',
+  'generate_avatar_presenter',
+  'generate_avatar_narrator',
+  'smart_reframe',
+  'remove_background',
 ])
 
 /** Tools that never mutate timeline state and therefore need no undo snapshot. */
@@ -834,6 +943,42 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       if (!topic.trim()) return null
       const count = Number(args.count) || 0
       return `Generate a ${count > 0 ? `${count}-slide ` : ''}deck for "${topic}"`
+    }
+    case 'generate_avatar_intro': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return null
+      const dur = Number(args.durationSeconds) || 8
+      return `Generate avatar intro for "${topic}" (${dur}s)`
+    }
+    case 'generate_avatar_outro': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return null
+      const dur = Number(args.durationSeconds) || 6
+      return `Generate avatar outro for "${topic}" (${dur}s)`
+    }
+    case 'generate_avatar_presenter': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return null
+      const dur = Number(args.durationSeconds) || 12
+      return `Generate avatar presenter for "${topic}" (${dur}s)`
+    }
+    case 'generate_avatar_narrator': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return null
+      const dur = Number(args.durationSeconds) || 15
+      return `Generate avatar narrator for "${topic}" (${dur}s)`
+    }
+    case 'smart_reframe': {
+      const assetName = String(args.assetName ?? '')
+      if (!assetName.trim()) return null
+      const aspect = String(args.targetAspect ?? '9:16')
+      return `Smart reframe "${assetName}" to ${aspect}`
+    }
+    case 'remove_background': {
+      const assetName = String(args.assetName ?? '')
+      if (!assetName.trim()) return null
+      const bgType = String(args.backgroundType ?? 'transparent')
+      return `Remove background from "${assetName}" (${bgType})`
     }
     case 'ask_user': {
       const question = String(args.question ?? '').trim()
@@ -1311,6 +1456,98 @@ export async function applyTool(
         return { ok: false, message: `Slide generation failed: ${err instanceof Error ? err.message : String(err)}` }
       }
     }
+    case 'generate_avatar_intro':
+    case 'generate_avatar_outro':
+    case 'generate_avatar_presenter':
+    case 'generate_avatar_narrator': {
+      const toolName = name
+      const role = toolName.replace('generate_avatar_', '') as AvatarRole
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return { ok: false, message: `No topic provided for avatar ${role}.` }
+      const durationSeconds = Math.max(1, Number(args.durationSeconds) || (role === 'intro' ? 8 : role === 'outro' ? 6 : role === 'presenter' ? 12 : 15))
+      const language = args.language != null ? String(args.language) : undefined
+      try {
+        const { generateAvatarVideo } = await import('@/api/llm/avatarGenerator')
+        const result = await generateAvatarVideo({ role, topic, durationSeconds, language })
+        const file = new File([result.videoBlob], `avatar-${role}-${Date.now()}.webm`, { type: 'video/webm' })
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Avatar video could not be imported.' }
+        const videoTrack = s.project.tracks.find((t) => t.type === 'video')
+        if (!videoTrack) return { ok: false, message: 'No video track available.' }
+        let insertTime = 0
+        if (role === 'intro') {
+          insertTime = 0
+        } else if (role === 'outro') {
+          const lastClip = s.project.tracks.flatMap((t) => t.clips).sort((a, b) => b.startTime - a.startTime)[0]
+          insertTime = lastClip ? lastClip.startTime + lastClip.duration : 0
+        } else {
+          insertTime = s.playhead ?? 0
+        }
+        const newClip = s.addClip(asset.id, videoTrack.id, insertTime)
+        if (newClip) {
+          s.updateClip(newClip.id, { duration: result.duration, sourceEnd: result.duration, avatarRole: role })
+        }
+        return { ok: true, message: `${desc} — generated ${role} avatar (${result.duration.toFixed(1)}s) and inserted at ${insertTime.toFixed(1)}s.` }
+      } catch (err) {
+        return { ok: false, message: `Avatar ${role} generation failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'smart_reframe': {
+      const assetName = String(args.assetName ?? '')
+      if (!assetName.trim()) return { ok: false, message: 'No clip name provided for smart reframe.' }
+      const targetAspect = String(args.targetAspect ?? '9:16')
+      const followStrength = Math.max(0, Math.min(1, Number(args.followStrength) || 0.8))
+      const margin = Math.max(0, Math.min(1, Number(args.margin) || 0.15))
+      const smoothing = Math.max(0, Math.min(1, Number(args.smoothing) || 0.15))
+      try {
+        const clip = findClip(assetName)
+        if (!clip) return { ok: false, message: `Clip "${assetName}" not found.` }
+        const asset = s.assets.find((a) => a.id === clip.assetId)
+        if (!asset || asset.type !== 'video') return { ok: false, message: 'Smart reframe only works on video clips.' }
+        // Compute crop keyframes by analyzing the video
+        const keyframes = await computeReframingKeyframes({ filePath: asset.filePath, duration: asset.duration ?? 0 }, targetAspect, { targetAspect, followStrength, margin, smoothing: 1 - smoothing })
+        s.updateClip(clip.id, { reframing: { enabled: true, targetAspect, followStrength, margin, smoothing, keyframes } })
+        return { ok: true, message: `${desc} — computed ${keyframes.length} crop keyframes for "${assetName}" reframe to ${targetAspect}.` }
+      } catch (err) {
+        return { ok: false, message: `Smart reframe failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'remove_background': {
+      const assetName = String(args.assetName ?? '')
+      if (!assetName.trim()) return { ok: false, message: 'No clip name provided for background removal.' }
+      const backgroundTypeRaw = String(args.backgroundType ?? 'transparent')
+      const backgroundType = (['transparent', 'blur', 'color', 'image'] as const).includes(backgroundTypeRaw as any)
+        ? backgroundTypeRaw as 'transparent' | 'blur' | 'color' | 'image'
+        : 'transparent'
+      const backgroundColor = args.backgroundColor != null ? String(args.backgroundColor) : undefined
+      const backgroundBlur = Math.max(0, Number(args.backgroundBlur) || 20)
+      const backgroundImageUrl = args.backgroundImageUrl != null ? String(args.backgroundImageUrl) : undefined
+      try {
+        const clip = findClip(assetName)
+        if (!clip) return { ok: false, message: `Clip "${assetName}" not found.` }
+        const asset = s.assets.find((a) => a.id === clip.assetId)
+        if (!asset || asset.type !== 'video') return { ok: false, message: 'Background removal only works on video clips.' }
+      // Process background removal using engine directly
+      const { BackgroundRemovalEngine } = await import('@/engine/background-removal')
+      const engine = new BackgroundRemovalEngine({ modelUrl: '/models/modnet.onnx', inputSize: [512, 512] })
+      await engine.initialize()
+      const frames = await extractFramesFromAsset(asset)
+      const resultFrames = await engine.process(frames, backgroundType, backgroundColor ?? backgroundImageUrl, backgroundBlur)
+      const outputBlob = await renderFramesToVideo(resultFrames, 30)
+      const file = new File([outputBlob], `bg-removed-${Date.now()}.webm`, { type: 'video/webm' })
+      const imported = await s.importFiles([file])
+      const newAsset = imported.imported[0]
+      if (!newAsset) return { ok: false, message: 'Processed video could not be imported.' }
+      const videoTrack = s.project.tracks.find((t) => t.type === 'video')
+      if (!videoTrack) return { ok: false, message: 'No video track available.' }
+      const newClip = s.addClip(newAsset.id, videoTrack.id, clip.startTime)
+      if (newClip) s.updateClip(newClip.id, { duration: frames.length / 30, sourceEnd: frames.length / 30 })
+      return { ok: true, message: `${desc} — removed background from "${assetName}" (${backgroundType}).` }
+      } catch (err) {
+        return { ok: false, message: `Background removal failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
     case 'ask_user': {
       const question = String(args.question ?? '').trim()
       if (!question) return { ok: false, message: 'Missing question.' }
@@ -1353,4 +1590,42 @@ export async function applyTool(
     default:
       return { ok: false, message: `Unknown action "${name}".` }
   }
+}
+
+async function extractFramesFromAsset(asset: Asset): Promise<ImageData[]> {
+  const { readMediaFile } = await import('@/engine/storage/opfs')
+  const blob = await readMediaFile(asset.filePath)
+  const url = URL.createObjectURL(blob)
+  const video = document.createElement('video')
+  video.preload = 'metadata'
+  video.muted = true
+  video.playsInline = true
+  video.crossOrigin = 'anonymous'
+  video.src = url
+  await new Promise<void>((resolve, reject) => {
+    video.onloadedmetadata = () => resolve()
+    video.onerror = () => reject(new Error('Failed to load video'))
+    setTimeout(() => reject(new Error('Video load timeout')), 10000)
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')!
+  const frames: ImageData[] = []
+  const duration = video.duration
+  const frameCount = Math.floor(duration * 30)
+  const step = duration / frameCount
+  for (let i = 0; i < frameCount; i++) {
+    video.currentTime = i * step
+    await new Promise<void>((resolve) => {
+      video.onseeked = () => {
+        ctx.drawImage(video, 0, 0)
+        frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
+        video.onseeked = null
+        resolve()
+      }
+    })
+  }
+  URL.revokeObjectURL(url)
+  return frames
 }

@@ -166,6 +166,18 @@ export interface Clip {
   text?: TextOverlay
   /** Camera animation rig for 3D model clips. */
   modelRig?: CameraRig
+  /** Role of avatar clip for automated placement and styling. */
+  avatarRole?: 'intro' | 'outro' | 'presenter' | 'narrator'
+  /** Smart reframing configuration for aspect-ratio changes. */
+  reframing?: {
+    enabled: boolean
+    targetAspect: string
+    followStrength?: number
+    margin?: number
+    smoothing?: number
+    /** Computed crop keyframes for dynamic reframing. */
+    keyframes?: Array<{ time: number; crop: { x: number; y: number; width: number; height: number } }>
+  }
 }
 
 export interface Track {

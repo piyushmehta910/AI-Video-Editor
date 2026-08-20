@@ -1,6 +1,7 @@
 import type { Asset, Clip, Project, TextAnimation } from '@/engine/types'
 import { effectFilter, effectVignette, transitionAlpha } from './filters'
 import { drawCaptions, type CaptionRender } from '@/engine/captions/render'
+import { type CropWindow, type CropKeyframe } from '@/engine/reframing'
 
 export interface CompositeMedia {
   /** Return a drawable source for a video asset positioned at `srcTime`, or null if not ready. */
@@ -45,6 +46,27 @@ function easeOutBounce(t: number): number {
   if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75
   if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375
   return n1 * (t -= 2.625 / d1) * t + 0.984375
+}
+
+/** Interpolate crop window from keyframes at a given time. */
+function interpolateCrop(keyframes: CropKeyframe[] | undefined, time: number): CropWindow | null {
+  if (!keyframes?.length) return null
+  if (keyframes.length === 1) return keyframes[0].crop
+  // Find the two keyframes that bracket the time
+  let i = 0
+  while (i < keyframes.length - 1 && keyframes[i + 1].time <= time) i++
+  if (i === keyframes.length - 1) return keyframes[i].crop
+  const k0 = keyframes[i]
+  const k1 = keyframes[i + 1]
+  const t = (time - k0.time) / (k1.time - k0.time)
+  const clampedT = Math.max(0, Math.min(1, t))
+  // Linear interpolation
+  return {
+    x: k0.crop.x + (k1.crop.x - k0.crop.x) * clampedT,
+    y: k0.crop.y + (k1.crop.y - k0.crop.y) * clampedT,
+    width: k0.crop.width + (k1.crop.width - k0.crop.width) * clampedT,
+    height: k0.crop.height + (k1.crop.height - k0.crop.height) * clampedT,
+  }
 }
 
 export interface TextAnimationState {
@@ -165,8 +187,16 @@ export async function compositeFrame(
       if (source) {
         const { w: sw, h: sh } = sourceSize(source)
         if (sw > 0 && sh > 0) {
-          const scale = Math.max(w / sw, h / sh)
-          ctx.drawImage(source, (-sw * scale) / 2, (-sh * scale) / 2, sw * scale, sh * scale)
+          // Check for smart reframing crop keyframes
+          const crop = clip.reframing?.enabled ? interpolateCrop(clip.reframing.keyframes, srcTime) : null
+          if (crop) {
+            // Draw with smart reframing crop
+            ctx.drawImage(source, crop.x, crop.y, crop.width, crop.height, -w / 2, -h / 2, w, h)
+          } else {
+            // Standard center-crop (cover fit)
+            const scale = Math.max(w / sw, h / sh)
+            ctx.drawImage(source, (-sw * scale) / 2, (-sh * scale) / 2, sw * scale, sh * scale)
+          }
         }
       } else if (media.thumbnail) {
         const thumb = await media.thumbnail(asset)
