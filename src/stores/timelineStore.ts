@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Asset, Clip, Project, Track } from '@/engine/types'
+import type { Asset, CaptionsConfig, Clip, Project, Track } from '@/engine/types'
 import { newProject, projectDuration, defaultCameraRig } from '@/engine/types'
 import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
@@ -8,6 +8,9 @@ import { detectMediaType } from '@/engine/storage/mediaType'
 import { generateProxy } from '@/engine/media/proxy'
 import { generateFilmstrip } from '@/engine/media/filmstrip'
 import { generateWaveform } from '@/engine/media/waveform'
+import { getStoredOcr } from '@/engine/analysis/ocr'
+import { getStoredScenes, getStoredTranscript } from '@/api/llm/understanding'
+import type { StoredOcr, StoredScenes, StoredTranscript } from '@/engine/analysis/types'
 
 const HISTORY_LIMIT = 200
 let transactionDepth = 0
@@ -24,11 +27,21 @@ export interface TimelineState {
   past: Project[]
   future: Project[]
 
+  /** Per-asset local intelligence cache, mirrored from IndexedDB into memory. */
+  transcripts: Record<string, StoredTranscript>
+  scenes: Record<string, StoredScenes>
+  ocr: Record<string, StoredOcr>
+
   hydrate: () => Promise<void>
   save: () => Promise<void>
 
   importFiles: (files: File[]) => Promise<{ imported: Asset[]; errors: string[] }>
   deleteAsset: (assetId: string) => Promise<void>
+
+  setTranscript: (t: StoredTranscript) => void
+  setScenes: (s: StoredScenes) => void
+  setOcr: (o: StoredOcr) => void
+  setCaptions: (patch: Partial<CaptionsConfig>) => void
 
   begin: () => void
   undo: () => void
@@ -105,6 +118,9 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     clipboard: [],
     past: [],
     future: [],
+    transcripts: {},
+    scenes: {},
+    ocr: {},
 
     hydrate: async () => {
       try {
@@ -112,9 +128,28 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
           getAllRecords<Asset>('assets'),
           getRecord<Project>('projects', 'active'),
         ])
+        const sorted = assets.sort((a, b) => b.importedAt - a.importedAt)
+        const transcripts: Record<string, StoredTranscript> = {}
+        const scenes: Record<string, StoredScenes> = {}
+        const ocr: Record<string, StoredOcr> = {}
+        await Promise.all(
+          sorted.map(async (asset) => {
+            const [t, s, o] = await Promise.all([
+              getStoredTranscript(asset.id),
+              getStoredScenes(asset.id),
+              getStoredOcr(asset.id),
+            ])
+            if (t) transcripts[asset.id] = t
+            if (s) scenes[asset.id] = s
+            if (o) ocr[asset.id] = o
+          }),
+        )
         set({
-          assets: assets.sort((a, b) => b.importedAt - a.importedAt),
+          assets: sorted,
           project: project ?? newProject(),
+          transcripts,
+          scenes,
+          ocr,
           hydrated: true,
         })
       } catch (err) {
@@ -280,6 +315,25 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     resetProject: () => {
       set({ project: newProject(), past: [], future: [], selection: { clipIds: [], trackId: null }, playhead: 0 })
       scheduleSave()
+    },
+
+    setTranscript: (t) => {
+      set((state) => ({ transcripts: { ...state.transcripts, [t.assetId]: t } }))
+    },
+
+    setScenes: (s) => {
+      set((state) => ({ scenes: { ...state.scenes, [s.assetId]: s } }))
+    },
+
+    setOcr: (o) => {
+      set((state) => ({ ocr: { ...state.ocr, [o.assetId]: o } }))
+    },
+
+    setCaptions: (patch) => {
+      mutate((p) => ({
+        ...p,
+        captions: { ...(p.captions ?? newProject().captions!), ...patch },
+      }))
     },
 
     addClip: (assetId, trackId, startTime) => {

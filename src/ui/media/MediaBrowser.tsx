@@ -211,29 +211,58 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
 function AnalyzeButton({ asset }: { asset: Asset }) {
   const [state, setState] = React.useState<'idle' | 'running' | 'done'>('idle')
   const [progress, setProgress] = React.useState(0)
+  const [stage, setStage] = React.useState('')
+  const abortRef = React.useRef<AbortController | null>(null)
 
   const run = async () => {
     if (state === 'running') return
+    const abort = new AbortController()
+    abortRef.current = abort
     setState('running')
     setProgress(0)
+    setStage('starting…')
     try {
       await analyzeAsset(asset, {
-        onProgress: (p) => setProgress(Math.round(p.progress * 100)),
+        signal: abort.signal,
+        onProgress: (p) => {
+          setStage(p.stage)
+          setProgress(Math.round(p.progress * 100))
+        },
       })
       setState('done')
       window.setTimeout(() => setState('idle'), 4000)
-    } catch {
-      setState('idle')
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setState('idle')
+      } else {
+        setState('idle')
+      }
     }
+  }
+
+  const cancel = () => {
+    abortRef.current?.abort()
+    setState('idle')
+    setProgress(0)
   }
 
   if (state === 'running') {
     return (
       <div className="ml-auto flex flex-col items-end gap-0.5" title={`Analyzing ${asset.name}… ${progress}%`}>
-        <span className="text-[10px] tabular-nums">{progress}%</span>
+        <span className="text-[10px] tabular-nums capitalize">{stage} {progress}%</span>
         <div className="bg-muted h-1 w-10 overflow-hidden rounded-full">
           <div className="bg-violet-500 h-full rounded-full transition-[width]" style={{ width: `${progress}%` }} />
         </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            cancel()
+          }}
+          className="text-destructive text-[9px] underline hover:no-underline"
+          title="Cancel analysis"
+        >
+          Cancel
+        </button>
       </div>
     )
   }
@@ -247,7 +276,7 @@ function AnalyzeButton({ asset }: { asset: Asset }) {
         e.stopPropagation()
         void run()
       }}
-      title={state === 'done' ? 'Analyzed — transcript + scenes ready' : `Analyze ${asset.name} (transcript + scenes)`}
+      title={state === 'done' ? 'Analyzed — transcript + scenes + captions ready' : `Analyze ${asset.name} (transcript + scenes + captions)`}
     >
       {state === 'done' ? <Check className="size-3" /> : <Scan className="size-3" />}
     </Button>

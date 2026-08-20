@@ -2,6 +2,8 @@ import * as React from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { compositeFrame } from '@/engine/render/composite'
+import { makeCaptionsProvider } from '@/engine/captions/render'
+import { assetTimeAt, topmostVideoClip } from '@/engine/captions/captions'
 import type { Asset, Clip, Track } from '@/engine/types'
 import { defaultCameraRig } from '@/engine/types'
 
@@ -211,7 +213,32 @@ export function usePlayback() {
             height: size.height,
           })
         },
+        captions: makeCaptionsProvider(project),
       })
+
+      // Preview-only overlay: draw detected protected regions so the user can
+      // see what the captions layer is avoiding.
+      const captionsCfg = project.captions
+      if (captionsCfg?.showProtectedRegions) {
+        const active = topmostVideoClip(project, assets, time)
+        if (active) {
+          const assetTime = assetTimeAt(active.clip, time)
+          const regions = storeRef.current.ocr[active.asset.id]?.regions ?? []
+          ctx.font = '11px monospace'
+          for (const r of regions) {
+            if (assetTime < r.start || assetTime > r.end) continue
+            const x = r.x * project.width
+            const y = r.y * project.height
+            const bw = r.w * project.width
+            const bh = r.h * project.height
+            ctx.strokeStyle = 'rgba(255,70,70,0.9)'
+            ctx.lineWidth = 2
+            ctx.strokeRect(x, y, bw, bh)
+            ctx.fillStyle = 'rgba(255,70,70,0.9)'
+            ctx.fillText(r.text.slice(0, 40), x + 2, Math.max(12, y - 4))
+          }
+        }
+      }
     },
     [acquireVideo, loadImage, loadThumbnail],
   )

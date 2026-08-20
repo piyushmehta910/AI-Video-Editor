@@ -2,25 +2,10 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset } from '@/engine/types'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { getRecord, putRecord } from '@/engine/storage/db'
-import type { TranscriptionResult, TranscriptionWord, WhisperConfig } from '@/engine/captions/whisper-engine'
-import type { Scene } from '@/engine/analysis/scenes'
+import type { TranscriptionResult, WhisperConfig } from '@/engine/captions/whisper-engine'
+import type { StoredOcr, StoredScenes, StoredTranscript } from '@/engine/analysis/types'
 
-export interface StoredTranscript {
-  assetId: string
-  text: string
-  segments: Array<{ start: number; end: number; text: string }>
-  words?: TranscriptionWord[]
-  sentences: Array<{ start: number; end: number; text: string }>
-  language: string
-  updatedAt: number
-}
-
-export interface StoredScenes {
-  assetId: string
-  duration: number
-  scenes: Scene[]
-  updatedAt: number
-}
+export type { StoredOcr, StoredScenes, StoredTranscript } from '@/engine/analysis/types'
 
 const DEFAULT_WHISPER: WhisperConfig = {
   modelId: 'Xenova/whisper-base',
@@ -46,102 +31,113 @@ export async function storeScenes(s: StoredScenes): Promise<void> {
   await putRecord('settings', { key: `scenes:${s.assetId}`, ...s })
 }
 
+export async function getStoredOcr(assetId: string): Promise<StoredOcr | undefined> {
+  return getRecord<StoredOcr>('settings', `ocr:${assetId}`)
+}
+
+export async function storeOcr(o: StoredOcr): Promise<void> {
+  await putRecord('settings', { key: `ocr:${o.assetId}`, ...o })
+}
+
 function makeWhisperWorker(): Worker {
   return new Worker(new URL('@/engine/captions/captions-worker.ts?worker', import.meta.url), { type: 'module' })
 }
 
-function initWorker(worker: Worker, config: WhisperConfig): Promise<void> {
+function initWorker(worker: Worker, config: WhisperConfig, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
+    const abort = () => {
+      worker.terminate()
+      cleanup()
+      reject(new DOMException('Transcription aborted', 'AbortError'))
+    }
+    const cleanup = () => signal?.removeEventListener('abort', abort)
     const handler = (e: MessageEvent) => {
       if (e.data.type === 'init') {
         worker.removeEventListener('message', handler)
+        cleanup()
         if (e.data.payload?.success) resolve()
         else reject(new Error('Whisper init failed'))
       }
     }
+    signal?.addEventListener('abort', abort, { once: true })
     worker.addEventListener('message', handler)
+    if (signal?.aborted) {
+      abort()
+      return
+    }
     worker.postMessage({ type: 'init', config })
   })
 }
 
-function transcribeWithWorker(worker: Worker, audioBuffer: Float32Array, sampleRate: number): Promise<TranscriptionResult> {
+function transcribeWithWorker(
+  worker: Worker,
+  audioBuffer: Float32Array,
+  sampleRate: number,
+  onProgress?: (p: number) => void,
+  signal?: AbortSignal,
+): Promise<TranscriptionResult> {
   return new Promise((resolve, reject) => {
+    const abort = () => {
+      worker.postMessage({ type: 'cancel' })
+      worker.terminate()
+      cleanup()
+      reject(new DOMException('Transcription aborted', 'AbortError'))
+    }
+    const cleanup = () => signal?.removeEventListener('abort', abort)
     const handler = (e: MessageEvent) => {
-      if (e.data.type === 'result') {
-        worker.removeEventListener('message', handler)
-        resolve(e.data.result)
-      } else if (e.data.type === 'error') {
-        worker.removeEventListener('message', handler)
-        reject(new Error(e.data.error))
+      switch (e.data.type) {
+        case 'progress':
+          onProgress?.(e.data.progress as number)
+          break
+        case 'result':
+          worker.removeEventListener('message', handler)
+          cleanup()
+          resolve(e.data.result as TranscriptionResult)
+          break
+        case 'error':
+          worker.removeEventListener('message', handler)
+          cleanup()
+          reject(new Error(e.data.error))
+          break
       }
     }
+    signal?.addEventListener('abort', abort, { once: true })
     worker.addEventListener('message', handler)
+    if (signal?.aborted) {
+      abort()
+      return
+    }
     worker.postMessage({ type: 'transcribe', audioBuffer, sampleRate })
   })
 }
 
 async function extractAudioData(file: File): Promise<{ buffer: Float32Array; sampleRate: number }> {
-  if (file.type.startsWith('audio/')) {
-    const arrayBuffer = await file.arrayBuffer()
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ sampleRate: 16000 })
-    try {
-      const decoded = await ctx.decodeAudioData(arrayBuffer)
-      return { buffer: decoded.getChannelData(0), sampleRate: decoded.sampleRate }
-    } finally {
-      void ctx.close()
-    }
+  // Chrome's AudioContext.decodeAudioData decodes audio AND video containers
+  // (mp4/mov/m4a/aac/mp3/wav/ogg/flac). Creating the context at 16 kHz makes
+  // it resample to the Whisper input rate in one step, so no DOM element,
+  // MediaRecorder, or captureStream is needed.
+  const arrayBuffer = await file.arrayBuffer()
+  const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ sampleRate: 16000 })
+  try {
+    const decoded = await ctx.decodeAudioData(arrayBuffer)
+    return { buffer: decoded.getChannelData(0), sampleRate: decoded.sampleRate }
+  } finally {
+    void ctx.close()
   }
-
-  // Video: decode the audio track via captureStream + MediaRecorder.
-  const video = document.createElement('video')
-  video.preload = 'auto'
-  video.muted = true
-  video.src = URL.createObjectURL(file)
-  return new Promise((resolve, reject) => {
-    video.onloadedmetadata = async () => {
-      try {
-        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ sampleRate: 16000 })
-        const dest = ctx.createMediaStreamDestination()
-        const source = ctx.createMediaElementSource(video)
-        source.connect(dest)
-        const stream = (video as unknown as { captureStream: () => MediaStream }).captureStream()
-        stream.getAudioTracks().forEach((t) => dest.stream.addTrack(t))
-        const recorder = new MediaRecorder(dest.stream)
-        const chunks: BlobPart[] = []
-        recorder.ondataavailable = (e) => chunks.push(e.data)
-        recorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: 'audio/wav' })
-          const buf = await blob.arrayBuffer()
-          try {
-            const decoded = await ctx.decodeAudioData(buf)
-            resolve({ buffer: decoded.getChannelData(0), sampleRate: decoded.sampleRate })
-          } finally {
-            URL.revokeObjectURL(video.src)
-            void ctx.close()
-          }
-        }
-        recorder.onerror = reject
-        recorder.start()
-        void video.play()
-        video.onended = () => recorder.stop()
-      } catch (err) {
-        URL.revokeObjectURL(video.src)
-        reject(err)
-      }
-    }
-    video.onerror = () => {
-      URL.revokeObjectURL(video.src)
-      reject(new Error('Failed to load video'))
-    }
-  })
 }
 
 /**
  * Transcribe an asset's audio locally (Whisper via Web Worker), cache the
- * result, and return it. On any failure the transcript is skipped — the AI
- * Director can still work from project structure alone.
+ * result, and return it. Reports granular progress (model load + per-chunk
+ * generation) and supports cancellation via `signal`. On any non-abort failure
+ * the transcript is skipped — the AI Director can still work from project
+ * structure alone.
  */
-export async function transcribeAsset(asset: Asset, onProgress?: (p: number) => void): Promise<StoredTranscript | null> {
+export async function transcribeAsset(
+  asset: Asset,
+  onProgress?: (p: number) => void,
+  options: { signal?: AbortSignal } = {},
+): Promise<StoredTranscript | null> {
   if (asset.type === 'image') return null
   try {
     const cached = await getStoredTranscript(asset.id)
@@ -153,10 +149,8 @@ export async function transcribeAsset(asset: Asset, onProgress?: (p: number) => 
 
     const worker = makeWhisperWorker()
     try {
-      await initWorker(worker, DEFAULT_WHISPER)
-      if (onProgress) onProgress(0.1)
-      const result = await transcribeWithWorker(worker, buffer, sampleRate)
-      if (onProgress) onProgress(1)
+      await initWorker(worker, DEFAULT_WHISPER, options.signal)
+      const result = await transcribeWithWorker(worker, buffer, sampleRate, onProgress, options.signal)
       if (!result.text.trim()) return null
       const transcript: StoredTranscript = {
         assetId: asset.id,
@@ -172,7 +166,8 @@ export async function transcribeAsset(asset: Asset, onProgress?: (p: number) => 
     } finally {
       worker.terminate()
     }
-  } catch {
+  } catch (err) {
+    if (options.signal?.aborted) throw err
     return null
   }
 }

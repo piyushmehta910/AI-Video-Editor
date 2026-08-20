@@ -10,6 +10,7 @@ interface UseCaptionsOptions {
 
 export function useCaptions(options: UseCaptionsOptions = {}) {
   const workerRef = useRef<Worker | null>(null)
+  const pendingRejectRef = useRef<((err: Error) => void) | null>(null)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<TranscriptionResult | null>(null)
@@ -77,11 +78,14 @@ export function useCaptions(options: UseCaptionsOptions = {}) {
     setResult(null)
 
     return new Promise<TranscriptionResult>((resolve, reject) => {
+      pendingRejectRef.current = reject
       const handler = (event: MessageEvent) => {
         if (event.data.type === 'result') {
+          pendingRejectRef.current = null
           workerRef.current!.removeEventListener('message', handler)
           resolve(event.data.result as TranscriptionResult)
         } else if (event.data.type === 'error') {
+          pendingRejectRef.current = null
           workerRef.current!.removeEventListener('message', handler)
           reject(new Error(event.data.error))
         }
@@ -90,6 +94,14 @@ export function useCaptions(options: UseCaptionsOptions = {}) {
       workerRef.current!.postMessage({ type: 'transcribe', audioBuffer, sampleRate })
     })
   }, [initialize])
+
+  const cancel = useCallback(() => {
+    if (workerRef.current) workerRef.current.postMessage({ type: 'cancel' })
+    pendingRejectRef.current?.(new DOMException('Transcription aborted', 'AbortError'))
+    pendingRejectRef.current = null
+    setProcessing(false)
+    setProgress(0)
+  }, [])
 
   const transcribeFromFile = useCallback(async (file: File) => {
     const arrayBuffer = await file.arrayBuffer()
@@ -100,49 +112,19 @@ export function useCaptions(options: UseCaptionsOptions = {}) {
   }, [transcribe])
 
   const transcribeFromVideo = useCallback(async (videoFile: File) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.src = URL.createObjectURL(videoFile)
-
-    return new Promise<TranscriptionResult>((resolve, reject) => {
-      video.onloadedmetadata = async () => {
-        try {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 })
-          const audioDest = audioContext.createMediaStreamDestination()
-          ;(video as any).captureStream().getAudioTracks().forEach((track: MediaStreamTrack) => audioDest.stream.addTrack(track))
-          const source = audioContext.createMediaElementSource(video)
-          source.connect(audioDest)
-          source.connect(audioContext.destination)
-
-          const recorder = new MediaRecorder(audioDest.stream)
-          const chunks: BlobPart[] = []
-
-          recorder.ondataavailable = (e) => chunks.push(e.data)
-          recorder.onstop = async () => {
-            const audioBlob = new Blob(chunks, { type: 'audio/wav' })
-            const arrayBuffer = await audioBlob.arrayBuffer()
-            const audioBufferDecoded = await audioContext.decodeAudioData(arrayBuffer)
-            const channelData = audioBufferDecoded.getChannelData(0)
-            URL.revokeObjectURL(video.src)
-            const result = await transcribe(channelData, audioBufferDecoded.sampleRate)
-            resolve(result)
-          }
-          recorder.onerror = reject
-
-          video.muted = true
-          recorder.start()
-          await video.play()
-          video.onended = () => recorder.stop()
-        } catch (err) {
-          URL.revokeObjectURL(video.src)
-          reject(err)
-        }
-      }
-      video.onerror = () => reject(new Error('Failed to load video'))
-    })
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 })
+    try {
+      const decoded = await audioContext.decodeAudioData(await videoFile.arrayBuffer())
+      const channelData = decoded.getChannelData(0)
+      return await transcribe(channelData, decoded.sampleRate)
+    } finally {
+      void audioContext.close()
+    }
   }, [transcribe])
 
   const terminate = useCallback(() => {
+    pendingRejectRef.current?.(new DOMException('Transcription aborted', 'AbortError'))
+    pendingRejectRef.current = null
     workerRef.current?.terminate()
     workerRef.current = null
     setProcessing(false)
@@ -158,6 +140,7 @@ export function useCaptions(options: UseCaptionsOptions = {}) {
     transcribe,
     transcribeFromFile,
     transcribeFromVideo,
+    cancel,
     terminate,
   }
 }

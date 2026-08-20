@@ -219,8 +219,82 @@ export interface Project {
   fps: number
   aspectRatio: string
   tracks: Track[]
+  /** Auto-caption layer settings (transcript-driven, project-wide). */
+  captions?: CaptionsConfig
   createdAt: number
   modifiedAt: number
+}
+
+/** A single timed caption. Timestamps are asset-relative seconds. */
+export interface CaptionWord {
+  word: string
+  start: number
+  end: number
+}
+
+export interface CaptionCue {
+  start: number
+  end: number
+  text: string
+  words?: CaptionWord[]
+}
+
+export type CaptionMode = 'sentence' | 'word'
+export type CaptionPositionMode = 'bottom' | 'top' | 'auto'
+
+export interface CaptionStyle {
+  fontSize: number
+  fontFamily: string
+  fontWeight: 'normal' | 'bold'
+  color: string
+  backgroundColor: string
+  /** 0..1 */
+  backgroundOpacity: number
+  borderRadius: number
+  shadow: boolean
+  uppercase: boolean
+}
+
+export interface CaptionPosition {
+  mode: CaptionPositionMode
+  /** Normalized (0..1) horizontal inset from the frame edge. */
+  marginX: number
+  /** Normalized (0..1) vertical inset from the top/bottom edge. */
+  marginY: number
+  /** Max caption width as a fraction of frame width. */
+  maxWidthPct: number
+}
+
+export interface CaptionsConfig {
+  enabled: boolean
+  mode: CaptionMode
+  style: CaptionStyle
+  position: CaptionPosition
+  /** Move captions to avoid OCR-detected protected regions. */
+  avoidProtectedRegions: boolean
+  /** Preview-only overlay that draws the detected protected regions. */
+  showProtectedRegions: boolean
+}
+
+export function defaultCaptionsConfig(): CaptionsConfig {
+  return {
+    enabled: false,
+    mode: 'sentence',
+    style: {
+      fontSize: 56,
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fontWeight: 'bold',
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      backgroundOpacity: 0.7,
+      borderRadius: 8,
+      shadow: true,
+      uppercase: false,
+    },
+    position: { mode: 'bottom', marginX: 0.08, marginY: 0.08, maxWidthPct: 0.84 },
+    avoidProtectedRegions: true,
+    showProtectedRegions: false,
+  }
 }
 
 export interface ExportSettings {
@@ -304,6 +378,7 @@ export function newProject(name = 'Untitled Project'): Project {
     fps: 30,
     aspectRatio: '16:9',
     tracks,
+    captions: defaultCaptionsConfig(),
     createdAt: now,
     modifiedAt: now,
   }

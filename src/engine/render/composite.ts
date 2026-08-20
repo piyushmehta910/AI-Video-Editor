@@ -1,5 +1,6 @@
 import type { Asset, Clip, Project, TextAnimation } from '@/engine/types'
 import { effectFilter, effectVignette, transitionAlpha } from './filters'
+import { drawCaptions, type CaptionRender } from '@/engine/captions/render'
 
 export interface CompositeMedia {
   /** Return a drawable source for a video asset positioned at `srcTime`, or null if not ready. */
@@ -10,6 +11,12 @@ export interface CompositeMedia {
   model?: (clip: Clip, asset: Asset, time: number, size: { width: number; height: number }) => Promise<CanvasImageSource | null>
   /** Fallback when a video is not ready/decodable. */
   thumbnail?: (asset: Asset) => Promise<CanvasImageSource | null>
+  /** Compute the auto-caption layer for this frame, or null when nothing to draw. */
+  captions?: (input: {
+    time: number
+    size: { width: number; height: number }
+    activeClip: { clip: Clip; asset: Asset } | null
+  }) => Promise<CaptionRender | null>
 }
 
 function sourceSize(source: CanvasImageSource): { w: number; h: number } {
@@ -258,6 +265,20 @@ export async function compositeFrame(
       ctx.shadowOffsetY = 0
     }
     ctx.restore()
+  }
+
+  // Auto-caption layer (transcript-driven, drawn above clips and text overlays,
+  // below the vignette) — identical in preview and export.
+  if (media.captions) {
+    const top = video.find(({ clip }) => {
+      const a = assets.find((x) => x.id === clip.assetId)
+      return a && a.type === 'video'
+    })
+    const activeClip = top
+      ? { clip: top.clip, asset: assets.find((a) => a.id === top.clip.assetId)! }
+      : null
+    const cap = await media.captions({ time, size: { width: w, height: h }, activeClip })
+    if (cap) drawCaptions(ctx, cap, { width: w, height: h })
   }
 
   if (vignette > 0) {

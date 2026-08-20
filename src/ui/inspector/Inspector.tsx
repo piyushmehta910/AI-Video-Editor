@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { AudioLines, Box, ChevronRight, Clapperboard, Layers, Loader2, Music, Scissors, Sparkles, Type } from 'lucide-react'
+import { AudioLines, Box, Captions, ChevronRight, Clapperboard, Layers, Loader2, Music, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { CameraMode, Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
 import { CAMERA_MODES, clampRig, createEffect, formatSeconds, TEXT_ANIMATIONS } from '@/engine/types'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
+import { CaptionsPanel } from './CaptionsPanel'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -54,10 +55,8 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
     return (
       <div className="flex w-full h-full flex-col bg-muted/30">
         <InspectorHeader title="Inspector" onCollapse={onCollapse} />
-        <div className="flex flex-1 items-center justify-center p-4 text-center">
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Select a clip on the timeline to edit its transform, effects and audio.
-          </p>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <CaptionsPanel />
         </div>
       </div>
     )
@@ -118,7 +117,7 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {single ? (
           <Tabs defaultValue="transform" className="gap-0">
-            <TabsList className={cn('mb-3 grid w-full rounded-md bg-muted', isModel ? 'grid-cols-4' : 'grid-cols-3')}>
+            <TabsList className={cn('mb-3 grid w-full rounded-md bg-muted', isModel ? 'grid-cols-5' : 'grid-cols-4')}>
               <TabsTrigger value="transform" className="px-2 text-xs">
                 <Layers className="size-3.5" /> Transform
               </TabsTrigger>
@@ -127,6 +126,9 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
               </TabsTrigger>
               <TabsTrigger value="audio" className="px-2 text-xs">
                 <AudioLines className="size-3.5" /> Audio
+              </TabsTrigger>
+              <TabsTrigger value="captions" className="px-2 text-xs">
+                <Captions className="size-3.5" /> Captions
               </TabsTrigger>
               {isModel && (
                 <TabsTrigger value="3d" className="px-2 text-xs">
@@ -314,6 +316,10 @@ export function Inspector({ onCollapse }: { onCollapse?: () => void }) {
                   </p>
                 </Section>
               )}
+            </TabsContent>
+
+            <TabsContent value="captions" className="space-y-4">
+              <CaptionsPanel />
             </TabsContent>
 
             {isModel && clip.modelRig && (

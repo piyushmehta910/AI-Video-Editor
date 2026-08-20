@@ -47,6 +47,18 @@ const DEFAULT_CONFIG: WhisperConfig = {
   timestamps: 'word',
 }
 
+export interface TranscribeOptions {
+  /** Progress 0..1 covering model load and per-chunk generation. */
+  onProgress?: (progress: number) => void
+  signal?: AbortSignal
+}
+
+interface PipelineProgress {
+  progress?: number
+  status?: string
+  file?: string
+}
+
 export class WhisperEngine {
   private pipe: ReturnType<typeof pipeline> | null = null
   private config: WhisperConfig
@@ -56,14 +68,21 @@ export class WhisperEngine {
     this.config = { ...DEFAULT_CONFIG, ...config }
   }
 
-  async initialize(): Promise<void> {
+  async initialize(onProgress?: (p: number) => void): Promise<void> {
     if (this.initialized) return
 
     try {
       this.pipe = await pipeline(
         'automatic-speech-recognition',
         this.config.modelId,
-        { quantized: true }
+        {
+          quantized: true,
+          progress_callback: (p: PipelineProgress) => {
+            // Model download/load maps to 0.05..0.12 of the total job.
+            const prog = typeof p?.progress === 'number' ? p.progress : 0
+            onProgress?.(0.05 + prog * 0.07)
+          },
+        },
       )
       this.initialized = true
       console.log(`Whisper model ${this.config.modelId} loaded`)
@@ -73,10 +92,16 @@ export class WhisperEngine {
     }
   }
 
-  async transcribe(audioBuffer: Float32Array, sampleRate: number): Promise<TranscriptionResult> {
-    if (!this.initialized) await this.initialize()
+  async transcribe(audioBuffer: Float32Array, sampleRate: number, options: TranscribeOptions = {}): Promise<TranscriptionResult> {
+    const { onProgress, signal } = options
+    if (!this.initialized) await this.initialize(onProgress)
 
     const audioData = this.resampleAudio(audioBuffer, sampleRate, 16000)
+
+    const jumpSeconds = Math.max(0.1, this.config.chunkLengthSeconds - 2 * this.config.strideLengthSeconds)
+    const durationSeconds = audioData.length / 16000
+    const totalChunks = Math.max(1, Math.ceil(durationSeconds / jumpSeconds))
+    let doneChunks = 0
 
     const baseArgs = {
       chunk_length_s: this.config.chunkLengthSeconds,
@@ -85,16 +110,32 @@ export class WhisperEngine {
       task: this.config.task,
     }
 
+    const chunkCallback = (chunk: { is_last?: boolean }) => {
+      if (signal?.aborted) throw new DOMException('Transcription aborted', 'AbortError')
+      doneChunks++
+      if (chunk.is_last) {
+        onProgress?.(1)
+      } else {
+        // Chunk generation maps to 0.12..1 of the total job.
+        onProgress?.(0.12 + (doneChunks / totalChunks) * 0.88)
+      }
+    }
+
+    const callArgs = {
+      ...baseArgs,
+      return_timestamps: this.config.timestamps !== 'segment' ? 'word' : true,
+      chunk_callback: chunkCallback,
+    }
+
     let result: unknown
     try {
-      result = await this.pipe!(audioData, {
-        ...baseArgs,
-        return_timestamps: this.config.timestamps !== 'segment' ? 'word' : true,
-      })
-    } catch {
+      result = await this.pipe!(audioData, callArgs)
+    } catch (err) {
+      if (signal?.aborted) throw err
       // Word-level timestamps unsupported for this model — fall back to segment-level.
-      result = await this.pipe!(audioData, { ...baseArgs, return_timestamps: true })
+      result = await this.pipe!(audioData, { ...baseArgs, return_timestamps: true, chunk_callback: chunkCallback })
     }
+    onProgress?.(1)
 
     return this.parseResult(result)
   }

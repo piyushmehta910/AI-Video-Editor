@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Film, Maximize, Pause, Play, SkipBack, SkipForward, StepBack, StepForward, Volume2, VolumeX } from 'lucide-react'
+import { Captions, Film, Maximize, Pause, Play, SkipBack, SkipForward, StepBack, StepForward, Volume2, VolumeX } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { formatSeconds } from '@/engine/types'
@@ -11,6 +11,8 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
+  const captionsEnabled = useTimelineStore((s) => s.project.captions?.enabled ?? false)
+  const setCaptions = useTimelineStore((s) => s.setCaptions)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const previewAreaRef = React.useRef<HTMLDivElement>(null)
   const hideTimer = React.useRef<number | undefined>(undefined)
@@ -194,6 +196,15 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
           </span>
 
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('size-8 hover:bg-white/10 hover:text-white', captionsEnabled ? 'text-violet-400' : 'text-white/60')}
+              onClick={() => setCaptions({ enabled: !captionsEnabled })}
+              title="Toggle captions"
+            >
+              <Captions className="size-4" />
+            </Button>
             <div className="hidden items-center gap-2 sm:flex">
               <Button
                 variant="ghost"
