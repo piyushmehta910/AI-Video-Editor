@@ -74,15 +74,3 @@ export async function probeMedia(_blob: Blob, type: 'video' | 'image' | 'audio' 
     URL.revokeObjectURL(url)
   }
 }
-
-export interface Thumbnail {
-  url: string
-  width: number
-  height: number
-}
-
-export interface MediaProbe {
-  width?: number
-  height?: number
-  duration?: number
-}
