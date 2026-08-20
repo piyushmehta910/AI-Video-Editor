@@ -147,6 +147,198 @@ export async function generateThumbnail(
   }
 }
 
+export interface ThumbnailCandidate {
+  thumbnail: Thumbnail
+  score: number
+  time: number
+  metrics: {
+    faceScore: number
+    contrastScore: number
+    compositionScore: number
+    brightnessScore: number
+  }
+}
+
+/** Generate multiple smart thumbnail candidates from a video, ranked by quality score. */
+export async function generateSmartThumbnails(
+  videoBlob: Blob,
+  options: { count?: number; targetWidth?: number } = {},
+): Promise<ThumbnailCandidate[]> {
+  const { count = 5, targetWidth = 320 } = options
+
+  const { readMediaFile } = await import('@/engine/storage/opfs')
+  const { detectPrimaryFace } = await import('@/engine/reframing')
+
+  const blob = videoBlob
+  const url = URL.createObjectURL(blob)
+  const video = document.createElement('video')
+  video.preload = 'auto'
+  video.muted = true
+  video.src = url
+  await new Promise<void>((resolve, reject) => {
+    video.onloadedmetadata = () => resolve()
+    video.onerror = () => reject(new Error('Failed to load video'))
+    setTimeout(() => reject(new Error('Video load timeout')), 10000)
+  })
+  const duration = video.duration || 0
+  const sourceW = video.videoWidth
+  const sourceH = video.videoHeight
+  URL.revokeObjectURL(url)
+
+  if (!sourceW || !sourceH || !duration) {
+    throw new Error('Could not read video dimensions')
+  }
+
+  // Sample frames at multiple time positions
+  const sampleCount = Math.max(count * 3, 15) // Oversample for better selection
+  const candidates: ThumbnailCandidate[] = []
+
+  for (let i = 0; i < sampleCount; i++) {
+    const time = (i / (sampleCount - 1)) * duration
+    const frame = await extractVideoFrame(blob, time, 320, 180)
+
+    // Analyze frame
+    const metrics = await analyzeFrame(frame)
+
+    // Create thumbnail from frame
+    const canvas = document.createElement('canvas')
+    canvas.width = frame.width
+    canvas.height = frame.height
+    const ctx = canvas.getContext('2d')!
+    ctx.putImageData(frame, 0, 0)
+    const thumb = await makeThumbnailFromCanvas(canvas, targetWidth)
+
+    // Calculate composite score
+    const score = (
+      metrics.faceScore * 0.4 +
+      metrics.contrastScore * 0.25 +
+      metrics.compositionScore * 0.2 +
+      metrics.brightnessScore * 0.15
+    )
+
+    candidates.push({
+      thumbnail: thumb,
+      score,
+      time,
+      metrics,
+    })
+  }
+
+  // Sort by score descending and return top N
+  return candidates
+    .sort((a, b) => b.score - a.score)
+    .slice(0, count)
+}
+
+async function extractVideoFrame(blob: Blob, time: number, width: number, height: number): Promise<ImageData> {
+  const url = URL.createObjectURL(blob)
+  const video = document.createElement('video')
+  video.preload = 'auto'
+  video.muted = true
+  video.src = url
+  await new Promise<void>((resolve, reject) => {
+    video.onloadedmetadata = () => resolve()
+    video.onerror = () => reject(new Error('Failed to load video'))
+    setTimeout(() => reject(new Error('Video load timeout')), 10000)
+  })
+  video.currentTime = time
+  await new Promise<void>((resolve) => {
+    video.onseeked = () => resolve()
+    setTimeout(resolve, 2000)
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(video, 0, 0, width, height)
+  const frame = ctx.getImageData(0, 0, width, height)
+  URL.revokeObjectURL(url)
+  return frame
+}
+
+async function analyzeFrame(frame: ImageData): Promise<{
+  faceScore: number
+  contrastScore: number
+  compositionScore: number
+  brightnessScore: number
+}> {
+  // Face detection
+  const { detectPrimaryFace } = await import('@/engine/reframing')
+  const faceBox = await detectPrimaryFace(frame)
+  const faceScore = faceBox ? 1.0 : 0.2
+
+  // Contrast analysis (standard deviation of luminance)
+  const contrastScore = calculateContrast(frame)
+
+  // Composition score (rule of thirds - face position)
+  const compositionScore = calculateComposition(frame)
+
+  // Brightness score (avoid over/under exposure)
+  const brightnessScore = calculateBrightness(frame)
+
+  return { faceScore, contrastScore, compositionScore, brightnessScore }
+}
+
+function calculateContrast(frame: ImageData): number {
+  const data = frame.data
+  let sum = 0
+  let sumSq = 0
+  let count = 0
+  for (let i = 0; i < data.length; i += 4) {
+    const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+    sum += lum
+    sumSq += lum * lum
+    count++
+  }
+  const mean = sum / count
+  const variance = sumSq / count - mean * mean
+  const stdDev = Math.sqrt(Math.max(0, variance))
+  return Math.min(1, stdDev / 64)
+}
+
+function calculateComposition(frame: ImageData): number {
+  // Check if face/bright region aligns with rule of thirds
+  const { detectPrimaryFace } = await import('@/engine/reframing')
+  const faceBox = await detectPrimaryFace(frame)
+  if (!faceBox) return 0.5
+
+  const cx = faceBox.x + faceBox.w / 2
+  const cy = faceBox.y + faceBox.h / 2
+
+  // Rule of thirds intersections
+  let minDist = 1
+  for (const tx of [1/3, 2/3]) {
+    for (const ty of [1/3, 2/3]) {
+      const dist = Math.sqrt((cx - tx) ** 2 + (cy - ty) ** 2)
+      minDist = Math.min(minDist, dist)
+    }
+  return Math.max(0, 1 - minDist * 3)
+}
+
+function calculateBrightness(frame: ImageData): number {
+  const data = frame.data
+  let sum = 0
+  let count = 0
+  for (let i = 0; i < data.length; i += 4) {
+    const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+    sum += lum
+    count++
+  }
+  const mean = sum / (count * 255)
+  return 1 - Math.abs(mean - 0.5) * 2
+}
+
+async function makeThumbnailFromCanvas(canvas: HTMLCanvasElement, targetWidth: number): Promise<Thumbnail> {
+  const scale = Math.min(1, targetWidth / Math.max(canvas.width, canvas.height))
+  const w = Math.max(1, Math.round(canvas.width * scale))
+  const h = Math.max(1, Math.round(canvas.height * scale))
+  const out = document.createElement('canvas')
+  out.width = w
+  out.height = h
+  out.getContext('2d')!.drawImage(canvas, 0, 0, w, h)
+  return { url: out.toDataURL('image/jpeg', 0.7), width: w, height: h }
+}
+
 export interface MediaProbe {
   width?: number
   height?: number

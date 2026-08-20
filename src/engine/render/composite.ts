@@ -1,5 +1,5 @@
 import type { Asset, Clip, Project, TextAnimation } from '@/engine/types'
-import { effectFilter, effectVignette, transitionAlpha } from './filters'
+import { computeEffects, transitionAlpha } from './filters'
 import { drawCaptions, type CaptionRender } from '@/engine/captions/render'
 import { type CropWindow, type CropKeyframe } from '@/engine/reframing'
 
@@ -66,6 +66,71 @@ function interpolateCrop(keyframes: CropKeyframe[] | undefined, time: number): C
     y: k0.crop.y + (k1.crop.y - k0.crop.y) * clampedT,
     width: k0.crop.width + (k1.crop.width - k0.crop.width) * clampedT,
     height: k0.crop.height + (k1.crop.height - k0.crop.height) * clampedT,
+  }
+}
+
+/** Draw a video source with special effects (chromatic aberration, glitch). */
+function drawVideoWithEffects(
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number,
+  effects: ReturnType<typeof import('./filters').computeEffects>,
+): void {
+  // Draw base image
+  ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh)
+
+  // Apply chromatic aberration if enabled
+  if (effects.chromaticAberration > 0) {
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = 0.33
+
+    // Red channel (shifted right)
+    ctx.drawImage(source, sx, sy, sw, sh, dx + effects.chromaticAberration, dy, dw, dh)
+    // Green channel (center)
+    ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh)
+    // Blue channel (shifted left)
+    ctx.drawImage(source, sx, sy, sw, sh, dx - effects.chromaticAberration, dy, dw, dh)
+
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+  }
+
+  // Apply glitch effect
+  if (effects.glitch) {
+    const intensity = effects.glitch.intensity
+    if (Math.random() < intensity) {
+      const displacement = (Math.random() - 0.5) * dh * 0.1 * intensity
+      ctx.translate(displacement, 0)
+    }
+
+    // Apply scanlines
+    if (effects.glitch.scanlines > 0) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(0,0,0,0.1)'
+      for (let i = 0; i < effects.glitch.scanlines; i++) {
+        if (Math.random() < 0.3) {
+          ctx.fillRect(dx, dy + i * (dh / effects.glitch.scanlines), dw, (dh / effects.glitch.scanlines) * 0.5)
+        }
+      }
+      ctx.restore()
+    }
+
+    // Color channel shift glitch
+    if (Math.random() < intensity * 0.5) {
+      // const shift = (Math.random() - 0.5) * 10 * intensity
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = 0.2
+      // We'd need to redraw for this, skipping for performance
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
+    }
   }
 }
 
@@ -172,11 +237,12 @@ export async function compositeFrame(
   for (const { clip } of video) {
     const asset = assets.find((a) => a.id === clip.assetId)
     if (!asset) continue
-    vignette = Math.max(vignette, effectVignette(clip.effects))
+    const effects = computeEffects(clip.effects)
+    vignette = Math.max(vignette, vignette)
     const srcTime = (time - clip.startTime) * clip.speed + clip.sourceStart
 
     ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
-    ctx.filter = effectFilter(clip.effects)
+    ctx.filter = effects.cssFilter
     ctx.save()
     ctx.translate(w / 2, h / 2)
     ctx.rotate((clip.rotation * Math.PI) / 180)
@@ -191,11 +257,11 @@ export async function compositeFrame(
           const crop = clip.reframing?.enabled ? interpolateCrop(clip.reframing.keyframes, srcTime) : null
           if (crop) {
             // Draw with smart reframing crop
-            ctx.drawImage(source, crop.x, crop.y, crop.width, crop.height, -w / 2, -h / 2, w, h)
+            drawVideoWithEffects(ctx, source, crop.x, crop.y, crop.width, crop.height, -w / 2, -h / 2, w, h, effects)
           } else {
             // Standard center-crop (cover fit)
             const scale = Math.max(w / sw, h / sh)
-            ctx.drawImage(source, (-sw * scale) / 2, (-sh * scale) / 2, sw * scale, sh * scale)
+            drawVideoWithEffects(ctx, source, 0, 0, sw, sh, -w / 2, -h / 2, sw * scale, sh * scale, effects)
           }
         }
       } else if (media.thumbnail) {

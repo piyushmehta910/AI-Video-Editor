@@ -67,12 +67,21 @@ export type EffectType =
   | 'blur'
   | 'grayscale'
   | 'vignette'
+  | 'chromatic-aberration'
+  | 'glitch'
+  | 'morph'
 
 export interface Effect {
   id: string
   type: EffectType
   value: number
   enabled: boolean
+  /** For chromatic-aberration: offset in pixels (default 2) */
+  aberrationOffset?: number
+  /** For glitch: intensity 0-1 */
+  glitchIntensity?: number
+  /** For glitch: scanline count */
+  scanlines?: number
 }
 
 export type TransitionType =
