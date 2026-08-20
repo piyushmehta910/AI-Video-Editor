@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { Bot, Check, MessageSquare, Send, Settings, Trash2, X, User } from 'lucide-react'
+import { Bot, Check, ListChecks, MessageSquare, Send, Settings, Trash2, X, User } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import { chatCompletion, getDirectorProvider, getProjectContextSystemPrompt, type ChatMessage } from '@/api/llm/director'
 import { DIRECTOR_TOOLS, applyTool, describeTool, isStagedTool } from '@/api/llm/tools'
-import { buildProjectUnderstanding } from '@/api/llm/understanding'
+import { buildDirectorContext, collectTimelineScenes } from '@/api/llm/context'
+import { checkTimeline, type QualityIssue } from '@/ai/quality/checker'
 import { Button } from '@/components/ui/button'
 
 interface UiMessage {
@@ -56,12 +57,21 @@ function suggestFollowups(usedTools: string[]): string[] {
 
 const MAX_PROPOSALS = 20
 
+const ISSUE_STYLE: Record<QualityIssue['severity'], string> = {
+  error: 'border-destructive/40 bg-destructive/10 text-destructive',
+  warning: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  info: 'border-muted bg-muted/40 text-muted-foreground',
+}
+
 export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const [open, setOpen] = React.useState(false)
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
   const [busy, setBusy] = React.useState(false)
   const [proposals, setProposals] = React.useState<Proposal[]>([])
+  const [showQuality, setShowQuality] = React.useState(false)
+  const [issues, setIssues] = React.useState<QualityIssue[]>([])
+  const [checking, setChecking] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
   const hydrateTimeline = useTimelineStore((s) => s.hydrate)
@@ -107,7 +117,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         const baseSystem = getProjectContextSystemPrompt()
         let understanding = ''
         try {
-          understanding = await buildProjectUnderstanding()
+          understanding = await buildDirectorContext()
         } catch {
           understanding = ''
         }
@@ -115,9 +125,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         const apiMessages: ChatMessage[] = [
           {
             role: 'system',
-            content: understanding
-              ? `${baseSystem}\n\nVIDEO UNDERSTANDING (from a local transcript, so trust it):\n${understanding}`
-              : baseSystem,
+            content: understanding ? `${baseSystem}\n\n${understanding}` : baseSystem,
           },
         ]
         for (const m of messages) {
@@ -276,6 +284,58 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const pendingCount = proposals.filter((p) => p.status === 'pending').length
   const resolvedCount = proposals.length - pendingCount
 
+  const runQualityCheck = React.useCallback(async () => {
+    setChecking(true)
+    try {
+      const store = useTimelineStore.getState()
+      const scenes = await collectTimelineScenes()
+      setIssues(checkTimeline(store.project, store.assets, { scenes }))
+    } finally {
+      setChecking(false)
+    }
+  }, [])
+
+  const applyIssueFix = (issue: QualityIssue) => {
+    if (issue.fix.kind === 'none') return
+    const store = useTimelineStore.getState()
+    store.withTransaction(() => {
+      if (issue.fix.kind === 'remove_clip') {
+        store.deleteClips(issue.fix.clipIds)
+      } else if (issue.fix.kind === 'resolve_overlap' && issue.fix.moveClipId && issue.fix.targetTime != null) {
+        const clip = store.project.tracks
+          .flatMap((t) => t.clips)
+          .find((c) => c.id === issue.fix.moveClipId)
+        if (!clip) return
+        const delta = issue.fix.targetTime - clip.startTime
+        if (Math.abs(delta) >= 0.01) store.moveClip(clip.id, delta)
+      }
+    })
+    void runQualityCheck()
+  }
+
+  const applyAllFixes = () => {
+    const fixable = issues.filter((i) => i.fix.kind !== 'none')
+    if (!fixable.length) return
+    const store = useTimelineStore.getState()
+    store.withTransaction(() => {
+      for (const issue of fixable) {
+        if (issue.fix.kind === 'remove_clip') {
+          store.deleteClips(issue.fix.clipIds)
+        } else if (issue.fix.kind === 'resolve_overlap' && issue.fix.moveClipId && issue.fix.targetTime != null) {
+          const clip = store.project.tracks
+            .flatMap((t) => t.clips)
+            .find((c) => c.id === issue.fix.moveClipId)
+          if (!clip) continue
+          const delta = issue.fix.targetTime - clip.startTime
+          if (Math.abs(delta) >= 0.01) store.moveClip(clip.id, delta)
+        }
+      }
+    })
+    void runQualityCheck()
+  }
+
+  const fixableCount = issues.filter((i) => i.fix.kind !== 'none').length
+
   return (
     <>
       <button
@@ -299,6 +359,18 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                 Proposes edits — you approve them before they apply
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowQuality((s) => !s)
+                if (!checking && issues.length === 0) void runQualityCheck()
+              }}
+              className={`text-muted-foreground hover:text-foreground ${showQuality ? 'text-violet-600 dark:text-violet-400' : ''}`}
+              title="Check project quality"
+              aria-label="Check project quality"
+            >
+              <ListChecks className="size-4" />
+            </button>
             <Link to="/settings" className="ml-auto text-muted-foreground hover:text-foreground" title="Configure AI provider">
               <Settings className="size-4" />
             </Link>
@@ -380,6 +452,59 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
               </div>
             )}
           </div>
+
+          {showQuality && (
+            <div className="border-t border-amber-500/30 bg-amber-500/5">
+              <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                  <ListChecks className="size-3.5" />
+                  {checking
+                    ? 'Checking…'
+                    : issues.length
+                      ? `${issues.length} issue${issues.length > 1 ? 's' : ''} found`
+                      : 'No issues found — timeline looks clean'}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  {!checking && (
+                    <>
+                      {fixableCount > 0 && (
+                        <Button type="button" size="sm" className="h-6 px-2 text-xs" onClick={applyAllFixes}>
+                          Fix all ({fixableCount})
+                        </Button>
+                      )}
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => void runQualityCheck()}>
+                        Re-check
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {issues.length > 0 && (
+                <div className="max-h-40 space-y-1 overflow-y-auto px-3 pb-2.5">
+                  {issues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${ISSUE_STYLE[issue.severity]}`}
+                    >
+                      <span className="min-w-0 flex-1">{issue.message}</span>
+                      {issue.fix.kind !== 'none' && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 shrink-0 px-2 text-xs"
+                          onClick={() => applyIssueFix(issue)}
+                        >
+                          <Check className="size-3" />
+                          {issue.fix.kind === 'remove_clip' ? 'Remove' : 'Fix'}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {proposals.length > 0 && (
             <div className="border-t border-violet-500/30 bg-violet-500/5">

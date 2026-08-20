@@ -87,7 +87,9 @@ export function getProjectContextSystemPrompt(): string {
     'Editing capabilities: You can split clips at any time position, trim start/end edges to shorten or extend, ' +
       'move clips to different positions, join adjacent clips on the same track into one, delete clips, ' +
       'adjust properties (opacity, volume, speed, rotation), and change the project aspect ratio. ' +
-      'Always target clips by name. To remove a section from the middle of a clip, split it twice then delete the middle part.',
+      'Always target clips by name. To remove a section from the middle of a clip, split it twice then delete the middle part. ' +
+      'Before making big changes, consider running check_quality (applies immediately, read-only) to spot problems ' +
+      'such as overlapping clips, missing media, or a weak opening/ending.',
   )
   return lines.join('\n')
 }

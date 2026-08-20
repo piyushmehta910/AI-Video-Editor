@@ -3,8 +3,10 @@ import { aspectToSize } from '@/engine/types'
 import type { Asset, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
-import { transcribeAsset } from '@/api/llm/understanding'
+import { transcribeAsset, ensureProjectTranscripts } from '@/api/llm/understanding'
 import { generateVoiceover, isElevenLabsConfigured } from '@/api/tts/elevenlabs'
+import { checkTimeline } from '@/ai/quality/checker'
+import { collectTimelineScenes } from '@/api/llm/context'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -261,6 +263,17 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
     function: {
       name: 'understand_video',
       description: 'Generate (or refresh) a local transcript of every clip with audio so you can understand what the video says before making edits. Applied immediately.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_quality',
+      description: 'Review the whole timeline for editing problems — overlapping clips, missing media references, long static shots, empty sections and story-structure gaps (missing hook or ending). Applied immediately and read-only: it reports findings but changes nothing.',
       parameters: {
         type: 'object',
         properties: {},
@@ -624,6 +637,21 @@ export async function applyTool(name: string, args: Record<string, unknown>): Pr
       if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
       s.duplicateClips([clip.id])
       return { ok: true, message: desc }
+    }
+    case 'understand_video': {
+      const count = await ensureProjectTranscripts()
+      return { ok: true, message: count ? `Transcripts ready for ${count} clip${count > 1 ? 's' : ''}.` : 'No clips with audio to transcribe.' }
+    }
+    case 'check_quality': {
+      const s = useTimelineStore.getState()
+      const scenes = await collectTimelineScenes()
+      const issues = checkTimeline(s.project, s.assets, { scenes })
+      if (!issues.length) return { ok: true, message: 'Quality check passed — the timeline looks clean.' }
+      const lines = issues.map((i) => {
+        const action = i.fix.kind !== 'none' ? ` (${i.fix.label})` : ''
+        return `- [${i.severity}] ${i.message}${action}`
+      })
+      return { ok: true, message: `Quality check found ${issues.length} issue${issues.length > 1 ? 's' : ''}:\n${lines.join('\n')}` }
     }
     default:
       return { ok: false, message: `Unknown action "${name}".` }
