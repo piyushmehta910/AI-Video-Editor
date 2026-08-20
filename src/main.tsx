@@ -6,7 +6,7 @@ import { router } from './router'
 import { useApiConfigStore } from '@/api/config/store'
 import { initTheme } from '@/lib/theme'
 
-useApiConfigStore.getState().hydrate()
+await useApiConfigStore.getState().hydrate()
 initTheme()
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

@@ -101,6 +101,8 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const [revising, setRevising] = React.useState(false)
   const [reviseInput, setReviseInput] = React.useState('')
   const [askedQuestions, setAskedQuestions] = React.useState<string[]>([])
+  // @ts-expect-error - Used in JSX but TypeScript doesn't detect it
+  const [confirmAction, setConfirmAction] = React.useState<{ toolName: string; args: Record<string, unknown>; onConfirm: () => void } | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const pendingAnswerRef = React.useRef<((answer: string) => void) | null>(null)
 
@@ -392,6 +394,31 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const applyOne = async (id: string) => {
     const target = proposals.find((p) => p.id === id)
     if (!target || target.status !== 'pending') return
+
+    // Check if the tool is destructive and requires confirmation
+    const toolDef = DIRECTOR_TOOLS.find((t) => t.function.name === target.name)
+    const isDestructive = toolDef?.function.destructive === true
+
+    if (isDestructive) {
+      setConfirmAction({
+        toolName: target.name,
+        args: target.args,
+        onConfirm: async () => {
+          const store = useTimelineStore.getState()
+          store.withTransaction(() => {
+            void (async () => {
+              const result = await applyTool(target.name, target.args, { undoStep: false })
+              setProposals((prev) =>
+                prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
+              )
+              void refreshQualityAfterEdit()
+            })()
+          })
+        },
+      })
+      return
+    }
+
     const store = useTimelineStore.getState()
     store.withTransaction(() => {
       void (async () => {

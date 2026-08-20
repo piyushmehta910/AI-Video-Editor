@@ -4,7 +4,7 @@ import { newProject, projectDuration, defaultCameraRig } from '@/engine/types'
 import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
-import { detectMediaType } from '@/engine/storage/mediaType'
+import { validateFile } from '@/engine/storage/mediaType'
 import { generateProxy } from '@/engine/media/proxy'
 import { generateFilmstrip } from '@/engine/media/filmstrip'
 import { generateWaveform } from '@/engine/media/waveform'
@@ -175,11 +175,12 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
       const imported: Asset[] = []
       const errors: string[] = []
       for (const file of files) {
-        const type = detectMediaType(file)
-        if (!type) {
-          errors.push(`${file.name}: unsupported file type`)
+        const validation = validateFile(file)
+        if (!validation.valid) {
+          errors.push(`${file.name}: ${validation.error}`)
           continue
         }
+        const type = validation.type!
         try {
           const id = crypto.randomUUID()
           const filePath = await writeMediaFile(id, file)

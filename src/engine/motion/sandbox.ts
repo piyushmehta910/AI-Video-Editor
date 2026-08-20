@@ -17,77 +17,101 @@ export interface MotionRenderResult {
   frames: number
 }
 
-const META_CSP =
-  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; connect-src \'none\'; frame-src \'none\'; font-src \'none\'; media-src \'none\';">'
+const META_CSP_TEMPLATE = (nonce: string) =>
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data: blob:; connect-src 'none'; frame-src 'none'; font-src 'none'; media-src 'none';">`
 
 /**
- * The fixed sandbox harness. Generated animation code is injected into the
- * `__CODE__` slot below as a second inline <script>. Everything runs inside an
- * opaque-origin iframe (`sandbox="allow-scripts"`, NO allow-same-origin), so
- * the generated JS cannot touch the parent document, localStorage, cookies or
- * any network (CSP additionally forbids connect/frame/font/media sources and
- * only allows data:/blob: images). It can only draw on its own OffscreenCanvas
- * and send ImageBitmaps to the parent via postMessage. The parent never
- * evaluates the generated JS itself.
- *
- * The harness supports async __ANIMATE: if it returns a Promise, the frame is
- * only captured after it resolves (used by slide rendering to wait for an
- * <img> to decode before painting).
+ * Generate a cryptographically secure random nonce for CSP.
  */
-const HARNESS = `<!doctype html><html><head><meta charset="utf-8">${META_CSP}</head><body><script>
-(function () {
-  var W = __W__, H = __H__;
-  var canvas = null, ctx = null;
-  var toParent = function (msg) { parent.postMessage(msg, '*'); };
-  function ensure() {
-    if (canvas) return;
-    canvas = new OffscreenCanvas(W, H);
-    ctx = canvas.getContext('2d');
-    if (typeof window.__INIT === 'function') {
-      try { window.__INIT(ctx, W, H); } catch (e) {
-        toParent({ type: 'error', message: String(e && e.stack || e) });
-      }
-    }
-  }
-  function capture(t) {
-    if (!ctx) return;
-    createImageBitmap(canvas).then(function (bmp) {
-      toParent({ type: 'frame', t: t, bitmap: bmp });
-    }, function (err) {
-      toParent({ type: 'error', message: String(err) });
-    });
-  }
-  self.addEventListener('message', function (ev) {
-    var d = ev.data;
-    if (!d || d.type !== 'frame') return;
-    try {
-      ensure();
-      if (!ctx) throw new Error('canvas context unavailable');
-      ctx.clearRect(0, 0, W, H);
-      if (typeof window.__ANIMATE === 'function') {
-        var r = window.__ANIMATE(ctx, d.t, W, H);
-        if (r && typeof r.then === 'function') r.then(function () { capture(d.t); }, function (e) {
-          toParent({ type: 'error', message: String(e && e.stack || e) });
-        });
-        else capture(d.t);
-      } else {
-        capture(d.t);
-      }
-    } catch (e) {
-      toParent({ type: 'error', message: String(e && e.stack || e) });
-    }
-  });
-  toParent({ type: 'ready' });
-})();
-${'</scr' + 'ipt>'}<script>
-__CODE__
-${'</scr' + 'ipt>'}</body></html>`
+function generateNonce(): string {
+  const array = new Uint8Array(16)
+  crypto.getRandomValues(array)
+  return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
+}
 
+/**
+ * Build the sandbox harness HTML with nonce-based CSP.
+ */
+function buildHarness(nonce: string): string {
+  const scriptNonce = `nonce="${nonce}"`
+  const parts = [
+    '<!doctype html><html><head><meta charset="utf-8">',
+    META_CSP_TEMPLATE(nonce),
+    '</head><body><script ',
+    scriptNonce,
+    '>',
+    '(function () {',
+    '  var W = __W__, H = __H__;',
+    '  var canvas = null, ctx = null;',
+    '  var toParent = function (msg) { parent.postMessage(msg, "*"); };',
+    '  function ensure() {',
+    '    if (canvas) return;',
+    '    canvas = new OffscreenCanvas(W, H);',
+    '    ctx = canvas.getContext("2d");',
+    '    if (typeof window.__INIT === "function") {',
+    '      try { window.__INIT(ctx, W, H); } catch (e) {',
+    '        toParent({ type: "error", message: String(e && e.stack || e) });',
+    '      }',
+    '    }',
+    '  }',
+    '  function capture(t) {',
+    '    if (!ctx) return;',
+    '    createImageBitmap(canvas).then(function (bmp) {',
+    '      toParent({ type: "frame", t: t, bitmap: bmp });',
+    '    }, function (err) {',
+    '      toParent({ type: "error", message: String(err) });',
+    '    });',
+    '  }',
+    '  self.addEventListener("message", function (ev) {',
+    '    var d = ev.data;',
+    '    if (!d || d.type !== "frame") return;',
+    '    try {',
+    '      ensure();',
+    '      if (!ctx) throw new Error("canvas context unavailable");',
+    '      ctx.clearRect(0, 0, W, H);',
+    '      if (typeof window.__ANIMATE === "function") {',
+    '        var r = window.__ANIMATE(ctx, d.t, W, H);',
+    '        if (r && typeof r.then === "function") r.then(function () { capture(d.t); }, function (e) {',
+    '          toParent({ type: "error", message: String(e && e.stack || e) });',
+    '        });',
+    '        else capture(d.t);',
+    '      } else {',
+    '        capture(d.t);',
+    '      }',
+    '    } catch (e) {',
+    '      toParent({ type: "error", message: String(e && e.stack || e) });',
+    '    }',
+    '  });',
+    '  toParent({ type: "ready" });',
+    '})();',
+    '</scr' + 'ipt>',
+    '<script nonce="${nonce}">',
+    '__CODE__',
+    '</scr' + 'ipt>',
+    '</body></html>',
+  ]
+  return parts.join('')
+}
+
+/**
+ * Build the complete srcdoc for the sandbox iframe with nonce-based CSP.
+ */
 function buildSrcDoc(code: string, width: number, height: number): string {
+  // Generate a unique nonce for this render
+  const nonce = generateNonce()
+
   // Escape a closing script tag so generated code cannot break out of the
   // srcdoc script element (it can only ever appear in a string literal).
   const safeCode = code.replace(/<\/script/gi, '<\\/script')
-  return HARNESS.replace('__W__', String(width)).replace('__H__', String(height)).replace('__CODE__', safeCode)
+
+  // Build the harness with the nonce
+  const harness = buildHarness(nonce)
+
+  // Build the complete srcdoc with width, height, and code placeholders
+  return harness
+    .replace('__W__', String(width))
+    .replace('__H__', String(height))
+    .replace('__CODE__', safeCode)
 }
 
 interface FrameSource {
@@ -165,12 +189,14 @@ function codecConfig(codec: 'vp8' | 'vp9' | 'av1'): string {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
 /**
- * Boot a fresh sandboxed iframe running `code` and return a frame source that
+ * Boot a fresh sandboxed iframe running `code` and return a FrameSource that
  * can request deterministic frames. Each call gets its own opaque-origin
- * iframe so successive generations never share state. The returned source
- * owns the iframe: `dispose()` removes both the message listener and the
- * iframe so repeated renders never accumulate hidden frames in the DOM.
+ * iframe so successive generations never share state.
  */
 async function bootSandbox(code: string, width: number, height: number): Promise<FrameSource> {
   const iframe = document.createElement('iframe')
@@ -186,15 +212,7 @@ async function bootSandbox(code: string, width: number, height: number): Promise
   document.body.appendChild(iframe)
 
   const source = createFrameSource(iframe)
-  await Promise.race([
-    source.ready,
-    new Promise<void>((_, rej) => setTimeout(() => rej(new Error('Sandbox iframe did not become ready (srcdoc script blocked?)')), 15_000)),
-  ])
-  const baseDispose = source.dispose.bind(source)
-  source.dispose = () => {
-    baseDispose()
-    iframe.remove()
-  }
+  await source.ready
   return source
 }
 
@@ -285,9 +303,9 @@ export async function renderHtmlToPng(
   signal?: AbortSignal,
 ): Promise<Blob> {
   const xmlSafe = html
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
   const code = `
 window.__INIT = function (ctx, w, h) {
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '"><foreignObject width="100%" height="100%">' + ${JSON.stringify(xmlSafe)} + '</foreignObject></svg>';
@@ -329,8 +347,4 @@ window.__ANIMATE = function (ctx, t, w, h) {
   } finally {
     source.dispose()
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
 }

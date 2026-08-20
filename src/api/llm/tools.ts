@@ -32,7 +32,17 @@ type Aspect = (typeof ASPECTS)[number]
 
 const PROPERTIES = ['opacity', 'volume', 'speed', 'rotation'] as const
 
-export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
+interface ToolDefinition extends Record<string, unknown> {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+    destructive?: boolean
+  }
+}
+
+export const DIRECTOR_TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
@@ -45,6 +55,7 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
         },
         required: ['aspect'],
       },
+      destructive: true,
     },
   },
   {
@@ -88,6 +99,7 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
         },
         required: ['assetName'],
       },
+      destructive: true,
     },
   },
   {
@@ -104,6 +116,7 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
         },
         required: ['assetName', 'edge', 'deltaSeconds'],
       },
+      destructive: true,
     },
   },
   {
@@ -119,6 +132,7 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
         },
         required: ['assetName', 'newStartTime'],
       },
+      destructive: true,
     },
   },
   {
@@ -134,6 +148,7 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
         },
         required: ['clipName1', 'clipName2'],
       },
+      destructive: true,
     },
   },
   {

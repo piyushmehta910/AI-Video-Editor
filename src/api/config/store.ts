@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { defaultApiConfig, type ApiConfig, STORAGE_KEY } from './types'
+import { encryptConfig, decryptConfig } from './crypto'
 
 function mergeApiConfig(stored: Partial<ApiConfig>): ApiConfig {
   const merged: Record<string, unknown> = {}
@@ -45,12 +46,13 @@ function mergeApiConfig(stored: Partial<ApiConfig>): ApiConfig {
   return config
 }
 
-function loadFromStorage(): ApiConfig {
+async function loadFromStorage(): Promise<ApiConfig> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return defaultApiConfig
     const parsed = JSON.parse(raw) as Partial<ApiConfig>
-    return mergeApiConfig(parsed)
+    const decrypted = await decryptConfig(parsed as Record<string, unknown>)
+    return mergeApiConfig(decrypted as Partial<ApiConfig>)
   } catch {
     return defaultApiConfig
   }
@@ -58,11 +60,12 @@ function loadFromStorage(): ApiConfig {
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 
-function saveToStorage(config: ApiConfig): void {
+async function saveToStorage(config: ApiConfig): Promise<void> {
   if (saveTimeout) clearTimeout(saveTimeout)
-  saveTimeout = setTimeout(() => {
+  saveTimeout = setTimeout(async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+      const encrypted = await encryptConfig(config as unknown as Record<string, unknown>)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(encrypted))
     } catch (err) {
       console.error('Failed to save API config:', err)
     }
@@ -84,9 +87,9 @@ export const useApiConfigStore = create<ApiConfigState>()((set, get) => ({
   hydrated: false,
   error: null,
 
-  hydrate: () => {
+  hydrate: async () => {
     try {
-      const config = loadFromStorage()
+      const config = await loadFromStorage()
       set({ config, hydrated: true, error: null })
     } catch (err) {
       set({ hydrated: true, error: err instanceof Error ? err.message : String(err) })
