@@ -36,6 +36,14 @@ export interface ElevenLabsConfig extends BaseConfig {
   outputFormat: string
 }
 
+export interface NvidiaTtsConfig extends BaseConfig {
+  baseUrl: string
+  model: string
+  voice: string
+  format: string
+  speed: number
+}
+
 export interface StockProviderConfig extends BaseConfig {
   priority: PriorityLevel
   orientation: string
@@ -115,6 +123,7 @@ export interface ApiConfig {
   opencodeZen: OpenCodeZenConfig
   openRouter: OpenRouterConfig
   elevenLabs: ElevenLabsConfig
+  nvidiaTts: NvidiaTtsConfig
   avatar: AvatarConfig
   stockImages: StockImagesConfig
   firecrawl: FirecrawlConfig
@@ -175,6 +184,18 @@ export const defaultElevenLabsConfig: ElevenLabsConfig = {
   speed: 1.0,
   outputFormat: 'mp3_44100_128',
   timeoutMs: 30000,
+  status: 'disabled',
+}
+
+export const defaultNvidiaTtsConfig: NvidiaTtsConfig = {
+  enabled: false,
+  apiKey: '',
+  baseUrl: 'https://integrate.api.nvidia.com/v1',
+  model: '',
+  voice: '',
+  format: 'mp3',
+  speed: 1.0,
+  timeoutMs: 60000,
   status: 'disabled',
 }
 
@@ -271,6 +292,7 @@ export const defaultApiConfig: ApiConfig = {
   opencodeZen: defaultOpenCodeZenConfig,
   openRouter: defaultOpenRouterConfig,
   elevenLabs: defaultElevenLabsConfig,
+  nvidiaTts: defaultNvidiaTtsConfig,
   avatar: defaultAvatarConfig,
   stockImages: defaultStockImagesConfig,
   firecrawl: defaultFirecrawlConfig,

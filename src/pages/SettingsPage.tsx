@@ -4,6 +4,8 @@ import { NvidiaNimCard } from '@/components/settings/cards/NvidiaNimCard'
 import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
 import { OpenRouterCard } from '@/components/settings/cards/OpenRouterCard'
 import { ElevenLabsCard } from '@/components/settings/cards/ElevenLabsCard'
+import { NvidiaTtsCard } from '@/components/settings/cards/NvidiaTtsCard'
+import { VoiceProviderPicker } from '@/components/settings/cards/VoiceProviderPicker'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { GiphyCard } from '@/components/settings/cards/GiphyCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
@@ -70,7 +72,11 @@ export function SettingsPage() {
 
         <section className="flex flex-col gap-3">
           <SectionLabel>Voice</SectionLabel>
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <VoiceProviderPicker />
+          </div>
           <ElevenLabsCard />
+          <NvidiaTtsCard />
         </section>
 
         <section className="flex flex-col gap-3">

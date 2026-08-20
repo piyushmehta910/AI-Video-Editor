@@ -4,7 +4,20 @@ import type { Asset, CameraMode, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
 import { transcribeAsset, ensureProjectTranscripts, getStoredTranscript, type StoredTranscript } from '@/api/llm/understanding'
-import { generateVoiceover, isElevenLabsConfigured } from '@/api/tts/elevenlabs'
+import { getActiveTtsProvider } from '@/api/tts'
+import {
+  generateScript,
+  rewriteScript,
+  shortenScript,
+  expandScript,
+  makeHook,
+  makeCta,
+  describeScript,
+} from '@/api/llm/scripts'
+import { useScriptStore, type ProjectScript } from '@/stores/scriptStore'
+import { generateMotionCode } from '@/api/llm/motionGenerator'
+import { renderMotionClip } from '@/engine/motion/sandbox'
+import { generateSlides, renderSlidePng, type SlideTheme } from '@/api/llm/slides'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
@@ -437,6 +450,128 @@ export const DIRECTOR_TOOLS: Array<Record<string, unknown>> = [
   {
     type: 'function',
     function: {
+      name: 'generate_script',
+      description: 'Write a full narration script (hook + numbered scenes + CTA) for a topic. Scene durations are normalized to fill the requested target duration (or the current timeline duration). The script is stored and its scene durations are authoritative for later tools like generate_voiceover and generate_motion_graphics. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'The subject the script must explain, e.g. "how the heart pumps blood".' },
+          durationSeconds: { type: 'number', description: 'Target total duration in seconds to fill. Omit to use the current timeline duration.' },
+          language: { type: 'string', description: 'Optional narration language, e.g. "Hindi".' },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'rewrite_script',
+      description: 'Rewrite the stored narration script per an instruction (tone, audience, wording). Keeps the same target duration and re-normalizes scene durations. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          instruction: { type: 'string', description: 'How to rewrite it, e.g. "simpler words for kids".' },
+        },
+        required: ['instruction'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'shorten_script',
+      description: 'Compress the stored script so its scene durations fill a shorter target duration. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          targetDurationSeconds: { type: 'number', description: 'New total duration to fill.' },
+        },
+        required: ['targetDurationSeconds'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'expand_script',
+      description: 'Expand the stored script so its scene durations fill a longer target duration. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          targetDurationSeconds: { type: 'number', description: 'New total duration to fill.' },
+        },
+        required: ['targetDurationSeconds'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'script_hook',
+      description: 'Write a new opening hook for the stored script (optionally per an instruction). Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          instruction: { type: 'string', description: 'Optional style hint, e.g. "more surprising".' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'script_cta',
+      description: 'Write a new closing call-to-action for the stored script (optionally per an instruction). Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          instruction: { type: 'string', description: 'Optional style hint, e.g. "ask to subscribe".' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_motion_graphics',
+      description: 'Generate an animated diagram / motion graphic for a concept. The AI writes a self-contained canvas animation (code runs only inside a locked-down sandbox, never touching the page), the app renders it to a real WebM clip with WebCodecs and adds it to the video track. Best for explaining a mechanism (e.g. "how the heart pumps blood", "how a battery works"). Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          concept: { type: 'string', description: 'What the animation must show, e.g. "how the heart pumps blood".' },
+          durationSeconds: { type: 'number', description: 'Clip length in seconds (default 8).' },
+          style: { type: 'string', description: 'Visual style hint, e.g. "minimal flat", "neon", "whiteboard".' },
+          language: { type: 'string', description: 'Optional language for labels in the diagram.' },
+          resolution: { type: 'string', enum: ['720p', '1080p'], description: 'Render resolution (default 720p).' },
+        },
+        required: ['concept'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_slides',
+      description: 'Generate a presentation deck for a topic. The AI writes the slide content (title + bullets), the app renders each slide to a full-resolution PNG image with a clean theme (no stock photos) and adds them to the video track as image clips. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'The subject the deck must cover.' },
+          count: { type: 'number', description: 'Optional number of slides (3-6).' },
+          theme: { type: 'string', enum: ['clean', 'dark', 'gradient'], description: 'Visual theme (default clean).' },
+          language: { type: 'string', description: 'Optional language for slide text.' },
+          durationSeconds: { type: 'number', description: 'Seconds each slide stays on screen (default 5).' },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'add_text',
       description: 'Add a text overlay / title card to the timeline. Creates a text clip with the given content. Alias for add_text_overlay. Staged for user review.',
       parameters: {
@@ -496,6 +631,14 @@ const STAGED_TOOLS = new Set<string>([
   'duplicate_clip',
   'add_3d_model',
   'set_3d_camera',
+  'generate_script',
+  'rewrite_script',
+  'shorten_script',
+  'expand_script',
+  'script_hook',
+  'script_cta',
+  'generate_motion_graphics',
+  'generate_slides',
 ])
 
 /** Tools that never mutate timeline state and therefore need no undo snapshot. */
@@ -651,6 +794,47 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
         ? `Add captions layer for "${clipName}"`
         : 'Add captions layer for the first clip with audio'
     }
+    case 'generate_script': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return null
+      const dur = Number(args.durationSeconds) || 0
+      return `Generate a narration script for "${topic}"${dur > 0 ? ` (${dur}s)` : ''}`
+    }
+    case 'rewrite_script': {
+      const instruction = String(args.instruction ?? '')
+      if (!instruction.trim()) return null
+      return `Rewrite the stored script: ${instruction}`
+    }
+    case 'shorten_script': {
+      const target = Number(args.targetDurationSeconds)
+      if (!Number.isFinite(target) || target <= 0) return null
+      return `Shorten the stored script to ${target}s`
+    }
+    case 'expand_script': {
+      const target = Number(args.targetDurationSeconds)
+      if (!Number.isFinite(target) || target <= 0) return null
+      return `Expand the stored script to ${target}s`
+    }
+    case 'script_hook': {
+      const instruction = String(args.instruction ?? '')
+      return instruction ? `Write a new hook for the script (${instruction})` : 'Write a new hook for the script'
+    }
+    case 'script_cta': {
+      const instruction = String(args.instruction ?? '')
+      return instruction ? `Write a new CTA for the script (${instruction})` : 'Write a new CTA for the script'
+    }
+    case 'generate_motion_graphics': {
+      const concept = String(args.concept ?? '')
+      if (!concept.trim()) return null
+      const dur = Number(args.durationSeconds) || 0
+      return `Generate an animated diagram of "${concept}"${dur > 0 ? ` (${dur}s)` : ''}`
+    }
+    case 'generate_slides': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return null
+      const count = Number(args.count) || 0
+      return `Generate a ${count > 0 ? `${count}-slide ` : ''}deck for "${topic}"`
+    }
     case 'ask_user': {
       const question = String(args.question ?? '').trim()
       if (!question) return null
@@ -709,6 +893,22 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
 export interface ApplyToolOptions {
   /** Set false when the caller already opened an undo transaction. */
   undoStep?: boolean
+}
+
+async function applyScriptEdit(
+  fn: (current: ProjectScript) => Promise<{ script: ProjectScript; message: string }>,
+): Promise<{ ok: boolean; message: string }> {
+  const current = useScriptStore.getState().script
+  if (!current) {
+    return { ok: false, message: 'No script generated yet — call generate_script first.' }
+  }
+  try {
+    const { script, message } = await fn(current)
+    useScriptStore.getState().setScript(script)
+    return { ok: true, message }
+  } catch (err) {
+    return { ok: false, message: `Script update failed: ${err instanceof Error ? err.message : String(err)}` }
+  }
 }
 
 export async function applyTool(
@@ -892,11 +1092,15 @@ export async function applyTool(
     }
     case 'generate_voiceover': {
       const text = String(args.text ?? '')
-      if (!isElevenLabsConfigured()) {
-        return { ok: false, message: 'ElevenLabs is not configured. Add an API key in Settings → Voice first.' }
+      const provider = getActiveTtsProvider()
+      if (!provider) {
+        return {
+          ok: false,
+          message: 'No voice provider is configured. Add an ElevenLabs or NVIDIA NIM TTS API key in Settings → Voice first.',
+        }
       }
       try {
-        const result = await generateVoiceover({ text })
+        const result = await provider.synthesize({ text })
         const file = new File([result.blob], `voiceover-${Date.now()}.mp3`, { type: result.blob.type || 'audio/mpeg' })
         const imported = await s.importFiles([file])
         const asset = imported.imported[0]
@@ -904,7 +1108,7 @@ export async function applyTool(
         const audioTrack = s.project.tracks.find((t) => t.type === 'audio')
         if (!audioTrack) return { ok: false, message: 'No audio track available.' }
         s.addClip(asset.id, audioTrack.id)
-        return { ok: true, message: `${desc} — voiceover added to the timeline` }
+        return { ok: true, message: `${desc} — voiceover added to the timeline via ${provider.name}` }
       } catch (err) {
         return { ok: false, message: `Voiceover generation failed: ${err instanceof Error ? err.message : String(err)}` }
       }
@@ -957,6 +1161,51 @@ export async function applyTool(
       s.updateClip(clip.id, { modelRig: clampRig(rig) })
       return { ok: true, message: desc }
     }
+    case 'generate_script': {
+      const topic = String(args.topic ?? '')
+      const language = String(args.language ?? '') || undefined
+      try {
+        const script = await generateScript({
+          topic,
+          durationSeconds: args.durationSeconds != null ? Number(args.durationSeconds) : undefined,
+          language,
+        })
+        useScriptStore.getState().setScript(script)
+        return { ok: true, message: `${desc} — ${describeScript(script)}` }
+      } catch (err) {
+        return { ok: false, message: `Script generation failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'rewrite_script': {
+      return applyScriptEdit(async (current) => {
+        const script = await rewriteScript(String(args.instruction ?? ''), current)
+        return { script, message: `${desc} — ${describeScript(script)}` }
+      })
+    }
+    case 'shorten_script': {
+      return applyScriptEdit(async (current) => {
+        const script = await shortenScript(current, Number(args.targetDurationSeconds))
+        return { script, message: `${desc} — ${describeScript(script)}` }
+      })
+    }
+    case 'expand_script': {
+      return applyScriptEdit(async (current) => {
+        const script = await expandScript(current, Number(args.targetDurationSeconds))
+        return { script, message: `${desc} — ${describeScript(script)}` }
+      })
+    }
+    case 'script_hook': {
+      return applyScriptEdit(async (current) => {
+        const script = await makeHook(current, args.instruction != null ? String(args.instruction) : undefined)
+        return { script, message: `${desc} — new hook: "${script.hook}"` }
+      })
+    }
+    case 'script_cta': {
+      return applyScriptEdit(async (current) => {
+        const script = await makeCta(current, args.instruction != null ? String(args.instruction) : undefined)
+        return { script, message: `${desc} — new CTA: "${script.cta}"` }
+      })
+    }
     case 'understand_video': {
       const count = await ensureProjectTranscripts()
       return { ok: true, message: count ? `Transcripts ready for ${count} clip${count > 1 ? 's' : ''}.` : 'No clips with audio to transcribe.' }
@@ -1001,6 +1250,66 @@ export async function applyTool(
       const next = useTimelineStore.getState()
       if (!next.project.captions?.enabled) next.setCaptions({ enabled: true })
       return { ok: true, message: `${desc} — captions enabled for "${targetClip.name}"` }
+    }
+    case 'generate_motion_graphics': {
+      const concept = String(args.concept ?? '')
+      if (!concept.trim()) return { ok: false, message: 'No concept provided for motion graphics.' }
+      const durationSeconds = Math.max(1, Number(args.durationSeconds) || 8)
+      const style = args.style != null ? String(args.style) : undefined
+      const language = args.language != null ? String(args.language) : undefined
+      const is1080 = String(args.resolution ?? '720p') === '1080p'
+      try {
+        const { code } = await generateMotionCode({ concept, durationSeconds, style, language })
+        const width = is1080 ? 1920 : 1280
+        const height = is1080 ? 1080 : 720
+        const rendered = await renderMotionClip({ code, width, height, fps: 30, duration: durationSeconds })
+        const file = new File([rendered.blob], `motion-${Date.now()}.webm`, { type: 'video/webm' })
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Rendered animation could not be imported.' }
+        const videoTrack = s.project.tracks.find((t) => t.type === 'video')
+        if (!videoTrack) return { ok: false, message: 'No video track available.' }
+        s.addClip(asset.id, videoTrack.id)
+        const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
+        if (clip) s.updateClip(clip.id, { duration: durationSeconds, sourceEnd: durationSeconds })
+        return {
+          ok: true,
+          message: `${desc} — rendered ${rendered.frames} frames at ${width}x${height} and added "${asset.name}" to the timeline.`,
+        }
+      } catch (err) {
+        return { ok: false, message: `Motion graphics generation failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'generate_slides': {
+      const topic = String(args.topic ?? '')
+      if (!topic.trim()) return { ok: false, message: 'No topic provided for slides.' }
+      const count = args.count != null ? Number(args.count) : undefined
+      const theme = (['clean', 'dark', 'gradient'] as string[]).includes(String(args.theme ?? ''))
+        ? (String(args.theme) as SlideTheme)
+        : 'clean'
+      const language = args.language != null ? String(args.language) : undefined
+      const perSlide = Math.max(1, Number(args.durationSeconds) || 5)
+      try {
+        const deck = await generateSlides({ topic, count, language })
+        if (!deck.slides.length) return { ok: false, message: 'Slide generation returned no slides.' }
+        const files: File[] = []
+        for (let i = 0; i < deck.slides.length; i++) {
+          const png = await renderSlidePng(deck.slides[i], i + 1, deck.slides.length, theme, 1280, 720)
+          files.push(new File([png], `slide-${i + 1}-${Date.now()}.png`, { type: 'image/png' }))
+        }
+        const imported = await s.importFiles(files)
+        const assets = imported.imported
+        const videoTrack = s.project.tracks.find((t) => t.type === 'video')
+        if (!videoTrack) return { ok: false, message: 'No video track available.' }
+        for (const asset of assets) {
+          s.addClip(asset.id, videoTrack.id)
+          const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
+          if (clip) s.updateClip(clip.id, { duration: perSlide, sourceEnd: perSlide })
+        }
+        return { ok: true, message: `${desc} — rendered ${assets.length} slides ("${deck.title}") onto the timeline.` }
+      } catch (err) {
+        return { ok: false, message: `Slide generation failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
     }
     case 'ask_user': {
       const question = String(args.question ?? '').trim()

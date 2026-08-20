@@ -78,6 +78,13 @@ export async function fetchNvidiaNimModels(apiKey: string, baseUrl = 'https://in
   return chat
 }
 
+export async function testNvidiaTts(apiKey: string, baseUrl: string, timeoutMs: number): Promise<TestResult> {
+  const label = 'NVIDIA TTS'
+  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
+  const url = `${baseUrl.replace(/\/$/, '')}/models`
+  return doRequest(label, url, { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } }, timeoutMs)
+}
+
 export async function testOpenCodeZen(apiKey: string, baseUrl: string, model: string, timeoutMs: number): Promise<TestResult> {
   const label = 'OpenCode Zen'
   if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
