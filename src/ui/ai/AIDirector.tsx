@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Bot, Check, ListChecks, MessageSquare, Send, Settings, Trash2, User, X } from 'lucide-react'
+import { Bot, Check, ListChecks, MessageSquare, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -899,6 +899,23 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           )}
 
           <div className="border-t p-3">
+            <div className="mb-2 flex gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 flex-1 text-[11px]"
+                disabled={busy}
+                onClick={() =>
+                  void send(
+                    'Auto-pilot: understand the current media, analyze the video (transcribe audio if needed, read on-screen text), then plan and apply the best edit — pacing, transitions, captions, music or images where they help. Ask me only if a decision is truly blocking.',
+                  )
+                }
+              >
+                <Sparkles className="mr-1 size-3" />
+                Auto-Pilot
+              </Button>
+            </div>
             <div className="flex gap-2">
               <input
                 value={input}

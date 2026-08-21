@@ -5,6 +5,7 @@ import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
 import { OpenRouterCard } from '@/components/settings/cards/OpenRouterCard'
 import { ElevenLabsCard } from '@/components/settings/cards/ElevenLabsCard'
 import { NvidiaTtsCard } from '@/components/settings/cards/NvidiaTtsCard'
+import { AvatarCard } from '@/components/settings/cards/AvatarCard'
 import { VoiceProviderPicker } from '@/components/settings/cards/VoiceProviderPicker'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { GiphyCard } from '@/components/settings/cards/GiphyCard'
@@ -77,6 +78,7 @@ export function SettingsPage() {
           </div>
           <ElevenLabsCard />
           <NvidiaTtsCard />
+          <AvatarCard />
         </section>
 
         <section className="flex flex-col gap-3">

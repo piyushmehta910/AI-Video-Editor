@@ -23,6 +23,7 @@ import { useApiConfigStore } from '@/api/config/store'
 import type { Clip, EffectType, TextOverlay } from '@/engine/types'
 import { createEffect } from '@/engine/types'
 import { generateSlides, renderSlidePng, type SlideTheme } from '@/api/llm/slides'
+import { generateMarpSlides, type MarpTheme } from '@/api/llm/marp'
 import { generateLipsyncVideo, type AvatarMouth } from '@/engine/avatar'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { searchMusic, type MusicTrackResult } from '@/api/music/search'
@@ -142,7 +143,9 @@ function SlideSection() {
   const importFiles = useTimelineStore((s) => s.importFiles)
   const [topic, setTopic] = React.useState('')
   const [count, setCount] = React.useState(4)
+  const [format, setFormat] = React.useState<'standard' | 'marp'>('marp')
   const [theme, setTheme] = React.useState<SlideTheme>('clean')
+  const [marpTheme, setMarpTheme] = React.useState<MarpTheme>('gaia')
   const [busy, setBusy] = React.useState(false)
   const [progress, setProgress] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
@@ -163,14 +166,27 @@ function SlideSection() {
     setPreviews([])
     setSelectedSlides(new Set())
     try {
-      setProgress('Generating slide content...')
-      const deck = await generateSlides({ topic: topic.trim(), count })
       const newPreviews: Array<{ blob: Blob; url: string; title: string; bullets: string[] }> = []
-      for (let i = 0; i < deck.slides.length; i++) {
-        setProgress(`Rendering slide ${i + 1}/${deck.slides.length}...`)
-        const blob = await renderSlidePng(deck.slides[i], i + 1, deck.slides.length, theme, 1280, 720)
-        const url = URL.createObjectURL(blob)
-        newPreviews.push({ blob, url, title: deck.slides[i].title, bullets: deck.slides[i].bullets })
+      if (format === 'marp') {
+        setProgress('Generating Marp deck...')
+        const deck = await generateMarpSlides({
+          topic: topic.trim(),
+          count,
+          theme: marpTheme,
+          onProgress: (done, total) => setProgress(`Rendering slide ${done}/${total}...`),
+        })
+        deck.pngs.forEach((blob, i) => {
+          newPreviews.push({ blob, url: URL.createObjectURL(blob), title: i === 0 ? deck.title : `Slide ${i + 1}`, bullets: [] })
+        })
+      } else {
+        setProgress('Generating slide content...')
+        const deck = await generateSlides({ topic: topic.trim(), count })
+        for (let i = 0; i < deck.slides.length; i++) {
+          setProgress(`Rendering slide ${i + 1}/${deck.slides.length}...`)
+          const blob = await renderSlidePng(deck.slides[i], i + 1, deck.slides.length, theme, 1280, 720)
+          const url = URL.createObjectURL(blob)
+          newPreviews.push({ blob, url, title: deck.slides[i].title, bullets: deck.slides[i].bullets })
+        }
       }
       setPreviews(newPreviews)
       setSelectedSlides(new Set(newPreviews.map((_, i) => i)))
@@ -241,6 +257,30 @@ function SlideSection() {
           <Input type="number" min={1} max={6} value={count} onChange={(e) => setCount(Math.max(1, Math.min(6, Number(e.target.value))))} className="h-8 text-xs" disabled={busy} />
         </div>
         <div className="space-y-1.5">
+          <Label className="text-xs">Format</Label>
+          <Select value={format} onValueChange={(v) => setFormat(v as 'standard' | 'marp')} disabled={busy}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="marp">Marp</SelectItem>
+              <SelectItem value="standard">Standard</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {format === 'marp' ? (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Marp Theme</Label>
+          <Select value={marpTheme} onValueChange={(v) => setMarpTheme(v as MarpTheme)} disabled={busy}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gaia">Gaia (dark)</SelectItem>
+              <SelectItem value="uncover">Uncover (light)</SelectItem>
+              <SelectItem value="default">Default (white)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
           <Label className="text-xs">Theme</Label>
           <Select value={theme} onValueChange={(v) => setTheme(v as SlideTheme)} disabled={busy}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -251,7 +291,7 @@ function SlideSection() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      )}
       <Button size="sm" className="w-full" onClick={() => void generate()} disabled={busy || !topic.trim()}>
         {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
         {busy ? progress || 'Generating...' : 'Generate Slides'}
