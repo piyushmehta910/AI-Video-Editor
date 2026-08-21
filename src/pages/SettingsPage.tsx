@@ -108,6 +108,79 @@ export function SettingsPage() {
           <SectionLabel>Engine</SectionLabel>
           <EngineCard />
         </section>
+
+        <section className="flex flex-col gap-3">
+          <SectionLabel>Keyboard Shortcuts</SectionLabel>
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <p className="text-muted-foreground mb-4 text-xs">
+              Shortcuts work when the editor has focus.
+            </p>
+            <div className="flex flex-col gap-4">
+              {[
+                {
+                  title: 'Playback & navigation',
+                  items: [
+                    { keys: 'Space', label: 'Play / Pause' },
+                    { keys: '← / →', label: 'Step one frame' },
+                    { keys: 'Shift+← / Shift+→', label: 'Seek ± 1 second' },
+                    { keys: '↑ / ↓', label: 'Seek ± 5 seconds' },
+                    { keys: 'Home / End', label: 'Go to start / end' },
+                    { keys: 'J / K / L', label: 'Shuttle reverse / stop / forward' },
+                  ],
+                },
+                {
+                  title: 'Editing',
+                  items: [
+                    { keys: 'Ctrl+Z', label: 'Undo' },
+                    { keys: 'Ctrl+Shift+Z / Ctrl+Y', label: 'Redo' },
+                    { keys: 'Ctrl+S', label: 'Save project' },
+                    { keys: 'Ctrl+C / Ctrl+X / Ctrl+V', label: 'Copy / Cut / Paste' },
+                    { keys: 'Ctrl+D', label: 'Duplicate selected' },
+                    { keys: 'Delete / Backspace', label: 'Delete selected' },
+                    { keys: 'Shift+Delete', label: 'Ripple-delete selected' },
+                    { keys: 'Ctrl+K (or I)', label: 'Split at playhead' },
+                    { keys: 'Ctrl+A', label: 'Select all clips' },
+                    { keys: 'Shift+← / Shift+→', label: 'Nudge selected clip 1 frame' },
+                    { keys: '[ / ]', label: 'Trim selected clip start / end' },
+                  ],
+                },
+                {
+                  title: 'Timeline & view',
+                  items: [
+                    { keys: 'Ctrl+= / Ctrl+-', label: 'Zoom in / out' },
+                    { keys: 'Ctrl+0', label: 'Reset zoom' },
+                    { keys: 'Ctrl+wheel', label: 'Zoom on the timeline' },
+                    { keys: 'Click ruler / track', label: 'Move playhead' },
+                    { keys: 'Shift+drag clip', label: 'Disable snapping' },
+                  ],
+                },
+              ].map((group) => (
+                <div key={group.title}>
+                  <h3 className="text-muted-foreground mb-1.5 text-[11px] font-semibold tracking-wide uppercase">
+                    {group.title}
+                  </h3>
+                  <div className="flex flex-col divide-y divide-border/60 rounded-lg border bg-muted/30">
+                    {group.items.map((item) => (
+                      <div key={item.label} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                        <span className="text-xs">{item.label}</span>
+                        <span className="flex flex-wrap justify-end gap-1">
+                          {item.keys.split(' / ').map((k, i) => (
+                            <kbd
+                              key={i}
+                              className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground"
+                            >
+                              {k}
+                            </kbd>
+                          ))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )

@@ -10,7 +10,6 @@ import {
   CopyPlus,
   Eye,
   EyeOff,
-  Keyboard,
   Loader2,
   Lock,
   LockOpen,
@@ -39,7 +38,6 @@ import { cn } from '@/lib/utils'
 import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
 import { AddTextDialog } from '@/ui/media/AddTextDialog'
 import { AddAudioDialog } from '@/ui/media/AddAudioDialog'
-import { ShortcutsDialog } from '@/ui/common/ShortcutsDialog'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 
 const HEADER_WIDTH = 64
@@ -132,7 +130,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
   const [avatarOpen, setAvatarOpen] = React.useState(false)
   const [audioOpen, setAudioOpen] = React.useState(false)
   const [textOpen, setTextOpen] = React.useState(false)
-  const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
   const [trimMode, setTrimMode] = React.useState(false)
   const [moreOpen, setMoreOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
@@ -486,10 +483,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
             <Waves className="size-3.5" />
             Ripple
           </Button>
-          <SeparatorLine />
-          <ToolbarButton label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}>
-            <Keyboard className="size-4" />
-          </ToolbarButton>
         </span>
 
         <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
@@ -530,7 +523,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
                   }
                 />
                 <MenuRow icon={<Waves className="size-4" />} label={`Ripple: ${ripple ? 'on' : 'off'}`} onClick={() => setRipple((r) => !r)} />
-                <MenuRow icon={<Keyboard className="size-4" />} label="Keyboard shortcuts" onClick={() => { setShortcutsOpen(true); setMoreOpen(false) }} />
               </div>
             </>
           )}
@@ -676,7 +668,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
       <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
       <AddAudioDialog open={audioOpen} onClose={() => setAudioOpen(false)} />
       <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
-      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
