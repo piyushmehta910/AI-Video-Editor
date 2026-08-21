@@ -3,7 +3,7 @@ import { aspectToSize, CAMERA_MODES, clampRig, defaultCameraRig } from '@/engine
 import type { Asset, CameraMode, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
-import { transcribeAsset, ensureProjectTranscripts, getStoredTranscript, type StoredTranscript } from '@/api/llm/understanding'
+import { transcribeAsset, getStoredTranscript, type StoredTranscript } from '@/api/llm/understanding'
 import { getActiveTtsProvider } from '@/api/tts'
 import {
   generateScript,
@@ -1468,8 +1468,8 @@ export async function applyTool(
       })
     }
     case 'understand_video': {
-      const count = await ensureProjectTranscripts()
-      return { ok: true, message: count ? `Transcripts ready for ${count} clip${count > 1 ? 's' : ''}.` : 'No clips with audio to transcribe.' }
+      const count = await analyzeProject()
+      return { ok: true, message: count ? `Full understanding ready for ${count} clip${count > 1 ? 's' : ''} (transcripts, scene breakdown, on-screen text).` : 'No clips with audio to transcribe.' }
     }
     case 'check_quality': {
       const s = useTimelineStore.getState()

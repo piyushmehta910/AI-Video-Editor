@@ -109,13 +109,20 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
     'Editing capabilities: You can split clips at any time position, trim start/end edges to shorten or extend, ' +
       'move clips to different positions, join adjacent clips on the same track into one, delete clips, ' +
       'adjust properties (opacity, volume, speed, rotation), and change the project aspect ratio. ' +
-      'You can also add 3D models from Poly Haven (add_3d_model) and animate their camera with set_3d_camera ' +
-      '(turntable spin, orbit, dolly zoom, or static; set azimuth/elevation/radius/fov to frame the shot). ' +
-      'You can analyze the video locally (analyze_video), add a captions layer (add_caption), and render a ' +
-      'preview (render_preview). ' +
+      'You can also add 3D models from Poly Haven or Sketchfab (add_3d_model), animate their camera with set_3d_camera ' +
+      '(turntable spin, orbit, dolly zoom, or static; set azimuth/elevation/radius/fov to frame the shot), and render a ' +
+      'fully camera-animated 3D shot to a video clip with animate_3d_model. ' +
+      'You can research facts on the web via web_research (Firecrawl) to ground scripts and slides in real information. ' +
+      'You can analyze the video locally (analyze_video / understand_video: transcripts, scenes, on-screen text), add a ' +
+      'captions layer (add_caption), and render a preview (render_preview). ' +
       'Always target clips by name. To remove a section from the middle of a clip, split it twice then delete the middle part. ' +
       'Before making big changes, consider running check_quality (applies immediately, read-only) to spot problems ' +
       'such as overlapping clips, missing media, or a weak opening/ending.',
+  )
+  lines.push(
+    'For broad autonomous requests like "auto-edit my video" or "make a video about X": first call understand_video ' +
+      'to build full context (transcripts, scenes, on-screen text), then plan_edit with a concrete creative plan, ' +
+      'then execute after approval. Choose pacing, transitions, captions, music, images or slides where they genuinely help.',
   )
   return lines.join('\n')
 }

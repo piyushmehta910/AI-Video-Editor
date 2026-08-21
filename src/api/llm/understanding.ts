@@ -183,11 +183,16 @@ export async function buildProjectUnderstanding(): Promise<string> {
       if (!asset || asset.type === 'image') continue
       const transcript = await getStoredTranscript(asset.id)
       const scenes = await getStoredScenes(asset.id)
+      const ocr = await getStoredOcr(asset.id)
       const timeRange = `${clip.startTime.toFixed(1)}s–${(clip.startTime + clip.duration).toFixed(1)}s`
       if (transcript) {
         lines.push(`- Clip "${clip.name}" (${timeRange}): "${transcript.text}"`)
       } else {
         lines.push(`- Clip "${clip.name}" (${timeRange}): (no transcript yet)`)
+      }
+      if (ocr?.regions?.length) {
+        const texts = ocr.regions.map((r) => r.text.trim()).filter(Boolean).slice(0, 8).join(' | ')
+        if (texts) lines.push(`  - On-screen text: ${texts}`)
       }
       if (scenes && scenes.scenes.length) {
         for (const sc of scenes.scenes) {
