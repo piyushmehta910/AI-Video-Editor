@@ -303,9 +303,9 @@ export async function renderHtmlToPng(
   signal?: AbortSignal,
 ): Promise<Blob> {
   const xmlSafe = html
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
   const code = `
 window.__INIT = function (ctx, w, h) {
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '"><foreignObject width="100%" height="100%">' + ${JSON.stringify(xmlSafe)} + '</foreignObject></svg>';

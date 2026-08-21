@@ -16,6 +16,7 @@ import {
   FileText,
   Code,
   Plus,
+  ScrollText,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -49,6 +50,8 @@ export type ToolSection =
   | 'slide'
   | 'avatar'
   | 'design'
+  | 'script'
+  | 'images'
 
 export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'effects', label: 'Effects', icon: Sparkles },
@@ -63,6 +66,8 @@ export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ c
   { id: 'slide', label: 'Slides', icon: FileText },
   { id: 'avatar', label: 'Avatar', icon: Clapperboard },
   { id: 'design', label: 'Design', icon: Code },
+  { id: 'script', label: 'Script', icon: ScrollText },
+  { id: 'images', label: 'Images', icon: Image },
 ]
 
 function getSelectedClip(): Clip | null {
@@ -1305,6 +1310,202 @@ Return ONLY the complete HTML code:` },
   )
 }
 
+// ─── Script Section ───────────────────────────────────────────────────────────
+function ScriptSection() {
+  const [topic, setTopic] = React.useState('')
+  const [scenes, setScenes] = React.useState(4)
+  const [tone, setTone] = React.useState('educational')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [success, setSuccess] = React.useState<string | null>(null)
+  const [script, setScript] = React.useState<string>('')
+
+  const generate = async () => {
+    if (!topic.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    setScript('')
+    try {
+      const { chatCompletion, getDirectorProvider } = await import('@/api/llm/director')
+      const provider = getDirectorProvider()
+      if (!provider) throw new Error('No AI provider configured. Add one in Settings.')
+      const messages = [
+        { role: 'system' as const, content: `You write video scripts. Output JSON only:
+{
+  "title": "Video Title",
+  "scenes": [
+    { "scene": 1, "visual": "Description of visuals", "narration": "Voiceover text", "duration": 5 }
+  ]
+}
+Rules: ${scenes} scenes. Tone: ${tone}. Each scene 5-10s. No markdown.` },
+        { role: 'user' as const, content: `Topic: "${topic.trim()}"` },
+      ]
+      const reply = await chatCompletion(provider, messages)
+      let content = reply.content ?? ''
+      content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+      setScript(content)
+      setSuccess('Script generated. Copy or save as text file.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3 p-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Topic</Label>
+        <Input placeholder="e.g. How solar panels work" value={topic} onChange={(e) => setTopic(e.target.value)} className="h-8 text-xs" disabled={busy} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Scenes</Label>
+          <Input type="number" min={1} max={10} value={scenes} onChange={(e) => setScenes(Math.max(1, Math.min(10, Number(e.target.value))))} className="h-8 text-xs" disabled={busy} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Tone</Label>
+          <Select value={tone} onValueChange={setTone} disabled={busy}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="educational">Educational</SelectItem>
+              <SelectItem value="promotional">Promotional</SelectItem>
+              <SelectItem value="storytelling">Storytelling</SelectItem>
+              <SelectItem value="technical">Technical</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <Button size="sm" className="w-full" onClick={() => void generate()} disabled={busy || !topic.trim()}>
+        {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+        {busy ? 'Generating...' : 'Generate Script'}
+      </Button>
+      {error && <SectionNotice kind="error" text={error} />}
+      {success && <SectionNotice kind="ok" text={success} />}
+      {script && (
+        <div className="space-y-2">
+          <Label className="text-xs">Generated Script (JSON)</Label>
+          <textarea value={script} readOnly className="h-48 w-full rounded border bg-muted p-2 font-mono text-[10px] leading-relaxed" />
+          <Button size="sm" variant="outline" className="w-full" onClick={() => navigator.clipboard.writeText(script)}>Copy JSON</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Images Section ───────────────────────────────────────────────────────────
+function ImagesSection() {
+  const importFiles = useTimelineStore((s) => s.importFiles)
+  const config = useApiConfigStore((s) => s.config)
+  const [query, setQuery] = React.useState('')
+  const [results, setResults] = React.useState<Array<{ id: string; url: string; thumb: string; alt: string }>>([])
+  const [searching, setSearching] = React.useState(false)
+  const [importingId, setImportingId] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [success, setSuccess] = React.useState<string | null>(null)
+
+  const search = async () => {
+    if (!query.trim() || searching) return
+    setSearching(true)
+    setError(null)
+    setResults([])
+    try {
+      const providers = []
+      if (config.stockImages.unsplash.enabled && config.stockImages.unsplash.accessKey) {
+        providers.push(searchUnsplash(query.trim(), 8))
+      }
+      if (config.stockImages.pexels.enabled && config.stockImages.pexels.apiKey) {
+        providers.push(searchPexels(query.trim(), 8))
+      }
+      if (config.stockImages.pixabay.enabled && config.stockImages.pixabay.apiKey) {
+        providers.push(searchPixabay(query.trim(), 8))
+      }
+      if (providers.length === 0) {
+        setError('Configure at least one stock image provider in Settings.')
+        setSearching(false)
+        return
+      }
+      const allResults = (await Promise.all(providers)).flat()
+      setResults(allResults.slice(0, 12))
+      if (!allResults.length) setError('No images found.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const importImage = async (item: { id: string; url: string; alt: string }) => {
+    setImportingId(item.id)
+    try {
+      const res = await fetch(item.url)
+      const blob = await res.blob()
+      const file = new File([blob], `${item.alt || 'image'}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const { imported, errors } = await importFiles([file])
+      if (imported.length) setSuccess(`Added "${imported[0].name}" to timeline`)
+      else setError(errors[0] ?? 'Import failed')
+    } catch {
+      setError('Download failed')
+    } finally {
+      setImportingId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-3 p-3">
+      <div className="flex gap-1.5">
+        <Input placeholder="Search stock images..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void search() }} className="h-8 text-xs" />
+        <Button size="sm" className="h-8 px-2" onClick={() => void search()} disabled={searching || !query.trim()}>
+          {searching ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+        </Button>
+      </div>
+      {error && <SectionNotice kind="error" text={error} />}
+      {success && <SectionNotice kind="ok" text={success} />}
+      {results.length > 0 && (
+        <div className="grid max-h-64 grid-cols-2 gap-1.5 overflow-y-auto">
+          {results.map((r) => (
+            <button key={r.id} type="button" className="group relative overflow-hidden rounded border bg-muted" onClick={() => void importImage(r)} disabled={importingId === r.id}>
+              <img src={r.thumb} alt={r.alt} className="aspect-square w-full object-cover" loading="lazy" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                {importingId === r.id ? <Loader2 className="size-4 animate-spin text-white" /> : <Download className="size-4 text-white" />}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {results.length === 0 && !searching && (
+        <EmptyHint text="Configure stock image providers in Settings (Unsplash, Pexels, Pixabay) to search images." icon={Image} />
+      )}
+    </div>
+  )
+}
+
+async function searchUnsplash(query: string, limit: number) {
+  const cfg = useApiConfigStore.getState().config.stockImages.unsplash
+  const res = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${limit}&client_id=${cfg.accessKey}`)
+  if (!res.ok) return []
+  const data = await res.json()
+  return (data.results ?? []).map((p: any) => ({ id: p.id, url: p.urls.regular, thumb: p.urls.thumb, alt: p.alt_description || query }))
+}
+
+async function searchPexels(query: string, limit: number) {
+  const cfg = useApiConfigStore.getState().config.stockImages.pexels
+  if (!cfg.apiKey) return []
+  const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}`, { headers: { Authorization: cfg.apiKey } })
+  if (!res.ok) return []
+  const data = await res.json()
+  return (data.photos ?? []).map((p: any) => ({ id: String(p.id), url: p.src.large, thumb: p.src.medium, alt: p.alt || query }))
+}
+
+async function searchPixabay(query: string, limit: number) {
+  const cfg = useApiConfigStore.getState().config.stockImages.pixabay
+  const res = await fetch(`https://pixabay.com/api/?key=${cfg.apiKey}&q=${encodeURIComponent(query)}&per_page=${limit}&image_type=photo`)
+  if (!res.ok) return []
+  const data = await res.json()
+  return (data.hits ?? []).map((h: any) => ({ id: String(h.id), url: h.largeImageURL, thumb: h.webformatURL, alt: h.tags || query }))
+}
+
 // ─── Panel ────────────────────────────────────────────────────────────────────
 interface RightToolPanelProps {
   section: ToolSection
@@ -1324,6 +1525,8 @@ const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
   slide: SlideSection,
   avatar: AvatarSection,
   design: DesignSection,
+  script: ScriptSection,
+  images: ImagesSection,
 }
 
 export function RightToolPanel({ section, onCollapse }: RightToolPanelProps) {

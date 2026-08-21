@@ -15,15 +15,18 @@ import {
   CopyPlus,
   Eye,
   EyeOff,
+  Image,
   Layers,
   Loader2,
   Lock,
   LockOpen,
   Maximize,
+  Mic,
   MoreHorizontal,
   Music,
   Redo2,
   Scissors,
+  ScrollText,
   Slice,
   Sparkles,
   Stamp,
@@ -399,6 +402,20 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     if (store.selection.clipIds.length) store.cutClips(store.selection.clipIds)
   }
 
+  const runDenoiseOnSelection = () => {
+    const store = useTimelineStore.getState()
+    const { denoise } = useDenoiseAction()
+    for (const id of store.selection.clipIds) {
+      for (const track of store.project.tracks) {
+        const clip = track.clips.find((c) => c.id === id)
+        if (clip && track.type === 'audio') {
+          void denoise.run(clip.id)
+          break
+        }
+      }
+    }
+  }
+
   const paste = () => {
     useTimelineStore.getState().pasteClips()
   }
@@ -459,6 +476,18 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <ToolbarButton label="Design" onClick={() => onOpenTool?.('design')}>
           <Code className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Script Generator" onClick={() => onOpenTool?.('script')}>
+          <ScrollText className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Image Search" onClick={() => onOpenTool?.('images')}>
+          <Image className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Denoise Audio" onClick={runDenoiseOnSelection} disabled={!selection.clipIds.length}>
+          <VolumeX className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Avatar Lip-Sync" onClick={() => onOpenTool?.('avatar')}>
+          <Mic className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
 

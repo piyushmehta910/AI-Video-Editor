@@ -26,6 +26,25 @@ function sourceSize(source: CanvasImageSource): { w: number; h: number } {
   return { w: (source as ImageBitmap).width, h: (source as ImageBitmap).height }
 }
 
+function drawImagePlaceholder(ctx: CanvasRenderingContext2D, w: number, h: number, label: string) {
+  const size = Math.max(1, Math.min(w, h) * 0.08)
+  ctx.save()
+  ctx.translate(-w / 2, -h / 2)
+  ctx.fillStyle = '#1a1a2e'
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = '#334155'
+  ctx.lineWidth = 2
+  ctx.strokeRect(2, 2, w - 4, h - 4)
+  ctx.fillStyle = '#64748b'
+  ctx.font = `${size}px system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const maxWidth = w * 0.9
+  const truncated = label.length > 30 ? label.slice(0, 27) + '...' : label
+  ctx.fillText(truncated, w / 2, h / 2, maxWidth)
+  ctx.restore()
+}
+
 /** Ease-out cubic: fast start, gentle settle. */
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3)
@@ -271,17 +290,30 @@ export async function compositeFrame(
           if (tw > 0 && th > 0) {
             const scale = Math.max(w / tw, h / th)
             ctx.drawImage(thumb, (-tw * scale) / 2, (-th * scale) / 2, tw * scale, th * scale)
+          } else {
+            drawImagePlaceholder(ctx, w, h, asset.name ?? 'Video')
           }
+        } else {
+          drawImagePlaceholder(ctx, w, h, asset.name ?? 'Video')
         }
       }
     } else if (asset.type === 'image') {
-      const img = await media.image(asset)
+      let img: CanvasImageSource | null = null
+      try {
+        img = await media.image(asset)
+      } catch (e) {
+        console.warn('Failed to load image asset:', asset.id, e)
+      }
       if (img) {
         const { w: iw, h: ih } = sourceSize(img)
         if (iw > 0 && ih > 0) {
           const scale = Math.max(w / iw, h / ih)
           ctx.drawImage(img, (-iw * scale) / 2, (-ih * scale) / 2, iw * scale, ih * scale)
+        } else {
+          drawImagePlaceholder(ctx, w, h, asset.name ?? 'Image')
         }
+      } else {
+        drawImagePlaceholder(ctx, w, h, asset.name ?? 'Image')
       }
     } else if (asset.type === 'model') {
       if (media.model) {

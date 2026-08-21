@@ -143,14 +143,14 @@ React.useEffect(() => {
     (asset: Asset): Promise<HTMLImageElement> => {
       const cached = imageCache.current.get(asset.id)
       if (cached && cached.complete && cached.naturalWidth > 0) return Promise.resolve(cached)
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         void getAssetUrl(asset).then((url) => {
           const img = new Image()
           img.onload = () => {
             imageCache.current.set(asset.id, img)
             resolve(img)
           }
-          img.onerror = () => resolve(img)
+          img.onerror = () => reject(new Error(`Failed to load image: ${asset.id}`))
           img.src = url
         })
       })
