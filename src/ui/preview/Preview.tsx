@@ -99,7 +99,7 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
       style={{ background: 'linear-gradient(180deg, #0b0b10 0%, #14141b 100%)' }}
       onPointerMove={fullscreen ? revealControls : undefined}
     >
-      <div ref={previewAreaRef} className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
+      <div ref={previewAreaRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4">
         {canvasCssSize && (
           <div
             className={cn(

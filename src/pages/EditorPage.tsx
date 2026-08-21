@@ -124,7 +124,7 @@ export function EditorPage() {
           </div>
         )}
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {/* Mobile view switcher + panel toggles */}
           <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1 md:hidden">
             <Button
