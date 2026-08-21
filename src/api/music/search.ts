@@ -7,7 +7,7 @@ export interface MusicTrackResult {
   artist: string
   duration: number
   previewUrl?: string
-  source: 'deezer' | 'internetarchive'
+  source: 'deezer' | 'internetarchive' | 'musicbrainz'
 }
 
 export interface MusicSearchOptions {
@@ -94,9 +94,68 @@ async function searchInternetArchive(query: string, limit: number): Promise<Musi
   return rows.filter((r): r is MusicTrackResult => r !== null).slice(0, limit)
 }
 
+async function searchMusicBrainz(query: string, limit: number): Promise<MusicTrackResult[]> {
+  const cfg = useApiConfigStore.getState().config.music.musicbrainz
+  if (!cfg.enabled) return []
+  const base = (cfg.baseUrl ?? 'https://musicbrainz.org').replace(/\/$/, '')
+  try {
+    const data = (await fetchJson(
+      `${base}/ws/2/recording?query=${encodeURIComponent(query)}&fmt=json&limit=${limit}`,
+      { headers: { Accept: 'application/json' } },
+      30000,
+    )) as {
+      recordings?: Array<{
+        id?: string
+        title?: string
+        length?: number
+        'artist-credit'?: Array<{ name?: string; artist?: { name?: string } }>
+      }>
+    }
+    const recordings = data.recordings ?? []
+    return Promise.all(
+      recordings.map(async (r): Promise<MusicTrackResult> => {
+        const title = r.title ?? 'Unknown'
+        const artist =
+          r['artist-credit']
+            ?.map((c) => c.name ?? c.artist?.name ?? '')
+            .filter(Boolean)
+            .join(', ') || 'Unknown'
+        const duration = Math.round((r.length ?? 0) / 1000)
+        let previewUrl: string | undefined
+        try {
+          // MusicBrainz has no audio; enrich with a free 30s iTunes preview when available.
+          const it = (await fetchJson(
+            `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`,
+            {},
+            15000,
+          )) as { results?: Array<{ previewUrl?: string }> }
+          previewUrl = it.results?.[0]?.previewUrl
+        } catch {
+          // preview optional
+        }
+        return { id: r.id ?? `${title}:${artist}`, title, artist, duration, previewUrl, source: 'musicbrainz' }
+      }),
+    )
+  } catch {
+    return []
+  }
+}
+
 export async function searchMusic(query: string, options: MusicSearchOptions = {}): Promise<MusicTrackResult[]> {
   const limit = options.maxResults ?? 6
-  const deezer = await searchDeezer(query, limit)
-  if (deezer.length) return deezer
-  return searchInternetArchive(query, limit)
+  const [deezer, musicbrainz, archive] = await Promise.all([
+    searchDeezer(query, limit),
+    searchMusicBrainz(query, limit),
+    searchInternetArchive(query, limit),
+  ])
+  const seen = new Set<string>()
+  const merged: MusicTrackResult[] = []
+  for (const track of [...deezer, ...musicbrainz, ...archive]) {
+    const key = `${track.title.toLowerCase()}|${track.artist.toLowerCase()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(track)
+    if (merged.length >= limit * 2) break
+  }
+  return merged
 }

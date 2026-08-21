@@ -129,7 +129,12 @@ export interface ApiConfig {
   firecrawl: FirecrawlConfig
   music: MusicConfig
   giphy: GiphyConfig
+  sketchfab: SketchfabConfig
   preferences: AiPreferencesConfig
+}
+
+export interface SketchfabConfig extends BaseConfig {
+  apiKey: string
 }
 
 export const defaultNvidiaNimConfig: NvidiaNimConfig = {
@@ -287,6 +292,16 @@ export const defaultPreferencesConfig: AiPreferencesConfig = {
   confirmationLevel: 'destructive',
 }
 
+export interface SketchfabConfig extends BaseConfig {
+  apiKey: string
+}
+
+export const defaultSketchfabConfig: SketchfabConfig = {
+  enabled: false,
+  apiKey: '',
+  timeoutMs: 30000,
+}
+
 export const defaultApiConfig: ApiConfig = {
   nvidiaNim: defaultNvidiaNimConfig,
   opencodeZen: defaultOpenCodeZenConfig,
@@ -298,6 +313,7 @@ export const defaultApiConfig: ApiConfig = {
   firecrawl: defaultFirecrawlConfig,
   music: defaultMusicConfig,
   giphy: defaultGiphyConfig,
+  sketchfab: defaultSketchfabConfig,
   preferences: defaultPreferencesConfig,
 }
 

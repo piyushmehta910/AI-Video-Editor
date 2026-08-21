@@ -22,6 +22,8 @@ import type { AvatarRole } from '@/api/llm/avatarGenerator'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
+import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
+import { firecrawlSearch, firecrawlScrape } from '@/api/research/firecrawl'
 import { analyzeProject } from '@/api/llm/analysis'
 import { exportProject } from '@/engine/export/exportVideo'
 import { computeReframingKeyframes } from '@/engine/reframing'
@@ -239,13 +241,27 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'search_music',
-      description: 'Search music providers (Deezer) for background music or a sound effect, download the preview, import it as an audio asset and add it to the timeline. Runs on approval.',
+      description: 'Search music providers (Deezer, MusicBrainz, Internet Archive) for background music or a sound effect, download the preview, import it as an audio asset and add it to the timeline. Runs on approval.',
       parameters: {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Mood or track to search for, e.g. "calm piano background music".' },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'web_research',
+      description: 'Research facts on the web via Firecrawl to ground scripts and slides in real information. Either search a topic or scrape a specific URL. Read-only: returns findings to you as context. Requires Firecrawl in Settings.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Topic or question to search the web for.' },
+          url: { type: 'string', description: 'Optional exact URL to scrape instead of searching.' },
+        },
       },
     },
   },
@@ -296,11 +312,12 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'add_3d_model',
-      description: 'Search Poly Haven (free CC0 3D models) for a query, download the best match, convert it to GLB, import it as a 3D model asset and add it to the timeline with a camera animation. Runs on approval.',
+      description: 'Search Poly Haven (free CC0) or Sketchfab (needs API token) for a 3D model, download the best match as GLB, import it as a 3D model asset and add it to the timeline with a camera animation. Runs on approval.',
       parameters: {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'What to search for, e.g. "wooden armchair" or "skull".' },
+          source: { type: 'string', enum: ['polyhaven', 'sketchfab'], description: 'Model library to search (default polyhaven).' },
           durationSeconds: { type: 'number', description: 'Clip duration in seconds (default 4).' },
           mode: {
             type: 'string',
@@ -775,6 +792,7 @@ const NON_MUTATING_TOOLS = new Set<string>([
   'review_project',
   'analyze_video',
   'render_preview',
+  'web_research',
 ])
 
 /** Friendly aliases so the model can use either naming style. */
@@ -1281,11 +1299,21 @@ export async function applyTool(
     }
     case 'add_3d_model': {
       const query = String(args.query ?? '')
-      const results = await searchModels(query, { maxResults: 5 })
-      if (!results.length) return { ok: false, message: `No 3D models found for "${query}".` }
-      const model = results[0]
+      const source = String(args.source ?? 'polyhaven')
+      let file: File
+      let modelName: string = query
       try {
-        const file = await downloadModelAsGlb(model.id)
+        if (source === 'sketchfab') {
+          const results = await searchSketchfabModels(query, { maxResults: 5 })
+          if (!results.length) return { ok: false, message: `No downloadable Sketchfab models found for "${query}".` }
+          file = await downloadSketchfabGlb(results[0].id)
+          modelName = results[0].name
+        } else {
+          const results = await searchModels(query, { maxResults: 5 })
+          if (!results.length) return { ok: false, message: `No 3D models found for "${query}".` }
+          file = await downloadModelAsGlb(results[0].id)
+          modelName = results[0].name
+        }
         const imported = await s.importFiles([file])
         const asset = imported.imported[0]
         if (!asset) return { ok: false, message: 'Downloaded model could not be imported.' }
@@ -1294,9 +1322,9 @@ export async function applyTool(
         if (clip) {
           s.updateClip(clip.id, { duration: dur, sourceEnd: dur })
         }
-        return { ok: true, message: `${desc} (added "${asset.name}")` }
+        return { ok: true, message: `${desc} (added "${asset.name}" from ${source})` }
       } catch (err) {
-        return { ok: false, message: `3D model download failed: ${err instanceof Error ? err.message : String(err)}` }
+        return { ok: false, message: `3D model download failed for "${modelName ?? query}": ${err instanceof Error ? err.message : String(err)}` }
       }
     }
     case 'set_3d_camera': {
@@ -1380,6 +1408,27 @@ export async function applyTool(
         return `- [${i.severity}] ${i.message}${action}`
       })
       return { ok: true, message: `Quality check found ${issues.length} issue${issues.length > 1 ? 's' : ''}:\n${lines.join('\n')}` }
+    }
+    case 'web_research': {
+      const url = String(args.url ?? '').trim()
+      const query = String(args.query ?? '').trim()
+      try {
+        if (url) {
+          const page = await firecrawlScrape(url)
+          const body = (page.markdown ?? '').slice(0, 2500)
+          return { ok: true, message: `Research from ${url}\nTitle: ${page.title}\n\n${body}${(page.markdown ?? '').length > 2500 ? '\n…(truncated)' : ''}` }
+        }
+        if (!query) return { ok: false, message: 'Provide a query or url for web research.' }
+        const results = await firecrawlSearch(query)
+        if (!results.length) return { ok: true, message: `No web results found for "${query}".` }
+        const lines = results.map((r, i) => {
+          const snippet = (r.markdown ?? r.description ?? '').replace(/\s+/g, ' ').slice(0, 400)
+          return `${i + 1}. ${r.title || r.url}\n   ${snippet}`
+        })
+        return { ok: true, message: `Web research for "${query}":\n${lines.join('\n')}` }
+      } catch (err) {
+        return { ok: false, message: `Web research failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
     }
     case 'add_caption': {
       const clipName = String(args.clipName ?? '').trim()

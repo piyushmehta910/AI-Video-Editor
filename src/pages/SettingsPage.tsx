@@ -9,6 +9,7 @@ import { AvatarCard } from '@/components/settings/cards/AvatarCard'
 import { VoiceProviderPicker } from '@/components/settings/cards/VoiceProviderPicker'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { GiphyCard } from '@/components/settings/cards/GiphyCard'
+import { SketchfabCard } from '@/components/settings/cards/SketchfabCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
 import { EngineCard } from '@/components/settings/cards/EngineCard'
@@ -89,6 +90,11 @@ export function SettingsPage() {
         <section className="flex flex-col gap-3">
           <SectionLabel>Stickers</SectionLabel>
           <GiphyCard />
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <SectionLabel>3D Models</SectionLabel>
+          <SketchfabCard />
         </section>
 
         <section className="flex flex-col gap-3">

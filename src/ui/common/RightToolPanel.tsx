@@ -27,7 +27,8 @@ import { generateMarpSlides, type MarpTheme } from '@/api/llm/marp'
 import { generateLipsyncVideo, type AvatarMouth } from '@/engine/avatar'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { searchMusic, type MusicTrackResult } from '@/api/music/search'
-import { searchModels, downloadModelAsGlb, type PolyHavenModel } from '@/api/models/polyhaven'
+import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
+import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
 import { searchGiphy, searchGiphyTrending, downloadGiphy, type StickerResult } from '@/api/stickers/search'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { formatSeconds } from '@/engine/types'
@@ -760,10 +761,19 @@ function CaptionsSection() {
 }
 
 // ─── 3D Section ───────────────────────────────────────────────────────────────
+type ModelResult = {
+  id: string
+  name: string
+  categories: string[]
+  polycount: number
+  source: 'polyhaven' | 'sketchfab'
+}
+
 function ThreeDSection() {
   const importFiles = useTimelineStore((s) => s.importFiles)
+  const [source, setSource] = React.useState<'polyhaven' | 'sketchfab'>('polyhaven')
   const [query, setQuery] = React.useState('')
-  const [results, setResults] = React.useState<PolyHavenModel[]>([])
+  const [results, setResults] = React.useState<ModelResult[]>([])
   const [searching, setSearching] = React.useState(false)
   const [downloading, setDownloading] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -774,9 +784,15 @@ function ThreeDSection() {
     setSearching(true)
     setError(null)
     try {
-      const models = await searchModels(query, { maxResults: 12 })
-      if (!models.length) setError('No models found on Poly Haven.')
-      setResults(models)
+      if (source === 'sketchfab') {
+        const models = await searchSketchfabModels(query, { maxResults: 12 })
+        setResults(models.map((m) => ({ ...m, source: 'sketchfab' as const })))
+        if (!models.length) setError('No downloadable models found on Sketchfab.')
+      } else {
+        const models = await searchModels(query, { maxResults: 12 })
+        setResults(models.map((m) => ({ ...m, source: 'polyhaven' as const })))
+        if (!models.length) setError('No models found on Poly Haven.')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -784,13 +800,16 @@ function ThreeDSection() {
     }
   }
 
-  const downloadAndImport = async (model: PolyHavenModel) => {
+  const downloadAndImport = async (model: ModelResult) => {
     if (downloading) return
     setDownloading(model.id)
     setError(null)
     setSuccess(null)
     try {
-      const file = await downloadModelAsGlb(model.id, { resolution: '2k' })
+      const file =
+        model.source === 'sketchfab'
+          ? await downloadSketchfabGlb(model.id)
+          : await downloadModelAsGlb(model.id, { resolution: '2k' })
       const { imported, errors } = await importFiles([file])
       if (imported.length) {
         setSuccess(`Added "${imported[0].name}" to timeline`)
@@ -809,7 +828,19 @@ function ThreeDSection() {
     <div className="space-y-3 p-3">
       <div className="flex items-center gap-1.5">
         <Box className="text-muted-foreground size-3.5" />
-        <span className="text-[10px] text-muted-foreground">Free CC0 models from Poly Haven</span>
+        <span className="text-[10px] text-muted-foreground">
+          {source === 'sketchfab' ? 'Downloadable models from Sketchfab' : 'Free CC0 models from Poly Haven'}
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Source</Label>
+        <Select value={source} onValueChange={(v) => { setSource(v as 'polyhaven' | 'sketchfab'); setResults([]) }} disabled={searching}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="polyhaven">Poly Haven (CC0)</SelectItem>
+            <SelectItem value="sketchfab">Sketchfab</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex gap-1.5">
         <Input
