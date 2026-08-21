@@ -17,6 +17,7 @@ export function usePlayback() {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const videoPool = React.useRef<ElementRef[]>([])
   const audioPool = React.useRef<ElementRef[]>([])
+  const imageCache = React.useRef<Map<string, HTMLImageElement>>(new Map())
   const urlCache = React.useRef<Map<string, string>>(new Map())
   const poolHostRef = React.useRef<HTMLDivElement | null>(null)
 
@@ -139,15 +140,21 @@ React.useEffect(() => {
   )
 
   const loadImage = React.useCallback(
-    (asset: Asset): Promise<HTMLImageElement> =>
-      new Promise((resolve) => {
+    (asset: Asset): Promise<HTMLImageElement> => {
+      const cached = imageCache.current.get(asset.id)
+      if (cached && cached.complete && cached.naturalWidth > 0) return Promise.resolve(cached)
+      return new Promise((resolve) => {
         void getAssetUrl(asset).then((url) => {
           const img = new Image()
-          img.onload = () => resolve(img)
+          img.onload = () => {
+            imageCache.current.set(asset.id, img)
+            resolve(img)
+          }
           img.onerror = () => resolve(img)
           img.src = url
         })
-      }),
+      })
+    },
     [getAssetUrl],
   )
 

@@ -25,7 +25,6 @@ import {
   Undo2,
   Volume2,
   VolumeX,
-  Waves,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
@@ -125,7 +124,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
   const clipboard = useTimelineStore((s) => s.clipboard)
-  const [ripple, setRipple] = React.useState(false)
   const [dragActive, setDragActive] = React.useState(false)
   const [avatarOpen, setAvatarOpen] = React.useState(false)
   const [audioOpen, setAudioOpen] = React.useState(false)
@@ -379,7 +377,7 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
 
   const deleteSelected = () => {
     const store = useTimelineStore.getState()
-    if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds, ripple)
+    if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds)
   }
 
   const duplicateSelected = () => {
@@ -474,15 +472,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
           >
             <Maximize className="size-4" />
           </ToolbarButton>
-          <Button
-            variant={ripple ? 'secondary' : 'ghost'}
-            size="sm"
-            className={cn('h-7 gap-1.5 px-2 text-xs', ripple && 'text-violet-600 dark:text-violet-400')}
-            onClick={() => setRipple((r) => !r)}
-          >
-            <Waves className="size-3.5" />
-            Ripple
-          </Button>
         </span>
 
         <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
@@ -522,7 +511,6 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
                       .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
                   }
                 />
-                <MenuRow icon={<Waves className="size-4" />} label={`Ripple: ${ripple ? 'on' : 'off'}`} onClick={() => setRipple((r) => !r)} />
               </div>
             </>
           )}
@@ -836,18 +824,12 @@ function TrackRow({
         break
       case 'Delete':
       case 'Backspace':
-        // Delete key - respect ripple setting
         if (selected.length) {
           e.preventDefault()
           const state = useTimelineStore.getState()
           if (e.shiftKey) {
-            // Shift+Delete = always ripple
-            store.deleteClips(state.selection.clipIds, true)
-          } else if (store.ripple) {
-            // Ripple enabled = ripple delete
             store.deleteClips(state.selection.clipIds, true)
           } else {
-            // Normal delete
             store.deleteClips(state.selection.clipIds, false)
           }
         }
