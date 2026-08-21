@@ -61,6 +61,7 @@ export function usePlayback() {
   const clock = React.useRef({ base: 0, startAt: 0 })
   const repaintToken = React.useRef(0)
   const speedRef = React.useRef(1)
+  const playingRef = React.useRef(false)
 React.useEffect(() => {
   speedRef.current = speed
 }, [speed])

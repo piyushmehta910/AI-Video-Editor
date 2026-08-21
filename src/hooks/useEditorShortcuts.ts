@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 
-export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek' | 'frameStep'>) {
+export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek' | 'frameStep' | 'speed' | 'setSpeed'>) {
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
@@ -42,17 +42,14 @@ export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek'
         e.preventDefault(); splitAtPlayhead(); return
       }
 
-      // Delete selected (respects ripple toggle)
+      // Delete selected (Shift+Delete forces ripple, otherwise normal delete)
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection.clipIds.length) {
         e.preventDefault()
         if (shift) {
-          // Shift+Delete = always ripple
-          s.deleteClips(s.selection.clipIds, true)
-        } else if (s.ripple) {
-          // Ripple enabled = ripple delete
+          // Shift+Delete = ripple delete
           s.deleteClips(s.selection.clipIds, true)
         } else {
-          // Normal delete
+          // Normal (non-ripple) delete
           s.deleteClips(s.selection.clipIds, false)
         }
         return
