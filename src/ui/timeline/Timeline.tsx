@@ -886,12 +886,15 @@ function TrackHeaderButton({
         onClick()
       }}
       title={title}
+      aria-pressed={active}
       className={cn(
-        'text-muted-foreground flex size-5 items-center justify-center rounded hover:bg-muted hover:text-foreground',
-        active && 'text-violet-500 dark:text-violet-400',
+        'text-muted-foreground flex size-5 items-center justify-center rounded hover:bg-muted hover:text-foreground relative',
+        active && 'bg-violet-500/20 text-violet-500 dark:bg-violet-500/30 dark:text-violet-400 ring-2 ring-violet-500/50',
       )}
+      aria-label={active ? `${title} (enabled)` : title}
     >
       {children}
+      {active && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 size-1.5 rounded-full bg-violet-500" aria-hidden="true" />}
     </button>
   )
 }

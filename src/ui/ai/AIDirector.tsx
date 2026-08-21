@@ -759,23 +759,24 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
             )}
 
             {busy && (
-              <div className="flex gap-2">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <div className="flex gap-2" aria-live="polite" aria-atomic="true" aria-label="AI Director status">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden="true">
                   <Bot className="size-3.5" />
                 </div>
-                <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2">
+                <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2" role="status">
                   <div className="flex gap-1">
-                    <span className="size-1.5 animate-bounce rounded-full bg-current" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0.1s]" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0.2s]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current" aria-hidden="true" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0.1s]" aria-hidden="true" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0.2s]" aria-hidden="true" />
                   </div>
+                  <span className="sr-only">AI Director is thinking</span>
                 </div>
               </div>
             )}
           </div>
 
           {showQuality && (
-            <div className="border-t border-amber-500/30 bg-amber-500/5">
+            <div className="border-t border-amber-500/30 bg-amber-500/5" aria-live="polite" aria-atomic="true" aria-label="Quality check status">
               <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                   <ListChecks className="size-3.5" />
@@ -828,7 +829,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           )}
 
           {proposals.length > 0 && (
-            <div className="border-t border-violet-500/30 bg-violet-500/5">
+            <div className="border-t border-violet-500/30 bg-violet-500/5" aria-live="polite" aria-atomic="true" aria-label="AI Director proposals">
               <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400">
                   <Bot className="size-3.5" />
