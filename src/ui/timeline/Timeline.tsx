@@ -735,8 +735,146 @@ function TrackRow({
   onPointerDownClip: (e: React.PointerEvent, clip: Clip, mode: DragMode) => void
 }) {
   const meta = TYPE_META[track.type]
+  const store = useTimelineStore.getState()
+  const [focusedClipId, setFocusedClipId] = React.useState<string | null>(null)
 
-  return (
+  const handleClipFocus = (clipId: string) => {
+    setFocusedClipId(clipId)
+  }
+
+  const handleClipBlur = () => {
+    setFocusedClipId(null)
+  }
+
+  const handleClipKeyDown = (e: React.KeyboardEvent, clip: Clip, track: Track) => {
+    const store = useTimelineStore.getState()
+    const allClips = store.project.tracks.flatMap(t => t.clips)
+    const clipIndex = allClips.findIndex(c => c.id === clip.id)
+
+    switch (e.key) {
+      case 'Tab':
+        if (e.shiftKey) {
+          // Shift+Tab: previous clip
+          e.preventDefault()
+          const prevClip = allClips[Math.max(0, clipIndex - 1)]
+          if (prevClip) {
+            store.select([prevClip.id], prevClip.trackId)
+            const prevClipEl = document.querySelector(`[data-clip-id="${prevClip.id}"]`)
+            prevClipEl?.focus()
+          }
+        } else {
+          // Tab: next clip
+          e.preventDefault()
+          const nextClip = allClips[Math.min(allClips.length - 1, clipIndex + 1)]
+          if (nextClip) {
+            store.select([nextClip.id], nextClip.trackId)
+            const nextClipEl = document.querySelector(`[data-clip-id="${nextClip.id}"]`)
+            nextClipEl?.focus()
+          }
+        }
+        break
+      case 'ArrowLeft':
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          // ArrowLeft: previous clip
+          e.preventDefault()
+          const prevClip = allClips[Math.max(0, clipIndex - 1)]
+          if (prevClip) {
+            store.select([prevClip.id], prevClip.trackId)
+            const prevClipEl = document.querySelector(`[data-clip-id="${prevClip.id}"]`)
+            prevClipEl?.focus()
+          }
+        }
+        break
+      case 'ArrowRight':
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          // ArrowRight: next clip
+          e.preventDefault()
+          const nextClip = allClips[Math.min(allClips.length - 1, clipIndex + 1)]
+          if (nextClip) {
+            store.select([nextClip.id], nextClip.trackId)
+            const nextClipEl = document.querySelector(`[data-clip-id="${nextClip.id}"]`)
+            nextClipEl?.focus()
+          }
+        }
+        break
+      case 'ArrowUp':
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          // ArrowUp: clip on track above
+          e.preventDefault()
+          const currentTrackIndex = store.project.tracks.findIndex(t => t.id === track.id)
+          if (currentTrackIndex > 0) {
+            const upperTrack = store.project.tracks[currentTrackIndex - 1]
+            const upperClip = upperTrack.clips.find(c => 
+              c.startTime <= clip.startTime && c.startTime + c.duration >= clip.startTime
+            )
+            if (upperClip) {
+              store.select([upperClip.id], upperTrack.id)
+              const clipEl = document.querySelector(`[data-clip-id="${upperClip.id}"]`)
+              clipEl?.focus()
+            }
+          }
+        }
+        break
+      case 'ArrowDown':
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          // ArrowDown: clip on track below
+          e.preventDefault()
+          const currentTrackIndex = store.project.tracks.findIndex(t => t.id === track.id)
+          if (currentTrackIndex < store.project.tracks.length - 1) {
+            const lowerTrack = store.project.tracks[currentTrackIndex + 1]
+            const lowerClip = lowerTrack.clips.find(c => 
+              c.startTime <= clip.startTime && c.startTime + c.duration >= clip.startTime
+            )
+            if (lowerClip) {
+              store.select([lowerClip.id], lowerTrack.id)
+              const clipEl = document.querySelector(`[data-clip-id="${lowerClip.id}"]`)
+              clipEl?.focus()
+            }
+          }
+        }
+        break
+      case 'Enter':
+      case ' ':
+        // Enter/Space: toggle selection
+        e.preventDefault()
+        if (selected.includes(clip.id)) {
+          store.select(selected.filter(id => id !== clip.id), track.id)
+        } else {
+          store.select([...selected, clip.id], track.id)
+        }
+        break
+      case 'Delete':
+      case 'Backspace':
+        // Delete key - respect ripple setting
+        if (selected.length) {
+          e.preventDefault()
+          const state = useTimelineStore.getState()
+          if (e.shiftKey) {
+            // Shift+Delete = always ripple
+            store.deleteClips(state.selection.clipIds, true)
+          } else if (store.ripple) {
+            // Ripple enabled = ripple delete
+            store.deleteClips(state.selection.clipIds, true)
+          } else {
+            // Normal delete
+            store.deleteClips(state.selection.clipIds, false)
+          }
+        }
+        break
+    }
+  }
+
+  const handleClipKeyDown = (e: React.KeyboardEvent, clip: Clip, track: Track) => {
+    // The actual implementation is above
+  }
+
+  const handleClipFocus = (clipId: string) => {
+    setFocusedClipId(clipId)
+  }
+
+  const handleClipBlur = () => {
+    setFocusedClipId(null)
+  }
     <div
       className="relative flex border-b"
       style={{ height: trackHeight() }}
@@ -784,6 +922,8 @@ function TrackRow({
             <div
               key={clip.id}
               data-clip-id={clip.id}
+              tabIndex={0}
+              data-clip-id={clip.id}
               className={cn(
                 'absolute top-1 bottom-1 overflow-hidden rounded-md border transition-shadow',
                 isSelected
@@ -791,6 +931,7 @@ function TrackRow({
                   : isUnderPlayhead
                     ? 'border-red-400/60'
                     : 'border-black/40 shadow-sm',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-muted',
               )}
               style={{ left, width, background: 'linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))' }}
               onPointerDown={(e) => {
@@ -798,6 +939,9 @@ function TrackRow({
                 if (trimMode && isSelected) return
                 onPointerDownClip(e, clip, 'move')
               }}
+              onKeyDown={(e) => handleClipKeyDown(e, clip, track)}
+              onFocus={() => handleClipFocus(clip)}
+              onBlur={() => handleClipBlur(clip)}
             >
               {asset?.filmstrip ? (
                 <div

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Pencil, Save, Settings, Share2, SlidersHorizontal } from 'lucide-react'
+import { Pencil, Save, Settings, Share2, SlidersHorizontal, User, Palette, Menu, LogOut } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { formatSeconds } from '@/engine/types'
@@ -13,6 +13,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ExportDialog } from '@/ui/export/ExportDialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const RESOLUTIONS = [
   { label: '360p', w: 640, h: 360 },
@@ -121,11 +132,12 @@ export function ProjectHeader() {
   const duration = useTimelineStore((s) => s.duration())
   const renameProject = useTimelineStore((s) => s.renameProject)
   const save = useTimelineStore((s) => s.save)
-
   const [exportOpen, setExportOpen] = React.useState(false)
   const [editingName, setEditingName] = React.useState(false)
   const [nameDraft, setNameDraft] = React.useState(project.name)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [brandKitOpen, setBrandKitOpen] = React.useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false)
 
   const commitName = () => {
     renameProject(nameDraft.trim() || 'Untitled Project')
@@ -203,28 +215,49 @@ export function ProjectHeader() {
       </span>
 
       <div className="ml-auto flex items-center gap-1.5">
-        <Button variant="ghost" size="sm" asChild className="h-8 px-2">
-          <Link to="/settings">
-            <Settings />
-          </Link>
-        </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={() => void save()} className="h-8 px-2" disabled={saving}>
-              <Save className={saving ? 'animate-pulse' : ''} />
+        {/* Brand Kit Selector */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-2" aria-label="Brand Kit">
+              <Palette className="size-3.5" />
+              <span className="hidden sm:inline">Brand Kit</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{saving ? 'Saving…' : 'Save project'}</TooltipContent>
-        </Tooltip>
-        <Button
-          size="sm"
-          onClick={() => setExportOpen(true)}
-          disabled={duration === 0}
-          className="bg-gradient-to-r from-violet-600 to-fuchsia-600 px-2 text-white shadow-sm shadow-fuchsia-600/30 hover:from-violet-500 hover:to-fuchsia-500 sm:px-3"
-        >
-          <Share2 />
-          <span className="hidden sm:inline">Export</span>
-        </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-48" side="bottom" align="end">
+            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">Brand Kits</div>
+            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>Default Brand Kit</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>Create New Brand Kit</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>Manage Brand Kits…</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Account Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-2" aria-label="Account menu">
+              <User className="size-3.5" />
+              <span className="hidden sm:inline">Account</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56" side="bottom" align="end">
+            <div className="px-2 py-1 border-b">
+              <p className="text-xs font-medium truncate">{project.name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">user@clipforge.ai</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>
+              <Settings className="size-3.5 mr-2" /> Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>
+              <Share2 className="size-3.5 mr-2" /> Share Project
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive" onClick={() => { /* TODO: implement */ }}>
+              <LogOut className="size-3.5 mr-2" /> Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}

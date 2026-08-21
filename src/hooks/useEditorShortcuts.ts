@@ -42,9 +42,20 @@ export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek'
         e.preventDefault(); splitAtPlayhead(); return
       }
 
-      // Delete selected
+      // Delete selected (respects ripple toggle)
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection.clipIds.length) {
-        e.preventDefault(); s.deleteClips(s.selection.clipIds); return
+        e.preventDefault()
+        if (shift) {
+          // Shift+Delete = always ripple
+          s.deleteClips(s.selection.clipIds, true)
+        } else if (s.ripple) {
+          // Ripple enabled = ripple delete
+          s.deleteClips(s.selection.clipIds, true)
+        } else {
+          // Normal delete
+          s.deleteClips(s.selection.clipIds, false)
+        }
+        return
       }
 
       // Select all clips on focused track, or all clips
@@ -70,9 +81,18 @@ export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek'
       if (e.key === 'ArrowUp') { e.preventDefault(); playback.seek(s.playhead + 5); return }
       if (e.key === 'ArrowDown') { e.preventDefault(); playback.seek(s.playhead - 5); return }
 
+      // Seek by 5 seconds
+      if (e.key === 'ArrowUp') { e.preventDefault(); playback.seek(s.playhead + 5); return }
+      if (e.key === 'ArrowDown') { e.preventDefault(); playback.seek(s.playhead - 5); return }
+
       // Go to start / end
       if (e.key === 'Home') { e.preventDefault(); playback.seek(0); return }
       if (e.key === 'End') { e.preventDefault(); playback.seek(s.duration()); return }
+
+      // J/K/L Shuttle Controls (Standard NLE shuttle)
+      if (!mod && !shift && e.key.toLowerCase() === 'j') { e.preventDefault(); playback.setSpeed(Math.max(-8, playback.speed - 1)); return }
+      if (!mod && !shift && e.key.toLowerCase() === 'k') { e.preventDefault(); playback.setSpeed(0); return }
+      if (!mod && !shift && e.key.toLowerCase() === 'l') { e.preventDefault(); playback.setSpeed(Math.min(8, playback.speed + 1)); return }
 
       // Nudge selected clips left/right by 1 frame
       if (shift && e.key === 'ArrowLeft' && s.selection.clipIds.length) {
