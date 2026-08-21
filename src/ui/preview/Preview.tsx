@@ -95,7 +95,7 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
   return (
     <div
       ref={containerRef}
-      className={cn('relative flex flex-1 flex-col bg-black', fullscreen && 'max-h-none')}
+      className={cn('relative flex min-h-0 flex-1 flex-col bg-black', fullscreen && 'max-h-none')}
       style={{ background: 'linear-gradient(180deg, #0b0b10 0%, #14141b 100%)' }}
       onPointerMove={fullscreen ? revealControls : undefined}
     >
