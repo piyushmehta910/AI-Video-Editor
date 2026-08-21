@@ -50,7 +50,6 @@ export function EditorPage() {
   const [timelineHeight, setTimelineHeight] = React.useState(() =>
     loadNum('clipforge-timeline-height', DEFAULT_TIMELINE_HEIGHT),
   )
-  const resizeRef = React.useRef<{ startY: number; startH: number } | null>(null)
 
   React.useEffect(() => {
     void hydrate()
@@ -82,20 +81,22 @@ export function EditorPage() {
 
   const onResizeStart = (e: React.PointerEvent) => {
     e.preventDefault()
-    resizeRef.current = { startY: e.clientY, startH: timelineHeight }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
+    const startY = e.clientY
+    const startH = timelineHeight
 
-  const onResizeMove = (e: React.PointerEvent) => {
-    const r = resizeRef.current
-    if (!r) return
-    const next = Math.max(MIN_TIMELINE_HEIGHT, Math.min(MAX_TIMELINE_HEIGHT, r.startH - (e.clientY - r.startY)))
-    setTimelineHeight(next)
-    localStorage.setItem('clipforge-timeline-height', String(next))
-  }
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(MIN_TIMELINE_HEIGHT, Math.min(MAX_TIMELINE_HEIGHT, startH - (ev.clientY - startY)))
+      setTimelineHeight(next)
+      localStorage.setItem('clipforge-timeline-height', String(next))
+    }
 
-  const onResizeEnd = () => {
-    resizeRef.current = null
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
   }
 
   return (
@@ -178,9 +179,6 @@ export function EditorPage() {
               <div
                 className="group relative hidden h-2 shrink-0 cursor-row-resize items-center justify-center border-y bg-muted/50 hover:bg-violet-500/20 md:flex"
                 onPointerDown={onResizeStart}
-                onPointerMove={onResizeMove}
-                onPointerUp={onResizeEnd}
-                onPointerCancel={onResizeEnd}
                 title="Drag to resize timeline"
                 style={{ touchAction: 'none' }}
               >
