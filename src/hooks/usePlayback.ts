@@ -43,6 +43,7 @@ export function usePlayback() {
   const [isPlaying, setIsPlaying] = React.useState(false)
   const [masterVolume, setMasterVolumeState] = React.useState(1)
   const [muted, setMuted] = React.useState(false)
+  const [speed, setSpeedState] = React.useState(1)
 
   const storeRef = React.useRef(useTimelineStore.getState())
   React.useEffect(() => {
@@ -59,10 +60,14 @@ export function usePlayback() {
 
   const clock = React.useRef({ base: 0, startAt: 0 })
   const repaintToken = React.useRef(0)
-  const playingRef = React.useRef(false)
-  React.useEffect(() => {
-    playingRef.current = isPlaying
-  }, [isPlaying])
+  const speedRef = React.useRef(1)
+React.useEffect(() => {
+  speedRef.current = speed
+}, [speed])
+
+React.useEffect(() => {
+  playingRef.current = isPlaying
+}, [isPlaying])
 
   const requestPaint = React.useCallback(() => {
     repaintToken.current++
@@ -193,10 +198,16 @@ export function usePlayback() {
           // While playing at 1x we let the element free-run and just drawImage
           // each frame; writing currentTime every frame freezes Chrome's frame
           // presentation. Only seek when paused or when the element drifts.
-          const freeRun = playingRef.current && clip.speed === 1
-          const tolerance = freeRun ? 0.25 : 0.06
-          if (el.readyState >= 1 && Math.abs(el.currentTime - elTime) > tolerance) el.currentTime = elTime
-          if (el.videoWidth > 0) return el
+           const freeRun = playingRef.current && clip.speed === 1 && speedRef.current === 1
+           const tolerance = freeRun ? 0.25 : 0.06
+           if (el.readyState >= 1) {
+             // Adjust playbackRate for non-1x speeds when playing
+             if (playingRef.current && speedRef.current !== 1) {
+               el.playbackRate = Math.min(4, Math.max(0.25, Math.abs(speedRef.current)));
+             }
+             if (Math.abs(el.currentTime - elTime) > tolerance) el.currentTime = elTime;
+           }
+           if (el.videoWidth > 0) return el
           return null
         },
         image: (asset) => loadImage(asset),
@@ -288,15 +299,19 @@ export function usePlayback() {
           continue
         }
         ref.clipId = active.clip.id
-        const el = ref.element as HTMLVideoElement
-        const srcTime = (time - active.clip.startTime) * active.clip.speed + active.clip.sourceStart
-        const freeRun = playing && active.clip.speed === 1
-        if (freeRun) {
-          // Let the element play; only resync on significant drift.
-          if (Math.abs(el.currentTime - srcTime) > 0.25) el.currentTime = srcTime
-        } else if (Math.abs(el.currentTime - srcTime) > 0.08) {
-          el.currentTime = srcTime
-        }
+            const el = ref.element as HTMLVideoElement
+            const srcTime = (time - active.clip.startTime) * active.clip.speed + active.clip.sourceStart
+            // Adjust playbackRate for non-1x speeds when playing
+            if (playing && speedRef.current !== 1) {
+              el.playbackRate = Math.min(4, Math.max(0.25, Math.abs(speedRef.current)));
+            }
+            const freeRun = playing && active.clip.speed === 1 && speedRef.current === 1
+            if (freeRun) {
+              // Let the element play; only resync on significant drift.
+              if (Math.abs(el.currentTime - srcTime) > 0.25) el.currentTime = srcTime
+            } else if (Math.abs(el.currentTime - srcTime) > 0.08) {
+              el.currentTime = srcTime
+            }
         const vol =
           active.clip.volume *
           (active.track.muted ? 0 : 1) *
@@ -322,13 +337,14 @@ export function usePlayback() {
       const state = storeRef.current
       let time = state.playhead
       if (isPlaying) {
-        time = clock.current.base + (performance.now() - clock.current.startAt) / 1000
-        const duration = state.duration()
-        if (time >= duration) {
-          time = 0
-          clock.current = { base: 0, startAt: performance.now() }
-        }
-        storeRef.current.setPlayhead(time)
+         const elapsed = (performance.now() - clock.current.startAt) / 1000 * speedRef.current;
+         time = clock.current.base + elapsed;
+         const duration = state.duration();
+         if (time >= duration) {
+           time = 0;
+           clock.current = { base: 0, startAt: performance.now() };
+         }
+         storeRef.current.setPlayhead(time);
       }
       if (Math.abs(time - last) > 0.001 || repaintToken.current > 0) {
         repaintToken.current = 0
@@ -349,6 +365,12 @@ export function usePlayback() {
   const stopPlayback = React.useCallback(() => {
     setIsPlaying(false)
   }, [])
+
+  const setSpeed = (newSpeed: number) => {
+    const clamped = Math.max(-8, Math.min(8, newSpeed));
+    setSpeedState(clamped);
+    speedRef.current = clamped;
+  };
 
   const toggle = React.useCallback(() => {
     if (isPlaying) stopPlayback()
@@ -383,6 +405,8 @@ export function usePlayback() {
     toggle,
     seek,
     frameStep,
+    speed,
+    setSpeed,
     stopPlayback,
   }
 }

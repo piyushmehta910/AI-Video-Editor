@@ -1,6 +1,5 @@
 import * as React from 'react'
-import { Pencil, Save, Settings, Share2, SlidersHorizontal, User, Palette, Menu, LogOut } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
+import { Download, Pencil, Settings, Share2, SlidersHorizontal, User, Palette, LogOut } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -18,10 +17,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
@@ -127,17 +122,13 @@ function SettingsSelects() {
 
 export function ProjectHeader() {
   const project = useTimelineStore((s) => s.project)
-  const saving = useTimelineStore((s) => s.saving)
   const playhead = useTimelineStore((s) => s.playhead)
   const duration = useTimelineStore((s) => s.duration())
   const renameProject = useTimelineStore((s) => s.renameProject)
-  const save = useTimelineStore((s) => s.save)
   const [exportOpen, setExportOpen] = React.useState(false)
   const [editingName, setEditingName] = React.useState(false)
   const [nameDraft, setNameDraft] = React.useState(project.name)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [brandKitOpen, setBrandKitOpen] = React.useState(false)
-  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false)
 
   const commitName = () => {
     renameProject(nameDraft.trim() || 'Untitled Project')
@@ -215,6 +206,17 @@ export function ProjectHeader() {
       </span>
 
       <div className="ml-auto flex items-center gap-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={() => setExportOpen(true)}
+          title="Export project"
+        >
+          <Download className="size-3.5" />
+          <span className="hidden sm:inline">Export</span>
+        </Button>
+
         {/* Brand Kit Selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

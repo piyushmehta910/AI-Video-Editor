@@ -864,17 +864,7 @@ function TrackRow({
     }
   }
 
-  const handleClipKeyDown = (e: React.KeyboardEvent, clip: Clip, track: Track) => {
-    // The actual implementation is above
-  }
-
-  const handleClipFocus = (clipId: string) => {
-    setFocusedClipId(clipId)
-  }
-
-  const handleClipBlur = () => {
-    setFocusedClipId(null)
-  }
+  return (
     <div
       className="relative flex border-b"
       style={{ height: trackHeight() }}
@@ -923,7 +913,6 @@ function TrackRow({
               key={clip.id}
               data-clip-id={clip.id}
               tabIndex={0}
-              data-clip-id={clip.id}
               className={cn(
                 'absolute top-1 bottom-1 overflow-hidden rounded-md border transition-shadow',
                 isSelected
