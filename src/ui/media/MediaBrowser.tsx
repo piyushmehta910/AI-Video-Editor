@@ -1,16 +1,11 @@
 import * as React from 'react'
-import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Plus, Radio, Scan, Smile, Trash2, Type } from 'lucide-react'
+import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Plus, Scan, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { analyzeAsset } from '@/api/llm/analysis'
-import { StockMediaSearch } from './StockMediaSearch'
-import { MusicSearch } from './MusicSearch'
-import { StickerSearch } from './StickerSearch'
-import { ModelSearch } from './ModelSearch'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*,.glb,.gltf,model/gltf-binary,model/gltf+json'
@@ -98,112 +93,76 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
         )}
       </div>
 
-      <Tabs defaultValue="assets" className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-2 mt-2 w-auto self-start rounded-md bg-muted">
-          <TabsTrigger value="assets" className="px-3 text-xs">
-            <Film className="size-3.5" /> Assets
-          </TabsTrigger>
-          <TabsTrigger value="stock" className="px-3 text-xs">
-            <Image className="size-3.5" /> Stock
-          </TabsTrigger>
-          <TabsTrigger value="music" className="px-3 text-xs">
-            <Radio className="size-3.5" /> Music
-          </TabsTrigger>
-          <TabsTrigger value="stickers" className="px-3 text-xs">
-            <Smile className="size-3.5" /> Stickers
-          </TabsTrigger>
-          <TabsTrigger value="models" className="px-3 text-xs">
-            <Box className="size-3.5" /> 3D
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="assets" className="min-h-0 flex-1">
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED}
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) void handleFiles(e.target.files)
-              e.target.value = ''
-            }}
-          />
-          <div
-            className="relative h-full overflow-y-auto p-2"
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragOver(true)
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragOver(false)
-              void handleFiles(e.dataTransfer.files)
-            }}
-          >
-            {notice && (
-              <div
-                className={cn(
-                  'mb-2 rounded-md border px-2.5 py-1.5 text-[11px]',
-                  notice.kind === 'error'
-                    ? 'border-destructive/40 bg-destructive/10 text-destructive'
-                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-                )}
-              >
-                {notice.text}
-              </div>
-            )}
-
-            {dragOver && (
-              <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-violet-500 bg-violet-500/10">
-                <p className="text-sm font-medium">Drop to import</p>
-              </div>
-            )}
-
-            {assets.length === 0 && (
-              <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
-                <div className="bg-muted flex size-12 items-center justify-center rounded-xl">
-                  <Plus className="text-muted-foreground size-6" />
-                </div>
-                <p className="text-muted-foreground text-xs leading-relaxed">
-                  Import video, image or audio files to start editing.
-                </p>
-                <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
-                  Browse files
-                </Button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2">
-              {assets.map((asset) => (
-                <MediaItem
-                  key={asset.id}
-                  asset={asset}
-                  onAdd={() => handleAdd(asset)}
-                  onDelete={() => void deleteAsset(asset.id)}
-                />
-              ))}
+      <div className="min-h-0 flex-1">
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED}
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) void handleFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <div
+          className="relative h-full overflow-y-auto p-2"
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            void handleFiles(e.dataTransfer.files)
+          }}
+        >
+          {notice && (
+            <div
+              className={cn(
+                'mb-2 rounded-md border px-2.5 py-1.5 text-[11px]',
+                notice.kind === 'error'
+                  ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                  : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+              )}
+            >
+              {notice.text}
             </div>
+          )}
+
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-violet-500 bg-violet-500/10">
+              <p className="text-sm font-medium">Drop to import</p>
+            </div>
+          )}
+
+          {assets.length === 0 && (
+            <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+              <div className="bg-muted flex size-12 items-center justify-center rounded-xl">
+                <Plus className="text-muted-foreground size-6" />
+              </div>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Import video, image or audio files to start editing.
+              </p>
+              <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
+                Browse files
+              </Button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            {assets.map((asset) => (
+              <MediaItem
+                key={asset.id}
+                asset={asset}
+                onAdd={() => handleAdd(asset)}
+                onDelete={() => void deleteAsset(asset.id)}
+              />
+            ))}
           </div>
-        </TabsContent>
-
-        <TabsContent value="stock" className="min-h-0 flex-1 overflow-y-auto">
-          <StockMediaSearch />
-        </TabsContent>
-
-        <TabsContent value="music" className="min-h-0 flex-1 overflow-y-auto">
-          <MusicSearch />
-        </TabsContent>
-
-        <TabsContent value="stickers" className="min-h-0 flex-1 overflow-y-auto">
-          <StickerSearch />
-        </TabsContent>
-
-        <TabsContent value="models" className="min-h-0 flex-1 overflow-y-auto">
-          <ModelSearch />
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   )
 }
