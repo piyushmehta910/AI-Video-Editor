@@ -24,7 +24,8 @@ const PIPELINE_PROMPTS: Record<string, string> = {
 }
 
 const DEFAULT_TIMELINE_HEIGHT = 224
-const MIN_TIMELINE_HEIGHT = 120
+const MIN_TIMELINE_HEIGHT = 80
+const MAX_TIMELINE_HEIGHT = 800
 
 function loadNum(key: string, fallback: number): number {
   const v = Number(localStorage.getItem(key))
@@ -88,7 +89,7 @@ export function EditorPage() {
   const onResizeMove = (e: React.PointerEvent) => {
     const r = resizeRef.current
     if (!r) return
-    const next = Math.max(MIN_TIMELINE_HEIGHT, r.startH - (e.clientY - r.startY))
+    const next = Math.max(MIN_TIMELINE_HEIGHT, Math.min(MAX_TIMELINE_HEIGHT, r.startH - (e.clientY - r.startY)))
     setTimelineHeight(next)
     localStorage.setItem('clipforge-timeline-height', String(next))
   }
@@ -175,12 +176,13 @@ export function EditorPage() {
             <>
               <Preview playback={playback} onOpenMedia={openMedia} />
               <div
-                className="group relative hidden h-1.5 shrink-0 cursor-row-resize items-center justify-center border-y bg-muted/50 hover:bg-violet-500/20 md:flex"
+                className="group relative hidden h-2 shrink-0 cursor-row-resize items-center justify-center border-y bg-muted/50 hover:bg-violet-500/20 md:flex"
                 onPointerDown={onResizeStart}
                 onPointerMove={onResizeMove}
                 onPointerUp={onResizeEnd}
                 onPointerCancel={onResizeEnd}
                 title="Drag to resize timeline"
+                style={{ touchAction: 'none' }}
               >
                 <div className="bg-border group-hover:bg-violet-500 h-0.5 w-8 rounded-full" />
               </div>
