@@ -166,7 +166,7 @@ function createFrameSource(iframe: HTMLIFrameElement): FrameSource {
   }
 }
 
-async function codecString(): Promise<'vp8' | 'vp9' | 'av1'> {
+export async function codecString(): Promise<'vp8' | 'vp9' | 'av1'> {
   for (const codec of ['vp9', 'vp8', 'av1'] as const) {
     try {
       const support = await VideoEncoder.isConfigSupported({ codec: codecConfig(codec), width: 64, height: 64 })
@@ -178,7 +178,7 @@ async function codecString(): Promise<'vp8' | 'vp9' | 'av1'> {
   return 'vp8'
 }
 
-function codecConfig(codec: 'vp8' | 'vp9' | 'av1'): string {
+export function codecConfig(codec: 'vp8' | 'vp9' | 'av1'): string {
   switch (codec) {
     case 'vp8':
       return 'vp8'

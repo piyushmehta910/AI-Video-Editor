@@ -29,6 +29,9 @@ import { readMediaFile } from '@/engine/storage/opfs'
 import { searchMusic, type MusicTrackResult } from '@/api/music/search'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
+import { renderGlbToVideo } from '@/engine/three/renderGlbToVideo'
+import { defaultCameraRig } from '@/engine/types'
+import { Checkbox } from '@/components/ui/checkbox'
 import { searchGiphy, searchGiphyTrending, downloadGiphy, type StickerResult } from '@/api/stickers/search'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { formatSeconds } from '@/engine/types'
@@ -772,6 +775,7 @@ type ModelResult = {
 function ThreeDSection() {
   const importFiles = useTimelineStore((s) => s.importFiles)
   const [source, setSource] = React.useState<'polyhaven' | 'sketchfab'>('polyhaven')
+  const [animateMode, setAnimateMode] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const [results, setResults] = React.useState<ModelResult[]>([])
   const [searching, setSearching] = React.useState(false)
@@ -812,7 +816,27 @@ function ThreeDSection() {
           : await downloadModelAsGlb(model.id, { resolution: '2k' })
       const { imported, errors } = await importFiles([file])
       if (imported.length) {
-        setSuccess(`Added "${imported[0].name}" to timeline`)
+        if (animateMode) {
+          setSuccess(`Rendering animation of "${imported[0].name}"...`)
+          const asset = imported[0]
+          const rig = defaultCameraRig()
+          rig.radiusStart = (asset.modelRadius ?? 2.4) * 2.5
+          rig.radiusEnd = rig.radiusStart
+          const rendered = await renderGlbToVideo({ asset, rig, duration: 5, fps: 30, width: 1280, height: 720 })
+          const videoFile = new File([rendered.blob], `${model.name.replace(/\W+/g, '-').toLowerCase()}-anim-${Date.now()}.webm`, { type: 'video/webm' })
+          const store = useTimelineStore.getState()
+          const vimp = await store.importFiles([videoFile])
+          const track = store.project.tracks.find((t) => t.type === 'video')
+          if (track && vimp.imported.length) {
+            const clip = store.addClip(vimp.imported[0].id, track.id)
+            if (clip) store.updateClip(clip.id, { duration: 5, sourceEnd: 5 })
+            setSuccess(`Added "${vimp.imported[0].name}" (5s turntable) to timeline`)
+          } else {
+            setError('Animation render could not be imported')
+          }
+        } else {
+          setSuccess(`Added "${imported[0].name}" to timeline`)
+        }
         setResults((prev) => prev.filter((r) => r.id !== model.id))
       } else {
         setError(errors[0] ?? 'Import failed')
@@ -842,6 +866,10 @@ function ThreeDSection() {
           </SelectContent>
         </Select>
       </div>
+      <label className="flex cursor-pointer items-center gap-1.5 text-[10px] text-muted-foreground">
+        <Checkbox checked={animateMode} onCheckedChange={(v) => setAnimateMode(v === true)} className="size-3" />
+        Render as 5s turntable video clip
+      </label>
       <div className="flex gap-1.5">
         <Input
           placeholder="Search 3D models..."

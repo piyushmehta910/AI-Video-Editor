@@ -1,5 +1,5 @@
 import { useTimelineStore } from '@/stores/timelineStore'
-import { aspectToSize, CAMERA_MODES, clampRig } from '@/engine/types'
+import { aspectToSize, CAMERA_MODES, clampRig, defaultCameraRig } from '@/engine/types'
 import type { Asset, CameraMode, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
@@ -23,6 +23,7 @@ import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
+import { renderGlbToVideo } from '@/engine/three/renderGlbToVideo'
 import { firecrawlSearch, firecrawlScrape } from '@/api/research/firecrawl'
 import { analyzeProject } from '@/api/llm/analysis'
 import { exportProject } from '@/engine/export/exportVideo'
@@ -324,6 +325,28 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
             enum: [...CAMERA_MODES],
             description: 'Camera animation: turntable (spin around), orbit, dolly (zoom in), or static.',
           },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'animate_3d_model',
+      description: 'Full 3D animation shot: search Poly Haven/Sketchfab for a model, download it, render a camera-animated video (turntable/orbit/dolly/static) with three.js + WebCodecs, and add the finished video clip to the timeline. Use when the user wants a rendered 3D animation. Runs on approval.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What model to search for, e.g. "vintage camera".' },
+          source: { type: 'string', enum: ['polyhaven', 'sketchfab'], description: 'Model library to search (default polyhaven).' },
+          durationSeconds: { type: 'number', description: 'Animation length in seconds (default 5).' },
+          mode: {
+            type: 'string',
+            enum: [...CAMERA_MODES],
+            description: 'Camera move: turntable (spin around), orbit, dolly (zoom in), or static.',
+          },
+          resolution: { type: 'string', enum: ['720p', '1080p'], description: 'Render resolution (default 720p).' },
         },
         required: ['query'],
       },
@@ -765,6 +788,7 @@ const STAGED_TOOLS = new Set<string>([
   'generate_voiceover',
   'duplicate_clip',
   'add_3d_model',
+  'animate_3d_model',
   'set_3d_camera',
   'generate_script',
   'rewrite_script',
@@ -1325,6 +1349,55 @@ export async function applyTool(
         return { ok: true, message: `${desc} (added "${asset.name}" from ${source})` }
       } catch (err) {
         return { ok: false, message: `3D model download failed for "${modelName ?? query}": ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'animate_3d_model': {
+      const query = String(args.query ?? '')
+      if (!query.trim()) return { ok: false, message: 'No query provided for the 3D animation.' }
+      const source = String(args.source ?? 'polyhaven')
+      const dur = Math.max(1, Number(args.durationSeconds) || 5)
+      const is1080 = String(args.resolution ?? '720p') === '1080p'
+      const width = is1080 ? 1920 : 1280
+      const height = is1080 ? 1080 : 720
+      let modelName = query
+      try {
+        let file: File
+        if (source === 'sketchfab') {
+          const results = await searchSketchfabModels(query, { maxResults: 5 })
+          if (!results.length) return { ok: false, message: `No downloadable Sketchfab models found for "${query}".` }
+          file = await downloadSketchfabGlb(results[0].id)
+          modelName = results[0].name
+        } else {
+          const results = await searchModels(query, { maxResults: 5 })
+          if (!results.length) return { ok: false, message: `No 3D models found for "${query}".` }
+          file = await downloadModelAsGlb(results[0].id)
+          modelName = results[0].name
+        }
+        const imported = await s.importFiles([file])
+        const asset = imported.imported[0]
+        if (!asset) return { ok: false, message: 'Downloaded model could not be imported.' }
+
+        const mode = String(args.mode ?? 'turntable') as CameraMode
+        const radius = (asset.modelRadius ?? 2.4) * 2.5
+        const rig = defaultCameraRig()
+        rig.mode = mode
+        rig.radiusStart = radius
+        rig.radiusEnd = mode === 'dolly' ? radius * 0.55 : radius
+
+        const rendered = await renderGlbToVideo({ asset, rig, duration: dur, fps: 30, width, height })
+        const videoFile = new File([rendered.blob], `3d-${modelName.replace(/\W+/g, '-').toLowerCase()}-${Date.now()}.webm`, { type: 'video/webm' })
+        const next = useTimelineStore.getState()
+        const vimported = await next.importFiles([videoFile])
+        const vasset = vimported.imported[0]
+        if (!vasset) return { ok: false, message: 'Rendered 3D animation could not be imported.' }
+        const videoTrack = next.project.tracks.find((t) => t.type === 'video')
+        if (!videoTrack) return { ok: false, message: 'No video track available.' }
+        next.addClip(vasset.id, videoTrack.id)
+        const clip = next.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === vasset.id)
+        if (clip) next.updateClip(clip.id, { duration: dur, sourceEnd: dur })
+        return { ok: true, message: `${desc} — rendered ${rendered.frames} frames of "${modelName}" at ${width}x${height} and added it to the timeline.` }
+      } catch (err) {
+        return { ok: false, message: `3D animation failed for "${modelName}": ${err instanceof Error ? err.message : String(err)}` }
       }
     }
     case 'set_3d_camera': {
