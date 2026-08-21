@@ -11,6 +11,8 @@ import { MediaBrowser } from '@/ui/media/MediaBrowser'
 import { Preview } from '@/ui/preview/Preview'
 import { Timeline } from '@/ui/timeline/Timeline'
 import { Inspector } from '@/ui/inspector/Inspector'
+import { RightToolPanel } from '@/ui/common/RightToolPanel'
+import type { ToolSection } from '@/ui/common/RightToolPanel'
 import { AIDirector } from '@/ui/ai/AIDirector'
 import { Button } from '@/components/ui/button'
 
@@ -43,7 +45,7 @@ export function EditorPage() {
   )
   const [mobilePanel, setMobilePanel] = React.useState<'media' | 'inspector' | null>(null)
   const [leftOpen, setLeftOpen] = React.useState(() => localStorage.getItem('clipforge-left-open') !== '0')
-  const [rightOpen, setRightOpen] = React.useState(() => localStorage.getItem('clipforge-right-open') !== '0')
+  const [activeTool, setActiveTool] = React.useState<ToolSection | null>(null)
   const [timelineHeight, setTimelineHeight] = React.useState(() =>
     loadNum('clipforge-timeline-height', DEFAULT_TIMELINE_HEIGHT),
   )
@@ -68,10 +70,9 @@ export function EditorPage() {
     localStorage.setItem('clipforge-left-open', v ? '1' : '0')
   }
 
-  const setRightOpenPersisted = (v: boolean) => {
-    setRightOpen(v)
-    localStorage.setItem('clipforge-right-open', v ? '1' : '0')
-  }
+  const openTool = React.useCallback((tool: string) => {
+    setActiveTool((prev) => (prev === tool ? null : tool as ToolSection))
+  }, [])
 
   const openMedia = React.useCallback(() => {
     if (isMobile) setMobilePanel('media')
@@ -102,6 +103,7 @@ export function EditorPage() {
       {caps && <CapabilityBanner caps={caps} />}
 
       <div className="relative flex min-h-0 flex-1">
+        {/* Left panel: Import + Asset Management */}
         {leftOpen ? (
           <aside className="hidden w-64 shrink-0 border-r md:block">
             <MediaBrowser onCollapse={() => setLeftOpenPersisted(false)} />
@@ -165,7 +167,7 @@ export function EditorPage() {
 
           {isMobile ? (
             mobileView === 'timeline' ? (
-              <Timeline fill />
+              <Timeline fill onOpenTool={openTool} />
             ) : (
               <Preview playback={playback} onOpenMedia={openMedia} />
             )
@@ -182,14 +184,15 @@ export function EditorPage() {
               >
                 <div className="bg-border group-hover:bg-violet-500 h-0.5 w-8 rounded-full" />
               </div>
-              <Timeline height={timelineHeight} />
+              <Timeline height={timelineHeight} onOpenTool={openTool} />
             </>
           )}
         </div>
 
-        {rightOpen ? (
+        {/* Right panel: Tool sections */}
+        {activeTool ? (
           <aside className="hidden w-72 shrink-0 border-l lg:block">
-            <Inspector onCollapse={() => setRightOpenPersisted(false)} />
+            <RightToolPanel section={activeTool} onCollapse={() => setActiveTool(null)} />
           </aside>
         ) : (
           <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 lg:flex">
@@ -197,8 +200,8 @@ export function EditorPage() {
               variant="ghost"
               size="icon"
               className="size-7"
-              onClick={() => setRightOpenPersisted(true)}
-              title="Show Inspector panel"
+              onClick={() => setActiveTool('transform')}
+              title="Show Inspector"
             >
               <ChevronLeft className="size-4" />
             </Button>

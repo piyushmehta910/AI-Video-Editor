@@ -2,14 +2,19 @@
 import * as React from 'react'
 import {
   ArrowLeftRight,
+  ArrowRightLeft,
+  Box,
+  Captions,
   ChevronDown,
   ChevronRight,
   ClipboardPaste,
   Clapperboard,
+  Crop,
   Copy,
   CopyPlus,
   Eye,
   EyeOff,
+  Layers,
   Loader2,
   Lock,
   LockOpen,
@@ -20,11 +25,14 @@ import {
   Scissors,
   Slice,
   Sparkles,
+  Stamp,
   Trash2,
   Type,
   Undo2,
   Volume2,
   VolumeX,
+  Wand2,
+  Zap,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
@@ -117,7 +125,7 @@ const TYPE_META: Record<Track['type'], { label: string; badge: string; gradient:
   },
 }
 
-export function Timeline({ height, fill }: { height?: number; fill?: boolean }) {
+export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?: boolean; onOpenTool?: (tool: string) => void }) {
   const project = useTimelineStore((s) => s.project)
   const zoom = useTimelineStore((s) => s.zoom)
   const selection = useTimelineStore((s) => s.selection)
@@ -416,63 +424,99 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
     >
       {/* Toolbar */}
       <div className="relative flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b px-1.5 sm:h-9 sm:gap-1 sm:px-2">
+        {/* History */}
         <ToolbarButton label="Undo (Ctrl+Z)" onClick={() => useTimelineStore.getState().undo()} disabled={!useTimelineStore.getState().past.length}>
           <Undo2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Redo (Ctrl+Shift+Z)" onClick={() => useTimelineStore.getState().redo()} disabled={!useTimelineStore.getState().future.length}>
           <Redo2 className="size-4" />
         </ToolbarButton>
-        <SeparatorLine className="hidden sm:block" />
-        <ToolbarButton label="Cut selected (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
+        <SeparatorLine />
+
+        {/* Editing tools */}
+        <ToolbarButton label="Cut (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
           <Scissors className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Copy selected (Ctrl+C)" onClick={copySelected} disabled={!selection.clipIds.length}>
-          <Copy className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Paste at playhead (Ctrl+V)" onClick={paste} disabled={!clipboard.length}>
-          <ClipboardPaste className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Split at playhead (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
+        <ToolbarButton label="Split (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
           <Slice className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Delete selected (Del)" onClick={deleteSelected} disabled={!selection.clipIds.length}>
-          <Trash2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Duplicate (Ctrl+D)" onClick={duplicateSelected} disabled={!selection.clipIds.length}>
           <CopyPlus className="size-4" />
         </ToolbarButton>
+        <ToolbarButton label="Delete (Del)" onClick={deleteSelected} disabled={!selection.clipIds.length}>
+          <Trash2 className="size-4" />
+        </ToolbarButton>
+        <SeparatorLine />
 
-        {/* Secondary tools: inline on desktop, behind "…" on mobile */}
-        <span className="hidden items-center gap-0.5 sm:flex sm:gap-1">
-          <SeparatorLine />
-          <ToolbarButton label="Add avatar lip-sync" onClick={() => setAvatarOpen(true)}>
-            <Clapperboard className="size-4" />
-          </ToolbarButton>
-          <ToolbarButton label="Add audio" onClick={() => setAudioOpen(true)}>
-            <Music className="size-4" />
-          </ToolbarButton>
-          <ToolbarButton label="Add text" onClick={() => setTextOpen(true)}>
-            <Type className="size-4" />
-          </ToolbarButton>
-          <SeparatorLine />
-          <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
-            <ZoomOut className="size-4" />
-          </ToolbarButton>
-          <span className="text-muted-foreground w-11 text-center font-mono text-[10px]">{Math.round(zoom)}px/s</span>
-          <ToolbarButton label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
-            <ZoomIn className="size-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Fit timeline"
-            onClick={() =>
-              useTimelineStore
-                .getState()
-                .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
-            }
-          >
-            <Maximize className="size-4" />
-          </ToolbarButton>
-        </span>
+        {/* Add tools */}
+        <ToolbarButton label="Audio" onClick={() => setAudioOpen(true)}>
+          <Music className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="3D Assets" onClick={() => onOpenTool?.('3d')}>
+          <Box className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Slide Generator" onClick={() => onOpenTool?.('slide')}>
+          <Layers className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Avatar Generator" onClick={() => setAvatarOpen(true)}>
+          <Clapperboard className="size-4" />
+        </ToolbarButton>
+        <SeparatorLine />
+
+        {/* Panel tools - open right panel */}
+        <ToolbarButton label="Audio Settings" onClick={() => onOpenTool?.('audio')}>
+          <Volume2 className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Captions" onClick={() => onOpenTool?.('captions')}>
+          <Captions className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Effects" onClick={() => onOpenTool?.('effects')}>
+          <Sparkles className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Crop" onClick={() => onOpenTool?.('crop')}>
+          <Crop className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Transform" onClick={() => onOpenTool?.('transform')}>
+          <ArrowLeftRight className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Transitions" onClick={() => onOpenTool?.('transitions')}>
+          <Zap className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Stickers" onClick={() => onOpenTool?.('stickers')}>
+          <Stamp className="size-4" />
+        </ToolbarButton>
+        <SeparatorLine />
+
+        {/* Modifier tools */}
+        <ToolbarButton label="Speed" onClick={() => onOpenTool?.('speed')}>
+          <Loader2 className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Reverse" onClick={() => onOpenTool?.('speed')}>
+          <ArrowRightLeft className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Keyframe" onClick={() => onOpenTool?.('keyframe')}>
+          <Wand2 className="size-4" />
+        </ToolbarButton>
+        <SeparatorLine />
+
+        {/* Zoom */}
+        <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
+          <ZoomOut className="size-4" />
+        </ToolbarButton>
+        <span className="text-muted-foreground w-11 text-center font-mono text-[10px]">{Math.round(zoom)}px/s</span>
+        <ToolbarButton label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
+          <ZoomIn className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Fit timeline"
+          onClick={() =>
+            useTimelineStore
+              .getState()
+              .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
+          }
+        >
+          <Maximize className="size-4" />
+        </ToolbarButton>
 
         <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
           {denoise.error ? (
@@ -495,22 +539,18 @@ export function Timeline({ height, fill }: { height?: number; fill?: boolean }) 
               />
               <div className="absolute top-full right-0 z-50 mt-1 flex w-52 flex-col gap-0.5 rounded-lg border bg-card p-1.5 shadow-xl">
                 <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Add</p>
-                <MenuRow icon={<Clapperboard className="size-4" />} label="Add avatar lip-sync" onClick={() => { setAvatarOpen(true); setMoreOpen(false) }} />
-                <MenuRow icon={<Music className="size-4" />} label="Add audio" onClick={() => { setAudioOpen(true); setMoreOpen(false) }} />
-                <MenuRow icon={<Type className="size-4" />} label="Add text" onClick={() => { setTextOpen(true); setMoreOpen(false) }} />
+                <MenuRow icon={<Music className="size-4" />} label="Audio" onClick={() => { setAudioOpen(true); setMoreOpen(false) }} />
+                <MenuRow icon={<Box className="size-4" />} label="3D Assets" onClick={() => { onOpenTool?.('3d'); setMoreOpen(false) }} />
+                <MenuRow icon={<Layers className="size-4" />} label="Slide Generator" onClick={() => { onOpenTool?.('slide'); setMoreOpen(false) }} />
+                <MenuRow icon={<Clapperboard className="size-4" />} label="Avatar Generator" onClick={() => { setAvatarOpen(true); setMoreOpen(false) }} />
                 <div className="bg-border my-1 h-px" />
-                <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">View</p>
-                <MenuRow icon={<ZoomOut className="size-4" />} label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)} />
-                <MenuRow icon={<ZoomIn className="size-4" />} label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)} />
-                <MenuRow
-                  icon={<Maximize className="size-4" />}
-                  label="Fit timeline"
-                  onClick={() =>
-                    useTimelineStore
-                      .getState()
-                      .setZoom(Math.max(15, Math.min(200, (viewportRef.current?.clientWidth ?? 1200) / Math.max(duration, 1))))
-                  }
-                />
+                <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Tools</p>
+                <MenuRow icon={<Sparkles className="size-4" />} label="Effects" onClick={() => { onOpenTool?.('effects'); setMoreOpen(false) }} />
+                <MenuRow icon={<Crop className="size-4" />} label="Crop" onClick={() => { onOpenTool?.('crop'); setMoreOpen(false) }} />
+                <MenuRow icon={<Zap className="size-4" />} label="Transitions" onClick={() => { onOpenTool?.('transitions'); setMoreOpen(false) }} />
+                <MenuRow icon={<Stamp className="size-4" />} label="Stickers" onClick={() => { onOpenTool?.('stickers'); setMoreOpen(false) }} />
+                <MenuRow icon={<Loader2 className="size-4" />} label="Speed" onClick={() => { onOpenTool?.('speed'); setMoreOpen(false) }} />
+                <MenuRow icon={<Wand2 className="size-4" />} label="Keyframe" onClick={() => { onOpenTool?.('keyframe'); setMoreOpen(false) }} />
               </div>
             </>
           )}
