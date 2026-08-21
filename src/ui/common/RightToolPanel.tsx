@@ -1,10 +1,11 @@
 import * as React from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, FolderUp } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import type { Clip, EffectType } from '@/engine/types'
+import type { Clip, EffectType, TextOverlay } from '@/engine/types'
 import { createEffect } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export type ToolSection =
@@ -122,36 +123,105 @@ function EffectsSection() {
 function AudioSection() {
   const clip = getSelectedClip()
   const updateClip = useTimelineStore((s) => s.updateClip)
+  const importFiles = useTimelineStore((s) => s.importFiles)
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
-  if (!clip) return <EmptyHint text="Select a clip to adjust its audio" />
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    await importFiles(Array.from(files))
+    if (inputRef.current) inputRef.current.value = ''
+  }
 
   return (
     <div className="space-y-3 p-3">
-      <EffectSlider
-        label="Volume"
-        value={clip.volume}
-        min={0}
-        max={2}
-        onChange={(v) => updateClip(clip.id, { volume: v })}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        multiple
+        onChange={handleImport}
       />
-      <EffectSlider
-        label="Speed"
-        value={clip.speed}
-        min={0.25}
-        max={4}
-        step={0.25}
-        onChange={(v) => updateClip(clip.id, { speed: v })}
-      />
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        onClick={() => inputRef.current?.click()}
+      >
+        <FolderUp className="mr-2 size-3.5" />
+        Import Audio
+      </Button>
+      {clip ? (
+        <>
+          <EffectSlider
+            label="Volume"
+            value={clip.volume}
+            min={0}
+            max={2}
+            onChange={(v) => updateClip(clip.id, { volume: v })}
+          />
+          <EffectSlider
+            label="Speed"
+            value={clip.speed}
+            min={0.25}
+            max={4}
+            step={0.25}
+            onChange={(v) => updateClip(clip.id, { speed: v })}
+          />
+        </>
+      ) : (
+        <EmptyHint text="Select a clip to adjust its audio" />
+      )}
     </div>
   )
 }
 
 function CaptionsSection() {
-  return <EmptyHint text="AI-generated captions will appear here once you enable them in project settings." />
+  const clip = getSelectedClip()
+  const updateClip = useTimelineStore((s) => s.updateClip)
+
+  if (!clip) return <EmptyHint text="Select a clip to edit its text overlay" />
+
+  return (
+    <div className="space-y-3 p-3">
+      <div className="space-y-1">
+        <Label className="text-xs">Text Content</Label>
+        <Input
+          value={clip.text?.text ?? ''}
+          placeholder="Enter text overlay..."
+          onChange={(e) => {
+            const existing = clip.text
+            const newText: TextOverlay = existing
+              ? { ...existing, text: e.target.value }
+              : {
+                  text: e.target.value,
+                  fontSize: 48,
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontWeight: 'bold',
+                  fontStyle: 'normal',
+                  color: '#ffffff',
+                  backgroundColor: '#000000',
+                  textAlign: 'center',
+                  paddingTop: 8,
+                  paddingBottom: 8,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                  borderRadius: 0,
+                  shadow: false,
+                  animation: 'none',
+                  animationDuration: 0.5,
+                }
+            updateClip(clip.id, { text: newText })
+          }}
+        />
+      </div>
+    </div>
+  )
 }
 
 function ThreeDSection() {
-  return <EmptyHint text="Import .glb or .gltf files to use 3D models in your project." />
+  return <EmptyHint text="Import .glb or .gltf files as media assets to use 3D models in your project." />
 }
 
 function TransitionsSection() {
@@ -160,14 +230,18 @@ function TransitionsSection() {
 
   if (!clip) return <EmptyHint text="Select a clip to set transitions" />
 
-  const inTypes: Array<'cut' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'wipe-down' | 'slide' | 'zoom'> = ['cut', 'dissolve', 'wipe-left', 'wipe-right', 'slide', 'zoom']
+  const transitionTypes: Array<'cut' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'wipe-down' | 'slide' | 'zoom'> = [
+    'cut', 'dissolve', 'wipe-left', 'wipe-right', 'wipe-up', 'wipe-down', 'slide', 'zoom',
+  ]
+
+  const duration = clip.transitions.in?.duration ?? 0.5
 
   return (
     <div className="space-y-4 p-3">
       <div>
         <Label className="text-xs mb-2 block">In Transition</Label>
         <div className="grid grid-cols-2 gap-1">
-          {inTypes.map((t) => (
+          {transitionTypes.map((t) => (
             <Button
               key={t}
               size="sm"
@@ -175,7 +249,7 @@ function TransitionsSection() {
               className="h-7 text-[10px]"
               onClick={() =>
                 updateClip(clip.id, {
-                  transitions: { ...clip.transitions, in: { type: t, duration: 0.5 } },
+                  transitions: { ...clip.transitions, in: { type: t, duration } },
                 })
               }
             >
@@ -187,7 +261,7 @@ function TransitionsSection() {
       <div>
         <Label className="text-xs mb-2 block">Out Transition</Label>
         <div className="grid grid-cols-2 gap-1">
-          {inTypes.map((t) => (
+          {transitionTypes.map((t) => (
             <Button
               key={t}
               size="sm"
@@ -195,7 +269,7 @@ function TransitionsSection() {
               className="h-7 text-[10px]"
               onClick={() =>
                 updateClip(clip.id, {
-                  transitions: { ...clip.transitions, out: { type: t, duration: 0.5 } },
+                  transitions: { ...clip.transitions, out: { type: t, duration } },
                 })
               }
             >
@@ -204,12 +278,24 @@ function TransitionsSection() {
           ))}
         </div>
       </div>
+      <EffectSlider
+        label="Transition Duration"
+        value={duration}
+        min={0.1}
+        max={2}
+        step={0.1}
+        onChange={(v) => {
+          const inT = clip.transitions.in ? { ...clip.transitions.in, duration: v } : undefined
+          const outT = clip.transitions.out ? { ...clip.transitions.out, duration: v } : undefined
+          updateClip(clip.id, { transitions: { in: inT, out: outT } })
+        }}
+      />
     </div>
   )
 }
 
 function StickersSection() {
-  return <EmptyHint text="Browse stickers and overlays in the media panel." />
+  return <EmptyHint text="Use the AI Director to add stickers, or import images as media assets to use as stickers." />
 }
 
 function SpeedSection() {
@@ -248,19 +334,140 @@ function SpeedSection() {
 }
 
 function KeyframeSection() {
-  return <EmptyHint text="Add keyframes to animate clip properties over time." />
+  return <EmptyHint text="Select a clip and use the timeline to add keyframes for animating properties over time." />
 }
 
 function CropSection() {
-  return <EmptyHint text="Select a clip to crop its visible area." />
+  const clip = getSelectedClip()
+  const updateClip = useTimelineStore((s) => s.updateClip)
+
+  if (!clip) return <EmptyHint text="Select a clip to crop or reframe it." />
+
+  const aspectPresets = ['16:9', '9:16', '1:1', '4:5', 'free'] as const
+
+  return (
+    <div className="space-y-3 p-3">
+      <Label className="text-xs">Aspect Ratio</Label>
+      <div className="grid grid-cols-3 gap-1">
+        {aspectPresets.map((preset) => {
+          const isActive = clip.reframing?.targetAspect === preset || (!clip.reframing && preset === 'free')
+          return (
+            <Button
+              key={preset}
+              size="sm"
+              variant={isActive ? 'default' : 'outline'}
+              className="h-7 text-[10px]"
+              onClick={() =>
+                updateClip(clip.id, {
+                  reframing: {
+                    enabled: preset !== 'free',
+                    targetAspect: preset,
+                    followStrength: 0.6,
+                  },
+                })
+              }
+            >
+              {preset}
+            </Button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function SlideSection() {
-  return <EmptyHint text="Configure slide-in and slide-out animations." />
+  const clip = getSelectedClip()
+  const updateClip = useTimelineStore((s) => s.updateClip)
+
+  if (!clip) return <EmptyHint text="Select a clip to set entrance and exit animations." />
+
+  const animations: Array<{ label: string; value: 'none' | 'fade-in' | 'slide-left' | 'slide-right' | 'zoom-in' | 'zoom-out' }> = [
+    { label: 'None', value: 'none' },
+    { label: 'Fade In', value: 'fade-in' },
+    { label: 'Slide Left', value: 'slide-left' },
+    { label: 'Slide Right', value: 'slide-right' },
+    { label: 'Zoom In', value: 'zoom-in' },
+    { label: 'Zoom Out', value: 'zoom-out' },
+  ]
+
+  const typeMap: Record<string, 'cut' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'slide' | 'zoom'> = {
+    'none': 'cut',
+    'fade-in': 'dissolve',
+    'slide-left': 'wipe-left',
+    'slide-right': 'wipe-right',
+    'zoom-in': 'zoom',
+    'zoom-out': 'zoom',
+  }
+
+  return (
+    <div className="space-y-4 p-3">
+      <div>
+        <Label className="text-xs mb-2 block">Entrance Animation</Label>
+        <div className="grid grid-cols-2 gap-1">
+          {animations.map((a) => {
+            const inType = clip.transitions.in?.type ?? 'cut'
+            const isActive =
+              (a.value === 'none' && inType === 'cut') ||
+              (a.value !== 'none' && typeMap[a.value] === inType)
+            return (
+              <Button
+                key={a.value}
+                size="sm"
+                variant={isActive ? 'default' : 'outline'}
+                className="h-7 text-[10px]"
+                onClick={() => {
+                  const dur = clip.transitions.in?.duration ?? 0.5
+                  updateClip(clip.id, {
+                    transitions: {
+                      ...clip.transitions,
+                      in: { type: typeMap[a.value], duration: dur },
+                    },
+                  })
+                }}
+              >
+                {a.label}
+              </Button>
+            )
+          })}
+        </div>
+      </div>
+      <div>
+        <Label className="text-xs mb-2 block">Exit Animation</Label>
+        <div className="grid grid-cols-2 gap-1">
+          {animations.map((a) => {
+            const outType = clip.transitions.out?.type ?? 'cut'
+            const isActive =
+              (a.value === 'none' && outType === 'cut') ||
+              (a.value !== 'none' && typeMap[a.value] === outType)
+            return (
+              <Button
+                key={a.value}
+                size="sm"
+                variant={isActive ? 'default' : 'outline'}
+                className="h-7 text-[10px]"
+                onClick={() => {
+                  const dur = clip.transitions.out?.duration ?? 0.5
+                  updateClip(clip.id, {
+                    transitions: {
+                      ...clip.transitions,
+                      out: { type: typeMap[a.value], duration: dur },
+                    },
+                  })
+                }}
+              >
+                {a.label}
+              </Button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function AvatarSection() {
-  return <EmptyHint text="Add and configure AI avatar presenters." />
+  return <EmptyHint text="Use the AI Director to generate AI avatar presenters for your video." />
 }
 
 interface RightToolPanelProps {

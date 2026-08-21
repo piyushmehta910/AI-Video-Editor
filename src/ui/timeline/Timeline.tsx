@@ -42,9 +42,7 @@ import { projectDuration } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { AvatarGeneratorDialog } from '@/ui/avatar/AvatarGeneratorDialog'
-import { AddTextDialog } from '@/ui/media/AddTextDialog'
-import { AddAudioDialog } from '@/ui/media/AddAudioDialog'
+import { ModelSearch } from '@/ui/media/ModelSearch'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 
 const HEADER_WIDTH = 64
@@ -133,9 +131,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const assets = useTimelineStore((s) => s.assets)
   const clipboard = useTimelineStore((s) => s.clipboard)
   const [dragActive, setDragActive] = React.useState(false)
-  const [avatarOpen, setAvatarOpen] = React.useState(false)
-  const [audioOpen, setAudioOpen] = React.useState(false)
-  const [textOpen, setTextOpen] = React.useState(false)
   const [trimMode, setTrimMode] = React.useState(false)
   const [moreOpen, setMoreOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
@@ -449,7 +444,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <SeparatorLine />
 
         {/* Add tools */}
-        <ToolbarButton label="Audio" onClick={() => setAudioOpen(true)}>
+        <ToolbarButton label="Audio" onClick={() => onOpenTool?.('audio')}>
           <Music className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="3D Assets" onClick={() => onOpenTool?.('3d')}>
@@ -458,7 +453,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <ToolbarButton label="Slide Generator" onClick={() => onOpenTool?.('slide')}>
           <Layers className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Avatar Generator" onClick={() => setAvatarOpen(true)}>
+        <ToolbarButton label="Avatar Generator" onClick={() => onOpenTool?.('avatar')}>
           <Clapperboard className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
@@ -536,10 +531,10 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               />
               <div className="absolute top-full right-0 z-50 mt-1 flex w-52 flex-col gap-0.5 rounded-lg border bg-card p-1.5 shadow-xl">
                 <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Add</p>
-                <MenuRow icon={<Music className="size-4" />} label="Audio" onClick={() => { setAudioOpen(true); setMoreOpen(false) }} />
+                <MenuRow icon={<Music className="size-4" />} label="Audio" onClick={() => { onOpenTool?.('audio'); setMoreOpen(false) }} />
                 <MenuRow icon={<Box className="size-4" />} label="3D Assets" onClick={() => { onOpenTool?.('3d'); setMoreOpen(false) }} />
                 <MenuRow icon={<Layers className="size-4" />} label="Slide Generator" onClick={() => { onOpenTool?.('slide'); setMoreOpen(false) }} />
-                <MenuRow icon={<Clapperboard className="size-4" />} label="Avatar Generator" onClick={() => { setAvatarOpen(true); setMoreOpen(false) }} />
+                <MenuRow icon={<Clapperboard className="size-4" />} label="Avatar Generator" onClick={() => { onOpenTool?.('avatar'); setMoreOpen(false) }} />
                 <div className="bg-border my-1 h-px" />
                 <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Tools</p>
                 <MenuRow icon={<Sparkles className="size-4" />} label="Effects" onClick={() => { onOpenTool?.('effects'); setMoreOpen(false) }} />
@@ -689,10 +684,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           </div>
         )}
       </div>
-
-      <AvatarGeneratorDialog open={avatarOpen} onClose={() => setAvatarOpen(false)} />
-      <AddAudioDialog open={audioOpen} onClose={() => setAudioOpen(false)} />
-      <AddTextDialog open={textOpen} onClose={() => setTextOpen(false)} />
     </div>
   )
 }
