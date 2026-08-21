@@ -17,7 +17,7 @@ import {
 import { useScriptStore, type ProjectScript } from '@/stores/scriptStore'
 import { generateMotionCode } from '@/api/llm/motionGenerator'
 import { renderMotionClip } from '@/engine/motion/sandbox'
-import { generateSlides, renderSlidePng, type SlideTheme } from '@/api/llm/slides'
+import { generateMarpSlides, type MarpTheme } from '@/api/llm/marp'
 import type { AvatarRole } from '@/api/llm/avatarGenerator'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
@@ -573,13 +573,13 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'generate_slides',
-      description: 'Generate a presentation deck for a topic. The AI writes the slide content (title + bullets), the app renders each slide to a full-resolution PNG image with a clean theme (no stock photos) and adds them to the video track as image clips. Staged for user review.',
+      description: 'Generate a presentation deck for a topic using Marp. The AI writes the deck as Marp markdown, the app renders each slide to a full-resolution PNG image and adds them to the video track as image clips. Staged for user review.',
       parameters: {
         type: 'object',
         properties: {
           topic: { type: 'string', description: 'The subject the deck must cover.' },
           count: { type: 'number', description: 'Optional number of slides (3-6).' },
-          theme: { type: 'string', enum: ['clean', 'dark', 'gradient'], description: 'Visual theme (default clean).' },
+          theme: { type: 'string', enum: ['gaia', 'uncover', 'default'], description: "Marp theme: gaia = dark gradient, uncover = light with blue headings, default = white (default gaia)." },
           language: { type: 'string', description: 'Optional language for slide text.' },
           durationSeconds: { type: 'number', description: 'Seconds each slide stays on screen (default 5).' },
         },
@@ -1444,19 +1444,24 @@ export async function applyTool(
       const topic = String(args.topic ?? '')
       if (!topic.trim()) return { ok: false, message: 'No topic provided for slides.' }
       const count = args.count != null ? Number(args.count) : undefined
-      const theme = (['clean', 'dark', 'gradient'] as string[]).includes(String(args.theme ?? ''))
-        ? (String(args.theme) as SlideTheme)
-        : 'clean'
+      const rawTheme = String(args.theme ?? 'gaia')
+      const themeMap: Record<string, MarpTheme> = {
+        gaia: 'gaia',
+        uncover: 'uncover',
+        default: 'default',
+        clean: 'default',
+        dark: 'gaia',
+        gradient: 'uncover',
+      }
+      const marpTheme = themeMap[rawTheme] ?? 'gaia'
       const language = args.language != null ? String(args.language) : undefined
       const perSlide = Math.max(1, Number(args.durationSeconds) || 5)
       try {
-        const deck = await generateSlides({ topic, count, language })
-        if (!deck.slides.length) return { ok: false, message: 'Slide generation returned no slides.' }
-        const files: File[] = []
-        for (let i = 0; i < deck.slides.length; i++) {
-          const png = await renderSlidePng(deck.slides[i], i + 1, deck.slides.length, theme, 1280, 720)
-          files.push(new File([png], `slide-${i + 1}-${Date.now()}.png`, { type: 'image/png' }))
-        }
+        const deck = await generateMarpSlides({ topic, count, language, theme: marpTheme })
+        if (!deck.pngs.length) return { ok: false, message: 'Slide generation returned no slides.' }
+        const files: File[] = deck.pngs.map(
+          (png, i) => new File([png], `slide-${i + 1}-${Date.now()}.png`, { type: 'image/png' }),
+        )
         const imported = await s.importFiles(files)
         const assets = imported.imported
         const videoTrack = s.project.tracks.find((t) => t.type === 'video')
@@ -1466,7 +1471,7 @@ export async function applyTool(
           const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
           if (clip) s.updateClip(clip.id, { duration: perSlide, sourceEnd: perSlide })
         }
-        return { ok: true, message: `${desc} — rendered ${assets.length} slides ("${deck.title}") onto the timeline.` }
+        return { ok: true, message: `${desc} — rendered ${assets.length} Marp slides ("${deck.title}", ${marpTheme} theme) onto the timeline.` }
       } catch (err) {
         return { ok: false, message: `Slide generation failed: ${err instanceof Error ? err.message : String(err)}` }
       }
