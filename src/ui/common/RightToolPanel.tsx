@@ -8,7 +8,6 @@ import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 
 export type ToolSection =
-  | 'transform'
   | 'effects'
   | 'audio'
   | 'captions'
@@ -22,7 +21,6 @@ export type ToolSection =
   | 'avatar'
 
 export const TOOL_SECTIONS: { id: ToolSection; label: string }[] = [
-  { id: 'transform', label: 'Transform' },
   { id: 'effects', label: 'Effects' },
   { id: 'audio', label: 'Audio' },
   { id: 'captions', label: 'Captions' },
@@ -82,59 +80,6 @@ function EffectSlider({
         step={step ?? 0.01}
         value={[value]}
         onValueChange={([v]) => onChange(v)}
-      />
-    </div>
-  )
-}
-
-function TransformSection() {
-  const clip = getSelectedClip()
-  const updateClip = useTimelineStore((s) => s.updateClip)
-
-  if (!clip) return <EmptyHint text="Select a clip to adjust its transform" />
-
-  return (
-    <div className="space-y-3 p-3">
-      <div className="space-y-1">
-        <Label className="text-xs">Position X</Label>
-        <Slider
-          min={-1920}
-          max={1920}
-          step={1}
-          value={[clip.position.x]}
-          onValueChange={([v]) => updateClip(clip.id, { position: { ...clip.position, x: v } })}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs">Position Y</Label>
-        <Slider
-          min={-1080}
-          max={1080}
-          step={1}
-          value={[clip.position.y]}
-          onValueChange={([v]) => updateClip(clip.id, { position: { ...clip.position, y: v } })}
-        />
-      </div>
-      <EffectSlider
-        label="Scale"
-        value={clip.scale.x}
-        min={0.1}
-        max={5}
-        onChange={(v) => updateClip(clip.id, { scale: { x: v, y: v } })}
-      />
-      <EffectSlider
-        label="Rotation"
-        value={clip.rotation}
-        min={-360}
-        max={360}
-        onChange={(v) => updateClip(clip.id, { rotation: v })}
-      />
-      <EffectSlider
-        label="Opacity"
-        value={clip.opacity}
-        min={0}
-        max={1}
-        onChange={(v) => updateClip(clip.id, { opacity: v })}
       />
     </div>
   )
@@ -324,7 +269,6 @@ interface RightToolPanelProps {
 }
 
 const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
-  transform: TransformSection,
   effects: EffectsSection,
   audio: AudioSection,
   captions: CaptionsSection,

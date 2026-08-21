@@ -476,9 +476,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <ToolbarButton label="Crop" onClick={() => onOpenTool?.('crop')}>
           <Crop className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Transform" onClick={() => onOpenTool?.('transform')}>
-          <ArrowLeftRight className="size-4" />
-        </ToolbarButton>
         <ToolbarButton label="Transitions" onClick={() => onOpenTool?.('transitions')}>
           <Zap className="size-4" />
         </ToolbarButton>

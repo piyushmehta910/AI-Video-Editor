@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Download, Pencil, Settings, Share2, SlidersHorizontal, User, Palette, LogOut } from 'lucide-react'
+import { Download, Pencil, SlidersHorizontal } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -12,13 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ExportDialog } from '@/ui/export/ExportDialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 const RESOLUTIONS = [
   { label: '360p', w: 640, h: 360 },
@@ -216,50 +209,6 @@ export function ProjectHeader() {
           <Download className="size-3.5" />
           <span className="hidden sm:inline">Export</span>
         </Button>
-
-        {/* Brand Kit Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" aria-label="Brand Kit">
-              <Palette className="size-3.5" />
-              <span className="hidden sm:inline">Brand Kit</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-48" side="bottom" align="end">
-            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">Brand Kits</div>
-            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>Default Brand Kit</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>Create New Brand Kit</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>Manage Brand Kits…</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Account Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" aria-label="Account menu">
-              <User className="size-3.5" />
-              <span className="hidden sm:inline">Account</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" side="bottom" align="end">
-            <div className="px-2 py-1 border-b">
-              <p className="text-xs font-medium truncate">{project.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">user@clipforge.ai</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>
-              <Settings className="size-3.5 mr-2" /> Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { /* TODO: implement */ }}>
-              <Share2 className="size-3.5 mr-2" /> Share Project
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={() => { /* TODO: implement */ }}>
-              <LogOut className="size-3.5 mr-2" /> Sign Out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}

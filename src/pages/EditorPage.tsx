@@ -200,7 +200,7 @@ export function EditorPage() {
               variant="ghost"
               size="icon"
               className="size-7"
-              onClick={() => setActiveTool('transform')}
+              onClick={() => setActiveTool('effects')}
               title="Show Inspector"
             >
               <ChevronLeft className="size-4" />
