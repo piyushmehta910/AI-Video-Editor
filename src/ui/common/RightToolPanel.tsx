@@ -14,6 +14,8 @@ import {
   Sparkles,
   Image,
   FileText,
+  Code,
+  Plus,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -46,6 +48,7 @@ export type ToolSection =
   | 'crop'
   | 'slide'
   | 'avatar'
+  | 'design'
 
 export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'effects', label: 'Effects', icon: Sparkles },
@@ -59,6 +62,7 @@ export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ c
   { id: 'crop', label: 'Crop', icon: Image },
   { id: 'slide', label: 'Slides', icon: FileText },
   { id: 'avatar', label: 'Avatar', icon: Clapperboard },
+  { id: 'design', label: 'Design', icon: Code },
 ]
 
 function getSelectedClip(): Clip | null {
@@ -138,45 +142,78 @@ function SlideSection() {
   const [progress, setProgress] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
+  const [previews, setPreviews] = React.useState<Array<{ blob: Blob; url: string; title: string; bullets: string[] }>>([])
+  const [selectedSlides, setSelectedSlides] = React.useState<Set<number>>(new Set())
+  const [adding, setAdding] = React.useState(false)
+
+  React.useEffect(() => {
+    return () => previews.forEach((p) => URL.revokeObjectURL(p.url))
+  }, [previews])
 
   const generate = async () => {
     if (!topic.trim() || busy) return
     setBusy(true)
     setError(null)
     setSuccess(null)
+    setPreviews([])
+    setSelectedSlides(new Set())
     try {
       setProgress('Generating slide content...')
       const deck = await generateSlides({ topic: topic.trim(), count })
-      const files: File[] = []
+      const newPreviews: Array<{ blob: Blob; url: string; title: string; bullets: string[] }> = []
       for (let i = 0; i < deck.slides.length; i++) {
         setProgress(`Rendering slide ${i + 1}/${deck.slides.length}...`)
         const blob = await renderSlidePng(deck.slides[i], i + 1, deck.slides.length, theme, 1280, 720)
-        files.push(new File([blob], `slide-${i + 1}-${Date.now()}.png`, { type: 'image/png' }))
+        const url = URL.createObjectURL(blob)
+        newPreviews.push({ blob, url, title: deck.slides[i].title, bullets: deck.slides[i].bullets })
       }
-      setProgress('Importing to timeline...')
+      setPreviews(newPreviews)
+      setSelectedSlides(new Set(newPreviews.map((_, i) => i)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+      setProgress('')
+    }
+  }
+
+  const toggleSlide = (idx: number) => {
+    setSelectedSlides((prev) => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx)
+      else next.add(idx)
+      return next
+    })
+  }
+
+  const addToTimeline = async () => {
+    if (previews.length === 0 || adding) return
+    setAdding(true)
+    setError(null)
+    try {
+      const files = previews
+        .filter((_, i) => selectedSlides.has(i))
+        .map((p, _, arr) => new File([p.blob], `slide-${arr.indexOf(p) + 1}-${Date.now()}.png`, { type: 'image/png' }))
+      if (!files.length) { setAdding(false); return }
       const { imported } = await importFiles(files)
       if (imported.length) {
-        setSuccess(`Generated ${imported.length} slides and added them to the timeline.`)
         const store = useTimelineStore.getState()
         const videoTrack = store.project.tracks.find((t) => t.type === 'video')
         if (videoTrack) {
           const perSlide = 5
           imported.forEach((asset, idx) => {
             const newClip = store.addClip(asset.id, videoTrack.id)
-            if (newClip) {
-              store.updateClip(newClip.id, {
-                startTime: idx * perSlide,
-                duration: perSlide,
-              })
-            }
+            if (newClip) store.updateClip(newClip.id, { startTime: idx * perSlide, duration: perSlide })
           })
         }
+        setSuccess(`Added ${imported.length} slides to timeline`)
+        setPreviews([])
+        setSelectedSlides(new Set())
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setBusy(false)
-      setProgress('')
+      setAdding(false)
     }
   }
 
@@ -196,22 +233,12 @@ function SlideSection() {
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
           <Label className="text-xs">Slides (1–6)</Label>
-          <Input
-            type="number"
-            min={1}
-            max={6}
-            value={count}
-            onChange={(e) => setCount(Math.max(1, Math.min(6, Number(e.target.value))))}
-            className="h-8 text-xs"
-            disabled={busy}
-          />
+          <Input type="number" min={1} max={6} value={count} onChange={(e) => setCount(Math.max(1, Math.min(6, Number(e.target.value))))} className="h-8 text-xs" disabled={busy} />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Theme</Label>
           <Select value={theme} onValueChange={(v) => setTheme(v as SlideTheme)} disabled={busy}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="clean">Clean</SelectItem>
               <SelectItem value="dark">Dark</SelectItem>
@@ -226,6 +253,44 @@ function SlideSection() {
       </Button>
       {error && <SectionNotice kind="error" text={error} />}
       {success && <SectionNotice kind="ok" text={success} />}
+
+      {previews.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Preview ({selectedSlides.size}/{previews.length} selected)</Label>
+            <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setSelectedSlides(new Set(previews.map((_, i) => i)))}>
+              Select All
+            </Button>
+          </div>
+          <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+            {previews.map((p, i) => (
+              <button
+                key={i}
+                type="button"
+                className={cn(
+                  'group relative overflow-hidden rounded border transition-all',
+                  selectedSlides.has(i) ? 'border-violet-500 ring-1 ring-violet-500/30' : 'border-muted opacity-60 hover:opacity-100',
+                )}
+                onClick={() => toggleSlide(i)}
+              >
+                <img src={p.url} alt={p.title} className="w-full" />
+                <div className="absolute top-1 right-1">
+                  <div className={cn('flex size-4 items-center justify-center rounded-full border text-[10px]', selectedSlides.has(i) ? 'border-violet-500 bg-violet-500 text-white' : 'border-muted bg-card')}>
+                    {selectedSlides.has(i) ? '✓' : ''}
+                  </div>
+                </div>
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                  <p className="text-white text-[11px] font-medium truncate">{p.title}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <Button size="sm" className="w-full" onClick={() => void addToTimeline()} disabled={adding || selectedSlides.size === 0}>
+            {adding ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Plus className="mr-2 size-3.5" />}
+            {adding ? 'Adding...' : `Add ${selectedSlides.size} Slides to Timeline`}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1076,6 +1141,170 @@ function CropSection() {
   )
 }
 
+// ─── Design Section ───────────────────────────────────────────────────────────
+function DesignSection() {
+  const importFiles = useTimelineStore((s) => s.importFiles)
+  const [prompt, setPrompt] = React.useState('')
+  const [html, setHtml] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [success, setSuccess] = React.useState<string | null>(null)
+  const [rendering, setRendering] = React.useState(false)
+  const iframeRef = React.useRef<HTMLIFrameElement>(null)
+
+  const updatePreview = React.useCallback((code: string) => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) return
+    doc.open()
+    doc.write(code)
+    doc.close()
+  }, [])
+
+  React.useEffect(() => {
+    if (html) updatePreview(html)
+  }, [html, updatePreview])
+
+  const generateDesign = async () => {
+    if (!prompt.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const { chatCompletion, getDirectorProvider } = await import('@/api/llm/director')
+      const provider = getDirectorProvider()
+      if (!provider) throw new Error('No AI provider configured. Add one in Settings.')
+
+      const systemPrompt = `You are an expert web designer and developer. Generate a SINGLE self-contained HTML file that includes all CSS and JS inline. The design should be visually stunning, modern, and professional.
+
+Rules:
+- Return ONLY the raw HTML code, no markdown fences, no explanations
+- Include all CSS in a <style> tag in the <head>
+- Include all JS in a <script> tag at the end of <body>
+- Use modern CSS (flexbox, grid, gradients, animations, backdrop-filter)
+- Use a cohesive color palette (dark theme preferred: #0f172a, #1e293b, #334155, #8b5cf6, #06b6d4)
+- Make it responsive and beautiful
+- Use Google Fonts (Inter, Poppins, or similar) via CDN link
+- Add subtle animations and transitions
+- The design should fill the full viewport (100vw x 100vh)
+- Make it production-quality, not a toy example`
+
+      const messages = [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: `Create a stunning web design for: "${prompt.trim()}"
+
+Requirements:
+- Modern, professional, visually impressive
+- Dark theme with accent colors
+- Smooth animations and micro-interactions
+- Responsive layout
+- Clean typography
+
+Return ONLY the complete HTML code:` },
+      ]
+
+      const reply = await chatCompletion(provider, messages)
+      let generated = reply.content ?? ''
+
+      // Strip markdown code fences if present
+      generated = generated.replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/i, '')
+      const startIdx = generated.indexOf('<')
+      if (startIdx > 0) generated = generated.slice(startIdx)
+
+      setHtml(generated)
+      updatePreview(generated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addDesignToTimeline = async () => {
+    if (!html || rendering) return
+    setRendering(true)
+    setError(null)
+    try {
+      const { renderHtmlToPng } = await import('@/engine/motion/sandbox')
+      const blob = await renderHtmlToPng(html, 1920, 1080)
+      const file = new File([blob], `design-${Date.now()}.png`, { type: 'image/png' })
+      const { imported } = await importFiles([file])
+      if (imported.length) {
+        const store = useTimelineStore.getState()
+        const videoTrack = store.project.tracks.find((t) => t.type === 'video')
+        if (videoTrack) {
+          const newClip = store.addClip(imported[0].id, videoTrack.id)
+          if (newClip) store.updateClip(newClip.id, { duration: 5 })
+        }
+        setSuccess('Design added to timeline as a 5s clip')
+        setHtml('')
+        setPrompt('')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRendering(false)
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col gap-3 p-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Describe your design</Label>
+        <Input
+          placeholder="e.g. Landing page for AI startup, pricing section, hero banner..."
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void generateDesign() } }}
+          className="h-8 text-xs"
+          disabled={busy}
+        />
+      </div>
+      <Button size="sm" className="w-full" onClick={() => void generateDesign()} disabled={busy || !prompt.trim()}>
+        {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+        {busy ? 'Generating...' : 'Generate Design'}
+      </Button>
+      {error && <SectionNotice kind="error" text={error} />}
+      {success && <SectionNotice kind="ok" text={success} />}
+
+      {html && (
+        <>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+            <div className="relative flex justify-center text-[10px]"><span className="bg-card px-2 text-muted-foreground">preview</span></div>
+          </div>
+          <div className="overflow-hidden rounded border">
+            <iframe
+              ref={iframeRef}
+              title="Design Preview"
+              className="h-40 w-full bg-white"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">HTML Code</Label>
+            <textarea
+              value={html}
+              onChange={(e) => { setHtml(e.target.value); updatePreview(e.target.value) }}
+              className="h-32 w-full resize-none rounded border bg-muted p-2 font-mono text-[10px] leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+              spellCheck={false}
+            />
+          </div>
+          <Button size="sm" className="w-full" onClick={() => void addDesignToTimeline()} disabled={rendering || !html}>
+            {rendering ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Plus className="mr-2 size-3.5" />}
+            {rendering ? 'Rendering...' : 'Add Design to Timeline'}
+          </Button>
+        </>
+      )}
+
+      {!html && !busy && (
+        <EmptyHint text="Describe a design concept and the AI will generate HTML/CSS/JS code with a live preview. Edit the code and add it to your timeline as an image clip." icon={Code} />
+      )}
+    </div>
+  )
+}
+
 // ─── Panel ────────────────────────────────────────────────────────────────────
 interface RightToolPanelProps {
   section: ToolSection
@@ -1094,6 +1323,7 @@ const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
   crop: CropSection,
   slide: SlideSection,
   avatar: AvatarSection,
+  design: DesignSection,
 }
 
 export function RightToolPanel({ section, onCollapse }: RightToolPanelProps) {

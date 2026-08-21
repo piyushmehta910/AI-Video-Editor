@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardPaste,
   Clapperboard,
+  Code,
   Crop,
   Copy,
   CopyPlus,
@@ -455,6 +456,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <ToolbarButton label="Avatar Generator" onClick={() => onOpenTool?.('avatar')}>
           <Clapperboard className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Design" onClick={() => onOpenTool?.('design')}>
+          <Code className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
 
