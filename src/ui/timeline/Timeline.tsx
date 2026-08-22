@@ -47,7 +47,6 @@ import { projectDuration } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { ModelSearch } from '@/ui/media/ModelSearch'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 
 const HEADER_WIDTH = 64
@@ -152,7 +151,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   })
   const collapsedRef = React.useRef(collapsed)
   collapsedRef.current = collapsed
-  const denoise = useDenoiseAction()
   const lastFitRef = React.useRef(0)
 
   const duration = projectDuration(project.tracks)
@@ -206,7 +204,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
 
   React.useEffect(() => {
     layoutAudioBar()
-  }, [layoutAudioBar, selection, zoom, trimMode, denoise.busy])
+  }, [layoutAudioBar, selection, zoom, trimMode, denoiseAction.busy])
 
   React.useEffect(() => {
     movePlayheadDom(playhead, zoom)
@@ -251,7 +249,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   }, [layoutAudioBar, selectedClipInfo?.clip?.startTime, selectedClipInfo?.track?.id])
 
   const selectedAsset = selectedClipInfo ? assetById(selectedClipInfo.clip.assetId) : null
-  const canDenoise = Boolean(selectedAsset && selectedAsset.type === 'audio' && !denoise.busy)
+  const canDenoise = Boolean(selectedAsset && selectedAsset.type === 'audio' && !denoiseAction.busy)
 
   React.useEffect(() => {
     const n = assets.length
@@ -548,8 +546,8 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
 
         <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
-          {denoise.error ? (
-            <span className="text-destructive">{denoise.error}</span>
+          {denoiseAction.error ? (
+            <span className="text-destructive">{denoiseAction.error}</span>
           ) : selection.clipIds.length > 0 ? (
             `${selection.clipIds.length} selected`
           ) : null}
@@ -693,10 +691,10 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           >
             <ToolbarButton
               label={canDenoise ? 'Denoise audio (RNNoise)' : 'Denoise unavailable'}
-              onClick={() => selectedClipInfo && void denoise.run(selectedClipInfo.clip.id)}
+              onClick={() => selectedClipInfo && void denoiseAction.run(selectedClipInfo.clip.id)}
               disabled={!canDenoise}
             >
-              {denoise.busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-400" />}
+              {denoiseAction.busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-emerald-400" />}
             </ToolbarButton>
             <ToolbarButton label="Split at playhead" onClick={splitSelected}>
               <Slice className="size-3.5" />

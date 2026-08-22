@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
+    "check:hooks": "node scripts/check-hooks.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
