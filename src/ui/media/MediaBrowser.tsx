@@ -39,7 +39,7 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
       } else if (errors.length) {
         setNotice({ kind: 'error', text: `${imported.length} imported, ${errors.length} failed` })
       } else if (imported.length) {
-        setNotice({ kind: 'ok', text: `Added ${imported.length} ${imported.length === 1 ? 'clip' : 'clips'} to the timeline` })
+        setNotice({ kind: 'ok', text: `Imported ${imported.length} ${imported.length === 1 ? 'file' : 'files'} to the library — use + to add them to the timeline` })
       }
     } catch (err) {
       setNotice({ kind: 'error', text: err instanceof Error ? err.message : String(err) })

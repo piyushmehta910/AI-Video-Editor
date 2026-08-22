@@ -41,12 +41,11 @@ export function useDenoiseAction() {
         if (imported.length) {
           const s = useTimelineStore.getState()
           const audioTrack = s.project.tracks.find((t) => t.type === 'audio')
-          const autoClip = audioTrack?.clips.find((c) => c.assetId === imported[0].id)
-          if (autoClip && audioTrack) {
-            const targetStart = found.clip.startTime + found.clip.duration
-            s.moveClip(autoClip.id, targetStart - autoClip.startTime)
-            s.select([autoClip.id], audioTrack.id)
-          }
+          const targetStart = found.clip.startTime + found.clip.duration
+          const newClip = audioTrack
+            ? s.addClip(imported[0].id, audioTrack.id, Math.round(targetStart * 10) / 10)
+            : undefined
+          if (newClip && audioTrack) s.select([newClip.id], audioTrack.id)
         } else {
           setError(errors[0] ?? 'Could not import denoised audio')
         }

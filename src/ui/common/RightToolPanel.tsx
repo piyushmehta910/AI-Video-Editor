@@ -441,7 +441,9 @@ function AvatarSection() {
       const file = new File([result.blob], `${imageAsset.name}-lipsync.webm`, { type: 'video/webm' })
       const { imported, errors } = await importFiles([file])
       if (imported.length) {
-        setSuccess(`Generated ${result.duration.toFixed(1)}s lip-sync video`)
+        const clip = useTimelineStore.getState().addAssetToTimeline(imported[0].id)
+        if (clip) setSuccess(`Generated ${result.duration.toFixed(1)}s lip-sync video — added to timeline`)
+        else setError('No video track available for the generated clip')
       } else {
         setError(errors[0] ?? 'Could not add generated clip')
       }
@@ -575,7 +577,9 @@ function AudioSection() {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
-    await importFiles(Array.from(files))
+    const { imported, errors } = await importFiles(Array.from(files))
+    for (const asset of imported) useTimelineStore.getState().addAssetToTimeline(asset.id)
+    if (errors.length) setSearchError(errors[0])
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -614,8 +618,12 @@ function AudioSection() {
       const blob = await res.blob()
       const file = new File([blob], `${track.title}-${track.artist}.mp3`, { type: blob.type || 'audio/mpeg' })
       const { imported, errors } = await importFiles([file])
-      if (imported.length) setNotice({ kind: 'ok', text: `Added "${track.title}"` })
-      else setNotice({ kind: 'error', text: errors[0] ?? 'Import failed' })
+      if (imported.length) {
+        const clip = useTimelineStore.getState().addAssetToTimeline(imported[0].id)
+        setNotice(clip
+          ? { kind: 'ok', text: `Added "${track.title}" to timeline` }
+          : { kind: 'error', text: 'No audio track available' })
+      } else setNotice({ kind: 'error', text: errors[0] ?? 'Import failed' })
     } catch {
       setNotice({ kind: 'error', text: 'Download failed' })
     } finally {
@@ -867,7 +875,9 @@ function ThreeDSection() {
             setError('Animation render could not be imported')
           }
         } else {
-          setSuccess(`Added "${imported[0].name}" to timeline`)
+          const clip = useTimelineStore.getState().addAssetToTimeline(imported[0].id)
+          if (clip) setSuccess(`Added "${imported[0].name}" to timeline`)
+          else setError('No video track available for the model')
         }
         setResults((prev) => prev.filter((r) => r.id !== model.id))
       } else {
@@ -1075,7 +1085,11 @@ function StickersSection() {
           setImportPhase('Decoding animation frames…')
         }
       })
-      await importFiles([converted.webmFile])
+      const { imported } = await importFiles([converted.webmFile])
+      if (imported.length) {
+        const clip = useTimelineStore.getState().addAssetToTimeline(imported[0].id)
+        if (!clip) setError('No video track available for the sticker')
+      } else setError('Failed to import sticker')
     } catch {
       setError('Failed to import sticker')
     } finally {
@@ -1603,8 +1617,11 @@ function ImagesSection() {
       const blob = await res.blob()
       const file = new File([blob], `${item.alt || 'image'}-${Date.now()}.jpg`, { type: 'image/jpeg' })
       const { imported, errors } = await importFiles([file])
-      if (imported.length) setSuccess(`Added "${imported[0].name}" to timeline`)
-      else setError(errors[0] ?? 'Import failed')
+      if (imported.length) {
+        const clip = useTimelineStore.getState().addAssetToTimeline(imported[0].id)
+        if (clip) setSuccess(`Added "${imported[0].name}" to timeline`)
+        else setError('No video track available for the image')
+      } else setError(errors[0] ?? 'Import failed')
     } catch {
       setError('Download failed')
     } finally {

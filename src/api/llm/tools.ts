@@ -1341,10 +1341,9 @@ export async function applyTool(
         const asset = imported.imported[0]
         if (!asset) return { ok: false, message: 'Downloaded model could not be imported.' }
         const dur = Math.max(1, Number(args.durationSeconds) || 4)
-        const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
-        if (clip) {
-          s.updateClip(clip.id, { duration: dur, sourceEnd: dur })
-        }
+        const clip = s.addAssetToTimeline(asset.id)
+        if (!clip) return { ok: false, message: 'No video track available for the 3D model.' }
+        s.updateClip(clip.id, { duration: dur, sourceEnd: dur })
         return { ok: true, message: `${desc} (added "${asset.name}" from ${source})` }
       } catch (err) {
         return { ok: false, message: `3D model download failed for "${modelName ?? query}": ${err instanceof Error ? err.message : String(err)}` }
@@ -1552,8 +1551,7 @@ export async function applyTool(
         if (!asset) return { ok: false, message: 'Rendered animation could not be imported.' }
         const videoTrack = s.project.tracks.find((t) => t.type === 'video')
         if (!videoTrack) return { ok: false, message: 'No video track available.' }
-        s.addClip(asset.id, videoTrack.id)
-        const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
+        const clip = s.addClip(asset.id, videoTrack.id)
         if (clip) s.updateClip(clip.id, { duration: durationSeconds, sourceEnd: durationSeconds })
         return {
           ok: true,
@@ -1590,8 +1588,7 @@ export async function applyTool(
         const videoTrack = s.project.tracks.find((t) => t.type === 'video')
         if (!videoTrack) return { ok: false, message: 'No video track available.' }
         for (const asset of assets) {
-          s.addClip(asset.id, videoTrack.id)
-          const clip = s.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === asset.id)
+          const clip = s.addClip(asset.id, videoTrack.id)
           if (clip) s.updateClip(clip.id, { duration: perSlide, sourceEnd: perSlide })
         }
         return { ok: true, message: `${desc} — rendered ${assets.length} Marp slides ("${deck.title}", ${marpTheme} theme) onto the timeline.` }

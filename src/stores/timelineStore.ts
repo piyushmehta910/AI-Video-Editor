@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Asset, CaptionsConfig, Clip, Project, Track } from '@/engine/types'
+import type { Asset, CaptionsConfig, Clip, Project, Track, TrackType } from '@/engine/types'
 import { newProject, projectDuration, defaultCameraRig } from '@/engine/types'
 import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
@@ -57,6 +57,8 @@ export interface TimelineState {
   resetProject: () => void
 
   addClip: (assetId: string, trackId: string, startTime?: number) => Clip | undefined
+  /** Adds an asset to its default track (audio→audio, everything else→video), appended after the last clip. */
+  addAssetToTimeline: (assetId: string) => Clip | undefined
   addClipToTrack: (clip: Clip) => void
   addTextClip: (text: string, trackId: string, startTime?: number) => Clip | undefined
   updateClip: (clipId: string, patch: Partial<Clip>) => void
@@ -233,15 +235,20 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         set((state) => ({
           assets: [...imported.reverse(), ...state.assets],
         }))
-        for (const asset of imported) {
-          const type = asset.type === 'audio' ? 'audio' : 'video'
-          const track = get().project.tracks.find((t) => t.type === type)
-          if (!track) continue
-          const lastEnd = track.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0)
-          get().addClip(asset.id, track.id, Math.round(lastEnd * 10) / 10)
-        }
       }
+      // NOTE: importing only registers assets in the library — nothing lands on
+      // the timeline until the user (or a tool) explicitly adds it.
       return { imported, errors }
+    },
+
+    addAssetToTimeline: (assetId) => {
+      const asset = get().assets.find((a) => a.id === assetId)
+      if (!asset) return undefined
+      const trackType: TrackType = asset.type === 'audio' ? 'audio' : 'video'
+      const track = get().project.tracks.find((t) => t.type === trackType)
+      if (!track) return undefined
+      const lastEnd = track.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0)
+      return get().addClip(asset.id, track.id, Math.round(lastEnd * 10) / 10)
     },
 
     deleteAsset: async (assetId) => {

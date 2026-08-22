@@ -42,6 +42,11 @@ export function ModelSearch() {
         return
       }
       const asset = imported[0]
+      const clip = useTimelineStore.getState().addAssetToTimeline(asset.id)
+      if (!clip) {
+        setError('No video track available for the model.')
+        return
+      }
       setResults((prev) => prev.filter((r) => r.id !== model.id))
       setError(`Added "${asset.name}" to the timeline.`)
     } catch (err) {
