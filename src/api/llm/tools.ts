@@ -23,7 +23,6 @@ import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
-import { renderGlbToVideo } from '@/engine/three/renderGlbToVideo'
 import { firecrawlSearch, firecrawlScrape } from '@/api/research/firecrawl'
 import { analyzeProject } from '@/api/llm/analysis'
 import { exportProject } from '@/engine/export/exportVideo'
@@ -1384,6 +1383,8 @@ export async function applyTool(
         rig.radiusStart = radius
         rig.radiusEnd = mode === 'dolly' ? radius * 0.55 : radius
 
+        // Lazy: pulls the three.js chunk only when a 3D render is actually requested.
+        const { renderGlbToVideo } = await import('@/engine/three/renderGlbToVideo')
         const rendered = await renderGlbToVideo({ asset, rig, duration: dur, fps: 30, width, height })
         const videoFile = new File([rendered.blob], `3d-${modelName.replace(/\W+/g, '-').toLowerCase()}-${Date.now()}.webm`, { type: 'video/webm' })
         const next = useTimelineStore.getState()

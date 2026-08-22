@@ -1,8 +1,12 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'node:path'
 import { forwardProxyRequest, type ProxyPayload } from './server/proxy.js'
+
+// Bundle analysis: ANALYZE=1 npm run build -> stats.html (treemap of every chunk)
+const analyze = process.env.ANALYZE === '1'
 
 /**
  * Dev-server twin of the Vercel serverless function (api/proxy.ts). Lets the
@@ -46,7 +50,32 @@ function apiProxyDevMiddleware(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), apiProxyDevMiddleware()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    apiProxyDevMiddleware(),
+    ...(analyze
+      ? [
+          visualizer({
+            filename: 'stats.html',
+            template: 'treemap',
+            gzipSize: true,
+            brotliSize: true,
+          }),
+        ]
+      : []),
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Pin the heavy, rarely-used libs to dedicated chunks so they can never
+          // leak into the entry chunk via a transitive static import.
+          if (id.includes('node_modules/three')) return 'three'
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),

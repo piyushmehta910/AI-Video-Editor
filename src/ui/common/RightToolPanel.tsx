@@ -39,7 +39,6 @@ import { readMediaFile } from '@/engine/storage/opfs'
 import { searchMusic, type MusicTrackResult } from '@/api/music/search'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
-import { renderGlbToVideo } from '@/engine/three/renderGlbToVideo'
 import { defaultCameraRig } from '@/engine/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { searchGiphy, searchGiphyTrending, downloadGiphy, type StickerResult } from '@/api/stickers/search'
@@ -848,11 +847,13 @@ function ThreeDSection() {
       const { imported, errors } = await importFiles([file])
       if (imported.length) {
         if (animateMode) {
-          setSuccess(`Rendering animation of "${imported[0].name}"...`)
+          setSuccess(`Loading 3D engine & rendering "${imported[0].name}"...`)
           const asset = imported[0]
           const rig = defaultCameraRig()
           rig.radiusStart = (asset.modelRadius ?? 2.4) * 2.5
           rig.radiusEnd = rig.radiusStart
+          // Lazy: three.js + renderer load on first animated-model request only.
+          const { renderGlbToVideo } = await import('@/engine/three/renderGlbToVideo')
           const rendered = await renderGlbToVideo({ asset, rig, duration: 5, fps: 30, width: 1280, height: 720 })
           const videoFile = new File([rendered.blob], `${model.name.replace(/\W+/g, '-').toLowerCase()}-anim-${Date.now()}.webm`, { type: 'video/webm' })
           const store = useTimelineStore.getState()
