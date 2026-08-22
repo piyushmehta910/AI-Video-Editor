@@ -1216,19 +1216,21 @@ function SpeedSection() {
 // ─── Keyframe Section ─────────────────────────────────────────────────────────
 function KeyframeSection() {
   const clip = getSelectedClip()
-  if (!clip) return <EmptyHint text="Select a clip to add keyframes for animating properties over time." icon={Play} />
+  if (!clip) return <EmptyHint text="Select a clip to see animation options." icon={Diamond} />
 
   return (
     <div className="space-y-3 p-3">
-      <p className="text-muted-foreground text-[11px] leading-relaxed">
-        Use the timeline controls to add keyframes. Click the keyframe button on any clip property to set a keyframe at the current playhead position.
-      </p>
-      <div className="space-y-1">
-        <Label className="text-xs">Animatable Properties</Label>
-        {['Position X', 'Position Y', 'Scale', 'Rotation', 'Opacity'].map((prop) => (
-          <div key={prop} className="flex items-center justify-between rounded border px-2 py-1">
-            <span className="text-[11px]">{prop}</span>
-            <span className="text-muted-foreground text-[10px]">0</span>
+      <SectionNotice kind="ok" text="Property keyframing is coming soon. You can already animate clips with these tools:" />
+      <div className="space-y-1.5">
+        {[
+          { label: 'Camera moves on 3D models', hint: '3D panel → turntable / orbit / dolly' },
+          { label: 'Smart reframing (crop keyframes)', hint: 'Crop panel → aspect presets' },
+          { label: 'Text entrance animations', hint: 'Captions panel → fade, slide, typewriter' },
+          { label: 'Speed ramps', hint: 'Speed panel → 0.25x–4x' },
+        ].map((row) => (
+          <div key={row.label} className="rounded border px-2 py-1.5">
+            <div className="text-[11px] font-medium">{row.label}</div>
+            <div className="text-muted-foreground text-[10px]">{row.hint}</div>
           </div>
         ))}
       </div>
