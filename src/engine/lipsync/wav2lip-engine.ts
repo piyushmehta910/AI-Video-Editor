@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as ort from 'onnxruntime-web'
 
 export interface Wav2LipConfig {
@@ -106,9 +105,9 @@ export class Wav2LipEngine {
     return new ort.Tensor('float32', data, [1, 3, h, w])
   }
 
-  private parseFaceBoxes(results: Map<string, ort.Tensor>, imgW: number, imgH: number): FaceBox[] {
+  private parseFaceBoxes(results: ort.InferenceSession.OnnxValueMapType, imgW: number, imgH: number): FaceBox[] {
     const boxes: FaceBox[] = []
-    const output = Array.from(results.values())[0]
+    const output = Object.values(results)[0] as ort.Tensor
     const data = output.data as Float32Array
     const [, , numDetections] = output.dims
 
@@ -122,7 +121,7 @@ export class Wav2LipEngine {
         boxes.push({ x: x1, y: y1, width: x2 - x1, height: y2 - y1 })
       }
     }
-    return boxes.length ? boxes : this.simpleFaceDetection({ width: imgW, height: imgH, data: new Uint8ClampedArray() })
+    return boxes.length ? boxes : this.simpleFaceDetection(new ImageData(new Uint8ClampedArray(imgW * imgH * 4), imgW, imgH))
   }
 
   private cropAndResizeFace(frame: ImageData, face: FaceBox): ImageData {
@@ -204,8 +203,6 @@ export class Wav2LipEngine {
     const melMax = this.hzToMel(fMax)
     for (let m = 0; m < nMels; m++) {
       const mel = melMin + (melMax - melMin) * m / (nMels - 1)
-      const hz = this.melToHz(mel)
-      const bin = Math.round(hz * nFft / sampleRate)
       for (let k = 0; k <= nFft / 2; k++) {
         const freq = k * sampleRate / nFft
         const melFreq = this.hzToMel(freq)
@@ -220,10 +217,6 @@ export class Wav2LipEngine {
 
   private hzToMel(hz: number): number {
     return 2595 * Math.log10(1 + hz / 700)
-  }
-
-  private melToHz(mel: number): number {
-    return 700 * (Math.pow(10, mel / 2595) - 1)
   }
 
   private hannWindow(n: number): Float32Array {
@@ -282,18 +275,24 @@ export class Wav2LipEngine {
       if (batchFrames.length === 0) continue
 
       const faceBoxes = await Promise.all(batchFrames.map(f => this.detectFaces(f)))
-      const croppedFaces = batchFrames.map((frame, i) => this.cropAndResizeFace(frame, faceBoxes[i]))
+      const croppedFaces = batchFrames.map((frame, i) => this.cropAndResizeFace(frame, faceBoxes[i][0]))
       const faceTensors = croppedFaces.map(f => this.imageDataToTensor(f))
 
       const melTensor = new ort.Tensor('float32', batchMel, [batchFrames.length, 80, 16])
-      const faceTensor = new ort.Tensor('float32', new Float32Array(faceTensors.flatMap(t => t.data)), [batchFrames.length, 3, 96, 96])
+      const faceData = new Float32Array(faceTensors.reduce((sum, t) => sum + t.data.length, 0))
+      let faceOffset = 0
+      for (const t of faceTensors) {
+        faceData.set(t.data as Float32Array, faceOffset)
+        faceOffset += t.data.length
+      }
+      const faceTensor = new ort.Tensor('float32', faceData, [batchFrames.length, 3, 96, 96])
 
       const results = await this.session!.run({
         face: faceTensor,
         mel: melTensor,
       })
 
-      const outputTensor = Array.from(results.values())[0]
+      const outputTensor = Object.values(results)[0] as ort.Tensor
       const outputData = outputTensor.data as Float32Array
       const [, c, h, w] = outputTensor.dims
 

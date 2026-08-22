@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as React from 'react'
 import {
   ArrowLeftRight,
@@ -7,11 +6,9 @@ import {
   Captions,
   ChevronDown,
   ChevronRight,
-  ClipboardPaste,
   Clapperboard,
   Code,
   Crop,
-  Copy,
   CopyPlus,
   Eye,
   EyeOff,
@@ -32,7 +29,6 @@ import {
   Sparkles,
   Stamp,
   Trash2,
-  Type,
   Undo2,
   Volume2,
   VolumeX,
@@ -134,7 +130,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const denoiseAction = useDenoiseAction()
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
-  const clipboard = useTimelineStore((s) => s.clipboard)
   const [dragActive, setDragActive] = React.useState(false)
   const [trimMode, setTrimMode] = React.useState(false)
   const [moreOpen, setMoreOpen] = React.useState(false)
@@ -392,11 +387,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     if (store.selection.clipIds.length) store.duplicateClips(store.selection.clipIds)
   }
 
-  const copySelected = () => {
-    const store = useTimelineStore.getState()
-    if (store.selection.clipIds.length) store.copyClips(store.selection.clipIds)
-  }
-
   const cutSelected = () => {
     const store = useTimelineStore.getState()
     if (store.selection.clipIds.length) store.cutClips(store.selection.clipIds)
@@ -413,10 +403,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         }
       }
     }
-  }
-
-  const paste = () => {
-    useTimelineStore.getState().pasteClips()
   }
 
   const { step, labelEvery } = computeTicks(duration, zoom)
@@ -780,15 +766,6 @@ function TrackRow({
 }) {
   const meta = TYPE_META[track.type]
 
-
-  const handleClipFocus = (clipId: string) => {
-    setFocusedClipId(clipId)
-  }
-
-  const handleClipBlur = () => {
-    setFocusedClipId(null)
-  }
-
   const handleClipKeyDown = (e: React.KeyboardEvent, clip: Clip, track: Track) => {
     const store = useTimelineStore.getState()
     const allClips = store.project.tracks.flatMap(t => t.clips)
@@ -802,8 +779,8 @@ function TrackRow({
           const prevClip = allClips[Math.max(0, clipIndex - 1)]
           if (prevClip) {
             store.select([prevClip.id], prevClip.trackId)
-            const prevClipEl = document.querySelector(`[data-clip-id="${prevClip.id}"]`)
-            (prevClipEl as HTMLElement | null)?.focus()
+            const prevClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${prevClip.id}"]`)
+            prevClipEl?.focus()
           }
         } else {
           // Tab: next clip
@@ -811,7 +788,7 @@ function TrackRow({
           const nextClip = allClips[Math.min(allClips.length - 1, clipIndex + 1)]
           if (nextClip) {
             store.select([nextClip.id], nextClip.trackId)
-            const nextClipEl = document.querySelector(`[data-clip-id="${nextClip.id}"]`)
+            const nextClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${nextClip.id}"]`)
             nextClipEl?.focus()
           }
         }
@@ -823,8 +800,8 @@ function TrackRow({
           const prevClip = allClips[Math.max(0, clipIndex - 1)]
           if (prevClip) {
             store.select([prevClip.id], prevClip.trackId)
-            const prevClipEl = document.querySelector(`[data-clip-id="${prevClip.id}"]`)
-            (prevClipEl as HTMLElement | null)?.focus()
+            const prevClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${prevClip.id}"]`)
+            prevClipEl?.focus()
           }
         }
         break
@@ -835,7 +812,7 @@ function TrackRow({
           const nextClip = allClips[Math.min(allClips.length - 1, clipIndex + 1)]
           if (nextClip) {
             store.select([nextClip.id], nextClip.trackId)
-            const nextClipEl = document.querySelector(`[data-clip-id="${nextClip.id}"]`)
+            const nextClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${nextClip.id}"]`)
             nextClipEl?.focus()
           }
         }
@@ -852,7 +829,7 @@ function TrackRow({
             )
             if (upperClip) {
               store.select([upperClip.id], upperTrack.id)
-              const clipEl = document.querySelector(`[data-clip-id="${upperClip.id}"]`)
+              const clipEl = document.querySelector<HTMLElement>(`[data-clip-id="${upperClip.id}"]`)
               clipEl?.focus()
             }
           }
@@ -870,7 +847,7 @@ function TrackRow({
             )
             if (lowerClip) {
               store.select([lowerClip.id], lowerTrack.id)
-              const clipEl = document.querySelector(`[data-clip-id="${lowerClip.id}"]`)
+              const clipEl = document.querySelector<HTMLElement>(`[data-clip-id="${lowerClip.id}"]`)
               clipEl?.focus()
             }
           }
@@ -966,8 +943,6 @@ function TrackRow({
                 onPointerDownClip(e, clip, 'move')
               }}
               onKeyDown={(e) => handleClipKeyDown(e, clip, track)}
-              onFocus={() => handleClipFocus(clip)}
-              onBlur={() => handleClipBlur(clip)}
             >
               {asset?.filmstrip ? (
                 <div

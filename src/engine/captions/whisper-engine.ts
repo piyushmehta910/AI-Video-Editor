@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { pipeline, env } from '@xenova/transformers'
+import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@xenova/transformers'
 import { groupWordsIntoSentences } from './transcript'
 
 env.allowLocalModels = false
@@ -60,7 +59,7 @@ interface PipelineProgress {
 }
 
 export class WhisperEngine {
-  private pipe: ReturnType<typeof pipeline> | null = null
+  private pipe: AutomaticSpeechRecognitionPipeline | null = null
   private config: WhisperConfig
   private initialized = false
 
@@ -123,7 +122,7 @@ export class WhisperEngine {
 
     const callArgs = {
       ...baseArgs,
-      return_timestamps: this.config.timestamps !== 'segment' ? 'word' : true,
+      return_timestamps: this.config.timestamps !== 'segment' ? ('word' as const) : true,
       chunk_callback: chunkCallback,
     }
 

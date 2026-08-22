@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as ort from 'onnxruntime-web'
 
 export interface BackgroundRemovalConfig {
@@ -14,6 +13,9 @@ export interface BackgroundRemovalInput {
   backgroundType: 'transparent' | 'blur' | 'color' | 'image'
   backgroundValue?: string
   backgroundBlur?: number
+  /** Optional playback metadata attached by callers; used only in the result payload. */
+  fps?: number
+  duration?: number
 }
 
 export interface BackgroundRemovalResult {
@@ -109,7 +111,7 @@ export class BackgroundRemovalEngine {
 
     const inputTensor = this.preprocessFrame(frame)
     const results = await this.session.run({ input: inputTensor })
-    const matte = Array.from(results.values())[0] as ort.Tensor
+    const matte = Object.values(results)[0] as ort.Tensor
 
     // Get the alpha matte
     const alphaFrame = this.postprocessMatte(matte, frame.width, frame.height)

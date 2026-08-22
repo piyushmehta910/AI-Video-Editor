@@ -101,7 +101,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
   const [revising, setRevising] = React.useState(false)
   const [reviseInput, setReviseInput] = React.useState('')
   const [askedQuestions, setAskedQuestions] = React.useState<string[]>([])
-  // @ts-expect-error - Used in JSX but TypeScript doesn't detect it
+  // Destructive tools park their effect here until the user confirms (dialog below).
   const [confirmAction, setConfirmAction] = React.useState<{ toolName: string; args: Record<string, unknown>; onConfirm: () => void } | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const pendingAnswerRef = React.useRef<((answer: string) => void) | null>(null)
@@ -928,6 +928,31 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
               />
               <Button size="icon" onClick={() => void send(input)} disabled={!input.trim() || busy} aria-label="Send">
                 <Send className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Confirm destructive action">
+          <div className="w-full max-w-sm rounded-xl border bg-background p-4 shadow-lg">
+            <h3 className="text-sm font-semibold">Apply “{confirmAction.toolName}”?</h3>
+            <p className="text-muted-foreground mt-1 text-xs">This tool destructively modifies the timeline. You can undo it afterwards with Ctrl+Z.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmAction(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  const action = confirmAction
+                  setConfirmAction(null)
+                  void action.onConfirm()
+                }}
+              >
+                Apply
               </Button>
             </div>
           </div>

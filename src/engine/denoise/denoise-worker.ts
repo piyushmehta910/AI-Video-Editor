@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { DenoiseResult, RNNoiseConfig } from './rnnoise-engine'
 import { RNNoiseEngine } from './rnnoise-engine'
 

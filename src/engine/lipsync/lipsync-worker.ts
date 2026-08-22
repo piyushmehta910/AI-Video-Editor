@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { LipSyncInput, LipSyncResult, Wav2LipConfig } from './wav2lip-engine'
 import { Wav2LipEngine } from './wav2lip-engine'
 
@@ -15,7 +14,7 @@ interface WorkerMessage {
 let engine: Wav2LipEngine | null = null
 
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-  const { type, payload, config, input } = event.data
+  const { type, config, input } = event.data
 
   try {
     switch (type) {

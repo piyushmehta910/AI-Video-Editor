@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { BackgroundRemovalConfig, BackgroundRemovalInput, BackgroundRemovalResult } from './bgremoval-engine'
 import { BackgroundRemovalEngine } from './bgremoval-engine'
 
