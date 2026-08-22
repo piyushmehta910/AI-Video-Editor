@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFirecrawl, testGiphy } from '@/api/config/validation'
+import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFirecrawl, testGiphy, testSketchfab } from '@/api/config/validation'
 import type { TestResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -53,6 +53,9 @@ export function ConnectionOverview() {
   const giphyRating = config.giphy.rating ?? 'g'
   const giphyTimeoutMs = config.giphy.timeoutMs ?? 30000
 
+  const sfApiKey = config.sketchfab?.apiKey ?? ''
+  const sfTimeoutMs = config.sketchfab?.timeoutMs ?? 30000
+
   const items: OverviewItem[] = React.useMemo(() => [
     {
       id: 'nvidia',
@@ -98,6 +101,11 @@ export function ConnectionOverview() {
       id: 'giphy',
       label: 'Giphy',
       run: () => testGiphy(giphyApiKey, giphyTimeoutMs, giphyRating),
+    },
+    {
+      id: 'sketchfab',
+      label: 'Sketchfab',
+      run: () => testSketchfab(sfApiKey, sfTimeoutMs),
     },
   ], [config])
 

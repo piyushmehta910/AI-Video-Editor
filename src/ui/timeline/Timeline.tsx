@@ -132,6 +132,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const project = useTimelineStore((s) => s.project)
   const zoom = useTimelineStore((s) => s.zoom)
   const selection = useTimelineStore((s) => s.selection)
+  const denoiseAction = useDenoiseAction()
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
   const clipboard = useTimelineStore((s) => s.clipboard)
@@ -405,12 +406,11 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
 
   const runDenoiseOnSelection = () => {
     const store = useTimelineStore.getState()
-    const { denoise } = useDenoiseAction()
     for (const id of store.selection.clipIds) {
       for (const track of store.project.tracks) {
         const clip = track.clips.find((c) => c.id === id)
         if (clip && track.type === 'audio') {
-          void denoise.run(clip.id)
+          void denoiseAction.run(clip.id)
           break
         }
       }

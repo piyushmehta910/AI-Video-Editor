@@ -1033,7 +1033,8 @@ function StickersSection() {
 
   React.useEffect(() => {
     if (hasKey) void loadTrending()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasKey])
 
   const loadTrending = async () => {
     setLoading(true)
