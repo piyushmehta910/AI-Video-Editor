@@ -4,6 +4,7 @@ import { readMediaFile } from '@/engine/storage/opfs'
 import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
 import { assetTimeAt, topmostVideoClip } from '@/engine/captions/captions'
+import { wrapSourceTime } from '@/engine/media/sourceTime'
 import type { Asset, Clip, Track } from '@/engine/types'
 import { defaultCameraRig } from '@/engine/types'
 
@@ -111,6 +112,9 @@ React.useEffect(() => {
       el.preload = 'auto'
       el.crossOrigin = 'anonymous'
       el.playsInline = true
+      // Short sources (sticker/GIF clips, stretched clips) loop natively while
+      // playing; the paint provider wraps seek targets to stay in sync.
+      el.loop = true
       el.addEventListener('loadedmetadata', requestPaint)
       el.addEventListener('loadeddata', requestPaint)
       void getProxyUrl(asset).then((url) => {
@@ -202,7 +206,8 @@ React.useEffect(() => {
       await compositeFrame(ctx, project, assets, time, {
         video: async (clip, asset, srcTime) => {
           const el = acquireVideo(asset)
-          const elTime = Math.min(srcTime, Math.max(0, (asset.duration ?? srcTime) - 0.05))
+          // Loop short sources when the clip runs past their end (stickers).
+          const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration)
           // While playing at 1x we let the element free-run and just drawImage
           // each frame; writing currentTime every frame freezes Chrome's frame
           // presentation. Only seek when paused or when the element drifts.

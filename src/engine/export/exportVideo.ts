@@ -1,4 +1,5 @@
 import { readMediaFile } from '@/engine/storage/opfs'
+import { wrapSourceTime } from '@/engine/media/sourceTime'
 import type { Asset, Project } from '@/engine/types'
 import { projectDuration, defaultCameraRig } from '@/engine/types'
 import { compositeFrame } from '@/engine/render/composite'
@@ -220,7 +221,8 @@ export async function exportProject(
             el = await loadMediaElement(asset)
             mediaElements.set(asset.id, el)
           }
-          const elTime = Math.min(Math.max(0, srcTime), Math.max(0, (asset.duration ?? srcTime) - 0.05))
+          // Loop short sources when the clip runs past their end (stickers).
+          const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration)
           await seekTo(el, elTime)
           return el.videoWidth > 0 ? el : null
         },

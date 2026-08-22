@@ -43,6 +43,7 @@ import { renderGlbToVideo } from '@/engine/three/renderGlbToVideo'
 import { defaultCameraRig } from '@/engine/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { searchGiphy, searchGiphyTrending, downloadGiphy, type StickerResult } from '@/api/stickers/search'
+import { convertStickerGif } from '@/engine/stickers/gifToVideo'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -1028,6 +1029,7 @@ function StickersSection() {
   const [results, setResults] = React.useState<StickerResult[]>([])
   const [loading, setLoading] = React.useState(false)
   const [importingId, setImportingId] = React.useState<string | null>(null)
+  const [importPhase, setImportPhase] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const hasKey = Boolean(config.giphy.apiKey)
 
@@ -1057,15 +1059,27 @@ function StickersSection() {
   }
 
   const importSticker = async (result: StickerResult) => {
+    if (importingId) return
     setImportingId(result.id)
+    setImportPhase('Downloading…')
     setError(null)
     try {
-      const file = await downloadGiphy(result)
-      await importFiles([file])
+      const gifFile = await downloadGiphy(result)
+      setImportPhase('Converting to video…')
+      // GIF → WebM (cached by sticker id, so re-adding never re-converts).
+      const converted = await convertStickerGif(gifFile, result.id, (p) => {
+        if (p.phase === 'encoding') {
+          setImportPhase(`Encoding frames ${p.done}/${p.total}…`)
+        } else if (p.phase === 'decoding') {
+          setImportPhase('Decoding animation frames…')
+        }
+      })
+      await importFiles([converted.webmFile])
     } catch {
-      setError('Failed to download sticker')
+      setError('Failed to import sticker')
     } finally {
       setImportingId(null)
+      setImportPhase(null)
     }
   }
 
@@ -1074,6 +1088,11 @@ function StickersSection() {
       {!hasKey && (
         <p className="text-muted-foreground text-[10px]">
           Add a Giphy API key in Settings → Stickers. Get a free key at developers.giphy.com.
+        </p>
+      )}
+      {hasKey && (
+        <p className="text-muted-foreground text-[10px] leading-relaxed">
+          Animated stickers are converted to looping video clips on import. Note: browser encoders can't preserve GIF transparency yet — transparent areas become black.
         </p>
       )}
       <div className="flex gap-1.5">
@@ -1098,11 +1117,19 @@ function StickersSection() {
               className="group relative overflow-hidden rounded border bg-muted"
               onClick={() => void importSticker(r)}
               title={r.title || 'Sticker'}
+              disabled={importingId === r.id}
             >
               <img src={r.preview} alt="" className="aspect-square w-full object-cover" loading="lazy" />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                {importingId === r.id ? <Loader2 className="size-4 animate-spin text-white" /> : <Download className="size-4 text-white" />}
-              </div>
+              {importingId === r.id ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 px-1">
+                  <Loader2 className="size-4 animate-spin text-white" />
+                  <span className="text-center text-[9px] leading-tight text-white">{importPhase ?? 'Importing…'}</span>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Download className="size-4 text-white" />
+                </div>
+              )}
             </button>
           ))}
         </div>
