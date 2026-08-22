@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   Image,
+  BarChart3,
   Layers,
   Loader2,
   Lock,
@@ -492,6 +493,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <SeparatorLine />
 
         {/* Panel tools - open right panel */}
+        <ToolbarButton label="Project Insights" onClick={() => onOpenTool?.('insights')}>
+          <BarChart3 className="size-4" />
+        </ToolbarButton>
         <ToolbarButton label="Audio Settings" onClick={() => onOpenTool?.('audio')}>
           <Volume2 className="size-4" />
         </ToolbarButton>
@@ -570,6 +574,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                 <MenuRow icon={<Clapperboard className="size-4" />} label="Avatar Generator" onClick={() => { onOpenTool?.('avatar'); setMoreOpen(false) }} />
                 <div className="bg-border my-1 h-px" />
                 <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Tools</p>
+                <MenuRow icon={<BarChart3 className="size-4" />} label="Project Insights" onClick={() => { onOpenTool?.('insights'); setMoreOpen(false) }} />
                 <MenuRow icon={<Sparkles className="size-4" />} label="Effects" onClick={() => { onOpenTool?.('effects'); setMoreOpen(false) }} />
                 <MenuRow icon={<Crop className="size-4" />} label="Crop" onClick={() => { onOpenTool?.('crop'); setMoreOpen(false) }} />
                 <MenuRow icon={<Zap className="size-4" />} label="Transitions" onClick={() => { onOpenTool?.('transitions'); setMoreOpen(false) }} />

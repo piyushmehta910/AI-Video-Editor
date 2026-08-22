@@ -17,6 +17,16 @@ import {
   Code,
   Plus,
   ScrollText,
+  ArrowLeftRight,
+  Diamond,
+  Gauge,
+  Crop,
+  Presentation,
+  ImagePlus,
+  BarChart3,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -43,6 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils'
 
 export type ToolSection =
+  | 'insights'
   | 'effects'
   | 'audio'
   | 'captions'
@@ -59,21 +70,40 @@ export type ToolSection =
   | 'images'
 
 export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'effects', label: 'Effects', icon: Sparkles },
   { id: 'audio', label: 'Audio', icon: Music },
   { id: 'captions', label: 'Captions', icon: FileText },
   { id: '3d', label: '3D', icon: Box },
-  { id: 'transitions', label: 'Transitions', icon: ChevronLeft },
+  { id: 'transitions', label: 'Transitions', icon: ArrowLeftRight },
   { id: 'stickers', label: 'Stickers', icon: Smile },
-  { id: 'speed', label: 'Speed', icon: Play },
-  { id: 'keyframe', label: 'Keyframe', icon: Play },
-  { id: 'crop', label: 'Crop', icon: Image },
-  { id: 'slide', label: 'Slides', icon: FileText },
+  { id: 'speed', label: 'Speed', icon: Gauge },
+  { id: 'keyframe', label: 'Keyframe', icon: Diamond },
+  { id: 'crop', label: 'Crop', icon: Crop },
+  { id: 'slide', label: 'Slides', icon: Presentation },
   { id: 'avatar', label: 'Avatar', icon: Clapperboard },
   { id: 'design', label: 'Design', icon: Code },
   { id: 'script', label: 'Script', icon: ScrollText },
-  { id: 'images', label: 'Images', icon: Image },
+  { id: 'images', label: 'Images', icon: ImagePlus },
 ]
+
+const SECTION_DESCRIPTIONS: Partial<Record<ToolSection, string>> = {
+  insights: 'Project health, coverage and quality',
+  effects: 'Color, light and stylized looks',
+  audio: 'Music, voice and sound cleanup',
+  captions: 'Text overlays and titles',
+  '3d': 'Search, download and animate models',
+  transitions: 'How clips flow into each other',
+  stickers: 'Animated GIF overlays',
+  speed: 'Clip playback rate presets',
+  keyframe: 'Animation basics for clips',
+  crop: 'Framing and aspect ratio',
+  slide: 'AI presentations via Marp',
+  avatar: 'Lip-synced AI presenters',
+  design: 'HTML/CSS motion infographics',
+  script: 'Structured video scripts',
+  images: 'Free stock photo search',
+}
 
 function getSelectedClip(): Clip | null {
   const { selection, project } = useTimelineStore.getState()
@@ -1605,6 +1635,225 @@ async function searchPixabay(query: string, limit: number) {
   return (data.hits ?? []).map((h: any) => ({ id: String(h.id), url: h.largeImageURL, thumb: h.webformatURL, alt: h.tags || query }))
 }
 
+// ─── Insights Section ─────────────────────────────────────────────────────────
+interface InsightIssue {
+  severity: 'error' | 'warning' | 'info'
+  message: string
+  fixLabel?: string
+  apply: (() => void) | null
+}
+
+function InsightsSection() {
+  const project = useTimelineStore((s) => s.project)
+  const assets = useTimelineStore((s) => s.assets)
+  const [scanning, setScanning] = React.useState(false)
+  const [analyzing, setAnalyzing] = React.useState(false)
+  const [progress, setProgress] = React.useState('')
+  const [error, setError] = React.useState<string | null>(null)
+  const [coverage, setCoverage] = React.useState({ transcripts: 0, ocr: 0, playable: 0 })
+  const [issues, setIssues] = React.useState<InsightIssue[]>([])
+
+  const stats = React.useMemo(() => {
+    const clips = project.tracks.flatMap((t) => t.clips)
+    const totalDuration = clips.reduce((acc, c) => Math.max(acc, c.startTime + c.duration), 0)
+    const byType = { video: 0, audio: 0, image: 0, model: 0 } as Record<string, number>
+    for (const a of assets) byType[a.type] = (byType[a.type] ?? 0) + 1
+    return {
+      clipCount: clips.length,
+      assetCount: assets.length,
+      duration: totalDuration,
+      byType,
+      tracks: project.tracks.length,
+    }
+  }, [project, assets])
+
+  const scan = React.useCallback(async () => {
+    if (scanning) return
+    setScanning(true)
+    try {
+      const store = useTimelineStore.getState()
+      const playableAssets = new Set<string>()
+      for (const track of store.project.tracks) {
+        for (const clip of track.clips) {
+          const asset = store.assets.find((a) => a.id === clip.assetId)
+          if (asset && asset.type !== 'image') playableAssets.add(asset.id)
+        }
+      }
+      let transcripts = 0
+      let ocrCount = 0
+      for (const id of playableAssets) {
+        const { getStoredTranscript, getStoredOcr } = await import('@/api/llm/understanding')
+        const [t, o] = await Promise.all([getStoredTranscript(id).catch(() => undefined), getStoredOcr(id).catch(() => undefined)])
+        if (t) transcripts++
+        if (o?.regions?.length) ocrCount++
+      }
+      setCoverage({ transcripts, ocr: ocrCount, playable: playableAssets.size })
+
+      // Quality check
+      type QualityIssueLike = {
+        severity: 'error' | 'warning' | 'info'
+        message: string
+        fix: { kind: string; label?: string; clipIds?: string[]; moveClipId?: string; targetTime?: number }
+      }
+      const { checkTimeline } = await import('@/ai/quality/checker')
+      const found = checkTimeline(store.project, store.assets) as QualityIssueLike[]
+      setIssues(
+        found.map((i): InsightIssue => ({
+          severity: i.severity,
+          message: i.message,
+          fixLabel: i.fix.kind !== 'none' ? i.fix.label ?? 'Fix' : undefined,
+          apply:
+            i.fix.kind === 'remove_clip' && i.fix.clipIds?.length
+              ? () => useTimelineStore.getState().deleteClips(i.fix.clipIds!)
+              : i.fix.kind === 'resolve_overlap' && i.fix.moveClipId && i.fix.targetTime != null
+                ? () => {
+                    const st = useTimelineStore.getState()
+                    const clip = st.project.tracks.flatMap((t) => t.clips).find((c) => c.id === i.fix.moveClipId)
+                    if (!clip) return
+                    const delta = i.fix.targetTime! - clip.startTime
+                    if (Math.abs(delta) >= 0.01) st.moveClip(clip.id, delta)
+                  }
+                : null,
+        })),
+      )
+    } finally {
+      setScanning(false)
+    }
+  }, [scanning])
+
+  React.useEffect(() => {
+    void scan()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.tracks.length, assets.length])
+
+  const runFullAnalysis = async () => {
+    if (analyzing) return
+    setAnalyzing(true)
+    setError(null)
+    try {
+      const { analyzeProject } = await import('@/api/llm/analysis')
+      await analyzeProject((done, total) => setProgress(`Analyzing clip ${done}/${total}...`))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAnalyzing(false)
+      setProgress('')
+      void scan()
+    }
+  }
+
+  const fixable = issues.filter((i) => i.apply).length
+  const coveragePct = coverage.playable ? Math.round((coverage.transcripts / coverage.playable) * 100) : 100
+  const ocrPct = coverage.playable ? Math.round((coverage.ocr / coverage.playable) * 100) : 100
+
+  return (
+    <div className="space-y-4 p-3">
+      <div className="grid grid-cols-3 gap-1.5">
+        {[
+          { label: 'Clips', value: String(stats.clipCount) },
+          { label: 'Assets', value: String(stats.assetCount) },
+          { label: 'Duration', value: formatSeconds(stats.duration) },
+        ].map((s) => (
+          <div key={s.label} className="rounded-lg border bg-muted/40 px-2 py-2 text-center">
+            <div className="text-sm font-semibold">{s.value}</div>
+            <div className="text-muted-foreground text-[9px] uppercase tracking-wide">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        {stats.byType.video > 0 && <StatChip label={`${stats.byType.video} video`} />}
+        {stats.byType.audio > 0 && <StatChip label={`${stats.byType.audio} audio`} />}
+        {stats.byType.image > 0 && <StatChip label={`${stats.byType.image} image`} />}
+        {stats.byType.model > 0 && <StatChip label={`${stats.byType.model} 3D`} />}
+      </div>
+
+      <div className="space-y-2 rounded-lg border p-2.5">
+        <CoverageBar label={`Transcripts (${coverage.transcripts}/${coverage.playable})`} pct={coveragePct} />
+        <CoverageBar label={`Frame text / OCR (${coverage.ocr}/${coverage.playable})`} pct={ocrPct} />
+      </div>
+
+      <Button size="sm" className="h-8 w-full text-xs" onClick={() => void runFullAnalysis()} disabled={analyzing}>
+        {analyzing ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : <RefreshCw className="mr-1 size-3.5" />}
+        {analyzing ? progress || 'Analyzing...' : 'Analyze project (transcribe + OCR)'}
+      </Button>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Quality</span>
+          {fixable > 0 && (
+            <button
+              type="button"
+              className="text-[10px] font-medium text-violet-500 hover:underline"
+              onClick={() => {
+                for (const issue of issues) issue.apply?.()
+                void scan()
+              }}
+            >
+              Fix all ({fixable})
+            </button>
+          )}
+        </div>
+        {!scanning && issues.length === 0 && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-2 text-[11px] text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-3.5 shrink-0" />
+            No issues found — timeline looks clean.
+          </div>
+        )}
+        {issues.map((issue, idx) => (
+          <div
+            key={idx}
+            className={cn(
+              'flex items-start justify-between gap-2 rounded-lg border px-2.5 py-2',
+              issue.severity === 'error'
+                ? 'border-destructive/40 bg-destructive/5'
+                : issue.severity === 'warning'
+                  ? 'border-amber-500/40 bg-amber-500/5'
+                  : 'border-border bg-muted/30',
+            )}
+          >
+            <div className="flex min-w-0 items-start gap-1.5">
+              <AlertTriangle
+                className={cn(
+                  'mt-0.5 size-3 shrink-0',
+                  issue.severity === 'error' ? 'text-destructive' : issue.severity === 'warning' ? 'text-amber-500' : 'text-muted-foreground',
+                )}
+              />
+              <span className="text-[11px] leading-snug">{issue.message}</span>
+            </div>
+            {issue.apply && (
+              <Button variant="ghost" size="sm" className="h-5 shrink-0 px-1.5 text-[10px]" onClick={() => { issue.apply?.(); void scan() }}>
+                Fix
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {error && <SectionNotice kind="error" text={error} />}
+      {scanning && <div className="text-center text-[10px] text-muted-foreground">Scanning project...</div>}
+    </div>
+  )
+}
+
+function StatChip({ label }: { label: string }) {
+  return <span className="rounded-full border bg-muted/40 px-2 py-0.5 text-[9px] text-muted-foreground">{label}</span>
+}
+
+function CoverageBar({ label, pct }: { label: string; pct: number }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span>{label}</span>
+        <span>{pct}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={cn('h-full rounded-full transition-all', pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-destructive')} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 // ─── Panel ────────────────────────────────────────────────────────────────────
 interface RightToolPanelProps {
   section: ToolSection
@@ -1612,6 +1861,7 @@ interface RightToolPanelProps {
 }
 
 const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
+  insights: InsightsSection,
   effects: EffectsSection,
   audio: AudioSection,
   captions: CaptionsSection,
@@ -1633,15 +1883,20 @@ export function RightToolPanel({ section, onCollapse }: RightToolPanelProps) {
   const SectionContent = SECTION_COMPONENTS[section]
 
   return (
-    <div className="flex h-full w-72 flex-col border-l bg-card">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b px-3">
-        <div className="flex items-center gap-2">
-          {sectionMeta && <sectionMeta.icon className="size-3.5 text-muted-foreground" />}
-          <span className="text-xs font-semibold">{sectionMeta?.label ?? section}</span>
+    <div className="flex h-full w-80 flex-col border-l bg-card">
+      <div className="shrink-0 border-b px-3 py-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {sectionMeta && <sectionMeta.icon className="size-3.5 text-violet-500" />}
+            <span className="text-xs font-semibold">{sectionMeta?.label ?? section}</span>
+          </div>
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onCollapse}>
+            <ChevronLeft className="size-4" />
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onCollapse}>
-          <ChevronLeft className="size-4" />
-        </Button>
+        {SECTION_DESCRIPTIONS[section] && (
+          <p className="text-muted-foreground mt-0.5 pl-[22px] text-[10px]">{SECTION_DESCRIPTIONS[section]}</p>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {SectionContent && <SectionContent />}

@@ -191,7 +191,7 @@ export function EditorPage() {
 
         {/* Right panel: Tool sections */}
         {activeTool ? (
-          <aside className="hidden w-72 shrink-0 border-l lg:block">
+          <aside className="hidden w-80 shrink-0 border-l lg:block">
             <RightToolPanel section={activeTool} onCollapse={() => setActiveTool(null)} />
           </aside>
         ) : (
