@@ -646,6 +646,7 @@ function AvatarSection() {
   })
 
   const [busy, setBusy] = React.useState(false)
+  const [faceCategory, setFaceCategory] = React.useState<string>('all')
   const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
@@ -654,6 +655,12 @@ function AvatarSection() {
 
   const images = React.useMemo(() => assets.filter((a) => a.type === 'image'), [assets])
   const audios = React.useMemo(() => assets.filter((a) => a.type === 'audio'), [assets])
+
+  // Filtered preset faces
+  const filteredPresets = React.useMemo(() => {
+    if (faceCategory === 'all') return AVATAR_FACE_PRESETS
+    return AVATAR_FACE_PRESETS.filter((p) => p.role === faceCategory)
+  }, [faceCategory])
 
   // Sync mouth and style when preset changes
   const selectPreset = (preset: AvatarFacePreset) => {
@@ -798,9 +805,34 @@ function AvatarSection() {
 
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCustomFaceUpload} />
 
-        {/* Preset Faces Carousel */}
-        <div className="grid grid-cols-5 gap-1.5 pt-1">
-          {AVATAR_FACE_PRESETS.map((preset) => {
+        {/* Category Filters */}
+        <div className="flex flex-wrap gap-1 pt-1">
+          {[
+            { id: 'all', label: `All (${AVATAR_FACE_PRESETS.length})` },
+            { id: 'presenter', label: 'Presenters' },
+            { id: 'narrator', label: 'Narrators' },
+            { id: 'intro', label: 'Intros' },
+            { id: 'outro', label: 'Outros' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[9px] font-medium transition',
+                faceCategory === cat.id
+                  ? 'bg-violet-600 text-white shadow-xs'
+                  : 'bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+              onClick={() => setFaceCategory(cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Preset Faces Grid */}
+        <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-0.5 pt-1">
+          {filteredPresets.map((preset) => {
             const isSelected = selectedPresetId === preset.id && !imageAssetId
             return (
               <button
@@ -809,23 +841,38 @@ function AvatarSection() {
                 className={cn(
                   'group relative flex flex-col items-center rounded-lg border p-1 text-center transition',
                   isSelected
-                    ? 'border-violet-500 bg-violet-500/15 shadow-xs'
-                    : 'border-border/60 bg-card hover:border-violet-500/40',
+                    ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500'
+                    : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
                 )}
                 onClick={() => selectPreset(preset)}
                 title={`${preset.name} - ${preset.tagline}`}
               >
                 <div
-                  className="size-10 overflow-hidden rounded-full border border-border/80 bg-cover bg-center"
+                  className="size-11 overflow-hidden rounded-full border border-border/80 bg-cover bg-center shadow-xs"
                   dangerouslySetInnerHTML={{ __html: preset.svg }}
                 />
-                <span className="mt-1 truncate text-[9px] font-medium leading-tight">
+                <span className="mt-1 truncate text-[9px] font-semibold leading-tight text-foreground max-w-full">
                   {preset.name.split(' · ')[0]}
+                </span>
+                <span className="text-[8px] text-muted-foreground capitalize truncate max-w-full">
+                  {preset.style}
                 </span>
               </button>
             )
           })}
         </div>
+
+        {/* Selected Preset Details Badge */}
+        {selectedPresetId && !imageAssetId && (
+          <div className="rounded border bg-violet-500/10 px-2 py-1 flex items-center justify-between text-[10px]">
+            <span className="font-medium text-violet-300">
+              {AVATAR_FACE_PRESETS.find((p) => p.id === selectedPresetId)?.name}
+            </span>
+            <span className="text-[9px] text-muted-foreground">
+              {AVATAR_FACE_PRESETS.find((p) => p.id === selectedPresetId)?.tagline}
+            </span>
+          </div>
+        )}
 
         {/* Custom Image Upload Picker */}
         {images.length > 0 && (
