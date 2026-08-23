@@ -3441,6 +3441,7 @@ function CropSection() {
 }
 
 // ─── Design & Motion Graphics Section ─────────────────────────────────────────
+// ─── Design & Motion Graphics Section ─────────────────────────────────────────
 function DesignSection() {
   const importFiles = useTimelineStore((s) => s.importFiles)
   const addClip = useTimelineStore((s) => s.addClip)
@@ -3448,7 +3449,6 @@ function DesignSection() {
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
 
-  const [mode, setMode] = React.useState<'motion' | 'html'>('motion')
   const [motionSubTab, setMotionSubTab] = React.useState<'prompt' | 'presets' | 'code' | 'history'>('prompt')
 
   // Motion Graphics State
@@ -3466,11 +3466,6 @@ function DesignSection() {
   const previewCanvasRef = React.useRef<HTMLCanvasElement>(null)
   const animFrameRef = React.useRef<number | null>(null)
 
-  // HTML Web Design State
-  const [htmlPrompt, setHtmlPrompt] = React.useState('')
-  const [html, setHtml] = React.useState('')
-  const htmlIframeRef = React.useRef<HTMLIFrameElement>(null)
-
   // Execution & Progress
   const [busy, setBusy] = React.useState(false)
   const [rendering, setRendering] = React.useState(false)
@@ -3482,7 +3477,6 @@ function DesignSection() {
 
   // Live Canvas Evaluation Loop
   React.useEffect(() => {
-    if (mode !== 'motion') return
     const canvas = previewCanvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -3533,7 +3527,7 @@ function DesignSection() {
       isMounted = false
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  }, [mode, motionCode, isPlaying, duration])
+  }, [motionCode, isPlaying, duration])
 
   // Update canvas on manual time scrub
   const handleScrubTime = (t: number) => {
@@ -3619,409 +3613,274 @@ function DesignSection() {
     }
   }
 
-  // Generate HTML Webpage Design
-  const handleGenerateHtml = async () => {
-    if (!htmlPrompt.trim() || busy) return
-    setBusy(true)
-    setError(null)
-    setSuccess(null)
-    try {
-      const { chatCompletion, getDirectorProvider } = await import('@/api/llm/director')
-      const provider = getDirectorProvider()
-      if (!provider) throw new Error('No AI provider configured. Add one in Settings.')
-
-      const messages = [
-        {
-          role: 'system' as const,
-          content: 'You are an expert UI designer. Generate a single self-contained HTML file with inline CSS and JS. Return ONLY raw HTML code.',
-        },
-        { role: 'user' as const, content: `Create a modern webpage design for: "${htmlPrompt.trim()}"` },
-      ]
-      const reply = await chatCompletion(provider, messages)
-      let generated = reply.content ?? ''
-      generated = generated.replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/i, '')
-      setHtml(generated)
-      setSuccess('HTML design generated! Ready to preview & render.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const addHtmlDesignToTimeline = async () => {
-    if (!html || rendering) return
-    setRendering(true)
-    setError(null)
-    try {
-      const { renderHtmlToPng } = await import('@/engine/motion/sandbox')
-      const blob = await renderHtmlToPng(html, 1920, 1080)
-      const file = new File([blob], `design-${Date.now()}.png`, { type: 'image/png' })
-      const { imported } = await importFiles([file])
-      if (imported.length) {
-        const videoTrack = project.tracks.find((t) => t.type === 'video')
-        if (videoTrack) {
-          const newClip = addClip(imported[0].id, videoTrack.id, playhead ?? 0)
-          if (newClip) updateClip(newClip.id, { duration: 5, sourceEnd: 5 })
-        }
-        setSuccess('Design added to timeline as a 5s clip!')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setRendering(false)
-    }
-  }
-
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
     <div className="flex h-full flex-col gap-3.5 p-3">
-      {/* ── Top Mode Switcher ── */}
-      <div className="flex rounded-lg border bg-muted/40 p-0.5">
-        <button
-          type="button"
-          className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 rounded-md py-1 text-xs font-semibold transition',
-            mode === 'motion' ? 'bg-card text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-          )}
-          onClick={() => setMode('motion')}
-        >
-          <Sparkles className="size-3.5" />
-          Motion Graphics (WebGL/Canvas)
-        </button>
-        <button
-          type="button"
-          className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 rounded-md py-1 text-xs font-semibold transition',
-            mode === 'html' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
-          )}
-          onClick={() => setMode('html')}
-        >
-          <Code className="size-3.5" />
-          HTML/CSS Landing
-        </button>
+      {/* ── Live Canvas Viewport ── */}
+      <div className="space-y-1.5 rounded-lg border bg-black/60 p-2">
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-violet-400" />
+            Live Motion Graphic Stage
+          </span>
+          <span className="font-mono">{(currentTime * duration).toFixed(2)}s / {duration}s</span>
+        </div>
+
+        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md border border-border/80 bg-zinc-950">
+          <canvas
+            ref={previewCanvasRef}
+            width={640}
+            height={360}
+            className="size-full object-contain"
+          />
+        </div>
+
+        {/* Playback Scrubber Bar */}
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+            onClick={() => setIsPlaying(!isPlaying)}
+          >
+            {isPlaying ? <Pause className="size-3.5 text-violet-400" /> : <Play className="size-3.5 text-emerald-400" />}
+          </button>
+          <Slider
+            value={[currentTime]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={([v]) => handleScrubTime(v)}
+            className="flex-1"
+          />
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+            onClick={() => handleScrubTime(0)}
+            title="Restart"
+          >
+            <RotateCcw className="size-3" />
+          </button>
+        </div>
       </div>
 
-      {mode === 'motion' ? (
-        <>
-          {/* ── Live Canvas Viewport ── */}
-          <div className="space-y-1.5 rounded-lg border bg-black/60 p-2">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Live Motion Stage</span>
-              <span className="font-mono">{(currentTime * duration).toFixed(2)}s / {duration}s</span>
-            </div>
+      {/* ── Sub Navigation Tabs ── */}
+      <div className="flex rounded-lg border bg-muted/40 p-0.5">
+        {[
+          { id: 'prompt' as const, label: '✨ AI Generator' },
+          { id: 'presets' as const, label: '📦 Presets' },
+          { id: 'code' as const, label: '💻 Code' },
+          { id: 'history' as const, label: '📜 History' },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={cn(
+              'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
+              motionSubTab === id
+                ? 'bg-card text-violet-300 shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => setMotionSubTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-            <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md border border-border/80 bg-zinc-950">
-              <canvas
-                ref={previewCanvasRef}
-                width={640}
-                height={360}
-                className="size-full object-contain"
-              />
-            </div>
-
-            {/* Playback Scrubber Bar */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition"
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
-                {isPlaying ? <Pause className="size-3.5 text-violet-400" /> : <Play className="size-3.5 text-emerald-400" />}
-              </button>
-              <Slider
-                value={[currentTime]}
-                min={0}
-                max={1}
-                step={0.01}
-                onValueChange={([v]) => handleScrubTime(v)}
-                className="flex-1"
-              />
-              <button
-                type="button"
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition"
-                onClick={() => handleScrubTime(0)}
-                title="Restart"
-              >
-                <RotateCcw className="size-3" />
-              </button>
-            </div>
+      {/* ── Tab Content ── */}
+      {motionSubTab === 'prompt' && (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Animation Concept Prompt</Label>
+            <textarea
+              value={concept}
+              onChange={(e) => setConcept(e.target.value)}
+              placeholder="Describe your motion graphic animation (e.g. kinetic typography, data charts, particle hud)..."
+              className="h-16 w-full resize-none rounded-md border bg-card p-2 text-xs outline-none focus:border-violet-500"
+              disabled={busy}
+            />
           </div>
 
-          {/* ── Sub Navigation Tabs ── */}
-          <div className="flex gap-1 border-b pb-1">
+          {/* Quick Starter Chips */}
+          <div className="flex flex-wrap gap-1">
             {[
-              { id: 'prompt' as const, label: 'AI Generator' },
-              { id: 'presets' as const, label: 'Presets' },
-              { id: 'code' as const, label: 'Code' },
-              { id: 'history' as const, label: 'History' },
-            ].map(({ id, label }) => (
+              { label: 'Kinetic Intro', prompt: 'Kinetic typography title sequence with neon violet gradient and dynamic typography' },
+              { label: 'Cyberpunk HUD', prompt: 'Sci-fi circular telemetry HUD with radar sweep and digital target trackers' },
+              { label: 'Lower Third', prompt: 'Glassmorphic broadcast lower third bar with sliding cyan accent stripe' },
+              { label: 'Growth Chart', prompt: 'Animated revenue metric graph columns rising with percentage counts' },
+              { label: 'Neural Mesh', prompt: 'Interconnected neural particle swarm with glowing synaptic pulse lines' },
+            ].map(({ label, prompt }) => (
               <button
-                key={id}
+                key={label}
                 type="button"
-                className={cn(
-                  'rounded px-2 py-0.5 text-[11px] font-medium transition',
-                  motionSubTab === id
-                    ? 'bg-violet-600/20 text-violet-300 font-semibold'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => setMotionSubTab(id)}
+                className="rounded border bg-card px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500 hover:text-foreground"
+                onClick={() => setConcept(prompt)}
               >
                 {label}
               </button>
             ))}
           </div>
 
-          {/* ── Tab Content ── */}
-          {motionSubTab === 'prompt' && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Animation Concept Prompt</Label>
-                <textarea
-                  value={concept}
-                  onChange={(e) => setConcept(e.target.value)}
-                  placeholder="Describe your motion graphic animation (e.g. kinetic typography, data charts, particle hud)..."
-                  className="h-16 w-full resize-none rounded-md border bg-card p-2 text-xs outline-none focus:border-violet-500"
-                  disabled={busy}
-                />
-              </div>
-
-              {/* Quick Starter Chips */}
-              <div className="flex flex-wrap gap-1">
-                {[
-                  { label: 'Kinetic Intro', prompt: 'Kinetic typography title sequence with neon violet gradient and dynamic typography' },
-                  { label: 'Cyberpunk HUD', prompt: 'Sci-fi circular telemetry HUD with radar sweep and digital target trackers' },
-                  { label: 'Lower Third', prompt: 'Glassmorphic broadcast lower third bar with sliding cyan accent stripe' },
-                  { label: 'Growth Chart', prompt: 'Animated revenue metric graph columns rising with percentage counts' },
-                  { label: 'Neural Mesh', prompt: 'Interconnected neural particle swarm with glowing synaptic pulse lines' },
-                ].map(({ label, prompt }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    className="rounded border bg-card px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500 hover:text-foreground"
-                    onClick={() => setConcept(prompt)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Style & Transparency */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Visual Style</Label>
-                  <Select value={style} onValueChange={setStyle} disabled={busy}>
-                    <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Modern Tech Glow">Modern Tech Glow</SelectItem>
-                      <SelectItem value="Cyberpunk Neon">Cyberpunk Neon</SelectItem>
-                      <SelectItem value="Minimalist Clean">Minimalist Clean</SelectItem>
-                      <SelectItem value="Cinematic Dark">Cinematic Dark</SelectItem>
-                      <SelectItem value="Pastel Modern">Pastel Modern</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Duration</Label>
-                  <div className="flex items-center justify-between text-[10px]">
-                    <Slider value={[duration]} min={2} max={15} step={1} onValueChange={([v]) => setDuration(v)} className="w-20" />
-                    <span className="font-mono">{duration}s</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-md border p-2 bg-muted/10">
-                <span className="text-[11px]">Transparent Overlay (Alpha)</span>
-                <Switch checked={transparent} onCheckedChange={setTransparent} />
-              </div>
-
-              <Button
-                size="sm"
-                className="w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
-                onClick={() => void handleGenerateMotion()}
-                disabled={busy || !concept.trim()}
-              >
-                {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-                {busy ? 'Generating AI Motion Graphic...' : 'Generate Motion Graphic with AI'}
-              </Button>
+          {/* Style & Transparency */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Visual Style</Label>
+              <Select value={style} onValueChange={setStyle} disabled={busy}>
+                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Modern Tech Glow">Modern Tech Glow</SelectItem>
+                  <SelectItem value="Cyberpunk Neon">Cyberpunk Neon</SelectItem>
+                  <SelectItem value="Minimalist Clean">Minimalist Clean</SelectItem>
+                  <SelectItem value="Cinematic Dark">Cinematic Dark</SelectItem>
+                  <SelectItem value="Pastel Modern">Pastel Modern</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-
-          {motionSubTab === 'presets' && (
-            <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
-              {BUILTIN_MOTION_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className="flex flex-col items-start rounded-lg border bg-card p-2.5 text-left transition hover:border-violet-500"
-                  onClick={() => {
-                    setMotionCode(preset.code)
-                    setDuration(preset.defaultDuration)
-                    setMotionSubTab('prompt')
-                    setSuccess(`Loaded "${preset.name}" preset!`)
-                    setIsPlaying(true)
-                  }}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-xs font-semibold">{preset.name}</span>
-                    <span className="rounded bg-violet-500/20 px-1.5 py-0.2 text-[9px] font-medium text-violet-300">
-                      {preset.category}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[10px] text-muted-foreground">{preset.description}</p>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {motionSubTab === 'code' && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">JavaScript Motion Code</Label>
-              <textarea
-                value={motionCode}
-                onChange={(e) => setMotionCode(e.target.value)}
-                className="h-44 w-full resize-none rounded-md border bg-zinc-950 p-2 font-mono text-[10px] text-emerald-400 outline-none focus:border-violet-500"
-                spellCheck={false}
-              />
-            </div>
-          )}
-
-          {motionSubTab === 'history' && (
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
-              {history.length > 0 ? (
-                history.map((h) => (
-                  <button
-                    key={h.id}
-                    type="button"
-                    className="flex w-full flex-col items-start rounded border bg-card p-2 text-left hover:border-violet-500"
-                    onClick={() => {
-                      setMotionCode(h.code)
-                      setDuration(h.duration)
-                      setMotionSubTab('prompt')
-                      setSuccess(`Restored "${h.prompt.slice(0, 30)}..." from history`)
-                    }}
-                  >
-                    <span className="truncate text-[11px] font-medium">{h.prompt}</span>
-                    <span className="text-[9px] text-muted-foreground">{new Date(h.timestamp).toLocaleTimeString()} · {h.duration}s</span>
-                  </button>
-                ))
-              ) : (
-                <EmptyHint text="No saved motion graphics history yet. Generate one to see history." icon={Sparkles} />
-              )}
-            </div>
-          )}
-
-          {/* ── Render Quality & Timeline Export ── */}
-          <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-            <span className="text-xs font-semibold">Video Render Settings</span>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Resolution</Label>
-                <Select value={resolution} onValueChange={setResolution}>
-                  <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1920x1080">1080p Full HD</SelectItem>
-                    <SelectItem value="1280x720">720p HD</SelectItem>
-                    <SelectItem value="1080x1920">9:16 Vertical</SelectItem>
-                    <SelectItem value="1080x1080">1:1 Square</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">Framerate</Label>
-                <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
-                  <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="24">24 FPS</SelectItem>
-                    <SelectItem value="30">30 FPS</SelectItem>
-                    <SelectItem value="60">60 FPS</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Duration</Label>
+              <div className="flex items-center justify-between text-[10px]">
+                <Slider value={[duration]} min={2} max={15} step={1} onValueChange={([v]) => setDuration(v)} className="w-20" />
+                <span className="font-mono">{duration}s</span>
               </div>
             </div>
           </div>
 
-          {progress && (
-            <div className="space-y-1 rounded-md border bg-card p-2">
-              <div className="flex justify-between text-[11px]">
-                <span className="text-muted-foreground font-mono">Rendering: {progress.done}/{progress.total} frames</span>
-                <span className="font-semibold text-violet-400">{pct}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-violet-600 transition-all duration-150" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          )}
-
-          {error && <SectionNotice kind="error" text={error} />}
-          {success && <SectionNotice kind="ok" text={success} />}
-
-          <Button
-            size="sm"
-            className="h-9 w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
-            onClick={() => void handleRenderMotionToTimeline()}
-            disabled={rendering || !motionCode.trim()}
-          >
-            {rendering ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Video className="mr-2 size-3.5" />}
-            {rendering ? 'Compiling HD Motion Video...' : 'Render & Add Motion Graphic to Timeline'}
-          </Button>
-        </>
-      ) : (
-        /* ── HTML/CSS Webpage Mode ── */
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Describe Landing Page or UI</Label>
-            <Input
-              placeholder="e.g. Dark landing hero for AI startup with glowing cards..."
-              value={htmlPrompt}
-              onChange={(e) => setHtmlPrompt(e.target.value)}
-              className="h-8 text-xs"
-              disabled={busy}
-            />
+          <div className="flex items-center justify-between rounded-md border p-2 bg-muted/10">
+            <span className="text-[11px]">Transparent Overlay (Alpha)</span>
+            <Switch checked={transparent} onCheckedChange={setTransparent} />
           </div>
 
           <Button
             size="sm"
-            className="w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500"
-            onClick={() => void handleGenerateHtml()}
-            disabled={busy || !htmlPrompt.trim()}
+            className="w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
+            onClick={() => void handleGenerateMotion()}
+            disabled={busy || !concept.trim()}
           >
             {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-            {busy ? 'Generating Webpage...' : 'Generate HTML/CSS Webpage'}
+            {busy ? 'Generating AI Motion Graphic...' : 'Generate Motion Graphic with AI'}
           </Button>
+        </div>
+      )}
 
-          {error && <SectionNotice kind="error" text={error} />}
-          {success && <SectionNotice kind="ok" text={success} />}
+      {motionSubTab === 'presets' && (
+        <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
+          {BUILTIN_MOTION_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className="flex flex-col items-start rounded-lg border bg-card p-2.5 text-left transition hover:border-violet-500"
+              onClick={() => {
+                setMotionCode(preset.code)
+                setDuration(preset.defaultDuration)
+                setMotionSubTab('prompt')
+                setSuccess(`Loaded "${preset.name}" preset!`)
+                setIsPlaying(true)
+              }}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-xs font-semibold">{preset.name}</span>
+                <span className="rounded bg-violet-500/20 px-1.5 py-0.2 text-[9px] font-medium text-violet-300">
+                  {preset.category}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">{preset.description}</p>
+            </button>
+          ))}
+        </div>
+      )}
 
-          {html && (
-            <div className="space-y-2">
-              <iframe
-                ref={htmlIframeRef}
-                title="HTML Preview"
-                srcDoc={html}
-                className="h-44 w-full rounded border bg-white"
-                sandbox="allow-scripts allow-same-origin"
-              />
-              <textarea
-                value={html}
-                onChange={(e) => setHtml(e.target.value)}
-                className="h-32 w-full resize-none rounded border bg-zinc-950 p-2 font-mono text-[10px] text-emerald-400 outline-none"
-                spellCheck={false}
-              />
-              <Button
-                size="sm"
-                className="w-full"
-                onClick={() => void addHtmlDesignToTimeline()}
-                disabled={rendering}
+      {motionSubTab === 'code' && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">JavaScript Motion Code</Label>
+          <textarea
+            value={motionCode}
+            onChange={(e) => setMotionCode(e.target.value)}
+            className="h-44 w-full resize-none rounded-md border bg-zinc-950 p-2 font-mono text-[10px] text-emerald-400 outline-none focus:border-violet-500"
+            spellCheck={false}
+          />
+        </div>
+      )}
+
+      {motionSubTab === 'history' && (
+        <div className="space-y-1.5 max-h-64 overflow-y-auto">
+          {history.length > 0 ? (
+            history.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                className="flex w-full flex-col items-start rounded border bg-card p-2 text-left hover:border-violet-500"
+                onClick={() => {
+                  setMotionCode(h.code)
+                  setDuration(h.duration)
+                  setMotionSubTab('prompt')
+                  setSuccess(`Restored "${h.prompt.slice(0, 30)}..." from history`)
+                }}
               >
-                {rendering ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Plus className="mr-2 size-3.5" />}
-                {rendering ? 'Rendering PNG Frame...' : 'Add Webpage to Timeline (5s)'}
-              </Button>
-            </div>
+                <span className="truncate text-[11px] font-medium">{h.prompt}</span>
+                <span className="text-[9px] text-muted-foreground">{new Date(h.timestamp).toLocaleTimeString()} · {h.duration}s</span>
+              </button>
+            ))
+          ) : (
+            <EmptyHint text="No saved motion graphics history yet. Generate one to see history." icon={Sparkles} />
           )}
         </div>
       )}
+
+      {/* ── Render Quality & Timeline Export ── */}
+      <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
+        <span className="text-xs font-semibold">Video Render Settings</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Resolution</Label>
+            <Select value={resolution} onValueChange={setResolution}>
+              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1920x1080">1080p Full HD</SelectItem>
+                <SelectItem value="1280x720">720p HD</SelectItem>
+                <SelectItem value="1080x1920">9:16 Vertical</SelectItem>
+                <SelectItem value="1080x1080">1:1 Square</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Framerate</Label>
+            <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
+              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24">24 FPS</SelectItem>
+                <SelectItem value="30">30 FPS</SelectItem>
+                <SelectItem value="60">60 FPS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {progress && (
+        <div className="space-y-1 rounded-md border bg-card p-2">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted-foreground font-mono">Rendering: {progress.done}/{progress.total} frames</span>
+            <span className="font-semibold text-violet-400">{pct}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-violet-600 transition-all duration-150" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {error && <SectionNotice kind="error" text={error} />}
+      {success && <SectionNotice kind="ok" text={success} />}
+
+      <Button
+        size="sm"
+        className="h-9 w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
+        onClick={() => void handleRenderMotionToTimeline()}
+        disabled={rendering || !motionCode.trim()}
+      >
+        {rendering ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Video className="mr-2 size-3.5" />}
+        {rendering ? 'Compiling HD Motion Video...' : 'Render & Add Motion Graphic to Timeline'}
+      </Button>
     </div>
   )
 }
