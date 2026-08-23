@@ -197,6 +197,8 @@ export interface Track {
   locked: boolean
   muted: boolean
   hidden: boolean
+  /** Audio solo: when any audio track is soloed, non-soloed audio tracks are silent in preview/mix. */
+  soloed?: boolean
   clips: Clip[]
 }
 

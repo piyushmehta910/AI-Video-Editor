@@ -271,6 +271,8 @@ React.useEffect(() => {
     (time: number, playing: boolean) => {
       const { project } = storeRef.current
       const { audio } = activeClipsAt(time)
+      const anySolo = project.tracks.some((t) => t.type === 'audio' && t.soloed)
+      const soloGain = (track: Track) => (anySolo ? (track.soloed ? 1 : 0) : 1)
 
       // Ensure elements exist for all active audio clips
       for (const active of audio) {
@@ -294,6 +296,7 @@ React.useEffect(() => {
         const vol =
           active.clip.volume *
           (active.track.muted ? 0 : 1) *
+          soloGain(active.track) *
           masterVolume *
           (muted ? 0 : 1)
         el.volume = Math.min(1, Math.max(0, vol))
@@ -328,6 +331,7 @@ React.useEffect(() => {
         const vol =
           active.clip.volume *
           (active.track.muted ? 0 : 1) *
+          soloGain(active.track) *
           masterVolume *
           (muted ? 0 : 1)
         el.volume = Math.min(1, Math.max(0, vol))

@@ -86,8 +86,24 @@ const ISSUE_STYLE: Record<QualityIssue['severity'], string> = {
   info: 'border-muted bg-muted/40 text-muted-foreground',
 }
 
-export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
-  const [open, setOpen] = React.useState(false)
+export function AIDirector({
+  initialPrompt,
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  initialPrompt?: string
+  /** Controlled visibility (e.g. from the top toolbar). Uncontrolled floating launcher is used when omitted. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const [internalOpen, setOpen] = React.useState(false)
+  const open = controlledOpen ?? internalOpen
+  const changeOpen = (value: boolean | ((o: boolean) => boolean)) => {
+    const current = controlledOpen ?? internalOpen
+    const next = typeof value === 'function' ? value(current) : value
+    setOpen(next)
+    onOpenChange?.(next)
+  }
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
   const [busy, setBusy] = React.useState(false)
@@ -260,7 +276,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
               reviewDone = true
               const msg = found.length
                 ? found.map((i) => `- [${i.severity}] ${i.message}${i.fix.kind !== 'none' ? ` (${i.fix.label})` : ''}`).join('\n')
-                : 'The project looks clean — no improvements needed right now.'
+                : 'The project looks clean â€” no improvements needed right now.'
               apiMessages.push({ role: 'tool', content: msg, tool_call_id: tc.id })
             } else if (isStagedTool(name)) {
               if (autoApply) {
@@ -309,19 +325,19 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
         }
 
         if (pendingPlan) {
-          finalText = `Here's my plan for "${pendingPlan.goal}" — approve it to apply the edits, or tell me what to change.`
+          finalText = `Here's my plan for "${pendingPlan.goal}" â€” approve it to apply the edits, or tell me what to change.`
         }
         if (reviewDone) {
           finalText =
             reviewIssues && reviewIssues.length
-              ? `${reviewIssues.length} improvement${reviewIssues.length > 1 ? 's' : ''} available — use Fix All or review the changes below.`
-              : 'The project looks clean — no improvements needed right now.'
+              ? `${reviewIssues.length} improvement${reviewIssues.length > 1 ? 's' : ''} available â€” use Fix All or review the changes below.`
+              : 'The project looks clean â€” no improvements needed right now.'
         }
         if (!finalText && usedTools.length) {
-          finalText = `Done — applied ${usedTools.join(', ')}.`
+          finalText = `Done â€” applied ${usedTools.join(', ')}.`
         }
         if (!finalText && stagedCount > 0) {
-          finalText = `I've proposed ${stagedCount} change${stagedCount > 1 ? 's' : ''} — review ${
+          finalText = `I've proposed ${stagedCount} change${stagedCount > 1 ? 's' : ''} â€” review ${
             stagedCount > 1 ? 'them' : 'it'
           } above before it takes effect.`
         }
@@ -337,7 +353,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
           }
         }
         if (reviewIssues && reviewIssues.length) {
-          finalText += `\n\n${reviewIssues.length} improvement${reviewIssues.length > 1 ? 's' : ''} available — use Fix All or review the changes below.`
+          finalText += `\n\n${reviewIssues.length} improvement${reviewIssues.length > 1 ? 's' : ''} available â€” use Fix All or review the changes below.`
         }
 
         const isPlan = pendingPlan !== null
@@ -386,7 +402,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
     if (!open || !initialPrompt) return
     if (!timelineHydrated || !configHydrated) return
     const p = initialPrompt
-    setOpen(true)
+    changeOpen(true)
     void send(p)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPrompt, timelineHydrated, configHydrated])
@@ -464,7 +480,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
       let text = `Applied ${result.applied.length} change${result.applied.length !== 1 ? 's' : ''}:`
       text +=
         '\n' +
-        result.applied.map((a) => `- ${a.label}${a.reason ? ` — ${a.reason}` : ''}`).join('\n')
+        result.applied.map((a) => `- ${a.label}${a.reason ? ` â€” ${a.reason}` : ''}`).join('\n')
       if (result.skipped.length) {
         text += `\nSkipped ${result.skipped.length} (no longer valid): ${result.skipped.map((s) => s.label).join(', ')}`
       }
@@ -566,14 +582,16 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="fixed right-5 bottom-20 z-50 flex size-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-2xl shadow-violet-600/30 transition-all hover:bg-violet-500 md:bottom-5"
-        aria-label="AI Director"
-      >
-        {open ? <X className="size-6" /> : <Bot className="size-7" />}
-      </button>
+      {controlledOpen === undefined && (
+        <button
+          type="button"
+          onClick={() => changeOpen((o) => !o)}
+          className="fixed right-5 bottom-20 z-50 flex size-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-2xl shadow-violet-600/30 transition-all hover:bg-violet-500 md:bottom-5"
+          aria-label="AI Director"
+        >
+          {open ? <X className="size-6" /> : <Bot className="size-7" />}
+        </button>
+      )}
 
       {open && (
         <div className="fixed right-5 bottom-[5.5rem] z-50 flex h-[560px] max-h-[70svh] w-[min(24rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl md:bottom-24">
@@ -584,7 +602,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
             <div className="min-w-0">
               <h3 className="text-sm font-semibold leading-tight">AI Director</h3>
               <p className="text-muted-foreground truncate text-[11px]">
-                Proposes edits — you approve them before they apply
+                Proposes edits â€” you approve them before they apply
               </p>
             </div>
             <button
@@ -628,7 +646,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
               <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400">
                   <Bot className="size-3.5" />
-                  Proposed plan — nothing has been changed yet
+                  Proposed plan â€” nothing has been changed yet
                 </div>
                 <p className="text-sm font-medium">{plan.plan.goal}</p>
                 {plan.plan.scenesAffected.length > 0 && (
@@ -748,7 +766,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') submitAnswer()
                     }}
-                    placeholder="Type your answer…"
+                    placeholder="Type your answerâ€¦"
                     className="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus:border-violet-500"
                   />
                   <Button size="sm" className="h-8" onClick={submitAnswer} disabled={!questionAnswer.trim()} aria-label="Send answer">
@@ -781,10 +799,10 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                   <ListChecks className="size-3.5" />
                   {checking
-                    ? 'Checking…'
+                    ? 'Checkingâ€¦'
                     : issues.length
                       ? `${issues.length} issue${issues.length > 1 ? 's' : ''} found`
-                      : 'No issues found — timeline looks clean'}
+                      : 'No issues found â€” timeline looks clean'}
                 </span>
                 <div className="ml-auto flex items-center gap-1">
                   {!checking && (
@@ -877,7 +895,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                     <span className="min-w-0 flex-1 truncate" title={p.label}>
                       {p.label}
                       {p.status !== 'pending' && p.message && (
-                        <span className="text-muted-foreground ml-1 truncate text-[10px]">— {p.message}</span>
+                        <span className="text-muted-foreground ml-1 truncate text-[10px]">â€” {p.message}</span>
                       )}
                     </span>
                     {p.status === 'pending' && (
@@ -908,7 +926,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                 disabled={busy}
                 onClick={() =>
                   void send(
-                    'Auto-pilot: understand the current media, analyze the video (transcribe audio if needed, read on-screen text), then plan and apply the best edit — pacing, transitions, captions, music or images where they help. Ask me only if a decision is truly blocking.',
+                    'Auto-pilot: understand the current media, analyze the video (transcribe audio if needed, read on-screen text), then plan and apply the best edit â€” pacing, transitions, captions, music or images where they help. Ask me only if a decision is truly blocking.',
                   )
                 }
               >
@@ -923,7 +941,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void send(input)
                 }}
-                placeholder="Tell the director what to do…"
+                placeholder="Tell the director what to doâ€¦"
                 className="min-w-0 flex-1 rounded-xl border bg-background px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus:border-violet-500"
               />
               <Button size="icon" onClick={() => void send(input)} disabled={!input.trim() || busy} aria-label="Send">
@@ -937,7 +955,7 @@ export function AIDirector({ initialPrompt }: { initialPrompt?: string }) {
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Confirm destructive action">
           <div className="w-full max-w-sm rounded-xl border bg-background p-4 shadow-lg">
-            <h3 className="text-sm font-semibold">Apply “{confirmAction.toolName}”?</h3>
+            <h3 className="text-sm font-semibold">Apply â€œ{confirmAction.toolName}â€?</h3>
             <p className="text-muted-foreground mt-1 text-xs">This tool destructively modifies the timeline. You can undo it afterwards with Ctrl+Z.</p>
             <div className="mt-4 flex justify-end gap-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmAction(null)}>

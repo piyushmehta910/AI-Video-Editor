@@ -12,12 +12,14 @@ import {
   CopyPlus,
   Eye,
   EyeOff,
+  Headphones,
   Image,
   BarChart3,
   Layers,
   Loader2,
   Lock,
   LockOpen,
+  Magnet,
   Maximize,
   Mic,
   MoreHorizontal,
@@ -41,11 +43,12 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, Clip, Track } from '@/engine/types'
 import { projectDuration } from '@/engine/types'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 
-const HEADER_WIDTH = 64
+const HEADER_WIDTH = 78
 const MIN_CLIP_PX = 6
 const RULER_HEIGHT = 24
 const SECTION_HEIGHT = 24
@@ -126,6 +129,7 @@ const TYPE_META: Record<Track['type'], { label: string; badge: string; gradient:
 export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?: boolean; onOpenTool?: (tool: string) => void }) {
   const project = useTimelineStore((s) => s.project)
   const zoom = useTimelineStore((s) => s.zoom)
+  const snapEnabled = useTimelineStore((s) => s.snapEnabled)
   const selection = useTimelineStore((s) => s.selection)
   const denoiseAction = useDenoiseAction()
   const playhead = useTimelineStore((s) => s.playhead)
@@ -296,7 +300,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
       startClientX: e.clientX,
       originals,
       zoom,
-      snapping: !e.shiftKey,
+      snapping: useTimelineStore.getState().snapEnabled !== e.shiftKey,
       moved: false,
     }
     setDragActive(true)
@@ -512,10 +516,27 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <SeparatorLine />
 
-        {/* Zoom */}
+        {/* Snap + Zoom */}
+        <ToolbarButton
+          label={snapEnabled ? 'Magnetic snap on (Shift inverts)' : 'Magnetic snap off (Shift inverts)'}
+          active={snapEnabled}
+          onClick={() => useTimelineStore.getState().setSnapEnabled(!snapEnabled)}
+        >
+          <Magnet className="size-4" />
+        </ToolbarButton>
+        <SeparatorLine />
         <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
           <ZoomOut className="size-4" />
         </ToolbarButton>
+        <Slider
+          className="w-20"
+          min={15}
+          max={400}
+          step={1}
+          value={[Math.round(zoom)]}
+          onValueChange={([v]) => useTimelineStore.getState().setZoom(v)}
+          title="Timeline zoom"
+        />
         <span className="text-muted-foreground w-11 text-center font-mono text-[10px]">{Math.round(zoom)}px/s</span>
         <ToolbarButton label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
           <ZoomIn className="size-4" />
@@ -604,7 +625,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             >
               <div
                 data-header-gutter
-                className="flex h-full w-16 shrink-0 items-center justify-center border-r bg-muted/50 text-[9px] font-semibold tracking-wider text-muted-foreground uppercase"
+                className="flex h-full w-[78px] shrink-0 items-center justify-center border-r bg-muted/50 text-[9px] font-semibold tracking-wider text-muted-foreground uppercase"
               >
                 Track
               </div>
@@ -638,10 +659,11 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                       onToggle={() => setCollapsed((c) => ({ ...c, [group.type]: !c[group.type] }))}
                     />
                     {!isCollapsed &&
-                      group.tracks.map((track) => (
+                      group.tracks.map((track, i) => (
                         <TrackRow
                           key={track.id}
                           track={track}
+                          shortLabel={`${group.type[0].toUpperCase()}${i + 1}`}
                           zoom={zoom}
                           assetById={assetById}
                           selected={selection.clipIds}
@@ -749,6 +771,7 @@ function SectionHeader({
 
 function TrackRow({
   track,
+  shortLabel,
   zoom,
   assetById,
   selected,
@@ -757,6 +780,7 @@ function TrackRow({
   onPointerDownClip,
 }: {
   track: Track
+  shortLabel: string
   zoom: number
   assetById: (id: string) => Asset | undefined
   selected: string[]
@@ -886,11 +910,11 @@ function TrackRow({
     >
       <div
         data-header-gutter
-        className="bg-card sticky left-0 z-10 flex w-16 shrink-0 items-center gap-0.5 border-r px-1.5"
+        className="bg-card sticky left-0 z-10 flex w-[78px] shrink-0 items-center gap-0.5 border-r px-1.5"
         style={{ height: trackHeight() }}
       >
         <span className={cn('w-6 shrink-0 rounded text-center font-mono text-[11px] font-semibold', meta.badge)}>
-          {track.name}
+          {shortLabel}
         </span>
         <TrackHeaderButton
           active={track.locked}
@@ -899,6 +923,15 @@ function TrackRow({
         >
           {track.locked ? <Lock className="size-3" /> : <LockOpen className="size-3" />}
         </TrackHeaderButton>
+        {track.type === 'audio' && (
+          <TrackHeaderButton
+            active={Boolean(track.soloed)}
+            onClick={() => useTimelineStore.getState().toggleTrackSolo(track.id)}
+            title="Solo track (silences other audio tracks)"
+          >
+            <Headphones className="size-3" />
+          </TrackHeaderButton>
+        )}
         <TrackHeaderButton
           active={track.muted}
           onClick={() => useTimelineStore.getState().toggleTrackMute(track.id)}
@@ -1049,16 +1082,24 @@ function ToolbarButton({
   onClick,
   label,
   disabled,
+  active,
 }: {
   children: React.ReactNode
   onClick: () => void
   label: string
   disabled?: boolean
+  active?: boolean
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 sm:h-7 sm:w-7" onClick={onClick} disabled={disabled}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('h-8 w-8 shrink-0 p-0 sm:h-7 sm:w-7', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30')}
+          onClick={onClick}
+          disabled={disabled}
+        >
           {children}
         </Button>
       </TooltipTrigger>

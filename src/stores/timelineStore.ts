@@ -24,6 +24,8 @@ export interface TimelineState {
   selection: { clipIds: string[]; trackId: string | null }
   playhead: number
   zoom: number
+  /** Magnetic snapping on clip drag; Shift temporarily inverts it. */
+  snapEnabled: boolean
   clipboard: Clip[]
   past: Project[]
   future: Project[]
@@ -76,11 +78,14 @@ export interface TimelineState {
   toggleTrackLock: (trackId: string) => void
   toggleTrackMute: (trackId: string) => void
   toggleTrackHidden: (trackId: string) => void
+  /** Audio-only: solo this track, silencing other (non-soloed) audio tracks. */
+  toggleTrackSolo: (trackId: string) => void
   setTrackClips: (trackId: string, clips: Clip[]) => void
 
   select: (clipIds: string[], trackId?: string | null) => void
   setPlayhead: (time: number) => void
   setZoom: (zoom: number) => void
+  setSnapEnabled: (on: boolean) => void
 
   duration: () => number
 }
@@ -120,6 +125,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     selection: { clipIds: [], trackId: null },
     playhead: 0,
     zoom: 90,
+    snapEnabled: true,
     clipboard: [],
     past: [],
     future: [],
@@ -714,6 +720,15 @@ begin: () => {
       }))
     },
 
+    toggleTrackSolo: (trackId) => {
+      mutate((p) => ({
+        ...p,
+        tracks: p.tracks.map((t) =>
+          t.type === 'audio' && t.id === trackId ? { ...t, soloed: !t.soloed } : t,
+        ),
+      }))
+    },
+
     setTrackClips: (trackId, clips) => {
       mutate((p) => ({
         ...p,
@@ -731,6 +746,10 @@ begin: () => {
 
     setZoom: (zoom) => {
       set({ zoom: Math.min(400, Math.max(15, zoom)) })
+    },
+
+    setSnapEnabled: (on) => {
+      set({ snapEnabled: on })
     },
 
     duration: () => projectDuration(get().project.tracks),

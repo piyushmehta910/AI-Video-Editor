@@ -43,6 +43,8 @@ export async function mixProjectAudio(
 
   const ctx = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate)
 
+  const anySolo = project.tracks.some((t) => t.type === 'audio' && t.soloed)
+
   for (const { clip, track, asset } of audioClips) {
     if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
     const file = await readMediaFile(asset.filePath)
@@ -54,7 +56,8 @@ export async function mixProjectAudio(
       continue
     }
 
-    const baseGain = clip.volume * (track.muted ? 0 : 1) * masterVolume * (muted ? 0 : 1)
+    const soloed = anySolo && track.type === 'audio' ? (track.soloed ? 1 : 0) : 1
+    const baseGain = clip.volume * (track.muted ? 0 : 1) * soloed * masterVolume * (muted ? 0 : 1)
     if (baseGain <= 0) continue
 
     const when = Math.max(0, clip.startTime)
