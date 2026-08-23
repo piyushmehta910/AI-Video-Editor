@@ -45,6 +45,10 @@ describe('audioMix ducking logic', () => {
       id: 'voice-track',
       name: 'Voice',
       type: 'audio',
+      index: 0,
+      locked: false,
+      muted: false,
+      hidden: false,
       clips: [
         makeClip('c1', 2, 4, 'voice-track'),
         makeClip('c2', 8, 3, 'voice-track'),
