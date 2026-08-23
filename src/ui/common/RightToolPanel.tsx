@@ -53,7 +53,20 @@ import {
   calculateScriptMetrics,
 } from '@/api/llm/scripts'
 import { useScriptStore } from '@/stores/scriptStore'
-import { generateMarpSlides, parseMarpDeck, renderMarpSlideHtml, type MarpTheme } from '@/api/llm/marp'
+import {
+  generateSlides,
+  renderSlideHtml,
+  renderSlidePng,
+  SLIDE_THEMES_META,
+  SLIDE_FONTS_META,
+  SLIDE_ANIMATIONS_META,
+  type Slide,
+  type SlideDeck,
+  type SlideTheme,
+  type SlideFont,
+  type SlideAnimation,
+  type SlideLayout,
+} from '@/api/llm/slides'
 import { generateInductiveSlideContext, getSavedSlideDecks, type InductiveSlideContext } from '@/api/llm/slideContext'
 import { generateLipsyncVideo, type AvatarMouth, type LipsyncStyle, AVATAR_FACE_PRESETS, renderPresetFaceToBlob, type AvatarFacePreset } from '@/engine/avatar'
 import { generateAvatarVideo, type AvatarRole } from '@/api/llm/avatarGenerator'
@@ -201,7 +214,7 @@ function EffectSlider({
   )
 }
 
-// ─── Slide & Marp Presentation Section ────────────────────────────────────────
+// ─── Slide & Presentation Studio Section ───────────────────────────────────────
 function SlideSection() {
   const importFiles = useTimelineStore((s) => s.importFiles)
   const addClip = useTimelineStore((s) => s.addClip)
@@ -209,22 +222,27 @@ function SlideSection() {
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
 
-  const [tab, setTab] = React.useState<'inductive' | 'prompt' | 'markdown' | 'history'>('inductive')
+  const [tab, setTab] = React.useState<'studio' | 'generator' | 'inductive' | 'markdown' | 'history'>('generator')
   const [topic, setTopic] = React.useState('')
-  const [count, setCount] = React.useState(5)
-  const [marpTheme, setMarpTheme] = React.useState<MarpTheme>('gaia')
+  const [count, setCount] = React.useState(4)
+  const [theme, setTheme] = React.useState<SlideTheme>('pitch_dark')
+  const [font, setFont] = React.useState<SlideFont>('sans')
+  const [animation, setAnimation] = React.useState<SlideAnimation>('slide_up')
+  const [layoutArchetype, setLayoutArchetype] = React.useState('Startup Pitch Deck')
   const [slideDuration, setSlideDuration] = React.useState(5)
+
+  // Current Slide Deck State
+  const [deck, setDeck] = React.useState<SlideDeck | null>(null)
+  const [currentSlideIdx, setCurrentSlideIdx] = React.useState(0)
 
   // Inductive Reasoning State
   const [inductiveContext, setInductiveContext] = React.useState<InductiveSlideContext | null>(null)
   const [analyzingInductive, setAnalyzingInductive] = React.useState(false)
 
-  // Raw Markdown & Previews
-  const [rawMarkdown, setRawMarkdown] = React.useState('')
-  const [previews, setPreviews] = React.useState<Array<{ blob: Blob; url: string; title: string; bullets: string[] }>>([])
-  const [selectedSlides, setSelectedSlides] = React.useState<Set<number>>(new Set())
+  // Previews
+  const [previews, setPreviews] = React.useState<Array<{ blob: Blob; url: string; title: string }>>([])
 
-  // Execution & Progress State
+  // Execution State
   const [busy, setBusy] = React.useState(false)
   const [progress, setProgress] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
@@ -247,7 +265,6 @@ function SlideSection() {
       setInductiveContext(ctx)
       setTopic(ctx.topicThesis)
       setCount(ctx.recommendedSlideCount)
-      setMarpTheme(ctx.recommendedTheme)
       setSuccess(`Inductive reasoning complete! Inferred thesis: "${ctx.topicThesis}"`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -256,69 +273,52 @@ function SlideSection() {
     }
   }
 
-  // Generate Slide Deck
-  const generate = async (customTopic?: string, customCount?: number, customTheme?: MarpTheme) => {
+  // Generate Deck using AI
+  const handleGenerateDeck = async (customTopic?: string, customCount?: number) => {
     const finalTopic = (customTopic || topic).trim()
     if (!finalTopic || busy) return
     setBusy(true)
     setError(null)
     setSuccess(null)
-    setPreviews([])
-    setSelectedSlides(new Set())
+    setProgress('Synthesizing structured presentation deck...')
 
     try {
-      const finalCount = customCount || count
-      const finalMarpTheme = customTheme || marpTheme
-      const newPreviews: Array<{ blob: Blob; url: string; title: string; bullets: string[] }> = []
-
-      setProgress('Inducing Marp presentation structure...')
-      const contextClues = inductiveContext
-        ? `Thesis: ${inductiveContext.topicThesis}\nAudience: ${inductiveContext.targetAudience}\nPillars:\n${inductiveContext.narrativePillars.map((p) => `- ${p.pillar}: ${p.evidence}`).join('\n')}`
-        : undefined
-
-      const deck = await generateMarpSlides({
+      const generated = await generateSlides({
         topic: finalTopic,
-        count: finalCount,
-        theme: finalMarpTheme,
-        contextClues,
-        onProgress: (done, total) => setProgress(`Rendering slide ${done}/${total}...`),
-      })
-      setRawMarkdown(deck.markdown)
-      deck.pngs.forEach((blob, i) => {
-        newPreviews.push({ blob, url: URL.createObjectURL(blob), title: i === 0 ? deck.title : `Slide ${i + 1}`, bullets: [] })
+        count: customCount || count,
+        theme,
+        font,
+        animation,
+        layoutArchetype,
       })
 
-      setPreviews(newPreviews)
-      setSelectedSlides(new Set(newPreviews.map((_, i) => i)))
-      setSuccess(`Generated ${newPreviews.length} presentation slides!`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-      setProgress('')
-    }
-  }
+      setDeck(generated)
+      setCurrentSlideIdx(0)
+      setTab('studio')
 
-  // Re-render from raw Markdown
-  const handleRenderFromMarkdown = async () => {
-    if (!rawMarkdown.trim() || busy) return
-    setBusy(true)
-    setError(null)
-    setPreviews([])
-    try {
-      const slides = parseMarpDeck(rawMarkdown)
-      if (!slides.length) throw new Error('No valid slides found in markdown (separate slides with ---)')
-      const newPreviews: Array<{ blob: Blob; url: string; title: string; bullets: string[] }> = []
-      const { renderHtmlToPng } = await import('@/engine/motion/sandbox')
-      for (let i = 0; i < slides.length; i++) {
-        setProgress(`Rendering slide ${i + 1}/${slides.length}...`)
-        const html = renderMarpSlideHtml(slides[i], i + 1, slides.length, marpTheme)
-        const blob = await renderHtmlToPng(html, 1280, 720)
-        newPreviews.push({ blob, url: URL.createObjectURL(blob), title: slides[i].heading || `Slide ${i + 1}`, bullets: slides[i].bullets })
+      // Render previews for timeline
+      const rendered: Array<{ blob: Blob; url: string; title: string }> = []
+      for (let i = 0; i < generated.slides.length; i++) {
+        setProgress(`Rendering slide ${i + 1}/${generated.slides.length}...`)
+        const blob = await renderSlidePng(
+          generated.slides[i],
+          i + 1,
+          generated.slides.length,
+          generated.theme,
+          1280,
+          720,
+          generated.font,
+          generated.animation,
+        )
+        rendered.push({
+          blob,
+          url: URL.createObjectURL(blob),
+          title: generated.slides[i].title,
+        })
       }
-      setPreviews(newPreviews)
-      setSelectedSlides(new Set(newPreviews.map((_, i) => i)))
-      setSuccess(`Re-rendered ${newPreviews.length} slides from Marp markdown!`)
+
+      setPreviews(rendered)
+      setSuccess(`Generated ${generated.slides.length}-slide presentation in ${SLIDE_THEMES_META[theme].name}!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -327,25 +327,82 @@ function SlideSection() {
     }
   }
 
-  const toggleSlide = (idx: number) => {
-    setSelectedSlides((prev) => {
-      const next = new Set(prev)
-      if (next.has(idx)) next.delete(idx)
-      else next.add(idx)
-      return next
-    })
+  // Update current slide in place
+  const updateCurrentSlide = (patch: Partial<Slide>) => {
+    if (!deck) return
+    const updatedSlides = [...deck.slides]
+    updatedSlides[currentSlideIdx] = {
+      ...updatedSlides[currentSlideIdx],
+      ...patch,
+    }
+    const updatedDeck: SlideDeck = { ...deck, slides: updatedSlides }
+    setDeck(updatedDeck)
   }
 
-  // Add slides to timeline
-  const addToTimeline = async () => {
-    if (previews.length === 0 || adding) return
+  // Add bullet to current slide
+  const addBulletPoint = () => {
+    if (!deck) return
+    const current = deck.slides[currentSlideIdx]
+    const bullets = [...current.bullets, 'New key takeaway point']
+    updateCurrentSlide({ bullets })
+  }
+
+  // Update bullet point
+  const updateBulletPoint = (index: number, text: string) => {
+    if (!deck) return
+    const current = deck.slides[currentSlideIdx]
+    const bullets = [...current.bullets]
+    bullets[index] = text
+    updateCurrentSlide({ bullets })
+  }
+
+  // Remove bullet point
+  const removeBulletPoint = (index: number) => {
+    if (!deck) return
+    const current = deck.slides[currentSlideIdx]
+    const bullets = current.bullets.filter((_, i) => i !== index)
+    updateCurrentSlide({ bullets })
+  }
+
+  // Add card to current slide
+  const addCard = () => {
+    if (!deck) return
+    const current = deck.slides[currentSlideIdx]
+    const cards = [...(current.cards || []), { title: 'Card Title', description: 'Description of key concept', tag: 'FEATURE' }]
+    updateCurrentSlide({ cards, layout: 'cards' })
+  }
+
+  // Update card
+  const updateCard = (index: number, patch: Partial<{ title: string; description: string; tag: string }>) => {
+    if (!deck || !deck.slides[currentSlideIdx].cards) return
+    const cards = [...deck.slides[currentSlideIdx].cards!]
+    cards[index] = { ...cards[index], ...patch }
+    updateCurrentSlide({ cards })
+  }
+
+  // Add Deck to Timeline
+  const handleAddToTimeline = async () => {
+    if (!deck || adding) return
     setAdding(true)
     setError(null)
+
     try {
-      const files = previews
-        .filter((_, i) => selectedSlides.has(i))
-        .map((p, _, arr) => new File([p.blob], `slide-${arr.indexOf(p) + 1}-${Date.now()}.png`, { type: 'image/png' }))
-      if (!files.length) { setAdding(false); return }
+      // Re-render fresh PNGs from current deck state
+      const files: File[] = []
+      for (let i = 0; i < deck.slides.length; i++) {
+        const blob = await renderSlidePng(
+          deck.slides[i],
+          i + 1,
+          deck.slides.length,
+          deck.theme,
+          1280,
+          720,
+          deck.font,
+          deck.animation,
+        )
+        files.push(new File([blob], `slide-${i + 1}-${Date.now()}.png`, { type: 'image/png' }))
+      }
+
       const { imported } = await importFiles(files)
       if (imported.length) {
         const videoTrack = project.tracks.find((t) => t.type === 'video')
@@ -356,7 +413,7 @@ function SlideSection() {
             if (newClip) updateClip(newClip.id, { duration: slideDuration, sourceEnd: slideDuration, clipType: 'image' })
           })
         }
-        setSuccess(`Added ${imported.length} presentation slides to timeline!`)
+        setSuccess(`Added ${imported.length} customized slides to the timeline!`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -365,14 +422,28 @@ function SlideSection() {
     }
   }
 
+  const currentSlide = deck ? deck.slides[currentSlideIdx] : null
+
+  // Live HTML string for the current slide
+  const currentSlideHtml = currentSlide
+    ? renderSlideHtml(
+        currentSlide,
+        currentSlideIdx + 1,
+        deck!.slides.length,
+        deck!.theme,
+        deck!.font,
+        deck!.animation,
+      )
+    : ''
+
   return (
     <div className="space-y-3 p-3">
       {/* ── Sub Navigation Tabs ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'inductive' as const, label: '✨ Inductive AI' },
-          { id: 'prompt' as const, label: 'Custom Prompt' },
-          { id: 'markdown' as const, label: 'Marp Editor' },
+          { id: 'studio' as const, label: '🎬 Slide Studio' },
+          { id: 'generator' as const, label: '🚀 AI Generator' },
+          { id: 'inductive' as const, label: '✨ Inductive' },
           { id: 'history' as const, label: 'History' },
         ].map(({ id, label }) => (
           <button
@@ -389,6 +460,381 @@ function SlideSection() {
         ))}
       </div>
 
+      {/* ═══════════ TAB 1: INTERACTIVE LIVE SLIDE STUDIO ═══════════ */}
+      {tab === 'studio' && (
+        <div className="space-y-3">
+          {deck && currentSlide ? (
+            <div className="space-y-2.5">
+              {/* Slide Navigation Header */}
+              <div className="flex items-center justify-between rounded-md border bg-muted/20 px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Presentation className="size-3.5 text-violet-400" />
+                  <span className="text-xs font-bold truncate max-w-[140px]">{deck.title}</span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-6"
+                    onClick={() => setCurrentSlideIdx((prev) => Math.max(0, prev - 1))}
+                    disabled={currentSlideIdx === 0}
+                  >
+                    ◀
+                  </Button>
+                  <span className="font-mono text-[10px] text-violet-300 font-bold px-1">
+                    {currentSlideIdx + 1} / {deck.slides.length}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-6"
+                    onClick={() => setCurrentSlideIdx((prev) => Math.min(deck.slides.length - 1, prev + 1))}
+                    disabled={currentSlideIdx === deck.slides.length - 1}
+                  >
+                    ▶
+                  </Button>
+                </div>
+              </div>
+
+              {/* ── Live Animated 16:9 Slide Canvas ── */}
+              <div className="relative w-full aspect-video rounded-lg border overflow-hidden shadow-lg bg-black">
+                <iframe
+                  title="Slide Live Preview"
+                  srcDoc={currentSlideHtml}
+                  className="w-full h-full border-0 pointer-events-none select-none"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              </div>
+
+              {/* ── Slide Content & Layout Inspector ── */}
+              <div className="space-y-2.5 rounded-lg border bg-card p-2.5 shadow-xs">
+                <div className="flex items-center justify-between border-b pb-1.5">
+                  <span className="text-xs font-bold text-foreground">Edit Slide Content</span>
+                  <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300 uppercase">
+                    {currentSlide.layout || 'Hero'}
+                  </span>
+                </div>
+
+                {/* Layout Archetype Picker */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Slide Layout</Label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: 'hero' as SlideLayout, label: '🌟 Hero' },
+                      { id: 'cards' as SlideLayout, label: '📦 Cards' },
+                      { id: 'big_stat' as SlideLayout, label: '⚡ Big Stat' },
+                      { id: 'split' as SlideLayout, label: '⚖️ Split' },
+                      { id: 'quote' as SlideLayout, label: '💬 Quote' },
+                      { id: 'checklist' as SlideLayout, label: '📋 Bullets' },
+                    ].map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        className={cn(
+                          'rounded border py-1 text-[10px] font-medium transition',
+                          (currentSlide.layout || 'hero') === l.id
+                            ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                            : 'border-border/60 bg-muted/20 text-muted-foreground hover:text-foreground',
+                        )}
+                        onClick={() => updateCurrentSlide({ layout: l.id })}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Headline & Subtitle */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Slide Headline</Label>
+                  <Input
+                    value={currentSlide.title}
+                    onChange={(e) => updateCurrentSlide({ title: e.target.value })}
+                    className="h-7 text-xs bg-muted/10 font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Subtitle / Category</Label>
+                  <Input
+                    value={currentSlide.subtitle || ''}
+                    placeholder="e.g. KEY ARCHITECTURE"
+                    onChange={(e) => updateCurrentSlide({ subtitle: e.target.value })}
+                    className="h-7 text-xs bg-muted/10"
+                  />
+                </div>
+
+                {/* Big Stat Controls */}
+                {currentSlide.layout === 'big_stat' && (
+                  <div className="grid grid-cols-2 gap-2 p-2 rounded-md border border-cyan-500/30 bg-cyan-500/5">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-cyan-300 font-semibold">Stat / Metric</Label>
+                      <Input
+                        value={currentSlide.statNumber || '+140%'}
+                        onChange={(e) => updateCurrentSlide({ statNumber: e.target.value })}
+                        className="h-7 text-xs font-bold text-cyan-400 bg-black/40"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-cyan-300 font-semibold">Stat Label</Label>
+                      <Input
+                        value={currentSlide.statLabel || 'Performance Increase'}
+                        onChange={(e) => updateCurrentSlide({ statLabel: e.target.value })}
+                        className="h-7 text-xs bg-black/40"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Quote Controls */}
+                {currentSlide.layout === 'quote' && (
+                  <div className="space-y-1.5 p-2 rounded-md border border-amber-500/30 bg-amber-500/5">
+                    <Label className="text-[10px] text-amber-300 font-semibold">Quote Attribution</Label>
+                    <Input
+                      value={currentSlide.quoteAuthor || 'Speaker / Author'}
+                      onChange={(e) => updateCurrentSlide({ quoteAuthor: e.target.value })}
+                      className="h-7 text-xs bg-black/40"
+                    />
+                  </div>
+                )}
+
+                {/* Cards Controls */}
+                {currentSlide.layout === 'cards' && (
+                  <div className="space-y-2 p-2 rounded-md border border-violet-500/30 bg-violet-500/5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] text-violet-300 font-semibold">Slide Cards ({(currentSlide.cards || []).length}/3)</Label>
+                      <Button size="sm" variant="ghost" className="h-5 text-[9px] px-1 text-violet-300" onClick={addCard}>
+                        + Add Card
+                      </Button>
+                    </div>
+
+                    {(currentSlide.cards || []).map((card, cIdx) => (
+                      <div key={cIdx} className="space-y-1 rounded border bg-black/30 p-1.5">
+                        <div className="flex gap-1">
+                          <Input
+                            value={card.tag || ''}
+                            placeholder="TAG"
+                            onChange={(e) => updateCard(cIdx, { tag: e.target.value })}
+                            className="h-6 text-[9px] w-16 uppercase font-bold text-violet-400"
+                          />
+                          <Input
+                            value={card.title}
+                            placeholder="Card Title"
+                            onChange={(e) => updateCard(cIdx, { title: e.target.value })}
+                            className="h-6 text-[10px] font-bold flex-1"
+                          />
+                        </div>
+                        <Input
+                          value={card.description}
+                          placeholder="Card description text"
+                          onChange={(e) => updateCard(cIdx, { description: e.target.value })}
+                          className="h-6 text-[10px]"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bullets List */}
+                {currentSlide.layout !== 'cards' && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] text-muted-foreground">Bullet Points</Label>
+                      <Button size="sm" variant="ghost" className="h-5 text-[9px] px-1 text-violet-300" onClick={addBulletPoint}>
+                        + Add Point
+                      </Button>
+                    </div>
+
+                    <div className="space-y-1 max-h-32 overflow-y-auto pr-0.5">
+                      {currentSlide.bullets.map((bullet, bIdx) => (
+                        <div key={bIdx} className="flex items-center gap-1">
+                          <Input
+                            value={bullet}
+                            onChange={(e) => updateBulletPoint(bIdx, e.target.value)}
+                            className="h-6 text-[11px] flex-1 bg-muted/10"
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-6 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => removeBulletPoint(bIdx)}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Typography, Theme & Animation */}
+                <div className="grid grid-cols-3 gap-1 pt-1 border-t">
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] text-muted-foreground">Theme</Label>
+                    <Select value={deck.theme} onValueChange={(v) => setDeck({ ...deck, theme: v as SlideTheme })}>
+                      <SelectTrigger className="h-6 text-[9px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SLIDE_THEMES_META).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] text-muted-foreground">Font</Label>
+                    <Select value={deck.font} onValueChange={(v) => setDeck({ ...deck, font: v as SlideFont })}>
+                      <SelectTrigger className="h-6 text-[9px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SLIDE_FONTS_META).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] text-muted-foreground">Animation</Label>
+                    <Select value={deck.animation} onValueChange={(v) => setDeck({ ...deck, animation: v as SlideAnimation })}>
+                      <SelectTrigger className="h-6 text-[9px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SLIDE_ANIMATIONS_META).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline Export Bar */}
+              <div className="space-y-1.5 rounded-lg border bg-violet-950/20 border-violet-500/30 p-2.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-muted-foreground">Duration per slide</span>
+                  <span className="font-mono text-violet-300 font-bold">{slideDuration}s ({deck.slides.length * slideDuration}s total)</span>
+                </div>
+                <Slider value={[slideDuration]} min={2} max={15} step={1} onValueChange={([v]) => setSlideDuration(v)} />
+
+                <Button
+                  size="sm"
+                  className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8 mt-1"
+                  onClick={() => void handleAddToTimeline()}
+                  disabled={adding}
+                >
+                  {adding ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Plus className="mr-2 size-3.5" />}
+                  {adding ? 'Rendering & Adding...' : `Add All ${deck.slides.length} Slides to Timeline`}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 space-y-2">
+              <Presentation className="size-8 text-muted-foreground mx-auto opacity-50" />
+              <p className="text-xs text-muted-foreground">No slides loaded yet.</p>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => setTab('generator')}>
+                Generate Presentation with AI
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════ TAB 2: AI DECK GENERATOR ═══════════ */}
+      {tab === 'generator' && (
+        <div className="space-y-2.5">
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Presentation Topic</Label>
+            <Input
+              placeholder="e.g. Next-Gen WebGPU & AI Video Architecture"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              className="h-8 text-xs bg-card"
+              disabled={busy}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Slide Count</Label>
+              <Select value={String(count)} onValueChange={(v) => setCount(Number(v))} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 Slides (Quick Pitch)</SelectItem>
+                  <SelectItem value="4">4 Slides (Balanced)</SelectItem>
+                  <SelectItem value="5">5 Slides (Executive)</SelectItem>
+                  <SelectItem value="6">6 Slides (Comprehensive)</SelectItem>
+                  <SelectItem value="8">8 Slides (Deep Dive)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Archetype</Label>
+              <Select value={layoutArchetype} onValueChange={setLayoutArchetype} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Startup Pitch Deck">Startup Pitch Deck</SelectItem>
+                  <SelectItem value="Executive Keynote">Executive Keynote</SelectItem>
+                  <SelectItem value="Product Launch">Product Launch</SelectItem>
+                  <SelectItem value="Technical Deep Dive">Technical Deep Dive</SelectItem>
+                  <SelectItem value="Creative Storytelling">Creative Storytelling</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Theme & Typography Grid */}
+          <div className="grid grid-cols-3 gap-1.5 pt-1">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Visual Theme</Label>
+              <Select value={theme} onValueChange={(v) => setTheme(v as SlideTheme)} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SLIDE_THEMES_META).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Typography</Label>
+              <Select value={font} onValueChange={(v) => setFont(v as SlideFont)} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SLIDE_FONTS_META).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Animation</Label>
+              <Select value={animation} onValueChange={(v) => setAnimation(v as SlideAnimation)} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SLIDE_ANIMATIONS_META).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8 mt-1 shadow-xs"
+            onClick={() => void handleGenerateDeck()}
+            disabled={busy || !topic.trim()}
+          >
+            {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+            {busy ? progress || 'Generating Slides...' : `Generate ${count} Presentation Slides`}
+          </Button>
+        </div>
+      )}
+
+      {/* ═══════════ TAB 3: INDUCTIVE AI CONTEXT ═══════════ */}
       {tab === 'inductive' && (
         <div className="space-y-3">
           <div className="rounded-lg border bg-violet-950/20 p-2.5 border-violet-500/30 space-y-2">
@@ -397,7 +843,7 @@ function SlideSection() {
               <span>Inductive Context Reasoning</span>
             </div>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Scans your video clips, transcripts, scene descriptions, and pacing to inductively infer the presentation thesis, audience, and slide structure.
+              Scans video clips, transcripts, scene descriptions, and pacing to inductively infer the presentation thesis, audience, and slide structure.
             </p>
             <Button
               size="sm"
@@ -445,7 +891,7 @@ function SlideSection() {
               <Button
                 size="sm"
                 className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
-                onClick={() => void generate(inductiveContext.topicThesis, inductiveContext.recommendedSlideCount, inductiveContext.recommendedTheme)}
+                onClick={() => void handleGenerateDeck(inductiveContext.topicThesis, inductiveContext.recommendedSlideCount)}
                 disabled={busy}
               >
                 <Sparkles className="mr-2 size-3.5" />
@@ -456,85 +902,7 @@ function SlideSection() {
         </div>
       )}
 
-      {tab === 'prompt' && (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Presentation Topic</Label>
-            <Input
-              placeholder="e.g. Next-Gen AI Video Architecture & WebCodecs Engine"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void generate() }}
-              className="h-8 text-xs"
-              disabled={busy}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Slides Count</Label>
-              <Input
-                type="number"
-                min={2}
-                max={10}
-                value={count}
-                onChange={(e) => setCount(Math.max(2, Math.min(10, Number(e.target.value))))}
-                className="h-8 text-xs"
-                disabled={busy}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Marp Theme</Label>
-              <Select value={marpTheme} onValueChange={(v) => setMarpTheme(v as MarpTheme)} disabled={busy}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gaia">Gaia Dark (Navy/Cyan)</SelectItem>
-                  <SelectItem value="cyber">Cyber Neon (Magenta/Cyan)</SelectItem>
-                  <SelectItem value="sunset">Sunset Warm (Amber/Gold)</SelectItem>
-                  <SelectItem value="uncover">Uncover (Light Indigo)</SelectItem>
-                  <SelectItem value="default">Default Clean (Minimalist)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Button
-            size="sm"
-            className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold"
-            onClick={() => void generate()}
-            disabled={busy || !topic.trim()}
-          >
-            {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-            {busy ? progress || 'Generating Slides...' : 'Generate Marp Presentation Deck'}
-          </Button>
-        </div>
-      )}
-
-      {tab === 'markdown' && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs">Marp Markdown Source</Label>
-            <span className="text-[10px] text-muted-foreground">Separate slides with ---</span>
-          </div>
-          <textarea
-            value={rawMarkdown}
-            onChange={(e) => setRawMarkdown(e.target.value)}
-            placeholder="# Title Slide&#10;&#10;---&#10;&#10;## Problem Statement&#10;- Point 1&#10;- Point 2"
-            className="h-44 w-full resize-none rounded-md border bg-zinc-950 p-2 font-mono text-[10px] text-emerald-400 outline-none focus:border-violet-500"
-            spellCheck={false}
-          />
-          <Button
-            size="sm"
-            className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold"
-            onClick={() => void handleRenderFromMarkdown()}
-            disabled={busy || !rawMarkdown.trim()}
-          >
-            {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <RefreshCw className="mr-2 size-3.5" />}
-            Re-render Slides from Markdown
-          </Button>
-        </div>
-      )}
-
+      {/* ═══════════ TAB 4: DECK HISTORY ═══════════ */}
       {tab === 'history' && (
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
           {savedDecks.length > 0 ? (
@@ -544,10 +912,8 @@ function SlideSection() {
                 type="button"
                 className="flex w-full flex-col items-start rounded border bg-card p-2 text-left hover:border-violet-500"
                 onClick={() => {
-                  setRawMarkdown(d.markdown)
                   setTopic(d.topic)
-                  setMarpTheme(d.theme)
-                  setTab('markdown')
+                  setTab('generator')
                   setSuccess(`Loaded "${d.title}" from deck history!`)
                 }}
               >
@@ -566,65 +932,6 @@ function SlideSection() {
 
       {error && <SectionNotice kind="error" text={error} />}
       {success && <SectionNotice kind="ok" text={success} />}
-
-      {/* ── Slide Previews & Timeline Export ── */}
-      {previews.length > 0 && (
-        <div className="space-y-2.5 rounded-lg border bg-muted/15 p-2.5 pt-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs font-semibold">Rendered Slides ({selectedSlides.size}/{previews.length})</Label>
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setSelectedSlides(new Set(previews.map((_, i) => i)))}>
-                Select All
-              </Button>
-              <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setSelectedSlides(new Set())}>
-                Clear
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto">
-            {previews.map((p, i) => (
-              <button
-                key={i}
-                type="button"
-                className={cn(
-                  'group relative overflow-hidden rounded-md border text-left transition-all',
-                  selectedSlides.has(i) ? 'border-violet-500 ring-2 ring-violet-500/40' : 'border-border/60 opacity-60 hover:opacity-100',
-                )}
-                onClick={() => toggleSlide(i)}
-              >
-                <img src={p.url} alt={p.title} className="w-full aspect-video object-cover" />
-                <div className="absolute top-1 right-1">
-                  <div className={cn('flex size-4 items-center justify-center rounded-full text-[9px] font-bold', selectedSlides.has(i) ? 'bg-violet-600 text-white' : 'bg-black/60 text-white/70')}>
-                    {selectedSlides.has(i) ? '✓' : i + 1}
-                  </div>
-                </div>
-                <div className="p-1 bg-card/90">
-                  <p className="text-[10px] font-medium truncate">{p.title}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-1 pt-1">
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>Duration per slide</span>
-              <span className="font-mono">{slideDuration}s</span>
-            </div>
-            <Slider value={[slideDuration]} min={2} max={15} step={1} onValueChange={([v]) => setSlideDuration(v)} />
-          </div>
-
-          <Button
-            size="sm"
-            className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-9 shadow-xs"
-            onClick={() => void addToTimeline()}
-            disabled={adding || selectedSlides.size === 0}
-          >
-            {adding ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Plus className="mr-2 size-3.5" />}
-            {adding ? 'Adding Slides...' : `Add ${selectedSlides.size} Slides to Timeline (${selectedSlides.size * slideDuration}s total)`}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

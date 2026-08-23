@@ -30,7 +30,14 @@ describe('normalizeSlides', () => {
 })
 
 describe('renderSlideHtml', () => {
-  const themes: SlideTheme[] = ['clean', 'dark', 'gradient']
+  const themes: SlideTheme[] = [
+    'pitch_dark',
+    'apple_minimal',
+    'cyber_neon',
+    'sunset_warm',
+    'clean_studio',
+    'neo_brutalist',
+  ]
 
   it('renders title and bullets for every theme', () => {
     for (const theme of themes) {
@@ -42,8 +49,46 @@ describe('renderSlideHtml', () => {
     }
   })
 
+  it('renders big_stat layout with metrics', () => {
+    const html = renderSlideHtml(
+      {
+        title: 'Q3 Results',
+        layout: 'big_stat',
+        statNumber: '+400%',
+        statLabel: 'Active Users Growth',
+        bullets: ['Driven by viral TikTok features'],
+      },
+      1,
+      1,
+      'pitch_dark',
+    )
+    expect(html).toContain('+400%')
+    expect(html).toContain('Active Users Growth')
+    expect(html).toContain('Q3 Results')
+  })
+
+  it('renders cards layout with multi-column grid', () => {
+    const html = renderSlideHtml(
+      {
+        title: '3 Core Features',
+        layout: 'cards',
+        bullets: [],
+        cards: [
+          { title: 'WebCodecs', description: 'Zero-latency video decoding', tag: 'ENGINE' },
+          { title: 'WebGPU', description: 'Real-time shaders and filters', tag: 'GPU' },
+        ],
+      },
+      1,
+      1,
+      'apple_minimal',
+    )
+    expect(html).toContain('WebCodecs')
+    expect(html).toContain('WebGPU')
+    expect(html).toContain('ENGINE')
+  })
+
   it('XML-escapes user text for the foreignObject rasterizer', () => {
-    const html = renderSlideHtml({ title: 'Q&A < 5', bullets: ['A & B', 'x > y'] }, 1, 1, 'clean')
+    const html = renderSlideHtml({ title: 'Q&A < 5', bullets: ['A & B', 'x > y'] }, 1, 1, 'clean_studio')
     expect(html).toContain('Q&amp;A &lt; 5')
     expect(html).toContain('A &amp; B')
     expect(html).toContain('x &gt; y')
