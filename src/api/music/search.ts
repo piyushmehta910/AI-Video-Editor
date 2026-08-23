@@ -159,3 +159,42 @@ export async function searchMusic(query: string, options: MusicSearchOptions = {
   }
   return merged
 }
+
+export interface SoundEffectResult {
+  id: string
+  name: string
+  duration: number
+  previewUrl?: string
+  license?: string
+  source: 'freesound'
+}
+
+export async function searchSoundEffects(query: string, options: { maxResults?: number } = {}): Promise<SoundEffectResult[]> {
+  const limit = options.maxResults ?? 8
+  const cfg = useApiConfigStore.getState().config.music.freesound
+  const apiKey = cfg?.apiKey?.trim()
+  const timeout = cfg?.timeoutMs ?? 30000
+  if (!apiKey) return []
+  try {
+    const url = `https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(query)}&token=${encodeURIComponent(apiKey)}&page_size=${limit}&fields=id,name,duration,previews,license`
+    const data = (await fetchJson(url, {}, timeout)) as {
+      results?: Array<{
+        id: number
+        name: string
+        duration: number
+        previews?: { 'preview-hq-mp3'?: string; 'preview-lq-mp3'?: string }
+        license?: string
+      }>
+    }
+    return (data.results ?? []).map((r) => ({
+      id: String(r.id),
+      name: r.name,
+      duration: Math.round(r.duration),
+      previewUrl: r.previews?.['preview-hq-mp3'] ?? r.previews?.['preview-lq-mp3'],
+      license: r.license,
+      source: 'freesound' as const,
+    }))
+  } catch {
+    return []
+  }
+}

@@ -49,38 +49,62 @@ export async function buildDirectorContext(): Promise<string> {
   const { project, assets } = useTimelineStore.getState()
   const lines: string[] = []
 
+  lines.push(`PROJECT SETTINGS: Resolution ${project.width}x${project.height} (${project.aspectRatio}), FPS: ${project.fps}`)
+
   for (const track of project.tracks) {
+    if (!track.clips.length) continue
+    lines.push(`\nTRACK [${track.type.toUpperCase()}] "${track.name}" (${track.clips.length} clips):`)
+
     for (const clip of track.clips) {
       const asset = assets.find((a) => a.id === clip.assetId)
-      if (!asset || asset.type === 'image') continue
+      const range = `${clip.startTime.toFixed(1)}s–${(clip.startTime + clip.duration).toFixed(1)}s`
+      const props: string[] = []
+      if (clip.speed !== 1) props.push(`speed: ${clip.speed.toFixed(2)}x`)
+      if (clip.volume !== 1) props.push(`volume: ${Math.round(clip.volume * 100)}%`)
+      if (clip.muted) props.push('muted')
+      if (clip.position && (clip.position.x !== 0 || clip.position.y !== 0)) {
+        props.push(`pos: (${clip.position.x}, ${clip.position.y})`)
+      }
+      if (clip.scale && (clip.scale.x !== 1 || clip.scale.y !== 1)) {
+        props.push(`scale: (${clip.scale.x.toFixed(2)}, ${clip.scale.y.toFixed(2)})`)
+      }
+      const propStr = props.length ? ` [${props.join(', ')}]` : ''
+
+      if (clip.text) {
+        lines.push(`  - Text/Caption "${clip.text.text.slice(0, 30)}" (${range})${propStr}`)
+        continue
+      }
+
+      if (!asset || asset.type === 'image') {
+        lines.push(`  - Clip "${clip.name}" (${range})${propStr}`)
+        continue
+      }
+
       const [transcript, scenes] = await Promise.all([
         getStoredTranscript(asset.id).catch(() => undefined),
         getStoredScenes(asset.id).catch(() => undefined),
       ])
-      const range = `${clip.startTime.toFixed(1)}s–${(clip.startTime + clip.duration).toFixed(1)}s`
+
       if (scenes && scenes.scenes.length) {
-        lines.push(`- Clip "${clip.name}" (${range}):`)
+        lines.push(`  - Clip "${clip.name}" (${range})${propStr}:`)
         for (const sc of scenes.scenes) {
           const kw = sc.keywords.length ? ` keywords: ${sc.keywords.join(', ')}` : ''
           lines.push(
-            `  - Scene ${sc.id} [${sc.start.toFixed(1)}s–${sc.end.toFixed(1)}s] (importance ${sc.importance.toFixed(2)}): "${sc.summary}"${kw}`,
+            `    - Scene ${sc.id} [${sc.start.toFixed(1)}s–${sc.end.toFixed(1)}s] (importance ${sc.importance.toFixed(2)}): "${sc.summary}"${kw}`,
           )
         }
       } else if (transcript) {
-        lines.push(`- Clip "${clip.name}" (${range}): "${compressTranscript(transcript.text)}"`)
+        lines.push(`  - Clip "${clip.name}" (${range})${propStr}: "${compressTranscript(transcript.text)}"`)
       } else {
-        lines.push(`- Clip "${clip.name}" (${range}): (not analyzed yet — run Analyze or ask for captions)`)
+        lines.push(`  - Clip "${clip.name}" (${range})${propStr}: (not analyzed yet)`)
       }
     }
   }
 
   const text = lines.join('\n')
-  if (!text) {
-    return 'The project currently has no audio/video clips with understanding yet.'
-  }
   return (
-    'VIDEO UNDERSTANDING (compressed, from local analysis — trust it):\n' +
+    'TIMELINE & VIDEO UNDERSTANDING (from local project analysis — trust it):\n' +
     text +
-    '\nUse this to understand what the video actually says before making editing decisions.'
+    '\n\nUse this complete project layout to make precise editing, placement, speed, volume, and styling decisions.'
   )
 }

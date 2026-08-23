@@ -50,3 +50,51 @@ describe('renderSlideHtml', () => {
     expect(html).not.toContain('<li>Q')
   })
 })
+
+describe('Marp Slide Engine & Inductive Context Storage', () => {
+  it('parses multi-slide Marp markdown decks', async () => {
+    const { parseMarpDeck, renderMarpSlideHtml } = await import('./marp')
+    const md = `# WebCodecs Engine
+
+---
+
+## Architecture Overview
+- **Zero-Latency Canvas**: Render directly to canvas
+- **WebCodecs VP8/VP9**: Hardware-accelerated muxing
+
+---
+
+## Performance Benchmarks
+- 60 FPS offline export
+- 1080p Full HD rendering`
+
+    const slides = parseMarpDeck(md)
+    expect(slides.length).toBe(3)
+    expect(slides[0].heading).toBe('WebCodecs Engine')
+    expect(slides[1].heading).toBe('Architecture Overview')
+    expect(slides[1].bullets.length).toBe(2)
+
+    for (const theme of ['gaia', 'cyber', 'sunset', 'uncover', 'default'] as const) {
+      const html = renderMarpSlideHtml(slides[1], 2, 3, theme)
+      expect(html).toContain('Architecture Overview')
+      expect(html).toContain('Zero-Latency Canvas')
+    }
+  })
+
+  it('saves and retrieves slide decks from storage context', async () => {
+    const { saveSlideDeckToStorage, getSavedSlideDecks } = await import('./slideContext')
+    const deck = saveSlideDeckToStorage({
+      title: 'AI Presentation',
+      topic: 'Machine Learning',
+      theme: 'cyber',
+      markdown: '# Slide 1\n---\n## Slide 2',
+      slideCount: 2,
+    })
+
+    expect(deck.id).toMatch(/^deck-/)
+    expect(deck.title).toBe('AI Presentation')
+
+    const saved = getSavedSlideDecks()
+    expect(saved.some((d) => d.id === deck.id)).toBe(true)
+  })
+})

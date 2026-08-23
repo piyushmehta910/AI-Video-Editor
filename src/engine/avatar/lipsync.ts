@@ -11,6 +11,8 @@ export interface AvatarMouth {
   maxOpen: number
 }
 
+export type LipsyncStyle = 'realistic' | 'cartoon' | 'robotic' | 'circle'
+
 export interface LipsyncOptions {
   imageFile: Blob
   audioFile: Blob
@@ -19,6 +21,7 @@ export interface LipsyncOptions {
   fps: number
   bitrate: number
   mouth: AvatarMouth
+  style?: LipsyncStyle
   background: 'transparent' | 'solid' | 'blurred'
   codec?: 'vp8' | 'vp9'
   onProgress?: (done: number, total: number) => void
@@ -124,7 +127,14 @@ function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, mod
   ctx.restore()
 }
 
-function drawMouth(ctx: CanvasRenderingContext2D, mouth: AvatarMouth, openness: number, w: number, h: number) {
+function drawMouth(
+  ctx: CanvasRenderingContext2D,
+  mouth: AvatarMouth,
+  openness: number,
+  w: number,
+  h: number,
+  style: LipsyncStyle = 'realistic',
+) {
   const x = mouth.x * w
   const y = mouth.y * h
   const mw = Math.max(4, mouth.width * w)
@@ -132,18 +142,86 @@ function drawMouth(ctx: CanvasRenderingContext2D, mouth: AvatarMouth, openness: 
   const openPx = openness * maxOpenPx
   const lip = Math.max(2, mw * 0.16)
 
-  // Inner mouth (only visible once open enough).
+  if (style === 'robotic') {
+    // Cyberpunk frequency visualizer mouth
+    const barCount = 7
+    const barWidth = mw / (barCount * 1.5)
+    const startX = x - mw / 2 + barWidth / 2
+    for (let b = 0; b < barCount; b++) {
+      const distFromCenter = Math.abs(b - (barCount - 1) / 2) / ((barCount - 1) / 2)
+      const barH = Math.max(2, (1 - distFromCenter * 0.4) * openPx * 1.8)
+      const bx = startX + b * (barWidth * 1.5)
+      ctx.fillStyle = '#10b981'
+      ctx.fillRect(bx, y - barH / 2, barWidth, barH)
+      ctx.fillStyle = '#ecfdf5'
+      ctx.fillRect(bx, y - Math.min(2, barH / 2), barWidth, Math.min(2, barH))
+    }
+    return
+  }
+
+  if (style === 'circle') {
+    // Podcast minimal dynamic circle
+    const radius = Math.max(3, mw * 0.2 + openness * mw * 0.25)
+    ctx.fillStyle = 'rgba(124, 58, 237, 0.25)'
+    ctx.beginPath()
+    ctx.arc(x, y, radius * 1.6, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#8b5cf6'
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+
+  if (style === 'cartoon') {
+    // Anime / 2D Cartoon dynamic mouth
+    if (openPx > 1.2) {
+      ctx.fillStyle = '#881337'
+      ctx.beginPath()
+      ctx.ellipse(x, y + openPx * 0.1, mw * 0.48, openPx * 0.75, 0, 0, Math.PI * 2)
+      ctx.fill()
+      // Teeth bar
+      ctx.fillStyle = '#ffffff'
+      ctx.beginPath()
+      ctx.ellipse(x, y - openPx * 0.35, mw * 0.38, Math.min(openPx * 0.3, 5), 0, 0, Math.PI * 2)
+      ctx.fill()
+      // Tongue
+      ctx.fillStyle = '#fb7185'
+      ctx.beginPath()
+      ctx.ellipse(x, y + openPx * 0.45, mw * 0.32, Math.min(openPx * 0.35, 6), 0, 0, Math.PI * 2)
+      ctx.fill()
+      // Outline
+      ctx.strokeStyle = '#1e1b4b'
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.ellipse(x, y + openPx * 0.1, mw * 0.48, openPx * 0.75, 0, 0, Math.PI * 2)
+      ctx.stroke()
+    } else {
+      ctx.strokeStyle = '#1e1b4b'
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.moveTo(x - mw * 0.35, y)
+      ctx.quadraticCurveTo(x, y + 2, x + mw * 0.35, y)
+      ctx.stroke()
+    }
+    return
+  }
+
+  // Realistic default mouth
   if (openPx > 0.8) {
     ctx.fillStyle = '#4a161b'
     ellipse(ctx, x, y, mw * 0.55, Math.min(openPx * 0.85, maxOpenPx * 0.9))
+    if (openPx > 3) {
+      ctx.fillStyle = '#f5f5f4'
+      ellipse(ctx, x, y - openPx * 0.35, mw * 0.35, Math.min(2.5, openPx * 0.2))
+    }
   }
 
-  // Upper and lower lips — they overlap into a closed line when openPx ~ 0.
+  // Upper and lower lips
   ctx.fillStyle = '#b56a6e'
   ellipse(ctx, x, y - openPx * 0.22, mw * 0.5, Math.max(lip * 0.45, lip - openPx * 0.4))
   ellipse(ctx, x, y + openPx * 0.3, mw * 0.5, Math.max(lip * 0.4, lip * 0.7 + openPx * 0.5))
 
-  // Soft lip line for definition when nearly closed.
   if (openPx < lip) {
     ctx.strokeStyle = 'rgba(60,20,25,0.45)'
     ctx.lineWidth = 1
@@ -285,7 +363,7 @@ export async function generateLipsyncVideo(opts: LipsyncOptions): Promise<Lipsyn
 
     drawBackground(ctx, opts.width, opts.height, opts.background, img)
     coverDraw(ctx, img, opts.width, opts.height)
-    drawMouth(ctx, opts.mouth, openness, opts.width, opts.height)
+    drawMouth(ctx, opts.mouth, openness, opts.width, opts.height, opts.style)
 
     const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
     encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Bot, Check, ListChecks, MessageSquare, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
+import { Bot, Check, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, RotateCcw, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -86,6 +86,36 @@ const ISSUE_STYLE: Record<QualityIssue['severity'], string> = {
   info: 'border-muted bg-muted/40 text-muted-foreground',
 }
 
+interface Position {
+  x: number
+  y: number
+}
+
+const STORAGE_KEY = 'clipforge_ai_director_pos'
+
+function getInitialPosition(): Position {
+  if (typeof window === 'undefined') return { x: 20, y: 100 }
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+        const maxX = Math.max(10, window.innerWidth - 410)
+        const maxY = Math.max(10, window.innerHeight - 560)
+        return {
+          x: Math.min(Math.max(10, parsed.x), maxX),
+          y: Math.min(Math.max(10, parsed.y), maxY),
+        }
+      }
+    }
+  } catch {
+    // fallback
+  }
+  const defaultX = Math.max(10, window.innerWidth - 410)
+  const defaultY = Math.max(10, window.innerHeight - 620)
+  return { x: defaultX, y: defaultY }
+}
+
 export function AIDirector({
   initialPrompt,
   open: controlledOpen,
@@ -104,6 +134,88 @@ export function AIDirector({
     setOpen(next)
     onOpenChange?.(next)
   }
+  const [position, setPosition] = React.useState<Position>(getInitialPosition)
+  const [isDragging, setIsDragging] = React.useState(false)
+  const [isMinimized, setIsMinimized] = React.useState(false)
+  const dragStartRef = React.useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null)
+  const panelRef = React.useRef<HTMLDivElement>(null)
+
+  // Viewport resize guard
+  React.useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => {
+        const width = panelRef.current?.offsetWidth || 390
+        const height = panelRef.current?.offsetHeight || 560
+        const maxX = Math.max(10, window.innerWidth - width - 10)
+        const maxY = Math.max(10, window.innerHeight - height - 10)
+        return {
+          x: Math.min(Math.max(10, prev.x), maxX),
+          y: Math.min(Math.max(10, prev.y), maxY),
+        }
+      })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('a') || target.closest('input')) return
+
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startX: position.x,
+      startY: position.y,
+    }
+    setIsDragging(true)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || !dragStartRef.current) return
+    const dx = e.clientX - dragStartRef.current.mouseX
+    const dy = e.clientY - dragStartRef.current.mouseY
+    const width = panelRef.current?.offsetWidth || 390
+    const height = panelRef.current?.offsetHeight || 560
+    const maxX = Math.max(10, window.innerWidth - width - 10)
+    const maxY = Math.max(10, window.innerHeight - height - 10)
+
+    const nextX = Math.min(Math.max(10, dragStartRef.current.startX + dx), maxX)
+    const nextY = Math.min(Math.max(10, dragStartRef.current.startY + dy), maxY)
+
+    setPosition({ x: nextX, y: nextY })
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    setIsDragging(false)
+    dragStartRef.current = null
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
+    } catch {
+      // ignore
+    }
+  }
+
+  const resetPosition = () => {
+    const defaultX = Math.max(10, window.innerWidth - 410)
+    const defaultY = Math.max(10, window.innerHeight - 620)
+    const pos = { x: defaultX, y: defaultY }
+    setPosition(pos)
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
+    } catch {
+      // ignore
+    }
+  }
+
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
   const [busy, setBusy] = React.useState(false)
@@ -593,33 +705,135 @@ export function AIDirector({
         </button>
       )}
 
-      {open && (
-        <div className="fixed right-5 bottom-[5.5rem] z-50 flex h-[560px] max-h-[70svh] w-[min(24rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl md:bottom-24">
-          <div className="flex items-center gap-2 border-b px-4 py-3">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
+      {open && isMinimized && (
+        <div
+          ref={panelRef}
+          style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
+          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2 rounded-full border border-violet-500/50 bg-card/95 px-3 py-1.5 shadow-2xl backdrop-blur-md cursor-grab active:cursor-grabbing transition-shadow"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          title="Drag to move AI Director"
+        >
+          <div className="flex size-6 items-center justify-center rounded-full bg-violet-600 text-white">
+            <Bot className="size-3.5" />
+          </div>
+          <span className="text-xs font-semibold text-foreground">AI Director</span>
+          {busy && <span className="size-2 animate-ping rounded-full bg-violet-400" />}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsMinimized(false)
+            }}
+            className="ml-1 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Expand AI Director"
+          >
+            <Maximize2 className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              changeOpen(false)
+            }}
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Close AI Director"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      {open && !isMinimized && (
+        <div
+          ref={panelRef}
+          style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
+          className="fixed top-0 left-0 z-50 flex h-[560px] max-h-[80svh] w-[min(25rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-md"
+        >
+          {/* Draggable Header Bar */}
+          <div
+            className="flex cursor-grab active:cursor-grabbing select-none items-center gap-2 border-b bg-muted/40 px-3.5 py-2.5 touch-none"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            title="Drag header to reposition AI Director anywhere"
+          >
+            <div className="flex items-center text-muted-foreground hover:text-foreground">
+              <GripHorizontal className="size-4 opacity-75" />
+            </div>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
               <Bot className="size-4" />
             </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold leading-tight">AI Director</h3>
-              <p className="text-muted-foreground truncate text-[11px]">
-                Proposes edits â€” you approve them before they apply
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold leading-none">AI Director</h3>
+                {busy ? (
+                  <span className="rounded-full bg-violet-500/20 px-1.5 py-0.2 text-[9px] font-medium text-violet-400 animate-pulse">
+                    Thinking...
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-medium text-emerald-500">
+                    Active
+                  </span>
+                )}
+              </div>
+              <p className="text-muted-foreground truncate text-[10px]">
+                Drag title to move anywhere
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setShowQuality((s) => !s)
-                if (!checking && issues.length === 0) void runQualityCheck()
-              }}
-              className={`text-muted-foreground hover:text-foreground ${showQuality ? 'text-violet-600 dark:text-violet-400' : ''}`}
-              title="Check project quality"
-              aria-label="Check project quality"
-            >
-              <ListChecks className="size-4" />
-            </button>
-            <Link to="/settings" className="ml-auto text-muted-foreground hover:text-foreground" title="Configure AI provider">
-              <Settings className="size-4" />
-            </Link>
+
+            {/* Header Controls */}
+            <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={resetPosition}
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Reset Position"
+                aria-label="Reset Position"
+              >
+                <RotateCcw className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuality((s) => !s)
+                  if (!checking && issues.length === 0) void runQualityCheck()
+                }}
+                className={`rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground ${
+                  showQuality ? 'text-violet-600 dark:text-violet-400' : ''
+                }`}
+                title="Check project quality"
+                aria-label="Check project quality"
+              >
+                <ListChecks className="size-3.5" />
+              </button>
+              <Link
+                to="/settings"
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Configure AI provider"
+              >
+                <Settings className="size-3.5" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsMinimized(true)}
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Minimize to floating pill"
+                aria-label="Minimize"
+              >
+                <Minimize2 className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changeOpen(false)}
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Close AI Director"
+                aria-label="Close"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">

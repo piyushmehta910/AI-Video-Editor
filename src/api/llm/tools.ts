@@ -602,6 +602,7 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
           durationSeconds: { type: 'number', description: 'Clip length in seconds (default 8).' },
           style: { type: 'string', description: 'Visual style hint, e.g. "minimal flat", "neon", "whiteboard".' },
           language: { type: 'string', description: 'Optional language for labels in the diagram.' },
+          transparent: { type: 'boolean', description: 'Whether the animation should have a transparent alpha channel for video overlay compositing.' },
           resolution: { type: 'string', enum: ['720p', '1080p'], description: 'Render resolution (default 720p).' },
         },
         required: ['concept'],
@@ -618,7 +619,7 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
         properties: {
           topic: { type: 'string', description: 'The subject the deck must cover.' },
           count: { type: 'number', description: 'Optional number of slides (3-6).' },
-          theme: { type: 'string', enum: ['gaia', 'uncover', 'default'], description: "Marp theme: gaia = dark gradient, uncover = light with blue headings, default = white (default gaia)." },
+          theme: { type: 'string', enum: ['gaia', 'cyber', 'sunset', 'uncover', 'default'], description: "Marp theme: gaia (dark navy/cyan), cyber (neon magenta/cyan), sunset (amber gradient), uncover (light indigo), default (white) (default gaia)." },
           language: { type: 'string', description: 'Optional language for slide text.' },
           durationSeconds: { type: 'number', description: 'Seconds each slide stays on screen (default 5).' },
         },
@@ -764,6 +765,79 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'set_clip_speed',
+      description: 'Set playback speed for a clip (0.1x to 8.0x) and optionally ripple/adjust its timeline duration.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'Clip name or ID.' },
+          speed: { type: 'number', description: 'Speed multiplier (0.1 to 8.0).' },
+          rippleDuration: { type: 'boolean', description: 'Whether to scale timeline duration with speed (default true).' },
+          preservePitch: { type: 'boolean', description: 'Whether to preserve audio pitch (default true).' },
+        },
+        required: ['assetName', 'speed'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_clip_volume',
+      description: 'Set audio volume and gain for a clip.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'Clip name or ID.' },
+          volume: { type: 'number', description: 'Volume gain from 0.0 (mute) to 2.0 (200%).' },
+          muted: { type: 'boolean', description: 'Mute toggle.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_clip_placement',
+      description: 'Position, scale, and align a clip on the canvas (e.g. PIP corner, center, lower third).',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'Clip name or ID.' },
+          alignment: {
+            type: 'string',
+            enum: ['center', 'top-left', 'top-right', 'bottom-center', 'pip', 'fill', 'reset'],
+            description: 'Quick placement preset.',
+          },
+          positionX: { type: 'number', description: 'Canvas X position offset from center.' },
+          positionY: { type: 'number', description: 'Canvas Y position offset from center.' },
+          scale: { type: 'number', description: 'Uniform scale multiplier (e.g. 1.0 = normal, 0.35 = PIP).' },
+          rotation: { type: 'number', description: 'Rotation in degrees.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'auto_generate_captions',
+      description: 'Transcribe spoken audio from all video/audio clips on the timeline and generate timed subtitle cues with styled text overlays.',
+      parameters: {
+        type: 'object',
+        properties: {
+          style: {
+            type: 'string',
+            enum: ['karaoke', 'modern', 'cinematic', 'cyber'],
+            description: 'Caption theme style (default karaoke).',
+          },
+        },
+      },
+    },
+  },
 ]
 
 /** Tools that change timeline state and therefore must be reviewed before applying. */
@@ -776,6 +850,10 @@ const STAGED_TOOLS = new Set<string>([
   'move_clip',
   'join_clips',
   'set_clip_property',
+  'set_clip_speed',
+  'set_clip_volume',
+  'set_clip_placement',
+  'auto_generate_captions',
   'add_text_overlay',
   'add_text',
   'set_transition',
@@ -921,6 +999,29 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       const value = Number(args.value)
       if (!clip || !(PROPERTIES as readonly string[]).includes(property) || !Number.isFinite(value)) return null
       return `Set ${property} of "${clip.name}" to ${value}`
+    }
+    case 'set_clip_speed': {
+      const clip = findClip(String(args.assetName ?? ''))
+      const speed = Number(args.speed)
+      if (!clip || !Number.isFinite(speed)) return null
+      return `Set playback speed of "${clip.name}" to ${speed.toFixed(2)}x`
+    }
+    case 'set_clip_volume': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      const vol = args.volume != null ? `${Math.round(Number(args.volume) * 100)}%` : ''
+      const mute = args.muted === true ? ' (muted)' : ''
+      return `Set volume of "${clip.name}" to ${vol}${mute}`
+    }
+    case 'set_clip_placement': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      const align = args.alignment ? ` alignment ${String(args.alignment)}` : ''
+      return `Set placement on canvas for "${clip.name}"${align}`
+    }
+    case 'auto_generate_captions': {
+      const style = String(args.style || 'karaoke')
+      return `Auto-generate synchronized captions for timeline audio (${style} style)`
     }
     case 'add_text_overlay': {
       const text = String(args.text ?? '')
@@ -1195,6 +1296,142 @@ export async function applyTool(
       s.updateClip(clip.id, { [property]: value } as never)
       return { ok: true, message: desc }
     }
+    case 'set_clip_speed': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const speed = Math.max(0.1, Math.min(10, Number(args.speed) || 1.0))
+      const ripple = args.rippleDuration !== false
+      const sourceDuration = Math.max(0.1, clip.sourceEnd - clip.sourceStart)
+      const updates: Partial<Clip> = { speed }
+      if (ripple) updates.duration = sourceDuration / speed
+      if (args.preservePitch != null) updates.preservePitch = Boolean(args.preservePitch)
+      s.updateClip(clip.id, updates)
+      return { ok: true, message: desc }
+    }
+    case 'set_clip_volume': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const updates: Partial<Clip> = {}
+      if (args.volume != null) updates.volume = Math.max(0, Math.min(3.0, Number(args.volume)))
+      if (args.muted != null) updates.muted = Boolean(args.muted)
+      s.updateClip(clip.id, updates)
+      return { ok: true, message: desc }
+    }
+    case 'set_clip_placement': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const pw = s.project.width
+      const ph = s.project.height
+      const updates: Partial<Clip> = {}
+
+      if (args.alignment) {
+        switch (args.alignment) {
+          case 'center':
+            updates.position = { x: 0, y: 0 }
+            break
+          case 'top-left':
+            updates.position = { x: -pw * 0.25, y: -ph * 0.25 }
+            break
+          case 'top-right':
+            updates.position = { x: pw * 0.25, y: -ph * 0.25 }
+            break
+          case 'bottom-center':
+            updates.position = { x: 0, y: ph * 0.3 }
+            break
+          case 'pip':
+            updates.position = { x: pw * 0.3, y: ph * 0.28 }
+            updates.scale = { x: 0.38, y: 0.38 }
+            break
+          case 'fill':
+            updates.position = { x: 0, y: 0 }
+            updates.scale = { x: 1.0, y: 1.0 }
+            break
+          case 'reset':
+            updates.position = { x: 0, y: 0 }
+            updates.scale = { x: 1.0, y: 1.0 }
+            updates.rotation = 0
+            break
+        }
+      }
+
+      if (args.positionX != null || args.positionY != null) {
+        updates.position = {
+          x: args.positionX != null ? Number(args.positionX) : (updates.position?.x ?? clip.position?.x ?? 0),
+          y: args.positionY != null ? Number(args.positionY) : (updates.position?.y ?? clip.position?.y ?? 0),
+        }
+      }
+      if (args.scale != null) {
+        const sc = Number(args.scale)
+        updates.scale = { x: sc, y: sc }
+      }
+      if (args.rotation != null) {
+        updates.rotation = Number(args.rotation)
+      }
+
+      s.updateClip(clip.id, updates)
+      return { ok: true, message: desc }
+    }
+    case 'auto_generate_captions': {
+      const style = String(args.style || 'karaoke')
+      const targetTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks.find((t) => t.type === 'video')
+      if (!targetTrack) return { ok: false, message: 'No track available for captions.' }
+
+      const mediaClips = s.project.tracks
+        .filter((t) => t.type === 'video' || t.type === 'audio')
+        .flatMap((t) => t.clips)
+        .sort((a, b) => a.startTime - b.startTime)
+
+      if (!mediaClips.length) return { ok: false, message: 'No media clips on timeline to transcribe.' }
+
+      const { transcribeAsset, getStoredTranscript } = await import('@/api/llm/understanding')
+      let count = 0
+
+      for (const c of mediaClips) {
+        const asset = s.assets.find((a) => a.id === c.assetId)
+        if (!asset || asset.type === 'image') continue
+        let transcript = await getStoredTranscript(asset.id)
+        if (!transcript) transcript = (await transcribeAsset(asset)) ?? undefined
+
+        if (transcript?.sentences?.length) {
+          for (const st of transcript.sentences) {
+            const start = Math.max(c.startTime, c.startTime + (st.start - c.sourceStart) / c.speed)
+            const end = Math.min(c.startTime + c.duration, c.startTime + (st.end - c.sourceStart) / c.speed)
+            if (end > start && st.text.trim()) {
+              const tc = s.addTextClip(st.text.trim(), targetTrack.id, start)
+              if (tc) {
+                const dur = Math.max(1, end - start)
+                s.updateClip(tc.id, {
+                  name: st.text.slice(0, 20),
+                  duration: dur,
+                  sourceEnd: dur,
+                  textType: 'caption',
+                  text: {
+                    text: st.text.trim(),
+                    fontSize: 44,
+                    color: style === 'karaoke' ? '#facc15' : '#ffffff',
+                    backgroundColor: '#000000bb',
+                    textAlign: 'center',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontWeight: 'bold',
+                    fontStyle: 'normal',
+                    paddingTop: 8,
+                    paddingBottom: 8,
+                    paddingLeft: 16,
+                    paddingRight: 16,
+                    borderRadius: 6,
+                    shadow: true,
+                    animation: 'pop',
+                    animationDuration: 0.3,
+                  },
+                })
+                count++
+              }
+            }
+          }
+        }
+      }
+      return { ok: true, message: `${desc} — created ${count} caption cues.` }
+    }
     case 'add_text_overlay': {
       const text = String(args.text ?? '')
       const dur = Number(args.durationSeconds) || 4
@@ -1350,8 +1587,8 @@ export async function applyTool(
       }
     }
     case 'animate_3d_model': {
-      const query = String(args.query ?? '')
-      if (!query.trim()) return { ok: false, message: 'No query provided for the 3D animation.' }
+      const query = String(args.query ?? args.preset ?? 'cyber-cube')
+      if (!query.trim()) return { ok: false, message: 'No query or preset provided for the 3D animation.' }
       const source = String(args.source ?? 'polyhaven')
       const dur = Math.max(1, Number(args.durationSeconds) || 5)
       const is1080 = String(args.resolution ?? '720p') === '1080p'
@@ -1360,20 +1597,35 @@ export async function applyTool(
       let modelName = query
       try {
         let file: File
-        if (source === 'sketchfab') {
+        const matchedPreset = ['cyber-cube', 'studio-camera', 'gold-trophy', 'diamond-gem', 'retro-mic', 'drone-quad'].find(
+          (p) => p === query || p.includes(query.toLowerCase()) || query.toLowerCase().includes(p.split('-')[0]),
+        )
+
+        if (matchedPreset) {
+          const { exportPresetToGlb } = await import('@/engine/three/presets')
+          const glbBlob = await exportPresetToGlb(matchedPreset)
+          file = new File([glbBlob], `${matchedPreset}-${Date.now()}.glb`, { type: 'model/gltf-binary' })
+          modelName = matchedPreset
+        } else if (source === 'sketchfab') {
           const results = await searchSketchfabModels(query, { maxResults: 5 })
           if (!results.length) return { ok: false, message: `No downloadable Sketchfab models found for "${query}".` }
           file = await downloadSketchfabGlb(results[0].id)
           modelName = results[0].name
         } else {
           const results = await searchModels(query, { maxResults: 5 })
-          if (!results.length) return { ok: false, message: `No 3D models found for "${query}".` }
-          file = await downloadModelAsGlb(results[0].id)
-          modelName = results[0].name
+          if (!results.length) {
+            const { exportPresetToGlb } = await import('@/engine/three/presets')
+            const glbBlob = await exportPresetToGlb('cyber-cube')
+            file = new File([glbBlob], `cyber-cube-${Date.now()}.glb`, { type: 'model/gltf-binary' })
+            modelName = 'Cyber Tesseract'
+          } else {
+            file = await downloadModelAsGlb(results[0].id)
+            modelName = results[0].name
+          }
         }
         const imported = await s.importFiles([file])
         const asset = imported.imported[0]
-        if (!asset) return { ok: false, message: 'Downloaded model could not be imported.' }
+        if (!asset) return { ok: false, message: '3D model asset could not be prepared.' }
 
         const mode = String(args.mode ?? 'turntable') as CameraMode
         const radius = (asset.modelRadius ?? 2.4) * 2.5
@@ -1539,9 +1791,10 @@ export async function applyTool(
       const durationSeconds = Math.max(1, Number(args.durationSeconds) || 8)
       const style = args.style != null ? String(args.style) : undefined
       const language = args.language != null ? String(args.language) : undefined
+      const transparent = args.transparent === true
       const is1080 = String(args.resolution ?? '720p') === '1080p'
       try {
-        const { code } = await generateMotionCode({ concept, durationSeconds, style, language })
+        const { code } = await generateMotionCode({ concept, durationSeconds, style, language, transparent })
         const width = is1080 ? 1920 : 1280
         const height = is1080 ? 1080 : 720
         const rendered = await renderMotionClip({ code, width, height, fps: 30, duration: durationSeconds })
@@ -1568,11 +1821,13 @@ export async function applyTool(
       const rawTheme = String(args.theme ?? 'gaia')
       const themeMap: Record<string, MarpTheme> = {
         gaia: 'gaia',
+        cyber: 'cyber',
+        sunset: 'sunset',
         uncover: 'uncover',
         default: 'default',
         clean: 'default',
         dark: 'gaia',
-        gradient: 'uncover',
+        gradient: 'sunset',
       }
       const marpTheme = themeMap[rawTheme] ?? 'gaia'
       const language = args.language != null ? String(args.language) : undefined
@@ -1602,13 +1857,15 @@ export async function applyTool(
     case 'generate_avatar_narrator': {
       const toolName = name
       const role = toolName.replace('generate_avatar_', '') as AvatarRole
-      const topic = String(args.topic ?? '')
-      if (!topic.trim()) return { ok: false, message: `No topic provided for avatar ${role}.` }
+      const topic = String(args.topic ?? args.script ?? args.text ?? 'Introduction')
+      const scriptText = args.scriptText != null ? String(args.scriptText) : args.script != null ? String(args.script) : undefined
       const durationSeconds = Math.max(1, Number(args.durationSeconds) || (role === 'intro' ? 8 : role === 'outro' ? 6 : role === 'presenter' ? 12 : 15))
       const language = args.language != null ? String(args.language) : undefined
+      const presetId = args.presetId != null ? String(args.presetId) : undefined
+      const style = args.style as import('@/engine/avatar/lipsync').LipsyncStyle | undefined
       try {
         const { generateAvatarVideo } = await import('@/api/llm/avatarGenerator')
-        const result = await generateAvatarVideo({ role, topic, durationSeconds, language })
+        const result = await generateAvatarVideo({ role, topic, scriptText, durationSeconds, language, presetId, style })
         const file = new File([result.videoBlob], `avatar-${role}-${Date.now()}.webm`, { type: 'video/webm' })
         const imported = await s.importFiles([file])
         const asset = imported.imported[0]
@@ -1626,9 +1883,15 @@ export async function applyTool(
         }
         const newClip = s.addClip(asset.id, videoTrack.id, insertTime)
         if (newClip) {
-          s.updateClip(newClip.id, { duration: result.duration, sourceEnd: result.duration, avatarRole: role })
+          s.updateClip(newClip.id, {
+            duration: result.duration,
+            sourceEnd: result.duration,
+            avatarRole: role,
+            clipType: 'avatar',
+            autoLipsync: true,
+          })
         }
-        return { ok: true, message: `${desc} — generated ${role} avatar (${result.duration.toFixed(1)}s) and inserted at ${insertTime.toFixed(1)}s.` }
+        return { ok: true, message: `${desc} — generated ${role} avatar (${result.duration.toFixed(1)}s) with babble lip-sync and inserted at ${insertTime.toFixed(1)}s.` }
       } catch (err) {
         return { ok: false, message: `Avatar ${role} generation failed: ${err instanceof Error ? err.message : String(err)}` }
       }

@@ -424,11 +424,12 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   }
 
   const runDenoiseOnSelection = () => {
+    onOpenTool?.('audio')
     const store = useTimelineStore.getState()
     for (const id of store.selection.clipIds) {
       for (const track of store.project.tracks) {
         const clip = track.clips.find((c) => c.id === id)
-        if (clip && track.type === 'audio') {
+        if (clip && (track.type === 'audio' || clip.clipType === 'voice' || clip.clipType === 'music')) {
           void denoiseAction.run(clip.id)
           break
         }
