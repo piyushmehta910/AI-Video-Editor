@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, redirect, Outlet } from '@tanstack/react-router'
 import { AppShell } from '@/components/layout/AppShell'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EditorErrorBoundary } from '@/components/editor/EditorErrorBoundary'
+import { WebGPULoadingScreen } from '@/components/editor/WebGPULoadingScreen'
 
 const LandingPage = lazy(() =>
   import('@/pages/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
@@ -33,6 +35,17 @@ function withSuspense(Component: React.LazyExoticComponent<React.ComponentType>)
   }
 }
 
+/** Editor route: error boundary + GPU-flavoured loader around the lazy chunk. */
+function SuspendedEditor() {
+  return (
+    <EditorErrorBoundary>
+      <Suspense fallback={<WebGPULoadingScreen />}>
+        <EditorPage />
+      </Suspense>
+    </EditorErrorBoundary>
+  )
+}
+
 const rootRoute = createRootRoute({
   component: Outlet,
 })
@@ -52,7 +65,7 @@ const shellRoute = createRoute({
 const editorRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/editor',
-  component: withSuspense(EditorPage),
+  component: SuspendedEditor,
 })
 
 const settingsRoute = createRoute({
@@ -61,8 +74,27 @@ const settingsRoute = createRoute({
   component: withSuspense(SettingsPage),
 })
 
+// Legacy / marketing aliases for the editor URL.
+const studioRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/studio',
+  beforeLoad: () => {
+    throw redirect({ to: '/editor', replace: true })
+  },
+})
+
+const appRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/app',
+  beforeLoad: () => {
+    throw redirect({ to: '/editor', replace: true })
+  },
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  studioRedirect,
+  appRedirect,
   shellRoute.addChildren([editorRoute, settingsRoute]),
 ])
 
