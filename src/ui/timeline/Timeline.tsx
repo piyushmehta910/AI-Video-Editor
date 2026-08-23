@@ -344,9 +344,36 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     const store = useTimelineStore.getState()
 
     if (drag.mode === 'trim-start' || drag.mode === 'trim-end') {
-      const clip = drag.originals.get(drag.clipIds[0])
-      if (!clip) return
-      store.trimClip(clip.id, drag.mode === 'trim-start' ? 'start' : 'end', dt)
+      const orig = drag.originals.get(drag.clipIds[0])
+      if (!orig) return
+      const minDuration = 0.1
+      if (drag.mode === 'trim-start') {
+        // Trimming start (left edge):
+        // Moving right (dt > 0) increases startTime & sourceStart, decreases duration.
+        // Moving left (dt < 0) decreases startTime & sourceStart, increases duration.
+        const maxDelta = orig.duration - minDuration
+        const safeDelta = Math.min(dt, maxDelta)
+        const newSourceStart = Math.max(0, orig.sourceStart + safeDelta)
+        const appliedDelta = newSourceStart - orig.sourceStart
+        const newStartTime = Math.max(0, orig.startTime + appliedDelta)
+        const newDuration = Math.max(minDuration, orig.duration - appliedDelta)
+        store.updateClip(orig.id, {
+          startTime: newStartTime,
+          duration: newDuration,
+          sourceStart: newSourceStart,
+        })
+      } else {
+        // Trimming end (right edge):
+        // Moving right (dt > 0) extends duration & sourceEnd.
+        // Moving left (dt < 0) cuts duration & sourceEnd.
+        const newDuration = Math.max(minDuration, orig.duration + dt)
+        const durDiff = newDuration - orig.duration
+        const newSourceEnd = Math.max(orig.sourceStart + minDuration, orig.sourceEnd + durDiff)
+        store.updateClip(orig.id, {
+          duration: newDuration,
+          sourceEnd: newSourceEnd,
+        })
+      }
       return
     }
 

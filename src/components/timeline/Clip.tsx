@@ -103,36 +103,47 @@ export function Clip({
           onKeyDown={(e) => onKeyDown(e, clip, track)}
         >
           <ClipBody clip={clip} track={track} asset={asset} />
-          {/* Trim handles — always visible, wider in trim mode */}
+
+          {/* ── Left Trim Handle (In-Point Adjuster) ── */}
           <div
+            data-testid="trim-handle-start"
             className={cn(
-              'absolute top-0 bottom-0 left-0 cursor-ew-resize flex items-center justify-center',
-              trimMode && selected
-                ? 'w-4 bg-white/60 border-r border-white/80'
-                : 'w-2 hover:w-3 hover:bg-white/50 transition-all'
+              'group/left absolute top-0 bottom-0 left-0 cursor-ew-resize flex items-center justify-center z-20 transition-all select-none',
+              selected
+                ? 'w-3.5 bg-white/30 hover:bg-white/60 border-r border-white/80 shadow-xs'
+                : 'w-2.5 hover:w-3.5 hover:bg-white/40 border-r border-white/40',
             )}
             onPointerDown={(e) => {
               e.stopPropagation()
               onPointerDownClip(e, clip, 'trim-start')
             }}
-            title="Drag to trim start"
+            title="Drag left edge to adjust in-point (trim start)"
           >
-            {trimMode && selected && <div className="w-0.5 h-8 bg-white/90 rounded" />}
+            {/* Grip Bars */}
+            <div className="flex flex-col gap-0.5 items-center justify-center pointer-events-none opacity-80 group-hover/left:opacity-100">
+              <div className="w-0.5 h-3 bg-white rounded-full shadow-xs" />
+            </div>
           </div>
+
+          {/* ── Right Trim Handle (Out-Point / Duration Adjuster) ── */}
           <div
+            data-testid="trim-handle-end"
             className={cn(
-              'absolute top-0 right-0 bottom-0 cursor-ew-resize flex items-center justify-center',
-              trimMode && selected
-                ? 'w-4 bg-white/60 border-l border-white/80'
-                : 'w-2 hover:w-3 hover:bg-white/50 transition-all'
+              'group/right absolute top-0 right-0 bottom-0 cursor-ew-resize flex items-center justify-center z-20 transition-all select-none',
+              selected
+                ? 'w-3.5 bg-white/30 hover:bg-white/60 border-l border-white/80 shadow-xs'
+                : 'w-2.5 hover:w-3.5 hover:bg-white/40 border-l border-white/40',
             )}
             onPointerDown={(e) => {
               e.stopPropagation()
               onPointerDownClip(e, clip, 'trim-end')
             }}
-            title="Drag to trim end"
+            title="Drag right edge to adjust out-point and duration (trim end)"
           >
-            {trimMode && selected && <div className="w-0.5 h-8 bg-white/90 rounded" />}
+            {/* Grip Bars */}
+            <div className="flex flex-col gap-0.5 items-center justify-center pointer-events-none opacity-80 group-hover/right:opacity-100">
+              <div className="w-0.5 h-3 bg-white rounded-full shadow-xs" />
+            </div>
           </div>
         </div>
       </TooltipTrigger>
