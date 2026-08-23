@@ -8,6 +8,8 @@ import { PreviewCanvas } from '@/components/editor/PreviewCanvas'
 import { Inspector } from '@/components/editor/Inspector'
 import { Timeline } from '@/ui/timeline/Timeline'
 import { RightToolPanel, type ToolSection } from '@/ui/common/RightToolPanel'
+import { HistoryPanel } from '@/components/history/HistoryPanel'
+import { HistoryToast } from '@/components/history/HistoryToast'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_TIMELINE_HEIGHT = 224
@@ -38,6 +40,8 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const toggleInspector = useEditorStore((s) => s.toggleInspector)
   const toolPanelSection = useEditorStore((s) => s.toolPanelSection)
   const setToolPanelSection = useEditorStore((s) => s.setToolPanelSection)
+  const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
+  const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
 
   const [timelineHeight, setTimelineHeight] = React.useState(() =>
     loadNum('clipforge-timeline-height', DEFAULT_TIMELINE_HEIGHT),
@@ -96,6 +100,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
           <Timeline height={timelineHeight} onOpenTool={setToolPanelSection} />
         </div>
 
+        {/* History sidebar */}
+        {historyPanelOpen && <HistoryPanel onClose={toggleHistoryPanel} />}
+
         {inspectorOpen ? (
           <aside className="hidden w-70 shrink-0 border-l lg:block" data-testid="inspector-panel">
             <div className="flex h-full flex-col">
@@ -139,6 +146,8 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
           </>
         )}
       </div>
+
+      <HistoryToast />
     </div>
   )
 }

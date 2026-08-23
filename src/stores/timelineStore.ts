@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { temporal } from 'zundo'
+import { produce, setAutoFreeze } from 'immer'
 import type { Asset, CaptionsConfig, Clip, MediaClipType, Project, Track, TrackType } from '@/engine/types'
 import { newProject, projectDuration, defaultCameraRig, migrateProjectTracks } from '@/engine/types'
 import { getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
@@ -11,10 +13,31 @@ import { generateWaveform } from '@/engine/media/waveform'
 import { getStoredOcr } from '@/engine/analysis/ocr'
 import { getStoredScenes, getStoredTranscript } from '@/api/llm/understanding'
 import type { StoredOcr, StoredScenes, StoredTranscript } from '@/engine/analysis/types'
+import {
+  useHistoryStore,
+  loadPersistedHistory,
+  registerTemporalStore,
+  HISTORY_LOG_LIMIT,
+  type HistoryType,
+  type UiCheckpoint,
+} from '@/stores/historyStore'
 import { buildWelcomeContent, storeWelcomeTranscript, WELCOME_ATTEMPTED_KEY, WELCOME_CREATED_KEY } from '@/components/onboarding/WelcomeProject'
 
-const HISTORY_LIMIT = 200
-let transactionDepth = 0
+// Structural sharing without freezing: snapshots in history share unchanged
+// subtrees by reference (copy-on-write), while existing code keeps its
+// mutation-friendly update style.
+setAutoFreeze(false)
+
+/** Maximum undo steps kept in the temporal stack. */
+const HISTORY_LIMIT = 50
+
+/** Metadata staged with each document snapshot for the human-readable log. */
+export interface HistoryMeta {
+  type: HistoryType
+  description: string
+  clipId?: string
+}
+
 let suppressDepth = 0
 
 export interface TimelineState {
@@ -30,8 +53,6 @@ export interface TimelineState {
   /** Magnetic snapping on clip drag; Shift temporarily inverts it. */
   snapEnabled: boolean
   clipboard: Clip[]
-  past: Project[]
-  future: Project[]
 
   /** Per-asset local intelligence cache, mirrored from IndexedDB into memory. */
   transcripts: Record<string, StoredTranscript>
@@ -49,12 +70,20 @@ export interface TimelineState {
   setOcr: (o: StoredOcr) => void
   setCaptions: (patch: Partial<CaptionsConfig>) => void
 
-  begin: () => void
+  /** Stage a document snapshot (pre-mutation state) with log metadata. No-op inside a group. */
+  begin: (meta?: HistoryMeta) => void
   undo: () => void
   redo: () => void
-  /** Run fn as a single undoable transaction: one begin snapshot, inner begins suppressed. */
-  withTransaction: (fn: () => void) => void
-  /** Suppress automatic inner snapshots while running an async batch (e.g. a plan). */
+  /**
+   * Run fn as a single undoable group — one snapshot for the whole batch,
+   * including async bodies. Inner begins are suppressed until the outermost
+   * group closes.
+   */
+  withTransaction: (fn: () => void | Promise<void>, meta?: HistoryMeta) => Promise<void>
+  /** Open a manual group (e.g. a pointer drag); close it with endHistoryGroup. */
+  beginHistoryGroup: (meta?: HistoryMeta) => void
+  endHistoryGroup: () => void
+  /** Suppress snapshots while running an async batch; on close, the whole batch is one step. */
   suspendHistory: (on: boolean) => void
 
   renameProject: (name: string) => void
@@ -98,7 +127,40 @@ function cloneProject(p: Project): Project {
   return JSON.parse(JSON.stringify(p)) as Project
 }
 
-export const useTimelineStore = create<TimelineState>()((set, get) => {
+const PATCH_DESCRIPTIONS: Array<[keyof Clip, string, HistoryType]> = [
+  ['position', 'Moved', 'move'],
+  ['startTime', 'Moved', 'move'],
+  ['duration', 'Resized', 'edit'],
+  ['sourceStart', 'Trimmed', 'edit'],
+  ['sourceEnd', 'Trimmed', 'edit'],
+  ['scale', 'Scaled', 'edit'],
+  ['rotation', 'Rotated', 'edit'],
+  ['opacity', 'Changed opacity of', 'edit'],
+  ['volume', 'Changed volume of', 'edit'],
+  ['speed', 'Changed speed of', 'edit'],
+  ['effects', 'Applied effect to', 'edit'],
+  ['transitions', 'Changed transition on', 'edit'],
+  ['text', 'Edited text of', 'edit'],
+  ['fadeIn', 'Changed fade-in of', 'edit'],
+  ['fadeOut', 'Changed fade-out of', 'edit'],
+  ['name', 'Renamed', 'edit'],
+]
+
+/** Human-readable log metadata for a clip property patch. */
+function describePatch(patch: Partial<Clip>): { type: HistoryType; description: string } {
+  for (const [key, label, type] of PATCH_DESCRIPTIONS) {
+    if (key in patch) return { type, description: label }
+  }
+  return { type: 'edit', description: 'Edited' }
+}
+
+function trackName(trackId: string): string {
+  const t = useTimelineStore.getState().project.tracks.find((tr) => tr.id === trackId)
+  return t ? `'${t.name}'` : 'track'
+}
+
+export const useTimelineStore = create<TimelineState>()(
+  temporal<TimelineState, [], [], { project: Project }>((set, get) => {
   let saveTimer: ReturnType<typeof setTimeout> | null = null
 
   const scheduleSave = () => {
@@ -108,8 +170,73 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     }, 2000)
   }
 
+  // --- History engine -------------------------------------------------------
+  // zundo holds the canonical snapshot stacks (partialized to { project }).
+  // Auto-tracking is paused below; recording is driven explicitly:
+  //   begin(meta)  → capture the pre-mutation project reference
+  //   commit()     → push it onto the temporal stack + append a log entry
+  // Because immer produces immutable states, captured references share
+  // structure across snapshots (cheap memory-wise).
+  let groupDepth = 0
+  let pendingPast: Project | null = null
+  let pendingMeta: HistoryMeta | null = null
+  let pendingUi: UiCheckpoint | null = null
+
+  const captureUi = (): UiCheckpoint => {
+    const s = get()
+    return { selection: { clipIds: [...s.selection.clipIds], trackId: s.selection.trackId }, playhead: s.playhead }
+  }
+
+  const restoreUi = (cp: UiCheckpoint | undefined) => {
+    if (!cp) return
+    set((state) => ({
+      selection: cp.selection ?? state.selection,
+      playhead: Math.min(cp.playhead ?? state.playhead, projectDuration(state.project.tracks)),
+    }))
+  }
+
+  const commitHistory = () => {
+    // Inside a group/suppressed batch, keep the staged pre-state so the
+    // outermost close produces exactly one snapshot.
+    if (groupDepth > 0 || suppressDepth > 0) return
+    const meta = pendingMeta
+    const beforeProject = pendingPast
+    const beforeUi = pendingUi
+    pendingMeta = null
+    pendingPast = null
+    pendingUi = null
+    if (!beforeProject) return
+    if (beforeProject === get().project) return // no-op drag/click: don't pollute history
+    const t = useTimelineStore.temporal.getState()
+    // Snapshots must match the partialized shape ({ project }) so zundo's
+    // undo()/redo() can feed them straight back into setState.
+    t.pastStates.push({ project: beforeProject })
+    if (t.pastStates.length > HISTORY_LIMIT) t.pastStates.shift()
+    t.futureStates.length = 0 // new action clears the redo stack
+    useHistoryStore.getState().pushEntry({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: meta?.type ?? 'edit',
+      description: meta?.description ?? 'Edit',
+      clipId: meta?.clipId,
+      before: beforeUi ?? {},
+      after: captureUi(),
+    })
+  }
+
+  /** Stage pre-mutation state. Skipped inside groups or suppressed batches. */
+  const beginHistory = (meta?: HistoryMeta) => {
+    if (suppressDepth > 0) return
+    if (groupDepth > 0) return
+    pendingPast ??= get().project
+    pendingUi ??= captureUi()
+    if (meta) pendingMeta = meta
+  }
+
   const mutate = (updater: (p: Project) => Project) => {
-    set((state) => ({ project: updater(cloneProject(state.project)) }))
+    set((state) => ({
+      project: produce(state.project, (draft) => updater(draft as Project)),
+    }))
     scheduleSave()
   }
 
@@ -132,8 +259,6 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     zoom: 90,
     snapEnabled: true,
     clipboard: [],
-    past: [],
-    future: [],
     transcripts: {},
     scenes: {},
     ocr: {},
@@ -178,6 +303,33 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
             if (o) ocr[asset.id] = o
           }),
         )
+        // Seed history for existing projects so undo works across refreshes.
+        const t = useTimelineStore.temporal.getState()
+        t.pastStates.length = 0
+        t.futureStates.length = 0
+        pendingPast = null
+        pendingMeta = null
+        pendingUi = null
+        if (storedProject && !welcomeLoaded) {
+          const persisted = await loadPersistedHistory()
+          if (persisted) {
+            const snapshots = persisted.snapshots.slice(-HISTORY_LIMIT) as Array<{ project: Project }>
+            for (const snapshot of snapshots) {
+              t.pastStates.push(snapshot)
+            }
+            useHistoryStore
+              .getState()
+              .setLog(
+                persisted.entries.slice(-HISTORY_LOG_LIMIT),
+                Math.min(persisted.index, persisted.entries.length),
+              )
+          } else {
+            useHistoryStore.getState().clearLog()
+          }
+        } else {
+          useHistoryStore.getState().clearLog()
+        }
+
         set({
           assets,
           project: storedProject ? migrateProjectTracks(storedProject) : newProject(),
@@ -295,76 +447,100 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
       set((state) => ({ assets: state.assets.filter((a) => a.id !== assetId) }))
     },
 
-begin: () => {
-    if (transactionDepth > 0 || suppressDepth > 0) return
-    set((state) => {
-      const past = [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT)
-      return { past, future: [] }
-    })
-  },
+    begin: (meta?: HistoryMeta) => {
+      beginHistory(meta)
+    },
 
-  /**
-   * While true, suppress the automatic undo snapshots that mutating actions
-   * take. Used by batch operations (e.g. applyPlan) that want a single undo
-   * step: call begin() first, then suspendHistory(true), run all mutations,
-   * then suspendHistory(false).
-   */
-  suspendHistory: (on: boolean) => {
-    suppressDepth = Math.max(0, suppressDepth + (on ? 1 : -1))
-  },
-
-    withTransaction: (fn) => {
-      get().begin()
-      transactionDepth++
-      try {
-        fn()
-      } finally {
-        transactionDepth--
+    /**
+     * While true, suppress snapshots. Used by async batch operations (e.g.
+     * applyPlan): the pre-batch state is captured when suppression starts, so
+     * the entire batch becomes exactly one undo step on release.
+     */
+    suspendHistory: (on: boolean) => {
+      if (on) {
+        suppressDepth++
+        if (suppressDepth === 1) {
+          pendingPast ??= get().project
+          pendingUi ??= captureUi()
+        }
+      } else {
+        suppressDepth = Math.max(0, suppressDepth - 1)
+        if (suppressDepth === 0) commitHistory()
       }
     },
 
+    withTransaction: async (fn, meta) => {
+      get().beginHistoryGroup(meta)
+      try {
+        await fn()
+      } finally {
+        get().endHistoryGroup()
+      }
+    },
+
+    beginHistoryGroup: (meta?: HistoryMeta) => {
+      if (suppressDepth > 0) return
+      groupDepth++
+      if (groupDepth === 1) {
+        pendingPast ??= get().project
+        pendingUi ??= captureUi()
+        if (meta) pendingMeta = meta
+      }
+    },
+
+    endHistoryGroup: () => {
+      if (groupDepth === 0) return
+      groupDepth--
+      if (groupDepth === 0 && suppressDepth === 0) commitHistory()
+    },
+
     undo: () => {
-      set((state) => {
-        if (!state.past.length) return {}
-        const previous = state.past[state.past.length - 1]
-        const past = state.past.slice(0, -1)
-        return {
-          project: cloneProject(previous),
-          past,
-          future: [...state.future, cloneProject(state.project)].slice(-HISTORY_LIMIT),
-          selection: { clipIds: [], trackId: null },
-          playhead: Math.min(state.playhead, projectDuration(previous.tracks)),
-        }
-      })
+      const t = useTimelineStore.temporal.getState()
+      if (!t.pastStates.length) return
+      const h = useHistoryStore.getState()
+      const entry = h.entries[h.index - 1]
+      t.undo() // restores the partialized { project } onto the base store
+      h.stepIndex(-1)
+      if (entry) {
+        h.showToast(`Undid: ${entry.description}`)
+        restoreUi(entry.before)
+      }
       scheduleSave()
     },
 
     redo: () => {
-      set((state) => {
-        if (!state.future.length) return {}
-        const next = state.future[state.future.length - 1]
-        const future = state.future.slice(0, -1)
-        return {
-          project: cloneProject(next),
-          future,
-          past: [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT),
-          selection: { clipIds: [], trackId: null },
-          playhead: Math.min(state.playhead, projectDuration(next.tracks)),
-        }
-      })
+      const t = useTimelineStore.temporal.getState()
+      if (!t.futureStates.length) return
+      const h = useHistoryStore.getState()
+      const entry = h.entries[h.index]
+      t.redo()
+      h.stepIndex(1)
+      if (entry) {
+        h.showToast(`Redid: ${entry.description}`)
+        restoreUi(entry.after)
+      }
       scheduleSave()
     },
 
     renameProject: (name) => {
+      beginHistory({ type: 'edit', description: `Renamed project to '${name}'` })
       mutate((p) => ({ ...p, name }))
+      commitHistory()
     },
 
     setProjectSettings: (patch) => {
+      beginHistory({ type: 'edit', description: 'Changed project settings' })
       mutate((p) => ({ ...p, ...patch }))
+      commitHistory()
     },
 
     resetProject: () => {
-      set({ project: newProject(), past: [], future: [], selection: { clipIds: [], trackId: null }, playhead: 0 })
+      useTimelineStore.temporal.getState().clear()
+      useHistoryStore.getState().clearLog()
+      pendingPast = null
+      pendingMeta = null
+      pendingUi = null
+      set({ project: newProject(), selection: { clipIds: [], trackId: null }, playhead: 0 })
       scheduleSave()
     },
 
@@ -381,10 +557,12 @@ begin: () => {
     },
 
     setCaptions: (patch) => {
+      beginHistory({ type: 'edit', description: 'Changed caption settings' })
       mutate((p) => ({
         ...p,
         captions: { ...(p.captions ?? newProject().captions!), ...patch },
       }))
+      commitHistory()
     },
 
     addClip: (assetId, trackId, startTime) => {
@@ -424,12 +602,13 @@ begin: () => {
         thumbnailUrl: asset.thumbnailUrl,
         modelRig: asset.type === 'model' ? { ...defaultCameraRig(), radiusStart: (asset.modelRadius ?? 2.4) * 2.5, radiusEnd: (asset.modelRadius ?? 2.4) * 2.5 } : undefined,
       }
-      get().begin()
+      get().begin({ type: 'add', description: `Added '${asset.name}' to ${track.name}`, clipId: clip.id })
       mutate((p) => {
         const t = p.tracks.find((tr) => tr.id === track.id)!
         t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
         return p
       })
+      commitHistory()
       get().select([clip.id], track.id)
       return clip
     },
@@ -479,46 +658,62 @@ begin: () => {
           animationDuration: 1,
         },
       }
-      get().begin()
+      get().begin({ type: 'add', description: `Added text '${clip.name}'`, clipId: clip.id })
       mutate((p) => {
         const t = p.tracks.find((tr) => tr.id === track.id)!
         t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
         return p
       })
+      commitHistory()
       get().select([clip.id], track.id)
       return clip
     },
 
     addClipToTrack: (clip) => {
-      get().begin()
+      get().begin({ type: 'add', description: `Added '${clip.name}'`, clipId: clip.id })
       mutate((p) => {
         const t = p.tracks.find((tr) => tr.id === clip.trackId)
         if (!t) return p
         t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
         return p
       })
+      commitHistory()
     },
 
     updateClip: (clipId, patch) => {
+      const found = findClip(get().project, clipId)
+      const subject = found ? `'${found.clip.name}'` : 'clip'
+      beginHistory({ type: describePatch(patch).type, description: `${describePatch(patch).description} ${subject}`, clipId })
       mutate((p) => {
         for (const track of p.tracks) {
           track.clips = track.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c))
         }
         return p
       })
+      commitHistory()
     },
 
     updateClips: (clipIds, patch) => {
       const ids = new Set(clipIds)
+      beginHistory({ type: describePatch(patch).type, description: `Edited ${clipIds.length} ${clipIds.length === 1 ? 'clip' : 'clips'}` })
       mutate((p) => {
         for (const track of p.tracks) {
           track.clips = track.clips.map((c) => (ids.has(c.id) ? { ...c, ...patch } : c))
         }
         return p
       })
+      commitHistory()
     },
 
     moveClip: (clipId, delta, targetTrackId) => {
+      const found = findClip(get().project, clipId)
+      const subject = found ? `'${found.clip.name}'` : 'clip'
+      const target = targetTrackId ? get().project.tracks.find((t) => t.id === targetTrackId) : undefined
+      beginHistory({
+        type: 'move',
+        description: target ? `Moved ${subject} to ${target.name}` : `Moved ${subject}`,
+        clipId,
+      })
       mutate((p) => {
         for (const track of p.tracks) {
           track.clips = track.clips.map((c) => {
@@ -534,9 +729,13 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
     },
 
     trimClip: (clipId, edge, delta) => {
+      const found = findClip(get().project, clipId)
+      const subject = found ? `'${found.clip.name}'` : 'clip'
+      beginHistory({ type: 'edit', description: `Trimmed ${subject}`, clipId })
       mutate((p) => {
         const found = findClip(p, clipId)
         if (!found) return p
@@ -555,6 +754,7 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
     },
 
     splitClip: (clipId, atTime) => {
@@ -564,7 +764,7 @@ begin: () => {
       const splitTime = atTime - clip.startTime
       if (splitTime < 0.05 || splitTime > clip.duration - 0.05) return
 
-      get().begin()
+      get().begin({ type: 'split', description: `Split '${clip.name}'`, clipId })
       mutate((p) => {
         for (const track of p.tracks) {
           const idx = track.clips.findIndex((c) => c.id === clipId)
@@ -584,6 +784,7 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
     },
 
     joinClips: (clipId1, clipId2) => {
@@ -605,7 +806,7 @@ begin: () => {
       const gap = right.startTime - (left.startTime + left.duration)
       if (gap > 0.05 || left.startTime + left.duration < right.startTime - 0.05) return
 
-      get().begin()
+      get().begin({ type: 'merge', description: `Merged '${left.name}' clips` })
       mutate((p) => {
         for (const track of p.tracks) {
           if (track.id !== trackId) continue
@@ -624,11 +825,12 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
     },
 
     deleteClips: (clipIds, ripple = false) => {
       const ids = new Set(clipIds)
-      get().begin()
+      get().begin({ type: 'remove', description: `Deleted ${clipIds.length} ${clipIds.length === 1 ? 'clip' : 'clips'}`, clipId: clipIds[0] })
       mutate((p) => {
         for (const track of p.tracks) {
           if (track.locked) continue
@@ -646,12 +848,13 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
       set({ selection: { clipIds: [], trackId: null } })
     },
 
     duplicateClips: (clipIds) => {
       const ids = new Set(clipIds)
-      get().begin()
+      get().begin({ type: 'add', description: `Duplicated ${clipIds.length} ${clipIds.length === 1 ? 'clip' : 'clips'}` })
       const duplicates: Clip[] = []
       mutate((p) => {
         for (const track of p.tracks) {
@@ -676,6 +879,7 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
       set({ selection: { clipIds: duplicates.map((d) => d.id), trackId: null } })
     },
 
@@ -709,7 +913,7 @@ begin: () => {
       if (!source.length) return
       const playhead = s.playhead
       const minStart = Math.min(...source.map((c) => c.startTime))
-      s.begin()
+      s.begin({ type: 'add', description: `Pasted ${source.length} ${source.length === 1 ? 'clip' : 'clips'}` })
       const created: Clip[] = []
       mutate((p) => {
         for (const src of source) {
@@ -727,53 +931,66 @@ begin: () => {
         }
         return p
       })
+      commitHistory()
       set({ selection: { clipIds: created.map((c) => c.id), trackId: null } })
     },
 
     toggleTrackLock: (trackId) => {
+      beginHistory({ type: 'edit', description: `Locked/unlocked ${trackName(trackId)}` })
       mutate((p) => ({
         ...p,
         tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, locked: !t.locked } : t)),
       }))
+      commitHistory()
     },
 
     toggleTrackMute: (trackId) => {
+      beginHistory({ type: 'edit', description: `Muted/unmuted ${trackName(trackId)}` })
       mutate((p) => ({
         ...p,
         tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, muted: !t.muted } : t)),
       }))
+      commitHistory()
     },
 
     toggleTrackHidden: (trackId) => {
+      beginHistory({ type: 'edit', description: `Show/hide ${trackName(trackId)}` })
       mutate((p) => ({
         ...p,
         tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, hidden: !t.hidden } : t)),
       }))
+      commitHistory()
     },
 
     toggleTrackSolo: (trackId) => {
+      beginHistory({ type: 'edit', description: `Soloed ${trackName(trackId)}` })
       mutate((p) => ({
         ...p,
         tracks: p.tracks.map((t) =>
           t.type === 'audio' && t.id === trackId ? { ...t, soloed: !t.soloed } : t,
         ),
       }))
+      commitHistory()
     },
 
     renameTrack: (trackId, name) => {
       const clean = name.trim()
       if (!clean) return
+      beginHistory({ type: 'edit', description: `Renamed track to '${clean}'` })
       mutate((p) => ({
         ...p,
         tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, name: clean } : t)),
       }))
+      commitHistory()
     },
 
     setTrackClips: (trackId, clips) => {
+      beginHistory({ type: 'edit', description: `Edited clips on ${trackName(trackId)}` })
       mutate((p) => ({
         ...p,
         tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, clips } : t)),
       }))
+      commitHistory()
     },
 
     select: (clipIds, trackId = null) => {
@@ -794,4 +1011,17 @@ begin: () => {
 
     duration: () => projectDuration(get().project.tracks),
   }
-})
+  }, {
+    // Only document state participates in history — UI state (selection,
+    // playhead, zoom) never triggers snapshots.
+    partialize: (state) => ({ project: state.project }),
+    limit: HISTORY_LIMIT,
+    equality: (a, b) => a.project === b.project,
+  }),
+)
+
+// Auto-tracking is off: recording is driven explicitly by the begin/commit
+// engine above so drags and async batches collapse into single steps. zundo
+// remains the canonical stack holder (undo/redo/clear + limit).
+useTimelineStore.temporal.getState().pause()
+registerTemporalStore(useTimelineStore.temporal.getState())

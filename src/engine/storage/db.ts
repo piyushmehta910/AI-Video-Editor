@@ -1,16 +1,18 @@
 const DB_NAME = 'clipforge-app'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 interface StoreMap {
   assets: { keyPath: 'id' }
   projects: { keyPath: 'id' }
   settings: { keyPath: 'key' }
+  history: { keyPath: 'id' }
 }
 
 const STORES: StoreMap = {
   assets: { keyPath: 'id' },
   projects: { keyPath: 'id' },
   settings: { keyPath: 'key' },
+  history: { keyPath: 'id' },
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null

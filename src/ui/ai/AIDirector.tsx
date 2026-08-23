@@ -429,7 +429,7 @@ export function AIDirector({
               )
               void refreshQualityAfterEdit()
             })()
-          })
+          }, { type: 'edit', description: `AI: ${target.name}` })
         },
       })
       return
@@ -444,7 +444,7 @@ export function AIDirector({
         )
         void refreshQualityAfterEdit()
       })()
-    })
+    }, { type: 'edit', description: `AI: ${target.name}` })
   }
 
   const applyAll = () => {
@@ -463,7 +463,7 @@ export function AIDirector({
         })()
       }
       void refreshQualityAfterEdit()
-    })
+    }, { type: 'edit', description: `AI: applied ${pending.length} proposal${pending.length !== 1 ? 's' : ''}` })
   }
 
   const refreshQualityAfterEdit = React.useCallback(async () => {
@@ -553,7 +553,7 @@ export function AIDirector({
         const delta = issue.fix.targetTime - clip.startTime
         if (Math.abs(delta) >= 0.01) store.moveClip(clip.id, delta)
       }
-    })
+    }, { type: 'edit', description: 'AI: fixed quality issue' })
     void refreshQualityAfterEdit()
   }
 
@@ -574,7 +574,7 @@ export function AIDirector({
           if (Math.abs(delta) >= 0.01) store.moveClip(clip.id, delta)
         }
       }
-    })
+    }, { type: 'edit', description: `AI: fixed ${fixable.length} issue${fixable.length !== 1 ? 's' : ''}` })
     void refreshQualityAfterEdit()
   }
 

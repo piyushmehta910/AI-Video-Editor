@@ -76,7 +76,7 @@ describe('normalizePlan', () => {
 
 describe('applyPlan', () => {
   it('applies every action as a single undo step', async () => {
-    const before = useTimelineStore.getState().past.length
+    const before = useTimelineStore.temporal.getState().pastStates.length
     const plan: EditPlan = {
       goal: 'Change ratio twice',
       scenesAffected: [],
@@ -89,7 +89,7 @@ describe('applyPlan', () => {
     expect(result.applied).toHaveLength(2)
     expect(result.skipped).toHaveLength(0)
     expect(useTimelineStore.getState().project.aspectRatio).toBe('1:1')
-    expect(useTimelineStore.getState().past.length - before).toBe(1)
+    expect(useTimelineStore.temporal.getState().pastStates.length - before).toBe(1)
     useTimelineStore.getState().undo()
     expect(useTimelineStore.getState().project.aspectRatio).toBe('16:9')
   })
@@ -99,7 +99,7 @@ describe('applyPlan', () => {
     const trackId = s.project.tracks[0].id
     s.addClipToTrack(makeClip('intro', trackId, 0))
     s.addClipToTrack(makeClip('main', trackId, 4))
-    const before = useTimelineStore.getState().past.length
+    const before = useTimelineStore.temporal.getState().pastStates.length
     const plan: EditPlan = {
       goal: 'Cut the intro',
       scenesAffected: [],
@@ -117,7 +117,7 @@ describe('applyPlan', () => {
     expect(all.some((c) => c.id === 'intro')).toBe(false)
     expect(all.length).toBe(2)
     // exactly one snapshot for the whole plan
-    expect(after.past.length - before).toBe(1)
+    expect(useTimelineStore.temporal.getState().pastStates.length - before).toBe(1)
     after.undo()
     const reverted = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
     expect(reverted.some((c) => c.id === 'intro')).toBe(true)

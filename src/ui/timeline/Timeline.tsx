@@ -44,6 +44,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
+import { useUndoRedo } from '@/hooks/useUndoRedo'
 
 const HEADER_WIDTH = 78
 const RULER_HEIGHT = 24
@@ -129,6 +130,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const project = useTimelineStore((s) => s.project)
   const zoom = useTimelineStore((s) => s.zoom)
   const snapEnabled = useTimelineStore((s) => s.snapEnabled)
+  const { canUndo, canRedo, undoLabel, redoLabel } = useUndoRedo()
   const selection = useTimelineStore((s) => s.selection)
   const denoiseAction = useDenoiseAction()
   const playhead = useTimelineStore((s) => s.playhead)
@@ -285,7 +287,16 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     const store = useTimelineStore.getState()
     const clipIds = selection.clipIds.includes(clip.id) ? selection.clipIds : [clip.id]
     store.select(clipIds, clip.trackId)
-    store.begin()
+    // One undo step per drag: snapshot now, mutations stream inside the group,
+    // endDrag closes it.
+    store.beginHistoryGroup({
+      type: 'move',
+      description:
+        mode === 'move'
+          ? `Moved '${clip.name}'`
+          : `Trimmed '${clip.name}'`,
+      clipId: clip.id,
+    })
     const originals = new Map<string, Clip>()
     for (const id of clipIds) {
       for (const t of store.project.tracks) {
@@ -360,6 +371,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
 
   const endDrag = () => {
     if (dragRef.current) {
+      useTimelineStore.getState().endHistoryGroup()
       if (dragRef.current.moved) void useTimelineStore.getState().save()
       dragRef.current = null
       setDragActive(false)
@@ -426,10 +438,10 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
       {/* Toolbar */}
       <div className="relative flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b px-1.5 sm:h-9 sm:gap-1 sm:px-2">
         {/* History */}
-        <ToolbarButton label="Undo (Ctrl+Z)" onClick={() => useTimelineStore.getState().undo()} disabled={!useTimelineStore.getState().past.length}>
+        <ToolbarButton label={undoLabel} onClick={() => useTimelineStore.getState().undo()} disabled={!canUndo}>
           <Undo2 className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Redo (Ctrl+Shift+Z)" onClick={() => useTimelineStore.getState().redo()} disabled={!useTimelineStore.getState().future.length}>
+        <ToolbarButton label={redoLabel} onClick={() => useTimelineStore.getState().redo()} disabled={!canRedo}>
           <Redo2 className="size-4" />
         </ToolbarButton>
         <SeparatorLine />

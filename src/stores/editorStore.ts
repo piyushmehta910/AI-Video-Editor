@@ -16,6 +16,7 @@ export interface EditorUIState {
   mediaSearch: string
   mode: EditorMode
   aiDirectorOpen: boolean
+  historyPanelOpen: boolean
 
   toggleLeft: () => void
   setLeftOpen: (open: boolean) => void
@@ -26,6 +27,7 @@ export interface EditorUIState {
   setMode: (mode: EditorMode) => void
   toggleAIDirector: () => void
   setAIDirectorOpen: (open: boolean) => void
+  toggleHistoryPanel: () => void
 }
 
 function persisted(key: string, fallback: boolean): boolean {
@@ -52,6 +54,7 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   mediaSearch: '',
   mode: (localStorage.getItem('clipforge-mode') as EditorMode) || 'hybrid',
   aiDirectorOpen: false,
+  historyPanelOpen: false,
 
   toggleLeft: () =>
     set((s) => {
@@ -80,4 +83,5 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   },
   toggleAIDirector: () => set((s) => ({ aiDirectorOpen: !s.aiDirectorOpen })),
   setAIDirectorOpen: (open) => set({ aiDirectorOpen: open }),
+  toggleHistoryPanel: () => set((s) => ({ historyPanelOpen: !s.historyPanelOpen })),
 }))

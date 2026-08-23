@@ -1,7 +1,8 @@
 import * as React from 'react'
-import { Bot, Download, PanelLeft, Pencil, Redo2, Save, Sparkles, Undo2 } from 'lucide-react'
+import { Bot, Download, History, PanelLeft, Pencil, Redo2, Save, Sparkles, Undo2 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore, type EditorMode } from '@/stores/editorStore'
+import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { ExportDialog } from '@/ui/export/ExportDialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -76,12 +77,9 @@ function ToolButton({
 export function TopToolbar() {
   const project = useTimelineStore((s) => s.project)
   const renameProject = useTimelineStore((s) => s.renameProject)
-  const undo = useTimelineStore((s) => s.undo)
-  const redo = useTimelineStore((s) => s.redo)
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
-  const canUndo = useTimelineStore((s) => s.past.length > 0)
-  const canRedo = useTimelineStore((s) => s.future.length > 0)
+  const { canUndo, canRedo, undoLabel, redoLabel, undo, redo } = useUndoRedo()
 
   const mode = useEditorStore((s) => s.mode)
   const setMode = useEditorStore((s) => s.setMode)
@@ -89,6 +87,8 @@ export function TopToolbar() {
   const toggleAIDirector = useEditorStore((s) => s.toggleAIDirector)
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
   const leftOpen = useEditorStore((s) => s.leftOpen)
+  const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
+  const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
 
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
 
@@ -235,11 +235,14 @@ export function TopToolbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-0.5">
-        <ToolButton label="Undo (Ctrl+Z)" onClick={undo} disabled={!canUndo}>
+        <ToolButton label={undoLabel} onClick={undo} disabled={!canUndo}>
           <Undo2 className="size-4" />
         </ToolButton>
-        <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={!canRedo}>
+        <ToolButton label={redoLabel} onClick={redo} disabled={!canRedo}>
           <Redo2 className="size-4" />
+        </ToolButton>
+        <ToolButton label="History" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
+          <History className="size-4" />
         </ToolButton>
         <ToolButton label={saving ? 'Saving…' : 'Save project'} onClick={() => void save()} disabled={saving}>
           <Save className={cn('size-4', saving && 'animate-pulse')} />
