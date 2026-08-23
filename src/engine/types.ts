@@ -18,10 +18,30 @@ export type FxClipType = 'transition' | 'filter' | 'overlay' | 'motion'
 /** Any clip content subtype (video + audio variants share `clipType`). */
 export type MediaClipType = VideoClipType | AudioClipType
 export type AssetType = 'video' | 'image' | 'audio' | 'model'
+export type CameraMode =
+  | 'turntable'
+  | 'orbit'
+  | 'dolly'
+  | 'dolly_in'
+  | 'dolly_out'
+  | 'flyby'
+  | 'isometric_spin'
+  | 'dutch_sweep'
+  | 'spiral'
+  | 'static'
 
-export type CameraMode = 'turntable' | 'orbit' | 'dolly' | 'static'
-
-export const CAMERA_MODES: CameraMode[] = ['turntable', 'orbit', 'dolly', 'static']
+export const CAMERA_MODES: CameraMode[] = [
+  'turntable',
+  'orbit',
+  'dolly',
+  'dolly_in',
+  'dolly_out',
+  'flyby',
+  'isometric_spin',
+  'dutch_sweep',
+  'spiral',
+  'static',
+]
 
 /**
  * Camera animation rig for a 3D model clip. Angles are degrees, radius is in

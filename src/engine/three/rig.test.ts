@@ -111,6 +111,40 @@ describe('cameraPositionAt', () => {
     const b = cameraPositionAt(rig, 0.9)
     expect(a).toEqual(b)
   })
+
+  it('calculates flyby, spiral, and isometric_spin paths properly', () => {
+    const rig = defaultCameraRig()
+    rig.mode = 'flyby'
+    rig.elevationStart = -10
+    rig.elevationEnd = 30
+    const flyPos0 = cameraPositionAt(rig, 0)
+    const flyPos1 = cameraPositionAt(rig, 1)
+    expect(flyPos1.y).toBeGreaterThan(flyPos0.y)
+
+    rig.mode = 'isometric_spin'
+    const isoPos = cameraPositionAt(rig, 0.5)
+    expect(isoPos.y).toBeCloseTo(rig.radiusStart * Math.sin((45 * Math.PI) / 180), 4)
+
+    rig.mode = 'spiral'
+    const spiralPos = cameraPositionAt(rig, 0.5)
+    expect(typeof spiralPos.x).toBe('number')
+  })
+})
+
+describe('CAMERA_TRAJECTORY_PRESETS', () => {
+  it('contains comprehensive motion and viewport presets', async () => {
+    const { CAMERA_TRAJECTORY_PRESETS } = await import('./rig')
+    expect(CAMERA_TRAJECTORY_PRESETS.length).toBeGreaterThanOrEqual(10)
+    const turntable = CAMERA_TRAJECTORY_PRESETS.find((p) => p.id === 'turntable-360')
+    expect(turntable).toBeDefined()
+    expect(turntable?.azimuthEnd).toBe(360)
+
+    const flyby = CAMERA_TRAJECTORY_PRESETS.find((p) => p.id === 'hero-flyby')
+    expect(flyby).toBeDefined()
+
+    const front = CAMERA_TRAJECTORY_PRESETS.find((p) => p.id === 'viewport-front')
+    expect(front).toBeDefined()
+  })
 })
 
 describe('applyRigToCamera', () => {

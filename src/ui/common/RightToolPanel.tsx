@@ -75,7 +75,12 @@ import { searchMusic, searchSoundEffects, type MusicTrackResult, type SoundEffec
 import { normalizeClipVolume } from '@/hooks/useInspector'
 import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
 import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
-import { defaultCameraRig } from '@/engine/types'
+import {
+  CAMERA_TRAJECTORY_PRESETS,
+  type CameraTrajectoryPreset,
+  type CameraMode,
+  type CameraRig,
+} from '@/engine/three/rig'
 import { ThreeDPreviewCanvas } from '@/ui/three/ThreeDPreviewCanvas'
 import { ThreeDStudioModal } from '@/ui/three/ThreeDStudioModal'
 import { BUILTIN_3D_PRESETS, exportPresetToGlb } from '@/engine/three/presets'
@@ -2407,17 +2412,24 @@ function ThreeDSection() {
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
 
+  const [panelTab, setPanelTab] = React.useState<'camera' | 'search' | 'lighting' | 'render'>('camera')
   const [isStudioOpen, setIsStudioOpen] = React.useState(false)
   const [selectedPresetId, setSelectedPresetId] = React.useState<string>('cyber-cube')
   const [selectedAssetId, setSelectedAssetId] = React.useState<string>('')
   const [usePreset, setUsePreset] = React.useState(true)
 
-  // Quick Flight Rig Settings
-  const [flightMode, setFlightMode] = React.useState<'turntable' | 'dolly' | 'orbit' | 'static'>('turntable')
+  // Camera Trajectory Rig
+  const [selectedPresetPathId, setSelectedPresetPathId] = React.useState<string>('turntable-360')
+  const [flightMode, setFlightMode] = React.useState<CameraMode>('turntable')
+  const [azimuthStart, setAzimuthStart] = React.useState(0)
+  const [azimuthEnd, setAzimuthEnd] = React.useState(360)
+  const [elevationStart, setElevationStart] = React.useState(20)
+  const [elevationEnd, setElevationEnd] = React.useState(20)
+  const [fov, setFov] = React.useState(40)
   const [duration, setDuration] = React.useState(5)
   const [resolution, setResolution] = React.useState('1280x720')
   const [fps, setFps] = React.useState(30)
-  const [lighting, setLighting] = React.useState<'studio' | 'neon' | 'sunset'>('studio')
+  const [lighting, setLighting] = React.useState<'studio' | 'neon' | 'sunset' | 'spotlight' | 'ambient'>('studio')
 
   // Search Online Models State
   const [source, setSource] = React.useState<'polyhaven' | 'sketchfab'>('polyhaven')
@@ -2445,6 +2457,16 @@ function ThreeDSection() {
       setUsePreset(false)
       setSuccess(`Imported 3D model "${imported[0].name}"`)
     }
+  }
+
+  const applyTrajectoryPreset = (preset: CameraTrajectoryPreset) => {
+    setSelectedPresetPathId(preset.id)
+    setFlightMode(preset.mode)
+    setAzimuthStart(preset.azimuthStart)
+    setAzimuthEnd(preset.azimuthEnd)
+    setElevationStart(preset.elevationStart)
+    setElevationEnd(preset.elevationEnd)
+    setFov(preset.fov)
   }
 
   const search = async () => {
@@ -2482,7 +2504,7 @@ function ThreeDSection() {
       if (imported.length) {
         setSelectedAssetId(imported[0].id)
         setUsePreset(false)
-        setSuccess(`Imported "${imported[0].name}"! Ready for 3D staging & animation.`)
+        setSuccess(`Staged "${imported[0].name}" in 3D Viewport!`)
       } else {
         setError(errors[0] ?? 'Import failed')
       }
@@ -2511,11 +2533,25 @@ function ThreeDSection() {
       }
 
       const [w, h] = resolution.split('x').map(Number)
-      const rig = defaultCameraRig()
-      rig.mode = flightMode
-      rig.radiusStart = (targetAsset.modelRadius ?? 2.4) * 2.5
-      rig.radiusEnd = flightMode === 'dolly' ? rig.radiusStart * 0.4 : rig.radiusStart
-      rig.azimuthEnd = flightMode === 'turntable' ? 360 : 180
+      const baseRadius = (targetAsset.modelRadius ?? 2.4) * 2.5 || 6.0
+      const currentPreset = CAMERA_TRAJECTORY_PRESETS.find((p) => p.id === selectedPresetPathId)
+      const rStart = baseRadius * (currentPreset?.radiusMultStart ?? 1.0)
+      const rEnd = baseRadius * (currentPreset?.radiusMultEnd ?? 1.0)
+
+      const rig: CameraRig = {
+        mode: flightMode,
+        azimuthStart,
+        azimuthEnd,
+        elevationStart,
+        elevationEnd,
+        radiusStart: rStart,
+        radiusEnd: rEnd,
+        targetX: 0,
+        targetY: 0,
+        targetZ: 0,
+        fov,
+        pan: 1.0,
+      }
 
       const { renderGlbToVideo } = await import('@/engine/three/renderGlbToVideo')
       const res = await renderGlbToVideo({
@@ -2528,7 +2564,9 @@ function ThreeDSection() {
         onProgress: (done, total) => setProgress({ done, total }),
       })
 
-      const videoFile = new File([res.blob], `3d-${selectedPresetId || 'model'}-${Date.now()}.webm`, { type: 'video/webm' })
+      const videoFile = new File([res.blob], `3d-${selectedPresetId || 'model'}-${Date.now()}.webm`, {
+        type: 'video/webm',
+      })
       const vimp = await importFiles([videoFile])
       const videoTrack = project.tracks.find((t) => t.type === 'video')
       if (videoTrack && vimp.imported.length) {
@@ -2551,15 +2589,15 @@ function ThreeDSection() {
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
-    <div className="space-y-4 p-3">
+    <div className="space-y-3 p-3">
       {/* ── Top Dedicated Studio Banner ── */}
       <Button
         type="button"
-        className="h-9 w-full bg-violet-600/90 text-xs font-semibold text-white hover:bg-violet-600 shadow-xs"
+        className="h-8 w-full bg-violet-600/90 text-xs font-semibold text-white hover:bg-violet-600 shadow-xs"
         onClick={() => setIsStudioOpen(true)}
       >
-        <Maximize2 className="mr-2 size-3.5" />
-        Open 3D Animation Studio (Full Workspace)
+        <Maximize2 className="mr-1.5 size-3.5" />
+        Open Full 3D Animation Studio Workspace
       </Button>
 
       {/* ── 1. Live Interactive WebGL Viewport ── */}
@@ -2567,11 +2605,13 @@ function ThreeDSection() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Box className="size-4 text-violet-400" />
-            <span className="text-xs font-semibold">3D Model Preview</span>
+            <span className="text-xs font-bold truncate max-w-[140px]">
+              {usePreset ? selectedPresetId : selectedAsset?.name || '3D Model'}
+            </span>
           </div>
           <button
             type="button"
-            className="text-[10px] text-violet-400 hover:underline"
+            className="text-[10px] text-violet-400 hover:underline font-semibold"
             onClick={() => fileInputRef.current?.click()}
           >
             + Upload .GLB
@@ -2588,7 +2628,7 @@ function ThreeDSection() {
           className="h-40 w-full"
         />
 
-        {/* Preset Selector Chips */}
+        {/* Model Presets Quick Bar */}
         <div className="grid grid-cols-3 gap-1 pt-1">
           {BUILTIN_3D_PRESETS.map((preset) => {
             const isSelected = usePreset && selectedPresetId === preset.id
@@ -2599,7 +2639,7 @@ function ThreeDSection() {
                 className={cn(
                   'truncate rounded-md border p-1 text-center text-[10px] font-medium transition',
                   isSelected
-                    ? 'border-violet-500 bg-violet-500/20 text-violet-300'
+                    ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
                     : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => {
@@ -2630,81 +2670,195 @@ function ThreeDSection() {
         )}
       </div>
 
-      {/* ── 2. Quick Flight Path & Camera Rig ── */}
-      <div className="space-y-2.5 rounded-lg border bg-muted/15 p-2.5">
-        <span className="text-xs font-semibold">Camera Motion Path</span>
-        <div className="grid grid-cols-2 gap-1">
-          {[
-            { id: 'turntable' as const, label: '360° Turntable' },
-            { id: 'dolly' as const, label: 'Dolly Push-In' },
-            { id: 'orbit' as const, label: 'Spiral Orbit' },
-            { id: 'static' as const, label: 'Static Angle' },
-          ].map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className={cn(
-                'rounded px-2 py-1 text-[10px] font-medium transition',
-                flightMode === m.id
-                  ? 'border border-violet-500 bg-violet-500/20 text-violet-300'
-                  : 'border border-border/60 bg-card text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => setFlightMode(m.id)}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Duration</Label>
-            <div className="flex items-center justify-between text-[10px]">
-              <Slider value={[duration]} min={1} max={15} step={1} onValueChange={([v]) => setDuration(v)} className="w-24" />
-              <span className="font-mono">{duration}s</span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Quality</Label>
-            <Select value={resolution} onValueChange={setResolution}>
-              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1920x1080">1080p HD</SelectItem>
-                <SelectItem value="1280x720">720p HD</SelectItem>
-                <SelectItem value="1080x1920">9:16 Vertical</SelectItem>
-                <SelectItem value="1080x1080">1:1 Square</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Lighting</Label>
-            <Select value={lighting} onValueChange={(v) => setLighting(v as 'studio' | 'neon' | 'sunset')}>
-              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="studio">Studio Light</SelectItem>
-                <SelectItem value="neon">Cyber Neon</SelectItem>
-                <SelectItem value="sunset">Sunset Warm</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Framerate</Label>
-            <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
-              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24">24 FPS</SelectItem>
-                <SelectItem value="30">30 FPS</SelectItem>
-                <SelectItem value="60">60 FPS</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      {/* ── 2. Organized Sub-Tabs ── */}
+      <div className="flex rounded-lg border bg-muted/40 p-0.5">
+        {[
+          { id: 'camera' as const, label: '🎥 Camera' },
+          { id: 'search' as const, label: '🔍 3D Search' },
+          { id: 'lighting' as const, label: '💡 Lighting' },
+          { id: 'render' as const, label: '🎬 Render' },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={cn(
+              'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
+              panelTab === id ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => setPanelTab(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* ── 3. Progress & Render Button ── */}
+      {/* TAB: CAMERA TRAJECTORIES */}
+      {panelTab === 'camera' && (
+        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold">Camera Trajectory</span>
+            <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300 uppercase">
+              {flightMode}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1">
+            {CAMERA_TRAJECTORY_PRESETS.slice(0, 6).map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={cn(
+                  'flex items-center gap-1.5 rounded p-1.5 text-[10px] font-medium transition text-left',
+                  selectedPresetPathId === preset.id
+                    ? 'border border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                    : 'border border-border/60 bg-card text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => applyTrajectoryPreset(preset)}
+              >
+                <span>{preset.icon}</span>
+                <span className="truncate">{preset.name}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-1 pt-1 border-t">
+            {CAMERA_TRAJECTORY_PRESETS.filter((p) => p.category === 'viewport').slice(0, 3).map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={cn(
+                  'rounded border py-1 text-[9px] font-medium transition text-center',
+                  selectedPresetPathId === preset.id
+                    ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => applyTrajectoryPreset(preset)}
+              >
+                {preset.name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SEARCH ONLINE 3D LIBRARY */}
+      {panelTab === 'search' && (
+        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold">Online 3D Library</span>
+            <Select value={source} onValueChange={(v) => { setSource(v as 'polyhaven' | 'sketchfab'); setResults([]) }}>
+              <SelectTrigger className="h-6 w-28 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="polyhaven">Poly Haven (CC0)</SelectItem>
+                <SelectItem value="sketchfab">Sketchfab</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-1.5">
+            <Input
+              placeholder="Search models (e.g. drone, car)..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void search() }}
+              className="h-7 text-xs"
+            />
+            <Button size="sm" className="h-7 px-2" onClick={() => void search()} disabled={searching}>
+              {searching ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
+            </Button>
+          </div>
+
+          {results.length > 0 && (
+            <div className="grid max-h-48 grid-cols-2 gap-1 overflow-y-auto pt-1">
+              {results.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="group relative flex flex-col overflow-hidden rounded border bg-card p-1.5 text-left transition hover:border-violet-500"
+                  onClick={() => void downloadAndImport(m)}
+                  disabled={downloading === m.id}
+                >
+                  <div className="flex items-center gap-1">
+                    <Box className="size-3 text-violet-400 shrink-0" />
+                    <span className="truncate text-[10px] font-medium">{m.name}</span>
+                  </div>
+                  {downloading === m.id && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/60">
+                      <Loader2 className="size-3.5 animate-spin text-white" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: LIGHTING & ATMOSPHERE */}
+      {panelTab === 'lighting' && (
+        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
+          <span className="text-xs font-semibold">Lighting & Atmosphere</span>
+          <div className="grid grid-cols-3 gap-1">
+            {(['studio', 'neon', 'sunset', 'spotlight', 'ambient'] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                className={cn(
+                  'rounded border py-1 text-[10px] font-medium capitalize transition text-center',
+                  lighting === l
+                    ? 'border-amber-500/60 bg-amber-500/20 text-amber-300 font-bold'
+                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setLighting(l)}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: RENDER & TIMELINE */}
+      {panelTab === 'render' && (
+        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Quality</Label>
+              <Select value={resolution} onValueChange={setResolution}>
+                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1920x1080">1080p HD</SelectItem>
+                  <SelectItem value="1280x720">720p HD</SelectItem>
+                  <SelectItem value="1080x1920">9:16 Vertical</SelectItem>
+                  <SelectItem value="1080x1080">1:1 Square</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Framerate</Label>
+              <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
+                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="24">24 FPS</SelectItem>
+                  <SelectItem value="30">30 FPS</SelectItem>
+                  <SelectItem value="60">60 FPS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1 pt-1">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>Duration</span>
+              <span className="font-mono text-violet-300 font-bold">{duration}s</span>
+            </div>
+            <Slider value={[duration]} min={1} max={15} step={1} onValueChange={([v]) => setDuration(v)} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Render Progress ── */}
       {progress && (
         <div className="space-y-1 rounded-md border bg-card p-2">
           <div className="flex justify-between text-[11px]">
@@ -2727,59 +2881,8 @@ function ThreeDSection() {
         disabled={rendering}
       >
         {rendering ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Video className="mr-2 size-3.5" />}
-        {rendering ? 'Rendering 3D Video...' : 'Render 3D Animation to Timeline'}
+        {rendering ? 'Rendering 3D Video...' : `Render 3D Flight (${duration}s @ ${resolution})`}
       </Button>
-
-      {/* ── 4. Search Online Models (Poly Haven / Sketchfab) ── */}
-      <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold">Online 3D Library</span>
-          <Select value={source} onValueChange={(v) => { setSource(v as 'polyhaven' | 'sketchfab'); setResults([]) }}>
-            <SelectTrigger className="h-6 w-28 text-[10px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="polyhaven">Poly Haven (CC0)</SelectItem>
-              <SelectItem value="sketchfab">Sketchfab</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex gap-1.5">
-          <Input
-            placeholder="Search online 3D models..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void search() }}
-            className="h-7 text-xs"
-          />
-          <Button size="sm" className="h-7 px-2" onClick={() => void search()} disabled={searching}>
-            {searching ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
-          </Button>
-        </div>
-
-        {results.length > 0 && (
-          <div className="grid max-h-48 grid-cols-2 gap-1 overflow-y-auto pt-1">
-            {results.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className="group relative flex flex-col overflow-hidden rounded border bg-card p-1.5 text-left transition hover:border-violet-500"
-                onClick={() => void downloadAndImport(m)}
-                disabled={downloading === m.id}
-              >
-                <div className="flex items-center gap-1">
-                  <Box className="size-3 text-violet-400 shrink-0" />
-                  <span className="truncate text-[10px] font-medium">{m.name}</span>
-                </div>
-                {downloading === m.id && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/60">
-                    <Loader2 className="size-3.5 animate-spin text-white" />
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* ── Dedicated 3D Animation Studio Modal ── */}
       <ThreeDStudioModal
