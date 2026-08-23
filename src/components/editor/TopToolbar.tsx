@@ -3,7 +3,8 @@ import { Bot, Download, History, PanelLeft, Pencil, Redo2, Save, Sparkles, Undo2
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore, type EditorMode } from '@/stores/editorStore'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
-import { ExportDialog } from '@/ui/export/ExportDialog'
+import { ExportModal } from '@/components/export/ExportModal'
+import { ExportQueue } from '@/components/export/ExportQueue'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -268,7 +269,8 @@ export function TopToolbar() {
         </Button>
       </div>
 
-      {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />}
+      <ExportQueue />
     </div>
   )
 }
