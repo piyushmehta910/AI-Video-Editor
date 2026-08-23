@@ -35,6 +35,7 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useEditorStore } from '@/stores/editorStore'
 import type { Clip, Track } from '@/engine/types'
 import { projectDuration, trackShortLabel } from '@/engine/types'
 import { Track as TrackLane } from '@/components/timeline/Track'
@@ -45,6 +46,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
+import { addTextAtTime, cycleRateTool } from '@/lib/shortcuts'
+import { ShortcutHelpButton } from '@/components/shortcuts/ShortcutHelp'
 
 const HEADER_WIDTH = 78
 const RULER_HEIGHT = 24
@@ -138,6 +141,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const [dragActive, setDragActive] = React.useState(false)
   const [trimMode, setTrimMode] = React.useState(false)
   const [moreOpen, setMoreOpen] = React.useState(false)
+  const tool = useEditorStore((s) => s.tool)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
     const counts: Partial<Record<Track['type'], number>> = {}
@@ -284,6 +288,20 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const startDrag = (e: React.PointerEvent, clip: Clip, mode: DragMode) => {
     if (dragRef.current) return
     if (trimMode && mode === 'move') return
+
+    // Active mouse tools act on pointer-down instead of dragging.
+    const activeTool = useEditorStore.getState().tool
+    if (mode === 'move' && (activeTool === 'razor' || activeTool === 'rate')) {
+      const vp = viewportRef.current
+      if (vp) {
+        const rect = vp.getBoundingClientRect()
+        const time = Math.max(0, (e.clientX - rect.left - HEADER_WIDTH) / zoom)
+        if (activeTool === 'razor') useTimelineStore.getState().splitClip(clip.id, time)
+        else cycleRateTool(clip.id)
+      }
+      return
+    }
+
     const store = useTimelineStore.getState()
     const clipIds = selection.clipIds.includes(clip.id) ? selection.clipIds : [clip.id]
     store.select(clipIds, clip.trackId)
@@ -553,7 +571,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           <ZoomIn className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          label="Fit timeline"
+          label="Fit timeline (F)"
           onClick={() =>
             useTimelineStore
               .getState()
@@ -562,6 +580,8 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         >
           <Maximize className="size-4" />
         </ToolbarButton>
+        <SeparatorLine />
+        <ShortcutHelpButton />
 
         <span className="text-muted-foreground ml-auto pr-1 font-mono text-[10px]">
           {denoiseAction.error ? (
@@ -608,7 +628,16 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <div
           ref={viewportRef}
           data-testid="timeline-root"
-          className="timeline-scroll absolute inset-0 overflow-auto"
+          className={
+            'timeline-scroll absolute inset-0 overflow-auto' +
+            (tool === 'razor'
+              ? ' cursor-crosshair'
+              : tool === 'text'
+                ? ' cursor-text'
+                : tool === 'rate'
+                  ? ' cursor-pointer'
+                  : '')
+          }
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               e.preventDefault()
@@ -618,6 +647,14 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           onScroll={handleViewportScroll}
           onClick={(e) => {
             const el = e.target as HTMLElement
+
+            // Text tool places a text clip wherever the timeline is clicked.
+            if (useEditorStore.getState().tool === 'text') {
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              addTextAtTime(Math.max(0, (e.clientX - rect.left - HEADER_WIDTH) / zoom))
+              return
+            }
+
             if (el.closest('[data-clip-id]')) return
             if (el.closest('[data-header-gutter]')) return
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -650,6 +687,17 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                         {t % 1 === 0 ? t : t.toFixed(1)}s
                       </span>
                     )}
+                  </div>
+                ))}
+                {(project.markers ?? []).map((m) => (
+                  <div
+                    key={`marker-${m}`}
+                    className="absolute top-0 z-10 -left-[3px] flex flex-col items-center"
+                    style={{ left: m * zoom }}
+                    title={`Marker ${m.toFixed(2)}s`}
+                  >
+                    <div className="h-2 w-[7px] rounded-b-sm bg-amber-400" />
+                    <div className="h-full w-px bg-amber-400/70" />
                   </div>
                 ))}
               </div>
@@ -702,6 +750,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </div>
 
         {dragActive && <div className="pointer-events-none absolute inset-0 z-40 cursor-grabbing" />}
+
+        {/* Announces the playhead position (throttled) for screen readers. */}
+        <PlayheadAnnouncer />
 
         {/* Contextual audio-clip action bar */}
         {selectedClipInfo && selectedClipInfo.track.type === 'audio' && (
@@ -768,6 +819,8 @@ function SectionHeader({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={!collapsed}
+        aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${label} section`}
         className="flex shrink-0 items-center gap-1.5"
         title={collapsed ? `Expand ${label} section` : `Collapse ${label} section`}
       >
@@ -801,6 +854,7 @@ function ToolbarButton({
         <Button
           variant="ghost"
           size="sm"
+          aria-label={label}
           className={cn('h-8 w-8 shrink-0 p-0 sm:h-7 sm:w-7', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30')}
           onClick={onClick}
           disabled={disabled}
@@ -810,6 +864,31 @@ function ToolbarButton({
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+/**
+ * Screen-reader playhead position. Updates at most once per second of
+ * timeline movement so playing audio isn't drowned in chatter.
+ */
+function PlayheadAnnouncer() {
+  const [message, setMessage] = React.useState('')
+  const lastAnnounced = React.useRef(Number.NaN)
+  React.useEffect(
+    () =>
+      useTimelineStore.subscribe((state) => {
+        const t = state.playhead
+        if (Number.isNaN(lastAnnounced.current) || Math.abs(t - lastAnnounced.current) >= 0.95) {
+          lastAnnounced.current = t
+          setMessage(`${Math.floor(t)} seconds`)
+        }
+      }),
+    [],
+  )
+  return (
+    <div role="status" aria-live="polite" className="sr-only">
+      {message}
+    </div>
   )
 }
 

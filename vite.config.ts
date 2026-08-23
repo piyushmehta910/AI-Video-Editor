@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'node:path'
-import { forwardProxyRequest, type ProxyPayload } from './server/proxy.js'
+import { forwardProxyRequest, type ProxyPayload } from './server/proxy.ts'
 
 // Bundle analysis: ANALYZE=1 npm run build -> stats.html (treemap of every chunk)
 const analyze = process.env.ANALYZE === '1'

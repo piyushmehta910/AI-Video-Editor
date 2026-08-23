@@ -50,6 +50,7 @@ export function TrackHeader({ track, shortLabel }: { track: Track; shortLabel: s
             setDraft(track.name)
             setEditing(true)
           }}
+          aria-label={`${track.name} — double-click to rename`}
           title={`${track.name} — double-click to rename`}
           className={cn('w-6 shrink-0 cursor-text rounded text-center font-mono text-[11px] font-semibold')}
           style={{ color }}

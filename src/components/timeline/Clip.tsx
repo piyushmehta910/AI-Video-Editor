@@ -33,6 +33,13 @@ const CLIP_TYPE_BADGE: Partial<Record<NonNullable<ClipModel['clipType']>, React.
   sfx: <Volume2 className="size-3" />,
 }
 
+const TRACK_TYPE_LABEL: Record<Track['type'], string> = {
+  video: 'Video',
+  audio: 'Audio',
+  text: 'Text',
+  fx: 'FX',
+}
+
 /**
  * Unified timeline clip. Rendering adapts to the parent track type:
  *  - video tracks: filmstrip / thumbnail tiles (subtype badge for image/avatar/animation)
@@ -71,9 +78,11 @@ export function Clip({
         <div
           data-clip-id={clip.id}
           tabIndex={0}
-          aria-label={`${clip.name}, ${clip.duration.toFixed(1)} seconds, starts at ${clip.startTime.toFixed(1)} seconds`}
+          role="button"
+          aria-label={`${clip.name}, ${TRACK_TYPE_LABEL[track.type]} clip, ${Math.round(clip.duration)} seconds, starting at ${Math.round(clip.startTime)} seconds`}
+          aria-pressed={selected}
           className={cn(
-            'absolute top-1 bottom-1 overflow-hidden rounded-md border transition-shadow focus-visible:outline-none',
+            'absolute top-1 bottom-1 overflow-hidden rounded-md border transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]',
             selected
               ? 'z-10 border-white ring-2 ring-white/60 shadow-[0_0_12px_rgba(255,255,255,0.35)]'
               : isUnderPlayhead

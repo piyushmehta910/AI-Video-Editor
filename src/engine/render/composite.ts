@@ -226,6 +226,42 @@ export function textAnimationAt(animation: TextAnimation, duration: number, time
   return state
 }
 
+/** Lazily-built film-grain noise tile used by the grain overlay. */
+let grainTile: HTMLCanvasElement | null = null
+function getGrainTile(): HTMLCanvasElement {
+  if (grainTile) return grainTile
+  const size = 128
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const g = c.getContext('2d')!
+  const img = g.createImageData(size, size)
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 90 + Math.floor(Math.random() * 130)
+    img.data[i] = v
+    img.data[i + 1] = v
+    img.data[i + 2] = v
+    img.data[i + 3] = 255
+  }
+  g.putImageData(img, 0, 0)
+  grainTile = c
+  return c
+}
+
+function drawGrainOverlay(ctx: CanvasRenderingContext2D, w: number, h: number, intensity: number): void {
+  const pattern = ctx.createPattern(getGrainTile(), 'repeat')
+  if (!pattern) return
+  ctx.save()
+  ctx.globalAlpha = Math.min(0.45, intensity * 0.45)
+  ctx.globalCompositeOperation = 'overlay'
+  const ox = Math.floor(Math.random() * 128)
+  const oy = Math.floor(Math.random() * 128)
+  ctx.translate(-ox, -oy)
+  ctx.fillStyle = pattern
+  ctx.fillRect(0, 0, w + 128, h + 128)
+  ctx.restore()
+}
+
 /**
  * Render one composite frame of the project at `time` onto `ctx`.
  * Shared by the live preview and the export pipeline so both produce identical
@@ -253,34 +289,93 @@ export async function compositeFrame(
   video.sort((a, b) => b.z - a.z)
 
   let vignette = 0
+  let vignetteRadius = 0.35
+  let grain = 0
   for (const { clip } of video) {
     const asset = assets.find((a) => a.id === clip.assetId)
     if (!asset) continue
     const effects = computeEffects(clip.effects)
-    vignette = Math.max(vignette, vignette)
+    if (effects.vignette > vignette) {
+      vignette = effects.vignette
+      vignetteRadius = effects.vignetteRadius
+    }
+    grain = Math.max(grain, effects.grain)
     const srcTime = (time - clip.startTime) * clip.speed + clip.sourceStart
 
+    ctx.save()
     ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
     ctx.filter = effects.cssFilter
-    ctx.save()
+    if (clip.blendMode && clip.blendMode !== 'normal') {
+      ctx.globalCompositeOperation = clip.blendMode
+    }
+    if (clip.dropShadow) {
+      ctx.shadowColor = clip.dropShadow.color
+      ctx.shadowBlur = clip.dropShadow.blur
+      ctx.shadowOffsetX = clip.dropShadow.offsetX
+      ctx.shadowOffsetY = clip.dropShadow.offsetY
+    }
     ctx.translate(w / 2, h / 2)
+    // Media layers honor position (text always did).
+    ctx.translate(clip.position.x, clip.position.y)
     ctx.rotate((clip.rotation * Math.PI) / 180)
     ctx.scale(clip.scale.x, clip.scale.y)
+    const anchorX = (clip.anchor?.x ?? 0.5) - 0.5
+    const anchorY = (clip.anchor?.y ?? 0.5) - 0.5
+
+    /** Apply manual percentage crop to a full source rect. */
+    const applyManualCrop = (sw: number, sh: number): { sx: number; sy: number; sw: number; sh: number } => {
+      const c = clip.crop
+      if (!c || (c.top === 0 && c.right === 0 && c.bottom === 0 && c.left === 0)) {
+        return { sx: 0, sy: 0, sw, sh }
+      }
+      const left = (Math.min(45, Math.max(0, c.left)) / 100) * sw
+      const right = (Math.min(45, Math.max(0, c.right)) / 100) * sw
+      const top = (Math.min(45, Math.max(0, c.top)) / 100) * sh
+      const bottom = (Math.min(45, Math.max(0, c.bottom)) / 100) * sh
+      return { sx: left, sy: top, sw: Math.max(1, sw - left - right), sh: Math.max(1, sh - top - bottom) }
+    }
+
+    /** Stroke the configured border just inside the drawn rect. */
+    const drawBorder = (dx: number, dy: number, dw: number, dh: number) => {
+      const b = clip.border
+      if (!b || b.width <= 0) return
+      ctx.shadowColor = 'transparent'
+      ctx.save()
+      ctx.strokeStyle = b.color
+      ctx.lineWidth = b.width
+      const inset = b.width / 2
+      const x = dx + inset
+      const y = dy + inset
+      const bw = Math.max(1, dw - b.width)
+      const bh = Math.max(1, dh - b.width)
+      if (b.radius > 0) {
+        ctx.beginPath()
+        ctx.roundRect(x, y, bw, bh, Math.min(b.radius, bw / 2, bh / 2))
+        ctx.stroke()
+      } else {
+        ctx.strokeRect(x, y, bw, bh)
+      }
+      ctx.restore()
+    }
 
     if (asset.type === 'video') {
       const source = await media.video(clip, asset, srcTime)
       if (source) {
         const { w: sw, h: sh } = sourceSize(source)
         if (sw > 0 && sh > 0) {
-          // Check for smart reframing crop keyframes
-          const crop = clip.reframing?.enabled ? interpolateCrop(clip.reframing.keyframes, srcTime) : null
-          if (crop) {
-            // Draw with smart reframing crop
-            drawVideoWithEffects(ctx, source, crop.x, crop.y, crop.width, crop.height, -w / 2, -h / 2, w, h, effects)
+          const reframingCrop = clip.reframing?.enabled ? interpolateCrop(clip.reframing.keyframes, srcTime) : null
+          if (reframingCrop) {
+            drawVideoWithEffects(ctx, source, reframingCrop.x, reframingCrop.y, reframingCrop.width, reframingCrop.height, -w / 2 + anchorX * w, -h / 2 + anchorY * h, w, h, effects)
+            drawBorder(-w / 2 + anchorX * w, -h / 2 + anchorY * h, w, h)
           } else {
-            // Standard center-crop (cover fit)
-            const scale = Math.max(w / sw, h / sh)
-            drawVideoWithEffects(ctx, source, 0, 0, sw, sh, -w / 2, -h / 2, sw * scale, sh * scale, effects)
+            const r = applyManualCrop(sw, sh)
+            const scale = Math.max(w / r.sw, h / r.sh)
+            const dw = r.sw * scale
+            const dh = r.sh * scale
+            const dx = -dw / 2 + anchorX * dw
+            const dy = -dh / 2 + anchorY * dh
+            drawVideoWithEffects(ctx, source, r.sx, r.sy, r.sw, r.sh, dx, dy, dw, dh, effects)
+            drawBorder(dx, dy, dw, dh)
           }
         }
       } else if (media.thumbnail) {
@@ -289,7 +384,7 @@ export async function compositeFrame(
           const { w: tw, h: th } = sourceSize(thumb)
           if (tw > 0 && th > 0) {
             const scale = Math.max(w / tw, h / th)
-            ctx.drawImage(thumb, (-tw * scale) / 2, (-th * scale) / 2, tw * scale, th * scale)
+            ctx.drawImage(thumb, ((-tw * scale) / 2) + anchorX * tw * scale, ((-th * scale) / 2) + anchorY * th * scale, tw * scale, th * scale)
           } else {
             drawImagePlaceholder(ctx, w, h, asset.name ?? 'Video')
           }
@@ -307,8 +402,14 @@ export async function compositeFrame(
       if (img) {
         const { w: iw, h: ih } = sourceSize(img)
         if (iw > 0 && ih > 0) {
-          const scale = Math.max(w / iw, h / ih)
-          ctx.drawImage(img, (-iw * scale) / 2, (-ih * scale) / 2, iw * scale, ih * scale)
+          const r = applyManualCrop(iw, ih)
+          const scale = Math.max(w / r.sw, h / r.sh)
+          const dw = r.sw * scale
+          const dh = r.sh * scale
+          const dx = -dw / 2 + anchorX * dw
+          const dy = -dh / 2 + anchorY * dh
+          ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, dx, dy, dw, dh)
+          drawBorder(dx, dy, dw, dh)
         } else {
           drawImagePlaceholder(ctx, w, h, asset.name ?? 'Image')
         }
@@ -321,15 +422,15 @@ export async function compositeFrame(
         if (source) {
           const { w: mw, h: mh } = sourceSize(source)
           if (mw > 0 && mh > 0) {
-            ctx.drawImage(source, -w / 2, -h / 2, w, h)
+            ctx.drawImage(source, -w / 2 + anchorX * w, -h / 2 + anchorY * h, w, h)
           }
         }
       }
     }
     ctx.restore()
-    ctx.filter = 'none'
-    ctx.globalAlpha = 1
   }
+
+  if (grain > 0) drawGrainOverlay(ctx, w, h, grain)
 
   // Text overlays (drawn above clip media, below vignette).
   for (const { clip } of video) {
@@ -380,10 +481,17 @@ export async function compositeFrame(
     for (let i = 0; i < lines.length; i++) {
       const y = startY + i * lineHeight
       if (t.shadow) {
-        ctx.shadowColor = 'rgba(0,0,0,0.7)'
-        ctx.shadowBlur = 6
-        ctx.shadowOffsetX = 2
-        ctx.shadowOffsetY = 2
+        ctx.shadowColor = t.shadowColor ?? 'rgba(0,0,0,0.7)'
+        ctx.shadowBlur = t.shadowBlur ?? 6
+        ctx.shadowOffsetX = t.shadowOffsetX ?? 2
+        ctx.shadowOffsetY = t.shadowOffsetY ?? 2
+      }
+      if (t.stroke && t.stroke.width > 0) {
+        ctx.lineJoin = 'round'
+        ctx.miterLimit = 2
+        ctx.lineWidth = t.stroke.width * 2
+        ctx.strokeStyle = t.stroke.color
+        ctx.strokeText(lines[i], 0, y)
       }
       ctx.fillStyle = t.color
       ctx.fillText(lines[i], 0, y)
@@ -410,7 +518,8 @@ export async function compositeFrame(
   }
 
   if (vignette > 0) {
-    const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75)
+    const inner = Math.min(w, h) * Math.max(0.05, vignetteRadius)
+    const grad = ctx.createRadialGradient(w / 2, h / 2, inner, w / 2, h / 2, Math.max(w, h) * 0.75)
     grad.addColorStop(0, 'rgba(0,0,0,0)')
     grad.addColorStop(1, `rgba(0,0,0,${Math.min(0.9, vignette)})`)
     ctx.fillStyle = grad

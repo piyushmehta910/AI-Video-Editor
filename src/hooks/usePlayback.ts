@@ -5,13 +5,27 @@ import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
 import { assetTimeAt, topmostVideoClip } from '@/engine/captions/captions'
 import { wrapSourceTime } from '@/engine/media/sourceTime'
-import type { Asset, Clip, Track } from '@/engine/types'
+import type { Asset, Clip, Project, Track } from '@/engine/types'
 import { defaultCameraRig } from '@/engine/types'
 
 interface ElementRef {
   clipId: string | null
   element: HTMLVideoElement | HTMLAudioElement
   assetId: string
+}
+
+/**
+ * Preview-time ducking: a clip with `duckUnderTrackId` plays at reduced volume
+ * while any clip on the trigger track is active (mirrors export mixing).
+ */
+function duckFactor(project: Project, clip: Clip, time: number): number {
+  if (!clip.duckUnderTrackId) return 1
+  const track = project.tracks.find((t) => t.id === clip.duckUnderTrackId)
+  if (!track) return 1
+  const triggered = track.clips.some(
+    (c) => c.id !== clip.id && time >= c.startTime && time < c.startTime + c.duration,
+  )
+  return triggered ? 0.2 : 1
 }
 
 export function usePlayback() {
@@ -295,11 +309,16 @@ React.useEffect(() => {
         if (Math.abs(el.currentTime - srcTime) > (playing ? 0.25 : 0.08)) el.currentTime = srcTime
         const vol =
           active.clip.volume *
+          (active.clip.muted ? 0 : 1) *
           (active.track.muted ? 0 : 1) *
           soloGain(active.track) *
           masterVolume *
-          (muted ? 0 : 1)
+          (muted ? 0 : 1) *
+          duckFactor(storeRef.current.project, active.clip, time)
         el.volume = Math.min(1, Math.max(0, vol))
+        if (active.clip.speed !== 1 && 'preservesPitch' in el) {
+          ;(el as HTMLAudioElement & { preservesPitch: boolean }).preservesPitch = active.clip.preservePitch !== false
+        }
         if (playing && vol > 0 && el.paused) {
           void el.play().catch(() => undefined)
         } else if ((!playing || vol === 0) && !el.paused) {
@@ -330,11 +349,17 @@ React.useEffect(() => {
             }
         const vol =
           active.clip.volume *
+          (active.clip.muted ? 0 : 1) *
           (active.track.muted ? 0 : 1) *
           soloGain(active.track) *
           masterVolume *
-          (muted ? 0 : 1)
+          (muted ? 0 : 1) *
+          duckFactor(storeRef.current.project, active.clip, time)
         el.volume = Math.min(1, Math.max(0, vol))
+        el.muted = vol <= 0
+        if (active.clip.speed !== 1 && 'preservesPitch' in el) {
+          ;(el as HTMLVideoElement & { preservesPitch: boolean }).preservesPitch = active.clip.preservePitch !== false
+        }
         if (freeRun && vol > 0 && el.paused) {
           void el.play().catch(() => undefined)
         } else if ((!freeRun || !playing || vol === 0) && !el.paused) {

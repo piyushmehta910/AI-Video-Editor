@@ -6,6 +6,8 @@ export type MediaFilter = 'all' | 'video' | 'audio' | 'image' | 'generated'
 export type MediaSort = 'dateAdded' | 'name' | 'duration' | 'type'
 export type GeneratedSubTab = 'all' | 'images' | 'voice' | 'avatars' | 'animations'
 export type EditorMode = 'human' | 'hybrid' | 'ai'
+/** Active timeline mouse tool (razor splits where you click, text places clips…). */
+export type EditorTool = 'select' | 'razor' | 'text' | 'rate'
 
 /**
  * UI-only editor state (panel visibility, bin tabs, mode switches).
@@ -27,6 +29,11 @@ export interface EditorUIState {
   mode: EditorMode
   aiDirectorOpen: boolean
   historyPanelOpen: boolean
+  tool: EditorTool
+  /** Keyboard-shortcuts cheat sheet modal visibility. */
+  shortcutsOpen: boolean
+  /** Last unrecognised key combo, shown briefly as a hint overlay. */
+  keysHint: string | null
 
   toggleLeft: () => void
   setLeftOpen: (open: boolean) => void
@@ -43,6 +50,9 @@ export interface EditorUIState {
   toggleAIDirector: () => void
   setAIDirectorOpen: (open: boolean) => void
   toggleHistoryPanel: () => void
+  setTool: (tool: EditorTool) => void
+  setShortcutsOpen: (open: boolean) => void
+  setKeysHint: (hint: string | null) => void
 }
 
 function persisted(key: string, fallback: boolean): boolean {
@@ -75,6 +85,9 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   mode: (localStorage.getItem('clipforge-mode') as EditorMode) || 'hybrid',
   aiDirectorOpen: false,
   historyPanelOpen: false,
+  tool: 'select',
+  shortcutsOpen: false,
+  keysHint: null,
 
   toggleLeft: () =>
     set((s) => {
@@ -113,4 +126,7 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   toggleAIDirector: () => set((s) => ({ aiDirectorOpen: !s.aiDirectorOpen })),
   setAIDirectorOpen: (open) => set({ aiDirectorOpen: open }),
   toggleHistoryPanel: () => set((s) => ({ historyPanelOpen: !s.historyPanelOpen })),
+  setTool: (tool) => set({ tool }),
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
+  setKeysHint: (hint) => set({ keysHint: hint }),
 }))

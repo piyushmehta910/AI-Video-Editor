@@ -1,10 +1,14 @@
-import type { Effect, Transition } from '@/engine/types'
+import type { Effect, Transition, TransitionEasing } from '@/engine/types'
 
 export interface EffectResult {
   /** CSS filter string for standard effects */
   cssFilter: string
   /** Vignette intensity */
   vignette: number
+  /** Vignette inner radius (fraction of min side) */
+  vignetteRadius: number
+  /** Film grain intensity 0..1 */
+  grain: number
   /** Chromatic aberration offset in pixels */
   chromaticAberration: number
   /** Glitch effect parameters */
@@ -22,8 +26,12 @@ export function computeEffects(effects: Effect[]): EffectResult {
   let blur = 0
   let grayscale = 0
   let vignette = 0
+  let vignetteRadius = 0.35
+  let grain = 0
   let chromaticAberration = 0
   let glitch: EffectResult['glitch'] = null
+
+  const parts: string[] = []
 
   for (const effect of effects) {
     if (!effect.enabled) continue
@@ -35,16 +43,43 @@ export function computeEffects(effects: Effect[]): EffectResult {
         contrast = Math.max(0, 1 + effect.value)
         break
       case 'saturation':
-        saturate = Math.max(0, 1 + effect.value)
+        saturate *= Math.max(0, 1 + effect.value)
         break
+      // Vibrance boosts saturation gently (about half strength) so skin tones survive.
+      case 'vibrance':
+        saturate *= Math.max(0, 1 + effect.value * 0.55)
+        break
+      case 'tint':
+      case 'temperature':
+      case 'hue':
       case 'blur':
-        blur = Math.max(0, effect.value)
+      case 'grayscale':
+      case 'vignette':
+      case 'grain':
+      case 'chromatic-aberration':
+      case 'glitch':
+        break
+      default:
+        break
+    }
+  }
+
+  // Second pass for filters that append CSS parts in a stable order.
+  for (const effect of effects) {
+    if (!effect.enabled) continue
+    switch (effect.type) {
+      case 'blur':
+        blur = Math.max(0, Math.max(blur, effect.value))
         break
       case 'grayscale':
         grayscale = Math.max(grayscale, effect.value)
         break
       case 'vignette':
-        vignette = Math.max(vignette, effect.value)
+        if (effect.value > vignette) vignette = effect.value
+        if (effect.radius != null) vignetteRadius = effect.radius
+        break
+      case 'grain':
+        grain = Math.max(grain, effect.value)
         break
       case 'chromatic-aberration':
         chromaticAberration = effect.aberrationOffset ?? 2
@@ -60,13 +95,42 @@ export function computeEffects(effects: Effect[]): EffectResult {
     }
   }
 
-  const parts = [`brightness(${brightness})`, `contrast(${contrast})`, `saturate(${saturate})`]
+  parts.push(`brightness(${brightness})`, `contrast(${contrast})`, `saturate(${saturate})`)
+
+  for (const effect of effects) {
+    if (!effect.enabled) continue
+    switch (effect.type) {
+      case 'hue': {
+        if (effect.value !== 0) parts.push(`hue-rotate(${effect.value}deg)`)
+        break
+      }
+      case 'temperature': {
+        // Warm pushes toward amber via sepia; cool shifts hues toward blue.
+        if (effect.value > 0) {
+          parts.push(`sepia(${(effect.value * 0.55).toFixed(3)})`, `saturate(${(1 + effect.value * 0.25).toFixed(3)})`)
+        } else if (effect.value < 0) {
+          parts.push(`hue-rotate(${(effect.value * 18).toFixed(2)}deg)`, `saturate(${(1 - effect.value * 0.15).toFixed(3)})`)
+        }
+        break
+      }
+      case 'tint': {
+        // Green/magenta axis approximation via hue rotation.
+        if (effect.value !== 0) parts.push(`hue-rotate(${(-effect.value * 30).toFixed(2)}deg)`)
+        break
+      }
+      default:
+        break
+    }
+  }
+
   if (blur > 0) parts.push(`blur(${blur}px)`)
   if (grayscale > 0.5) parts.push('grayscale(1)')
 
   return {
     cssFilter: parts.join(' '),
     vignette,
+    vignetteRadius,
+    grain,
     chromaticAberration,
     glitch,
   }
@@ -83,7 +147,8 @@ export function effectVignette(effects: Effect[]): number {
 
 /**
  * Compute the alpha multiplier for a clip based on its in/out transitions.
- * Returns 1 when fully visible, 0 when fully transparent.
+ * Returns 1 when fully visible, 0 when fully transparent. Each transition's
+ * own easing controls the progression (default ease-in-out).
  */
 export function transitionAlpha(
   clipStart: number,
@@ -97,22 +162,31 @@ export function transitionAlpha(
     const elapsed = currentTime - clipStart
     if (elapsed < transitionIn.duration) {
       const progress = Math.max(0, elapsed / transitionIn.duration)
-      alpha *= smoothstep(progress)
+      alpha *= eased(progress, transitionIn.easing)
     }
   }
   if (transitionOut && transitionOut.duration > 0) {
     const remaining = (clipStart + clipDuration) - currentTime
     if (remaining < transitionOut.duration) {
       const progress = Math.max(0, remaining / transitionOut.duration)
-      alpha *= smoothstep(progress)
+      alpha *= eased(progress, transitionOut.easing)
     }
   }
   return alpha
 }
 
-function smoothstep(t: number): number {
-  const clamped = Math.max(0, Math.min(1, t))
-  return clamped * clamped * (3 - 2 * clamped)
+function eased(t: number, easing?: TransitionEasing): number {
+  const x = Math.max(0, Math.min(1, t))
+  switch (easing) {
+    case 'linear':
+      return x
+    case 'ease-in':
+      return x * x
+    case 'ease-out':
+      return 1 - (1 - x) * (1 - x)
+    default:
+      return x * x * (3 - 2 * x) // ease-in-out (smoothstep)
+  }
 }
 
 /**

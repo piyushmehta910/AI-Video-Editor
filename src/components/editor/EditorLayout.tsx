@@ -5,12 +5,11 @@ import type { PlaybackApi } from '@/hooks/usePlayback'
 import { TopToolbar } from '@/components/editor/TopToolbar'
 import { MediaBin } from '@/components/media/MediaBin'
 import { PreviewCanvas } from '@/components/editor/PreviewCanvas'
-import { Inspector } from '@/components/editor/Inspector'
+import { InspectorPanel } from '@/components/inspector/InspectorPanel'
 import { Timeline } from '@/ui/timeline/Timeline'
 import { RightToolPanel, type ToolSection } from '@/ui/common/RightToolPanel'
 import { HistoryPanel } from '@/components/history/HistoryPanel'
 import { HistoryToast } from '@/components/history/HistoryToast'
-import { AIDirectorPanel } from '@/components/ai/AIDirectorPanel'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_TIMELINE_HEIGHT = 224
@@ -33,7 +32,7 @@ function loadNum(key: string, fallback: number): number {
  * All panels are collapsible; the timeline is drag-resizable. The AI tool
  * panel opens as an overlay drawer so tool workflows stay reachable.
  */
-export function EditorLayout({ playback, initialPrompt }: { playback: PlaybackApi; initialPrompt?: string }) {
+export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const leftOpen = useEditorStore((s) => s.leftOpen)
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
   const setLeftOpen = useEditorStore((s) => s.setLeftOpen)
@@ -82,7 +81,7 @@ export function EditorLayout({ playback, initialPrompt }: { playback: PlaybackAp
           </aside>
         ) : (
           <div className="hidden w-8 shrink-0 flex-col items-center border-r py-2 md:flex">
-            <Button variant="ghost" size="icon" className="size-7" onClick={toggleLeft} title="Show Media Bin">
+            <Button variant="ghost" size="icon" className="size-7" onClick={toggleLeft} aria-label="Show Media Bin" title="Show Media Bin">
               <ChevronRight className="size-4" />
             </Button>
           </div>
@@ -108,18 +107,18 @@ export function EditorLayout({ playback, initialPrompt }: { playback: PlaybackAp
           <aside className="hidden w-70 shrink-0 border-l lg:block" data-testid="inspector-panel">
             <div className="flex h-full flex-col">
               <div className="flex h-9 shrink-0 items-center justify-end border-b px-1.5">
-                <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} title="Hide Inspector">
+                <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Hide Inspector" title="Hide Inspector">
                   <ChevronLeft className="size-4" />
                 </Button>
               </div>
               <div className="min-h-0 flex-1">
-                <Inspector onOpenMedia={openMedia} />
+                <InspectorPanel onOpenMedia={openMedia} />
               </div>
             </div>
           </aside>
         ) : (
           <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 lg:flex">
-            <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} title="Show Inspector">
+            <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Show Inspector" title="Show Inspector">
               <ChevronLeft className="size-4 rotate-180" />
             </Button>
           </div>
@@ -136,7 +135,7 @@ export function EditorLayout({ playback, initialPrompt }: { playback: PlaybackAp
             <aside className="bg-background absolute inset-y-0 right-0 z-40 flex w-80 max-w-[85vw] flex-col border-l shadow-2xl">
               <div className="flex h-9 shrink-0 items-center justify-between border-b px-3">
                 <span className="text-xs font-semibold tracking-wide uppercase">{toolPanelSection}</span>
-                <Button variant="ghost" size="icon" className="size-7" onClick={() => setToolPanelSection(null)} title="Close tools">
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => setToolPanelSection(null)} aria-label="Close tools" title="Close tools">
                   <X className="size-4" />
                 </Button>
               </div>
@@ -146,9 +145,7 @@ export function EditorLayout({ playback, initialPrompt }: { playback: PlaybackAp
             </aside>
           </>
         )}
-        {/* AI Director sidebar — collapsible, timeline stays visible */}
-        <AIDirectorPanel initialPrompt={initialPrompt} />
-      </div>
+        </div>
 
       <HistoryToast />
     </div>

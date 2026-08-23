@@ -101,6 +101,8 @@ export interface TimelineState {
   trimClip: (clipId: string, edge: 'start' | 'end', delta: number) => void
   splitClip: (clipId: string, atTime: number) => void
   joinClips: (clipId1: string, clipId2: string) => void
+  /** Toggle a ruler marker at (or within half a frame of) the given time. */
+  toggleMarker: (time: number) => void
   deleteClips: (clipIds: string[], ripple?: boolean) => void
   duplicateClips: (clipIds: string[]) => void
   copyClips: (clipIds: string[]) => void
@@ -144,6 +146,11 @@ const PATCH_DESCRIPTIONS: Array<[keyof Clip, string, HistoryType]> = [
   ['fadeIn', 'Changed fade-in of', 'edit'],
   ['fadeOut', 'Changed fade-out of', 'edit'],
   ['name', 'Renamed', 'edit'],
+  ['muted', 'Muted', 'edit'],
+  ['crop', 'Cropped', 'edit'],
+  ['blendMode', 'Changed blend mode of', 'edit'],
+  ['eq', 'Adjusted EQ of', 'edit'],
+  ['keyframes', 'Keyframed', 'edit'],
 ]
 
 /** Human-readable log metadata for a clip property patch. */
@@ -781,6 +788,22 @@ export const useTimelineStore = create<TimelineState>()(
           }
           track.clips.splice(idx, 1, left, right)
           return p
+        }
+        return p
+      })
+      commitHistory()
+    },
+
+    toggleMarker: (time) => {
+      const t = Math.max(0, time)
+      beginHistory({ type: 'edit', description: `Marker at ${t.toFixed(1)}s` })
+      mutate((p) => {
+        const frame = 1 / p.fps
+        const existing = (p.markers ?? []).some((m) => Math.abs(m - t) < frame / 2)
+        if (existing) {
+          p.markers = (p.markers ?? []).filter((m) => Math.abs(m - t) >= frame / 2)
+        } else {
+          p.markers = [...(p.markers ?? []), t].sort((a, b) => a - b)
         }
         return p
       })

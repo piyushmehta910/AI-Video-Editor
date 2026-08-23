@@ -80,11 +80,14 @@ export type EffectType =
   | 'brightness'
   | 'contrast'
   | 'saturation'
+  | 'vibrance'
   | 'temperature'
   | 'tint'
+  | 'hue'
   | 'blur'
   | 'grayscale'
   | 'vignette'
+  | 'grain'
   | 'chromatic-aberration'
   | 'glitch'
   | 'morph'
@@ -100,7 +103,88 @@ export interface Effect {
   glitchIntensity?: number
   /** For glitch: scanline count */
   scanlines?: number
+  /** For vignette: inner radius as a fraction of frame min-side (default 0.35) */
+  radius?: number
 }
+
+/** Canvas globalCompositeOperation values exposed in the inspector. */
+export type BlendMode =
+  | 'normal'
+  | 'screen'
+  | 'multiply'
+  | 'overlay'
+  | 'soft-light'
+  | 'hard-light'
+  | 'darken'
+  | 'lighten'
+  | 'color-dodge'
+  | 'color-burn'
+  | 'difference'
+  | 'exclusion'
+  | 'hue'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+
+export const BLEND_MODES: BlendMode[] = [
+  'normal',
+  'screen',
+  'multiply',
+  'overlay',
+  'soft-light',
+  'hard-light',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'color-burn',
+  'difference',
+  'exclusion',
+  'hue',
+  'saturation',
+  'color',
+  'luminosity',
+]
+
+export const BLEND_LABELS: Record<BlendMode, string> = {
+  normal: 'Normal',
+  screen: 'Screen',
+  multiply: 'Multiply',
+  overlay: 'Overlay',
+  'soft-light': 'Soft Light',
+  'hard-light': 'Hard Light',
+  darken: 'Darken',
+  lighten: 'Lighten',
+  'color-dodge': 'Color Dodge',
+  'color-burn': 'Color Burn',
+  difference: 'Difference',
+  exclusion: 'Exclusion',
+  hue: 'Hue',
+  saturation: 'Saturation',
+  color: 'Color',
+  luminosity: 'Luminosity',
+}
+
+/** Manual crop edges as percentages (0–45) trimmed from each source side. */
+export interface CropEdges {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+/** A single property keyframe captured at a timeline time. Interpolation is a future concern. */
+export interface ClipKeyframe {
+  id: string
+  /** Property path, e.g. 'position', 'scale', 'rotation', 'opacity' */
+  prop: string
+  /** Timeline time in seconds */
+  time: number
+  value: number
+}
+
+export type TransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+
+export const TRANSITION_EASINGS: TransitionEasing[] = ['linear', 'ease-in', 'ease-out', 'ease-in-out']
 
 export type TransitionType =
   | 'cut'
@@ -115,6 +199,8 @@ export type TransitionType =
 export interface Transition {
   type: TransitionType
   duration: number
+  /** Progression curve applied to the transition alpha (default ease-in-out). */
+  easing?: TransitionEasing
 }
 
 export type TextAnimation =
@@ -148,6 +234,13 @@ export interface TextOverlay {
   /** Entrance animation applied over `animationDuration` seconds at clip start. */
   animation: TextAnimation
   animationDuration: number
+  /** Optional outline drawn behind the glyphs. */
+  stroke?: { width: number; color: string }
+  /** Shadow customization (defaults: rgba(0,0,0,0.7), blur 6, offset 2/2). */
+  shadowColor?: string
+  shadowBlur?: number
+  shadowOffsetX?: number
+  shadowOffsetY?: number
 }
 
 export const TEXT_ANIMATIONS: TextAnimation[] = [
@@ -189,6 +282,26 @@ export interface Clip {
   effects: Effect[]
   transitions: { in?: Transition; out?: Transition }
   thumbnailUrl?: string
+  /** Transform anchor point, 0..1 within the drawn layer (default center). */
+  anchor?: Vec2
+  /** Canvas blend mode against layers beneath (default 'normal'). */
+  blendMode?: BlendMode
+  /** Manual crop percentages trimmed from each source side (0–45). */
+  crop?: CropEdges
+  /** Decorative border drawn around the layer. */
+  border?: { width: number; color: string; radius: number }
+  /** Drop shadow cast by the media layer onto layers beneath. */
+  dropShadow?: { offsetX: number; offsetY: number; blur: number; color: string }
+  /** Silence this clip's audio contribution. */
+  muted?: boolean
+  /** Three-band EQ gains in dB (-12..12); applied in the export mix. */
+  eq?: { low: number; mid: number; high: number }
+  /** Duck this clip while clips on the given audio track are sounding. */
+  duckUnderTrackId?: string
+  /** Keep pitch when playing at non-1x speed (default true). */
+  preservePitch?: boolean
+  /** Property keyframes captured from the inspector (display/toggle only for now). */
+  keyframes?: ClipKeyframe[]
   /** Text overlay (for text clips or caption overlays) */
   text?: TextOverlay
   /** Camera animation rig for 3D model clips. */
@@ -268,6 +381,8 @@ export interface Project {
   fps: number
   aspectRatio: string
   tracks: Track[]
+  /** Timeline ruler markers in seconds (sorted). Part of document history. */
+  markers?: number[]
   /** Auto-caption layer settings (transcript-driven, project-wide). */
   captions?: CaptionsConfig
   /** Track-system schema version. 2 = four-track system (video/audio/text/fx). */

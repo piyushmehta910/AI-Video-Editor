@@ -2,18 +2,21 @@ import * as React from 'react'
 import { Clapperboard, SlidersHorizontal, Waves, X } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { usePlayback } from '@/hooks/usePlayback'
-import { useEditorShortcuts } from '@/hooks/useEditorShortcuts'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useEditorStore } from '@/stores/editorStore'
 import { ProjectHeader } from '@/ui/common/ProjectHeader'
 import { CapabilityBanner } from '@/ui/common/CapabilityBanner'
 import { useCapabilities } from '@/hooks/useCapabilities'
 import { MediaBrowser } from '@/ui/media/MediaBrowser'
 import { Preview } from '@/ui/preview/Preview'
 import { Timeline } from '@/ui/timeline/Timeline'
-import { Inspector } from '@/ui/inspector/Inspector'
+import { InspectorPanel } from '@/components/inspector/InspectorPanel'
 import { AIDirector } from '@/ui/ai/AIDirector'
 import { Button } from '@/components/ui/button'
 import { EditorLayout } from '@/components/editor/EditorLayout'
+import { ShortcutsModal } from '@/components/shortcuts/ShortcutsModal'
+import { ShortcutKeystrokeOverlay } from '@/components/shortcuts/ShortcutHelp'
 import { OnboardingTour, TOUR_DISMISSED_KEY } from '@/components/onboarding/OnboardingTour'
 
 const PIPELINE_PROMPTS: Record<string, string> = {
@@ -28,9 +31,11 @@ export function EditorPage() {
   const hydrated = useTimelineStore((s) => s.hydrated)
   const welcomeLoaded = useTimelineStore((s) => s.welcomeLoaded)
   const playback = usePlayback()
-  useEditorShortcuts(playback)
+  useKeyboardShortcuts(playback)
   const { caps } = useCapabilities()
   const isMobile = useIsMobile()
+  const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
+  const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
 
   const [tourOpen, setTourOpen] = React.useState(false)
 
@@ -66,6 +71,9 @@ export function EditorPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* Global shortcut UI (both layouts) */}
+      <ShortcutsModal />
+      <ShortcutKeystrokeOverlay />
       {isMobile ? (
         <>
           {/* Mobile keeps the compact single-column workspace */}
@@ -144,7 +152,7 @@ export function EditorPage() {
                   </button>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col">
-                  {mobilePanel === 'media' ? <MediaBrowser /> : <Inspector />}
+                  {mobilePanel === 'media' ? <MediaBrowser /> : <InspectorPanel />}
                 </div>
               </div>
             </div>
@@ -153,7 +161,7 @@ export function EditorPage() {
       ) : (
         <>
           {caps && <CapabilityBanner caps={caps} />}
-          <EditorLayout playback={playback} initialPrompt={initialPrompt} />
+          <EditorLayout playback={playback} />
         </>
       )}
 
@@ -163,8 +171,12 @@ export function EditorPage() {
         </div>
       )}
       {tourOpen && <OnboardingTour onFinish={() => setTourOpen(false)} />}
-      {/* Mobile keeps the legacy floating AI card; desktop uses the sidebar panel in EditorLayout */}
-      {isMobile && <AIDirector initialPrompt={initialPrompt} />}
+      {/* AI Director — floating on both desktop and mobile */}
+      <AIDirector
+        initialPrompt={initialPrompt}
+        open={isMobile ? undefined : aiDirectorOpen}
+        onOpenChange={isMobile ? undefined : setAIDirectorOpen}
+      />
     </div>
   )
 }

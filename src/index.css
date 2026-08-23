@@ -75,10 +75,12 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
-  button:focus-visible {
-    @apply outline-2 outline-offset-2;
+  /* Visible keyboard focus everywhere (WCAG 2.4.7); blue works on both themes. */
+  :focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
   }
   html {
     -webkit-text-size-adjust: 100%;
