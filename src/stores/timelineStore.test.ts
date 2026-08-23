@@ -267,4 +267,31 @@ describe('human-readable log', () => {
     expect(useTimelineStore.getState().selection.clipIds).toEqual(['a'])
     expect(useTimelineStore.getState().playhead).toBe(1)
   })
+
+  it('strictly clamps playhead to project duration and prevents going to infinity', () => {
+    const s = useTimelineStore.getState()
+    const trackId = s.project.tracks[0].id
+    // Empty timeline
+    s.setPlayhead(50)
+    expect(useTimelineStore.getState().playhead).toBe(0)
+
+    // Add clip with duration 4s
+    const clip = makeClip('c1', trackId, 0)
+    clip.duration = 4
+    clip.sourceEnd = 4
+    s.addClipToTrack(clip)
+    expect(s.duration()).toBe(4)
+
+    // Attempt to set beyond video duration
+    s.setPlayhead(9999)
+    expect(useTimelineStore.getState().playhead).toBe(4)
+
+    // Attempt to set negative time
+    s.setPlayhead(-10)
+    expect(useTimelineStore.getState().playhead).toBe(0)
+
+    // Valid intermediate position
+    s.setPlayhead(2.5)
+    expect(useTimelineStore.getState().playhead).toBe(2.5)
+  })
 })

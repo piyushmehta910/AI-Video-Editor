@@ -1021,7 +1021,9 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     setPlayhead: (time) => {
-      set({ playhead: Math.max(0, Math.min(time, projectDuration(get().project.tracks))) })
+      const dur = projectDuration(get().project.tracks)
+      const clamped = dur > 0 ? Math.max(0, Math.min(time, dur)) : 0
+      set({ playhead: Number.isFinite(clamped) ? clamped : 0 })
     },
 
     setZoom: (zoom) => {

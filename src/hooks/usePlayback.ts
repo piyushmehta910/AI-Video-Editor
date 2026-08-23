@@ -379,14 +379,27 @@ React.useEffect(() => {
       const state = storeRef.current
       let time = state.playhead
       if (isPlaying) {
-         const elapsed = (performance.now() - clock.current.startAt) / 1000 * speedRef.current;
-         time = clock.current.base + elapsed;
-         const duration = state.duration();
-         if (time >= duration) {
-           time = 0;
-           clock.current = { base: 0, startAt: performance.now() };
-         }
-         storeRef.current.setPlayhead(time);
+        const duration = state.duration()
+        if (duration <= 0) {
+          setIsPlaying(false)
+          storeRef.current.setPlayhead(0)
+          time = 0
+        } else {
+          const elapsed = ((performance.now() - clock.current.startAt) / 1000) * speedRef.current
+          time = clock.current.base + elapsed
+          if (time >= duration) {
+            // Reached the end of the video! Clamp at exact duration and pause cleanly
+            time = duration
+            setIsPlaying(false)
+            storeRef.current.setPlayhead(duration)
+          } else if (time < 0) {
+            time = 0
+            setIsPlaying(false)
+            storeRef.current.setPlayhead(0)
+          } else {
+            storeRef.current.setPlayhead(time)
+          }
+        }
       }
       if (Math.abs(time - last) > 0.001 || repaintToken.current > 0) {
         repaintToken.current = 0
@@ -400,7 +413,15 @@ React.useEffect(() => {
   }, [isPlaying, paint, syncAudio])
 
   const startPlayback = React.useCallback(() => {
-    clock.current = { base: storeRef.current.playhead, startAt: performance.now() }
+    const dur = storeRef.current.duration()
+    if (dur <= 0) return
+    let currentPlayhead = storeRef.current.playhead
+    // If at or very close to the end, restart from beginning
+    if (currentPlayhead >= dur - 0.05) {
+      currentPlayhead = 0
+      storeRef.current.setPlayhead(0)
+    }
+    clock.current = { base: currentPlayhead, startAt: performance.now() }
     setIsPlaying(true)
   }, [])
 
@@ -409,10 +430,12 @@ React.useEffect(() => {
   }, [])
 
   const setSpeed = (newSpeed: number) => {
-    const clamped = Math.max(-8, Math.min(8, newSpeed));
-    setSpeedState(clamped);
-    speedRef.current = clamped;
-  };
+    const clamped = Math.max(-8, Math.min(8, newSpeed))
+    setSpeedState(clamped)
+    speedRef.current = clamped
+    // Rebase clock when speed changes to prevent jumping
+    clock.current = { base: storeRef.current.playhead, startAt: performance.now() }
+  }
 
   const toggle = React.useCallback(() => {
     if (isPlaying) stopPlayback()
@@ -421,8 +444,10 @@ React.useEffect(() => {
 
   const seek = React.useCallback(
     (time: number) => {
-      const clamped = Math.max(0, time)
+      const dur = storeRef.current.duration()
+      const clamped = dur > 0 ? Math.max(0, Math.min(time, dur)) : 0
       storeRef.current.setPlayhead(clamped)
+      clock.current = { base: clamped, startAt: performance.now() }
       void paint(clamped)
       syncAudio(clamped, false)
     },

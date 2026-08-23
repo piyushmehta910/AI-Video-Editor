@@ -162,6 +162,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const playheadRef = React.useRef<HTMLDivElement>(null)
   const audioBarRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
+  const [isScrubbingRuler, setIsScrubbingRuler] = React.useState(false)
 
   const assetById = React.useCallback(
     (id: string) => assets.find((a) => a.id === id),
@@ -641,14 +642,19 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             // Text tool places a text clip wherever the timeline is clicked.
             if (useEditorStore.getState().tool === 'text') {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              addTextAtTime(Math.max(0, (e.clientX - rect.left - HEADER_WIDTH) / zoom))
+              const maxTime = duration > 0 ? duration : 0
+              const rawTime = (e.clientX - rect.left - HEADER_WIDTH) / zoom
+              addTextAtTime(Math.max(0, Math.min(rawTime, maxTime)))
               return
             }
 
             if (el.closest('[data-clip-id]')) return
             if (el.closest('[data-header-gutter]')) return
+            if (el.closest('[data-ruler-area]')) return
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            const time = Math.max(0, (e.clientX - rect.left - HEADER_WIDTH) / zoom)
+            const maxTime = duration > 0 ? duration : 0
+            const rawTime = (e.clientX - rect.left - HEADER_WIDTH) / zoom
+            const time = Math.max(0, Math.min(rawTime, maxTime))
             useTimelineStore.getState().setPlayhead(time)
             useTimelineStore.getState().select([], null)
           }}
@@ -659,7 +665,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           >
             {/* Ruler (sticky top) */}
             <div
-              className="sticky top-0 z-20 flex border-b border-border/60 bg-card"
+              className="sticky top-0 z-20 flex border-b border-border/60 bg-card select-none"
               style={{ height: RULER_HEIGHT }}
             >
               <div
@@ -668,9 +674,38 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               >
                 Track
               </div>
-              <div className="relative h-full flex-1 bg-muted/20">
+              <div
+                data-ruler-area
+                className="relative h-full flex-1 bg-muted/20 cursor-ew-resize"
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+                  setIsScrubbingRuler(true)
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  const dur = projectDuration(useTimelineStore.getState().project.tracks)
+                  const raw = (e.clientX - rect.left) / zoom
+                  const time = dur > 0 ? Math.max(0, Math.min(raw, dur)) : 0
+                  useTimelineStore.getState().setPlayhead(time)
+                }}
+                onPointerMove={(e) => {
+                  if (!isScrubbingRuler) return
+                  e.stopPropagation()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  const dur = projectDuration(useTimelineStore.getState().project.tracks)
+                  const raw = (e.clientX - rect.left) / zoom
+                  const time = dur > 0 ? Math.max(0, Math.min(raw, dur)) : 0
+                  useTimelineStore.getState().setPlayhead(time)
+                }}
+                onPointerUp={(e) => {
+                  if (isScrubbingRuler) {
+                    e.stopPropagation()
+                    setIsScrubbingRuler(false)
+                  }
+                }}
+                onPointerCancel={() => setIsScrubbingRuler(false)}
+              >
                 {ticks.map((t, i) => (
-                  <div key={i} className="absolute top-0 h-full" style={{ left: t * zoom }}>
+                  <div key={i} className="absolute top-0 h-full pointer-events-none" style={{ left: t * zoom }}>
                     <div className={cn('bg-border w-px', i % labelEvery === 0 ? 'h-3' : 'h-1.5')} />
                     {i % labelEvery === 0 && (
                       <span className="text-muted-foreground absolute top-2 left-1 font-mono text-[9px]">
@@ -682,7 +717,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                 {(project.markers ?? []).map((m) => (
                   <div
                     key={`marker-${m}`}
-                    className="absolute top-0 z-10 -left-[3px] flex flex-col items-center"
+                    className="absolute top-0 z-10 -left-[3px] flex flex-col items-center pointer-events-none"
                     style={{ left: m * zoom }}
                     title={`Marker ${m.toFixed(2)}s`}
                   >
