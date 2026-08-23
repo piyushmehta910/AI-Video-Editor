@@ -103,13 +103,13 @@ export function Clip({
           onKeyDown={(e) => onKeyDown(e, clip, track)}
         >
           <ClipBody clip={clip} track={track} asset={asset} />
-          {/* Trim handles — always visible but highlighted in trim mode */}
+          {/* Trim handles — always visible, wider in trim mode */}
           <div
             className={cn(
               'absolute top-0 bottom-0 left-0 cursor-ew-resize flex items-center justify-center',
               trimMode && selected
-                ? 'w-3 bg-white/60 border-r border-white/80'
-                : 'w-1.5 hover:w-2 hover:bg-white/40 transition-all'
+                ? 'w-4 bg-white/60 border-r border-white/80'
+                : 'w-2 hover:w-3 hover:bg-white/50 transition-all'
             )}
             onPointerDown={(e) => {
               e.stopPropagation()
@@ -123,8 +123,8 @@ export function Clip({
             className={cn(
               'absolute top-0 right-0 bottom-0 cursor-ew-resize flex items-center justify-center',
               trimMode && selected
-                ? 'w-3 bg-white/60 border-l border-white/80'
-                : 'w-1.5 hover:w-2 hover:bg-white/40 transition-all'
+                ? 'w-4 bg-white/60 border-l border-white/80'
+                : 'w-2 hover:w-3 hover:bg-white/50 transition-all'
             )}
             onPointerDown={(e) => {
               e.stopPropagation()

@@ -181,7 +181,7 @@ function applyDuckAutomation(
       param.setTargetAtTime(1, seg.end, ramp / 3)
     }
   }
-  if (segments.length === 0 || segments[segments.length - 1].end >= to) {
+  if (segments.length > 0 && segments[segments.length - 1].end >= to) {
     param.setValueAtTime(level, to)
   }
 }

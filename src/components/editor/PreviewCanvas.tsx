@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Film, Maximize, Pause, Play } from 'lucide-react'
+import { Film, Maximize, Pause, Play, Scan } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { formatSeconds } from '@/engine/types'
@@ -24,6 +24,7 @@ export function PreviewCanvas({
   const containerRef = React.useRef<HTMLDivElement>(null)
   const areaRef = React.useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = React.useState(false)
+  const [showSafeZones, setShowSafeZones] = React.useState(false)
   const [canvasCssSize, setCanvasCssSize] = React.useState<{ w: number; h: number } | null>(null)
 
   React.useEffect(() => {
@@ -83,12 +84,48 @@ export function PreviewCanvas({
         {canvasCssSize && (
           <div
             className={cn(
-              'relative rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60',
+              'relative rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60 overflow-hidden',
               fullscreen && 'rounded-none border-transparent shadow-none',
             )}
             style={{ width: canvasCssSize.w, height: canvasCssSize.h }}
           >
             <canvas ref={playback.canvasRef} className="block size-full" />
+
+            {/* Safe Zone Guides Overlay */}
+            {showSafeZones && (
+              <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+                {project.aspectRatio === '9:16' || project.width < project.height ? (
+                  <>
+                    <div className="absolute top-0 inset-x-0 h-[12%] border-b border-dashed border-cyan-400/50 bg-cyan-500/5">
+                      <span className="absolute bottom-1 left-2 font-mono text-[9px] text-cyan-300/80">Top Safe Area</span>
+                    </div>
+                    <div className="absolute bottom-0 inset-x-0 h-[22%] border-t border-dashed border-cyan-400/50 bg-cyan-500/5">
+                      <span className="absolute top-1 left-2 font-mono text-[9px] text-cyan-300/80">Captions / Sound Area</span>
+                    </div>
+                    <div className="absolute top-[12%] bottom-[22%] right-0 w-[18%] border-l border-dashed border-amber-400/50 bg-amber-500/5">
+                      <span className="absolute top-1 left-1 font-mono text-[8px] text-amber-300/80">Actions Area</span>
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="size-8 border-t border-b border-white/20" />
+                      <div className="size-8 border-l border-r border-white/20 -ml-8" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute inset-[5%] border border-dashed border-cyan-400/40">
+                      <span className="absolute top-0.5 left-1 font-mono text-[9px] text-cyan-300/70">Action Safe (90%)</span>
+                    </div>
+                    <div className="absolute inset-[10%] border border-dashed border-amber-400/40">
+                      <span className="absolute top-0.5 left-1 font-mono text-[9px] text-amber-300/70">Title Safe (80%)</span>
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="size-10 border-t border-b border-white/20" />
+                      <div className="size-10 border-l border-r border-white/20 -ml-10" />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -133,20 +170,40 @@ export function PreviewCanvas({
       <div className="pointer-events-none absolute right-3 bottom-2 font-mono text-[11px] text-white/60">
         {project.width}×{project.height}
       </div>
-      {!fullscreen && (
+
+      {/* Top right toolbar */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
-          aria-label="Fullscreen"
-          title="Fullscreen (double-click)"
-          className="absolute top-2 right-2 z-10 flex size-7 items-center justify-center rounded-md bg-black/50 text-white/70 backdrop-blur hover:text-white"
+          aria-label="Toggle safe zones"
+          title={showSafeZones ? 'Hide Safe Zones' : 'Show Safe Zones (9:16 / 16:9)'}
+          className={cn(
+            'flex size-7 items-center justify-center rounded-md backdrop-blur transition',
+            showSafeZones ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/40' : 'bg-black/50 text-white/70 hover:text-white',
+          )}
           onClick={(e) => {
             e.stopPropagation()
-            toggleFullscreen()
+            setShowSafeZones((s) => !s)
           }}
         >
-          <Maximize className="size-3.5" />
+          <Scan className="size-3.5" />
         </button>
-      )}
+        {!fullscreen && (
+          <button
+            type="button"
+            aria-label="Fullscreen"
+            title="Fullscreen (double-click)"
+            className="flex size-7 items-center justify-center rounded-md bg-black/50 text-white/70 backdrop-blur hover:text-white"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleFullscreen()
+            }}
+          >
+            <Maximize className="size-3.5" />
+          </button>
+        )}
+      </div>
+
       {!empty && playback.isPlaying && (
         <button
           type="button"

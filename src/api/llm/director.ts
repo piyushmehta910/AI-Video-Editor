@@ -26,17 +26,20 @@ export function getDirectorProvider(): DirectorProvider | null {
   const { config } = useApiConfigStore.getState()
   const preferred = config.preferences.preferredAiProvider
   const candidates: Array<{ name: string; cfg: LLMConfig }> = [
-    { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
-    { name: 'OpenCode Zen', cfg: config.opencodeZen },
     { name: 'OpenRouter', cfg: config.openRouter },
+    { name: 'OpenCode Zen', cfg: config.opencodeZen },
+    { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
   ]
   const tryCandidate = (name: string, cfg: LLMConfig): DirectorProvider | null =>
     cfg.enabled && cfg.apiKey && cfg.baseUrl && cfg.model ? { name, config: cfg } : null
   if (preferred) {
     const prefs: Record<string, { name: string; cfg: LLMConfig }> = {
-      'nvidia-nim': { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
+      openRouter: { name: 'OpenRouter', cfg: config.openRouter },
+      openrouter: { name: 'OpenRouter', cfg: config.openRouter },
+      opencodeZen: { name: 'OpenCode Zen', cfg: config.opencodeZen },
       'opencode-zen': { name: 'OpenCode Zen', cfg: config.opencodeZen },
-      'openrouter': { name: 'OpenRouter', cfg: config.openRouter },
+      nvidiaNim: { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
+      'nvidia-nim': { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
     }
     const chosen = prefs[preferred]
     if (chosen) {
