@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { AudioLines, Box, Captions, ChevronRight, Clapperboard, Layers, Loader2, Music, Scissors, Sparkles, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import type { CameraMode, Clip, EffectType, TextAnimation, Transition } from '@/engine/types'
+import type { CameraMode, Clip, EffectType, TextAnimation, TrackType, Transition } from '@/engine/types'
 import { CAMERA_MODES, clampRig, createEffect, formatSeconds, TEXT_ANIMATIONS } from '@/engine/types'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 import { CaptionsPanel } from './CaptionsPanel'
@@ -13,11 +13,12 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
-const TYPE_META = {
+const TYPE_META: Record<TrackType, { label: string; icon: typeof Clapperboard; className: string }> = {
   video: { label: 'Video', icon: Clapperboard, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400' },
   audio: { label: 'Audio', icon: Music, className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
   text: { label: 'Text', icon: Type, className: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' },
-} as const
+  fx: { label: 'FX', icon: Sparkles, className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400' },
+}
 
 const EFFECT_DEFS: Array<{
   type: EffectType
@@ -453,7 +454,7 @@ function ClipSummary({
   trackType,
 }: {
   clip: Clip
-  trackType: 'video' | 'audio' | 'text'
+  trackType: TrackType
 }) {
   const meta = TYPE_META[trackType]
   const Icon = meta.icon

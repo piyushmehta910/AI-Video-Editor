@@ -1,4 +1,22 @@
-export type TrackType = 'video' | 'audio' | 'text'
+/**
+ * Exactly four track types:
+ *  - video: video files, images, avatar clips, generated animations (layered V1 < V2 < …)
+ *  - audio: audio files, voiceover, music, SFX
+ *  - text: captions, titles, lower thirds, stickers, callouts
+ *  - fx: transitions, color filters, overlays, motion graphics
+ */
+export type TrackType = 'video' | 'audio' | 'text' | 'fx'
+
+/** Content subtype for clips on VIDEO tracks. */
+export type VideoClipType = 'video' | 'image' | 'avatar' | 'animation'
+/** Content subtype for clips on AUDIO tracks. */
+export type AudioClipType = 'audio' | 'music' | 'voice' | 'sfx'
+/** Content subtype for clips on TEXT tracks. */
+export type TextClipType = 'caption' | 'title' | 'lowerThird' | 'sticker' | 'callout'
+/** Content subtype for clips on FX tracks. */
+export type FxClipType = 'transition' | 'filter' | 'overlay' | 'motion'
+/** Any clip content subtype (video + audio variants share `clipType`). */
+export type MediaClipType = VideoClipType | AudioClipType
 export type AssetType = 'video' | 'image' | 'audio' | 'model'
 
 export type CameraMode = 'turntable' | 'orbit' | 'dolly' | 'static'
@@ -177,6 +195,14 @@ export interface Clip {
   modelRig?: CameraRig
   /** Role of avatar clip for automated placement and styling. */
   avatarRole?: 'intro' | 'outro' | 'presenter' | 'narrator'
+  /** Content subtype on video/audio tracks (video, image, avatar, animation / audio, music, voice, sfx). */
+  clipType?: MediaClipType
+  /** Content subtype on text tracks. */
+  textType?: TextClipType
+  /** Content subtype on fx tracks. */
+  fxType?: FxClipType
+  /** Avatar clips: auto-lipsync against the attached audio clip when set. */
+  autoLipsync?: boolean
   /** Smart reframing configuration for aspect-ratio changes. */
   reframing?: {
     enabled: boolean
@@ -244,6 +270,8 @@ export interface Project {
   tracks: Track[]
   /** Auto-caption layer settings (transcript-driven, project-wide). */
   captions?: CaptionsConfig
+  /** Track-system schema version. 2 = four-track system (video/audio/text/fx). */
+  schemaVersion?: number
   createdAt: number
   modifiedAt: number
 }
@@ -329,11 +357,24 @@ export interface ExportSettings {
   quality: 'low' | 'medium' | 'high'
 }
 
-export const TRACK_TYPES: TrackType[] = ['video', 'video', 'video', 'video', 'audio', 'audio', 'audio', 'audio', 'text', 'text']
+/** Per-type accent colors used across the timeline UI. */
+export const TRACK_COLORS: Record<TrackType, string> = {
+  video: '#3b82f6',
+  audio: '#22c55e',
+  text: '#eab308',
+  fx: '#a855f7',
+}
 
-export function defaultTrackName(type: TrackType, index: number): string {
-  const prefix = type === 'video' ? 'V' : type === 'audio' ? 'A' : 'T'
-  return `${prefix}${index + 1}`
+/** Short header label: V1, A2, T1, FX1… `ordinal` is 1-based within the track type. */
+export function trackShortLabel(type: TrackType, ordinal: number): string {
+  const prefix = type === 'video' ? 'V' : type === 'audio' ? 'A' : type === 'text' ? 'T' : 'FX'
+  return `${prefix}${ordinal}`
+}
+
+export const TRACK_TYPES: TrackType[] = ['video', 'video', 'video', 'audio', 'audio', 'audio', 'text', 'fx']
+
+export function defaultTrackName(type: TrackType, ordinal: number): string {
+  return trackShortLabel(type, ordinal + 1)
 }
 
 export function aspectToSize(aspect: string, base: number): { width: number; height: number } {
@@ -375,16 +416,14 @@ export function createEffect(type: EffectType, value: number): Effect {
 
 export function newProject(name = 'Untitled Project'): Project {
   const tracks: Track[] = []
-  const types: TrackType[] = [
-    'video', 'video', 'video', 'video',
-    'audio', 'audio', 'audio', 'audio',
-    'text', 'text',
-  ]
+  const types: TrackType[] = ['video', 'video', 'video', 'audio', 'audio', 'audio', 'text', 'fx']
+  const perType: Record<TrackType, number> = { video: 0, audio: 0, text: 0, fx: 0 }
   types.forEach((type, index) => {
+    const ordinal = ++perType[type]
     tracks.push({
       id: crypto.randomUUID(),
       type,
-      name: defaultTrackName(type, index),
+      name: defaultTrackName(type, ordinal - 1),
       index,
       locked: false,
       muted: false,
@@ -402,9 +441,56 @@ export function newProject(name = 'Untitled Project'): Project {
     aspectRatio: '16:9',
     tracks,
     captions: defaultCaptionsConfig(),
+    schemaVersion: 2,
     createdAt: now,
     modifiedAt: now,
   }
+}
+
+/** FX track appended by migration when a legacy project has none. */
+function newFxTrack(index: number): Track {
+  return {
+    id: crypto.randomUUID(),
+    type: 'fx',
+    name: trackShortLabel('fx', 1),
+    index,
+    locked: false,
+    muted: false,
+    hidden: false,
+    soloed: false,
+    clips: [],
+  }
+}
+
+/**
+ * Convert any pre-4-track project data to the current system on load.
+ * Old schema only ever stored video/audio/text tracks; unknown or legacy
+ * type strings are bucketed into their nearest valid type, and an FX track
+ * is appended so fx workflows are reachable. Idempotent via schemaVersion.
+ */
+export function migrateProjectTracks(project: Project): Project {
+  if (project.schemaVersion === 2) return project
+  const valid: TrackType[] = ['video', 'audio', 'text', 'fx']
+  let tracks: Track[] = project.tracks.map((track) => {
+    if (valid.includes(track.type)) return { ...track, soloed: track.soloed ?? false }
+    const name = track.name.toLowerCase()
+    const guessed: TrackType = name.startsWith('a') || name.includes('audio')
+      ? 'audio'
+      : name.startsWith('t') || name.includes('text')
+        ? 'text'
+        : name.startsWith('fx') || name.includes('effect')
+          ? 'fx'
+          : 'video'
+    return { ...track, type: guessed, soloed: false }
+  })
+  // Re-derive within-type names so headers read V1…/A1…/T1…/FX1…
+  const seen: Record<TrackType, number> = { video: 0, audio: 0, text: 0, fx: 0 }
+  tracks = tracks.map((track, index) => {
+    const ordinal = ++seen[track.type]
+    return { ...track, index, name: track.name || defaultTrackName(track.type, ordinal - 1) }
+  })
+  if (!tracks.some((t) => t.type === 'fx')) tracks.push(newFxTrack(tracks.length))
+  return { ...project, tracks, schemaVersion: 2 }
 }
 
 export function formatTimecode(seconds: number, fps: number): string {

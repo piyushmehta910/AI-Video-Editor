@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { Asset, CaptionsConfig, Clip, Project, Track, TrackType } from '@/engine/types'
-import { newProject, projectDuration, defaultCameraRig } from '@/engine/types'
+import type { Asset, CaptionsConfig, Clip, MediaClipType, Project, Track, TrackType } from '@/engine/types'
+import { newProject, projectDuration, defaultCameraRig, migrateProjectTracks } from '@/engine/types'
 import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
@@ -80,6 +80,7 @@ export interface TimelineState {
   toggleTrackHidden: (trackId: string) => void
   /** Audio-only: solo this track, silencing other (non-soloed) audio tracks. */
   toggleTrackSolo: (trackId: string) => void
+  renameTrack: (trackId: string, name: string) => void
   setTrackClips: (trackId: string, clips: Clip[]) => void
 
   select: (clipIds: string[], trackId?: string | null) => void
@@ -157,7 +158,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
         )
         set({
           assets: sorted,
-          project: project ?? newProject(),
+          project: project ? migrateProjectTracks(project) : newProject(),
           transcripts,
           scenes,
           ocr,
@@ -372,6 +373,11 @@ begin: () => {
 
       const duration = asset.type === 'image' || asset.type === 'model' ? 4 : Math.min(asset.duration || 5, 30)
       const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
+      const clipType: MediaClipType =
+        asset.type === 'video' ? 'video'
+        : asset.type === 'image' ? 'image'
+        : asset.type === 'model' ? 'animation'
+        : 'audio'
       const clip: Clip = {
         id: crypto.randomUUID(),
         assetId: asset.id,
@@ -379,6 +385,7 @@ begin: () => {
         startTime: start,
         duration,
         sourceStart: 0,
+        clipType,
         sourceEnd: asset.type === 'image' || asset.type === 'model' ? duration : Math.min(asset.duration ?? duration, duration),
         speed: 1,
         name: asset.name,
@@ -417,6 +424,7 @@ begin: () => {
         startTime: start,
         duration: 4,
         sourceStart: 0,
+        textType: 'title',
         sourceEnd: 4,
         speed: 1,
         name: text.slice(0, 30) || 'Text',
@@ -726,6 +734,15 @@ begin: () => {
         tracks: p.tracks.map((t) =>
           t.type === 'audio' && t.id === trackId ? { ...t, soloed: !t.soloed } : t,
         ),
+      }))
+    },
+
+    renameTrack: (trackId, name) => {
+      const clean = name.trim()
+      if (!clean) return
+      mutate((p) => ({
+        ...p,
+        tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, name: clean } : t)),
       }))
     },
 

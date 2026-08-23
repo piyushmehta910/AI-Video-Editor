@@ -10,15 +10,10 @@ import {
   Code,
   Crop,
   CopyPlus,
-  Eye,
-  EyeOff,
-  Headphones,
   Image,
   BarChart3,
   Layers,
   Loader2,
-  Lock,
-  LockOpen,
   Magnet,
   Maximize,
   Mic,
@@ -40,8 +35,10 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import type { Asset, Clip, Track } from '@/engine/types'
-import { projectDuration } from '@/engine/types'
+import type { Clip, Track } from '@/engine/types'
+import { projectDuration, trackShortLabel } from '@/engine/types'
+import { Track as TrackLane } from '@/components/timeline/Track'
+import type { DragMode } from '@/components/timeline/Clip'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -49,7 +46,6 @@ import { cn } from '@/lib/utils'
 import { useDenoiseAction } from '@/hooks/useDenoiseAction'
 
 const HEADER_WIDTH = 78
-const MIN_CLIP_PX = 6
 const RULER_HEIGHT = 24
 const SECTION_HEIGHT = 24
 const AUDIO_BAR_H = 34
@@ -57,8 +53,6 @@ const AUDIO_BAR_H = 34
 function trackHeight(): number {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 48 : 44
 }
-
-type DragMode = 'move' | 'trim-start' | 'trim-end'
 
 interface DragState {
   clipIds: string[]
@@ -111,18 +105,23 @@ function computeTicks(duration: number, zoom: number): { step: number; labelEver
 const TYPE_META: Record<Track['type'], { label: string; badge: string; gradient: string }> = {
   video: {
     label: 'Video',
-    badge: 'bg-sky-500/20 text-sky-500',
-    gradient: 'from-sky-500/25 to-sky-500/5',
+    badge: 'bg-blue-500/20 text-blue-500',
+    gradient: 'from-blue-500/25 to-blue-500/5',
   },
   audio: {
     label: 'Audio',
-    badge: 'bg-emerald-500/20 text-emerald-500',
-    gradient: 'from-emerald-500/25 to-emerald-500/5',
+    badge: 'bg-green-500/20 text-green-500',
+    gradient: 'from-green-500/25 to-green-500/5',
   },
   text: {
-    label: 'Overlays',
-    badge: 'bg-violet-500/20 text-violet-500',
-    gradient: 'from-violet-500/25 to-violet-500/5',
+    label: 'Text',
+    badge: 'bg-yellow-500/20 text-yellow-500',
+    gradient: 'from-yellow-500/25 to-yellow-500/5',
+  },
+  fx: {
+    label: 'FX',
+    badge: 'bg-purple-500/20 text-purple-500',
+    gradient: 'from-purple-500/25 to-purple-500/5',
   },
 }
 
@@ -660,10 +659,10 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                     />
                     {!isCollapsed &&
                       group.tracks.map((track, i) => (
-                        <TrackRow
+                        <TrackLane 
                           key={track.id}
                           track={track}
-                          shortLabel={`${group.type[0].toUpperCase()}${i + 1}`}
+                          shortLabel={trackShortLabel(group.type, i + 1)}
                           zoom={zoom}
                           assetById={assetById}
                           selected={selection.clipIds}
@@ -714,7 +713,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               <CopyPlus className="size-3.5" />
             </ToolbarButton>
             <ToolbarButton
-              label={trimMode ? 'Trim mode on — drag the clip edges' : 'Trim (drag the clip edges)'}
+              label={trimMode ? 'Trim mode on â€” drag the clip edges' : 'Trim (drag the clip edges)'}
               onClick={() => setTrimMode((m) => !m)}
             >
               <ArrowLeftRight className={cn('size-3.5', trimMode && 'text-violet-500')} />
@@ -761,319 +760,11 @@ function SectionHeader({
         {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
         <span className={cn('font-semibold tracking-widest uppercase', color, 'text-[10px]')}>{label}</span>
         <span className="text-muted-foreground font-mono text-[10px]">
-          {collapsed ? `${trackCount} tracks · ${count} clips` : `${count} clip${count === 1 ? '' : 's'}`}
+          {collapsed ? `${trackCount} tracks Â· ${count} clips` : `${count} clip${count === 1 ? '' : 's'}`}
         </span>
       </button>
       <div className="flex-1 border-t border-border/40" />
     </div>
-  )
-}
-
-function TrackRow({
-  track,
-  shortLabel,
-  zoom,
-  assetById,
-  selected,
-  playhead,
-  trimMode,
-  onPointerDownClip,
-}: {
-  track: Track
-  shortLabel: string
-  zoom: number
-  assetById: (id: string) => Asset | undefined
-  selected: string[]
-  playhead: number
-  trimMode: boolean
-  onPointerDownClip: (e: React.PointerEvent, clip: Clip, mode: DragMode) => void
-}) {
-  const meta = TYPE_META[track.type]
-
-  const handleClipKeyDown = (e: React.KeyboardEvent, clip: Clip, track: Track) => {
-    const store = useTimelineStore.getState()
-    const allClips = store.project.tracks.flatMap(t => t.clips)
-    const clipIndex = allClips.findIndex(c => c.id === clip.id)
-
-    switch (e.key) {
-      case 'Tab':
-        if (e.shiftKey) {
-          // Shift+Tab: previous clip
-          e.preventDefault()
-          const prevClip = allClips[Math.max(0, clipIndex - 1)]
-          if (prevClip) {
-            store.select([prevClip.id], prevClip.trackId)
-            const prevClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${prevClip.id}"]`)
-            prevClipEl?.focus()
-          }
-        } else {
-          // Tab: next clip
-          e.preventDefault()
-          const nextClip = allClips[Math.min(allClips.length - 1, clipIndex + 1)]
-          if (nextClip) {
-            store.select([nextClip.id], nextClip.trackId)
-            const nextClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${nextClip.id}"]`)
-            nextClipEl?.focus()
-          }
-        }
-        break
-      case 'ArrowLeft':
-        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          // ArrowLeft: previous clip
-          e.preventDefault()
-          const prevClip = allClips[Math.max(0, clipIndex - 1)]
-          if (prevClip) {
-            store.select([prevClip.id], prevClip.trackId)
-            const prevClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${prevClip.id}"]`)
-            prevClipEl?.focus()
-          }
-        }
-        break
-      case 'ArrowRight':
-        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          // ArrowRight: next clip
-          e.preventDefault()
-          const nextClip = allClips[Math.min(allClips.length - 1, clipIndex + 1)]
-          if (nextClip) {
-            store.select([nextClip.id], nextClip.trackId)
-            const nextClipEl = document.querySelector<HTMLElement>(`[data-clip-id="${nextClip.id}"]`)
-            nextClipEl?.focus()
-          }
-        }
-        break
-      case 'ArrowUp':
-        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          // ArrowUp: clip on track above
-          e.preventDefault()
-          const currentTrackIndex = store.project.tracks.findIndex(t => t.id === track.id)
-          if (currentTrackIndex > 0) {
-            const upperTrack = store.project.tracks[currentTrackIndex - 1]
-            const upperClip = upperTrack.clips.find(c => 
-              c.startTime <= clip.startTime && c.startTime + c.duration >= clip.startTime
-            )
-            if (upperClip) {
-              store.select([upperClip.id], upperTrack.id)
-              const clipEl = document.querySelector<HTMLElement>(`[data-clip-id="${upperClip.id}"]`)
-              clipEl?.focus()
-            }
-          }
-        }
-        break
-      case 'ArrowDown':
-        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          // ArrowDown: clip on track below
-          e.preventDefault()
-          const currentTrackIndex = store.project.tracks.findIndex(t => t.id === track.id)
-          if (currentTrackIndex < store.project.tracks.length - 1) {
-            const lowerTrack = store.project.tracks[currentTrackIndex + 1]
-            const lowerClip = lowerTrack.clips.find(c => 
-              c.startTime <= clip.startTime && c.startTime + c.duration >= clip.startTime
-            )
-            if (lowerClip) {
-              store.select([lowerClip.id], lowerTrack.id)
-              const clipEl = document.querySelector<HTMLElement>(`[data-clip-id="${lowerClip.id}"]`)
-              clipEl?.focus()
-            }
-          }
-        }
-        break
-      case 'Enter':
-      case ' ':
-        // Enter/Space: toggle selection
-        e.preventDefault()
-        if (selected.includes(clip.id)) {
-          store.select(selected.filter(id => id !== clip.id), track.id)
-        } else {
-          store.select([...selected, clip.id], track.id)
-        }
-        break
-      case 'Delete':
-      case 'Backspace':
-        if (selected.length) {
-          e.preventDefault()
-          const state = useTimelineStore.getState()
-          if (e.shiftKey) {
-            store.deleteClips(state.selection.clipIds, true)
-          } else {
-            store.deleteClips(state.selection.clipIds, false)
-          }
-        }
-        break
-    }
-  }
-
-  return (
-    <div
-      className="relative flex border-b"
-      style={{ height: trackHeight() }}
-      data-timeline-track={track.id}
-    >
-      <div
-        data-header-gutter
-        className="bg-card sticky left-0 z-10 flex w-[78px] shrink-0 items-center gap-0.5 border-r px-1.5"
-        style={{ height: trackHeight() }}
-      >
-        <span className={cn('w-6 shrink-0 rounded text-center font-mono text-[11px] font-semibold', meta.badge)}>
-          {shortLabel}
-        </span>
-        <TrackHeaderButton
-          active={track.locked}
-          onClick={() => useTimelineStore.getState().toggleTrackLock(track.id)}
-          title="Lock track"
-        >
-          {track.locked ? <Lock className="size-3" /> : <LockOpen className="size-3" />}
-        </TrackHeaderButton>
-        {track.type === 'audio' && (
-          <TrackHeaderButton
-            active={Boolean(track.soloed)}
-            onClick={() => useTimelineStore.getState().toggleTrackSolo(track.id)}
-            title="Solo track (silences other audio tracks)"
-          >
-            <Headphones className="size-3" />
-          </TrackHeaderButton>
-        )}
-        <TrackHeaderButton
-          active={track.muted}
-          onClick={() => useTimelineStore.getState().toggleTrackMute(track.id)}
-          title="Mute track"
-        >
-          {track.muted ? <VolumeX className="size-3" /> : <Volume2 className="size-3" />}
-        </TrackHeaderButton>
-        <TrackHeaderButton
-          active={track.hidden}
-          onClick={() => useTimelineStore.getState().toggleTrackHidden(track.id)}
-          title="Hide track"
-        >
-          {track.hidden ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-        </TrackHeaderButton>
-      </div>
-
-      <div className="bg-muted/30 relative flex-1">
-        {track.clips.map((clip) => {
-          const asset = assetById(clip.assetId)
-          const isSelected = selected.includes(clip.id)
-          const isUnderPlayhead = playhead >= clip.startTime && playhead < clip.startTime + clip.duration
-          const left = clip.startTime * zoom
-          const width = Math.max(MIN_CLIP_PX, clip.duration * zoom)
-          return (
-            <div
-              key={clip.id}
-              data-clip-id={clip.id}
-              tabIndex={0}
-              className={cn(
-                'absolute top-1 bottom-1 overflow-hidden rounded-md border transition-shadow',
-                isSelected
-                  ? 'border-violet-500 ring-2 ring-violet-500/40'
-                  : isUnderPlayhead
-                    ? 'border-red-400/60'
-                    : 'border-black/40 shadow-sm',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-muted',
-              )}
-              style={{ left, width, background: 'linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))' }}
-              onPointerDown={(e) => {
-                e.stopPropagation()
-                if (trimMode && isSelected) return
-                onPointerDownClip(e, clip, 'move')
-              }}
-              onKeyDown={(e) => handleClipKeyDown(e, clip, track)}
-            >
-              {asset?.filmstrip ? (
-                <div
-                  className="absolute inset-0 opacity-50"
-                  style={{
-                    backgroundImage: `url(${asset.filmstrip.imageUrl})`,
-                    backgroundSize: `${asset.filmstrip.frameCount * asset.filmstrip.frameWidth}px 100%`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: `${-clip.sourceStart * (asset.filmstrip.frameCount / asset.filmstrip.duration) * asset.filmstrip.frameWidth}px 0`,
-                  }}
-                />
-              ) : asset?.waveform ? (
-                <div
-                  className="absolute inset-0 opacity-60"
-                  style={{
-                    backgroundImage: `url(${asset.waveform.imageUrl})`,
-                    backgroundSize: `${asset.waveform.frameCount * asset.waveform.frameWidth}px 100%`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: `${-clip.sourceStart * (asset.waveform.frameCount / asset.waveform.duration) * asset.waveform.frameWidth}px 0`,
-                  }}
-                />
-              ) : asset?.thumbnailUrl ? (
-                <div
-                  className="absolute inset-0 opacity-40"
-                  style={{
-                    backgroundImage: `url(${asset.thumbnailUrl})`,
-                    backgroundSize: 'auto 100%',
-                    backgroundRepeat: 'repeat-x',
-                    backgroundPosition: 'center',
-                  }}
-                />
-              ) : null}
-              <div className={cn('absolute inset-0 bg-gradient-to-b', meta.gradient)} />
-              <div className="relative z-10 flex h-full items-center gap-1 px-1.5">
-                {clip.volume < 1 && track.type === 'audio' && <Volume2 className="size-3 text-white/70" />}
-                {clip.opacity < 1 && <Eye className="size-3 text-white/70" />}
-                <span className="truncate text-[11px] font-medium text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
-                  {clip.name}
-                  {clip.speed !== 1 ? ` ×${clip.speed}` : ''}
-                </span>
-              </div>
-              <div
-                className={cn(
-                  'absolute top-0 bottom-0 left-0 cursor-ew-resize',
-                  trimMode && isSelected ? 'w-2 bg-white/50' : 'w-1.5 hover:bg-white/30',
-                )}
-                onPointerDown={(e) => {
-                  e.stopPropagation()
-                  onPointerDownClip(e, clip, 'trim-start')
-                }}
-              />
-              <div
-                className={cn(
-                  'absolute top-0 right-0 bottom-0 cursor-ew-resize',
-                  trimMode && isSelected ? 'w-2 bg-white/50' : 'w-1.5 hover:bg-white/30',
-                )}
-                onPointerDown={(e) => {
-                  e.stopPropagation()
-                  onPointerDownClip(e, clip, 'trim-end')
-                }}
-              />
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function TrackHeaderButton({
-  children,
-  onClick,
-  title,
-  active,
-}: {
-  children: React.ReactNode
-  onClick: () => void
-  title: string
-  active: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick()
-      }}
-      title={title}
-      aria-pressed={active}
-      className={cn(
-        'text-muted-foreground flex size-5 items-center justify-center rounded hover:bg-muted hover:text-foreground relative',
-        active && 'bg-violet-500/20 text-violet-500 dark:bg-violet-500/30 dark:text-violet-400 ring-2 ring-violet-500/50',
-      )}
-      aria-label={active ? `${title} (enabled)` : title}
-    >
-      {children}
-      {active && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 size-1.5 rounded-full bg-violet-500" aria-hidden="true" />}
-    </button>
   )
 }
 
