@@ -1,7 +1,6 @@
 import * as React from 'react'
 import { Clapperboard, SlidersHorizontal, Waves, X } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import { useEditorStore } from '@/stores/editorStore'
 import { usePlayback } from '@/hooks/usePlayback'
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -32,9 +31,6 @@ export function EditorPage() {
   useEditorShortcuts(playback)
   const { caps } = useCapabilities()
   const isMobile = useIsMobile()
-
-  const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
-  const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
 
   const [tourOpen, setTourOpen] = React.useState(false)
 
@@ -157,7 +153,7 @@ export function EditorPage() {
       ) : (
         <>
           {caps && <CapabilityBanner caps={caps} />}
-          <EditorLayout playback={playback} />
+          <EditorLayout playback={playback} initialPrompt={initialPrompt} />
         </>
       )}
 
@@ -167,11 +163,8 @@ export function EditorPage() {
         </div>
       )}
       {tourOpen && <OnboardingTour onFinish={() => setTourOpen(false)} />}
-      <AIDirector
-        initialPrompt={initialPrompt}
-        open={isMobile ? undefined : aiDirectorOpen}
-        onOpenChange={setAIDirectorOpen}
-      />
+      {/* Mobile keeps the legacy floating AI card; desktop uses the sidebar panel in EditorLayout */}
+      {isMobile && <AIDirector initialPrompt={initialPrompt} />}
     </div>
   )
 }

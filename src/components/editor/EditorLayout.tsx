@@ -10,6 +10,7 @@ import { Timeline } from '@/ui/timeline/Timeline'
 import { RightToolPanel, type ToolSection } from '@/ui/common/RightToolPanel'
 import { HistoryPanel } from '@/components/history/HistoryPanel'
 import { HistoryToast } from '@/components/history/HistoryToast'
+import { AIDirectorPanel } from '@/components/ai/AIDirectorPanel'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_TIMELINE_HEIGHT = 224
@@ -32,7 +33,7 @@ function loadNum(key: string, fallback: number): number {
  * All panels are collapsible; the timeline is drag-resizable. The AI tool
  * panel opens as an overlay drawer so tool workflows stay reachable.
  */
-export function EditorLayout({ playback }: { playback: PlaybackApi }) {
+export function EditorLayout({ playback, initialPrompt }: { playback: PlaybackApi; initialPrompt?: string }) {
   const leftOpen = useEditorStore((s) => s.leftOpen)
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
   const setLeftOpen = useEditorStore((s) => s.setLeftOpen)
@@ -145,6 +146,8 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
             </aside>
           </>
         )}
+        {/* AI Director sidebar — collapsible, timeline stays visible */}
+        <AIDirectorPanel initialPrompt={initialPrompt} />
       </div>
 
       <HistoryToast />

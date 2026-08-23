@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useEditorStore } from '@/stores/editorStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 
 export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek' | 'frameStep' | 'speed' | 'setSpeed'>) {
@@ -52,6 +53,13 @@ export function useEditorShortcuts(playback: Pick<PlaybackApi, 'toggle' | 'seek'
           // Normal (non-ripple) delete
           s.deleteClips(s.selection.clipIds, false)
         }
+        return
+      }
+
+      // Toggle AI Director panel (Cmd/Ctrl+Shift+A) — before select-all
+      if (mod && shift && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        useEditorStore.getState().toggleAIDirector()
         return
       }
 
