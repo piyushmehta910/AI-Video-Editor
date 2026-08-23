@@ -595,6 +595,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={viewportRef}
+          data-testid="timeline-root"
           className="timeline-scroll absolute inset-0 overflow-auto"
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
@@ -681,6 +682,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         {/* Playhead (fixed overlay, never escapes the timeline) */}
         <div
           ref={playheadRef}
+          data-testid="playhead"
           className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-red-500"
           style={{ left: 0, willChange: 'transform' }}
         >

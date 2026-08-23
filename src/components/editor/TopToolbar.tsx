@@ -45,12 +45,14 @@ function ToolButton({
   label,
   disabled,
   active,
+  testId,
 }: {
   children: React.ReactNode
   onClick: () => void
   label: string
   disabled?: boolean
   active?: boolean
+  testId?: string
 }) {
   return (
     <Tooltip>
@@ -61,6 +63,7 @@ function ToolButton({
           className={cn('h-8 w-8 p-0', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30')}
           onClick={onClick}
           disabled={disabled}
+          data-testid={testId}
         >
           {children}
         </Button>
@@ -241,7 +244,7 @@ export function TopToolbar() {
         <ToolButton label={saving ? 'Saving…' : 'Save project'} onClick={() => void save()} disabled={saving}>
           <Save className={cn('size-4', saving && 'animate-pulse')} />
         </ToolButton>
-        <ToolButton label="Export video" onClick={() => setExportOpen(true)}>
+        <ToolButton label="Export video" onClick={() => setExportOpen(true)} testId="export-button">
           <Download className="size-4" />
         </ToolButton>
 
@@ -250,6 +253,7 @@ export function TopToolbar() {
         <Button
           variant="ghost"
           size="sm"
+          data-testid="ai-director-button"
           className={cn(
             'h-8 gap-1.5 px-2 text-xs font-medium',
             aiDirectorOpen && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30',

@@ -15,6 +15,7 @@ import { Inspector } from '@/ui/inspector/Inspector'
 import { AIDirector } from '@/ui/ai/AIDirector'
 import { Button } from '@/components/ui/button'
 import { EditorLayout } from '@/components/editor/EditorLayout'
+import { OnboardingTour, TOUR_DISMISSED_KEY } from '@/components/onboarding/OnboardingTour'
 
 const PIPELINE_PROMPTS: Record<string, string> = {
   'video-to-reel': 'Reframe this project into a vertical 9:16 Reel and keep the highlights.',
@@ -26,6 +27,7 @@ const PIPELINE_PROMPTS: Record<string, string> = {
 export function EditorPage() {
   const hydrate = useTimelineStore((s) => s.hydrate)
   const hydrated = useTimelineStore((s) => s.hydrated)
+  const welcomeLoaded = useTimelineStore((s) => s.welcomeLoaded)
   const playback = usePlayback()
   useEditorShortcuts(playback)
   const { caps } = useCapabilities()
@@ -33,6 +35,8 @@ export function EditorPage() {
 
   const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
   const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
+
+  const [tourOpen, setTourOpen] = React.useState(false)
 
   const [initialPrompt, setInitialPrompt] = React.useState<string | undefined>(undefined)
   const [mobileView, setMobileView] = React.useState<'preview' | 'timeline'>(() =>
@@ -48,6 +52,21 @@ export function EditorPage() {
       setInitialPrompt(PIPELINE_PROMPTS[key])
     }
   }, [hydrate])
+
+  // One-shot tour after the Welcome Project is generated (desktop only).
+  React.useEffect(() => {
+    if (!welcomeLoaded || isMobile) return
+    let dismissed = false
+    try {
+      dismissed = localStorage.getItem(TOUR_DISMISSED_KEY) === '1'
+    } catch {
+      // ignore storage errors
+    }
+    if (!dismissed) {
+      const t = window.setTimeout(() => setTourOpen(true), 600)
+      return () => window.clearTimeout(t)
+    }
+  }, [welcomeLoaded, isMobile])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -147,6 +166,7 @@ export function EditorPage() {
           <p className="text-sm text-muted-foreground">Loading project…</p>
         </div>
       )}
+      {tourOpen && <OnboardingTour onFinish={() => setTourOpen(false)} />}
       <AIDirector
         initialPrompt={initialPrompt}
         open={isMobile ? undefined : aiDirectorOpen}

@@ -17,6 +17,7 @@ import type { Asset, TransitionType } from '@/engine/types'
 import { getMediaUrl } from '@/engine/storage/opfs'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/onboarding/EmptyState'
 import { cn } from '@/lib/utils'
 
 const ACCEPTED =
@@ -250,21 +251,17 @@ export function MediaBin() {
 
         {(tab === 'media' || tab === 'generated') && (
           <>
-            {visibleAssets.length === 0 && (
+            {visibleAssets.length === 0 && tab === 'media' && (
+              <EmptyState onImport={() => inputRef.current?.click()} />
+            )}
+            {visibleAssets.length === 0 && tab === 'generated' && (
               <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
                 <div className="bg-muted flex size-12 items-center justify-center rounded-xl">
                   <Plus className="text-muted-foreground size-6" />
                 </div>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  {tab === 'generated'
-                    ? 'AI-generated results land here automatically.'
-                    : 'Import video, image or audio files, or drop them anywhere in this panel.'}
+                  AI-generated results land here automatically.
                 </p>
-                {tab === 'media' && (
-                  <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
-                    Browse files
-                  </Button>
-                )}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">

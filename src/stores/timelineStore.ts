@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Asset, CaptionsConfig, Clip, MediaClipType, Project, Track, TrackType } from '@/engine/types'
 import { newProject, projectDuration, defaultCameraRig, migrateProjectTracks } from '@/engine/types'
-import { getRecord, getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
+import { getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
 import { validateFile } from '@/engine/storage/mediaType'
@@ -11,6 +11,7 @@ import { generateWaveform } from '@/engine/media/waveform'
 import { getStoredOcr } from '@/engine/analysis/ocr'
 import { getStoredScenes, getStoredTranscript } from '@/api/llm/understanding'
 import type { StoredOcr, StoredScenes, StoredTranscript } from '@/engine/analysis/types'
+import { buildWelcomeContent, storeWelcomeTranscript, WELCOME_ATTEMPTED_KEY, WELCOME_CREATED_KEY } from '@/components/onboarding/WelcomeProject'
 
 const HISTORY_LIMIT = 200
 let transactionDepth = 0
@@ -21,6 +22,8 @@ export interface TimelineState {
   assets: Asset[]
   hydrated: boolean
   saving: boolean
+  /** True when this session generated the first-run Welcome Project (drives the tour). */
+  welcomeLoaded: boolean
   selection: { clipIds: string[]; trackId: string | null }
   playhead: number
   zoom: number
@@ -123,6 +126,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
     assets: [],
     hydrated: false,
     saving: false,
+    welcomeLoaded: false,
     selection: { clipIds: [], trackId: null },
     playhead: 0,
     zoom: 90,
@@ -136,16 +140,34 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
 
     hydrate: async () => {
       try {
-        const [assets, project] = await Promise.all([
-          getAllRecords<Asset>('assets'),
-          getRecord<Project>('projects', 'active'),
-        ])
-        const sorted = assets.sort((a, b) => b.importedAt - a.importedAt)
+        // Most-recent project wins (keyed by id, sorted by modifiedAt).
+        const projects = await getAllRecords<Project>('projects')
+        projects.sort((a, b) => b.modifiedAt - a.modifiedAt)
+        let storedProject = projects[0]
+
+        let welcomeLoaded = false
+        if (!storedProject && localStorage.getItem(WELCOME_ATTEMPTED_KEY) !== '1') {
+          try {
+            localStorage.setItem(WELCOME_ATTEMPTED_KEY, '1')
+            const { project, transcriptAssetId } = await buildWelcomeContent(
+              (files) => get().importFiles(files),
+            )
+            if (transcriptAssetId) await storeWelcomeTranscript(transcriptAssetId)
+            await putRecord('projects', { ...cloneProject(project), modifiedAt: Date.now() })
+            storedProject = project
+            welcomeLoaded = true
+            localStorage.setItem(WELCOME_CREATED_KEY, '1')
+          } catch (err) {
+            console.warn('Welcome project generation failed', err)
+          }
+        }
+
+        const assets = (await getAllRecords<Asset>('assets')).sort((a, b) => b.importedAt - a.importedAt)
         const transcripts: Record<string, StoredTranscript> = {}
         const scenes: Record<string, StoredScenes> = {}
         const ocr: Record<string, StoredOcr> = {}
         await Promise.all(
-          sorted.map(async (asset) => {
+          assets.map(async (asset) => {
             const [t, s, o] = await Promise.all([
               getStoredTranscript(asset.id),
               getStoredScenes(asset.id),
@@ -157,12 +179,13 @@ export const useTimelineStore = create<TimelineState>()((set, get) => {
           }),
         )
         set({
-          assets: sorted,
-          project: project ? migrateProjectTracks(project) : newProject(),
+          assets,
+          project: storedProject ? migrateProjectTracks(storedProject) : newProject(),
           transcripts,
           scenes,
           ocr,
           hydrated: true,
+          welcomeLoaded,
         })
       } catch (err) {
         console.error('Hydrate failed', err)
