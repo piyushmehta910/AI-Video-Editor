@@ -44,6 +44,7 @@ export type CommandId =
   | 'toolRate'
   | 'toolText'
   | 'addMarker'
+  | 'toggleTrimMode'
   | 'toggleSnap'
   | 'zoomIn'
   | 'zoomOut'
@@ -104,6 +105,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'toolRate', combos: ['r'], keys: ['R'], category: 'Tools', description: 'Rate-stretch tool (click a clip to change speed)' },
   { id: 'toolText', combos: ['t'], keys: ['T'], category: 'Tools', description: 'Text tool (click timeline to add text)' },
   { id: 'addMarker', combos: ['m'], keys: ['M'], category: 'Tools', description: 'Add / remove marker at playhead' },
+  { id: 'toggleTrimMode', combos: ['shift+t'], keys: ['Shift T'], category: 'Tools', description: 'Toggle trim mode (drag clip edges)' },
   { id: 'toggleSnap', combos: ['n'], keys: ['N'], category: 'Tools', description: 'Toggle magnetic snapping' },
 
   // View
@@ -464,6 +466,7 @@ export function createCommandMap(ctx: ShortcutContext): Record<CommandId, () => 
     toolRate: () => ed().setTool(ed().tool === 'rate' ? 'select' : 'rate'),
     toolText: () => ed().setTool(ed().tool === 'text' ? 'select' : 'text'),
     addMarker: () => tl().toggleMarker(tl().playhead),
+    toggleTrimMode: () => ed().toggleTrimMode(),
     toggleSnap: () => tl().setSnapEnabled(!tl().snapEnabled),
     zoomIn: () => tl().setZoom(tl().zoom * 1.25),
     zoomOut: () => tl().setZoom(tl().zoom * 0.8),

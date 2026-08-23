@@ -103,26 +103,37 @@ export function Clip({
           onKeyDown={(e) => onKeyDown(e, clip, track)}
         >
           <ClipBody clip={clip} track={track} asset={asset} />
+          {/* Trim handles — always visible but highlighted in trim mode */}
           <div
             className={cn(
-              'absolute top-0 bottom-0 left-0 cursor-ew-resize',
-              trimMode && selected ? 'w-2 bg-white/50' : 'w-1.5 hover:bg-white/30',
+              'absolute top-0 bottom-0 left-0 cursor-ew-resize flex items-center justify-center',
+              trimMode && selected
+                ? 'w-3 bg-white/60 border-r border-white/80'
+                : 'w-1.5 hover:w-2 hover:bg-white/40 transition-all'
             )}
             onPointerDown={(e) => {
               e.stopPropagation()
               onPointerDownClip(e, clip, 'trim-start')
             }}
-          />
+            title="Drag to trim start"
+          >
+            {trimMode && selected && <div className="w-0.5 h-8 bg-white/90 rounded" />}
+          </div>
           <div
             className={cn(
-              'absolute top-0 right-0 bottom-0 cursor-ew-resize',
-              trimMode && selected ? 'w-2 bg-white/50' : 'w-1.5 hover:bg-white/30',
+              'absolute top-0 right-0 bottom-0 cursor-ew-resize flex items-center justify-center',
+              trimMode && selected
+                ? 'w-3 bg-white/60 border-l border-white/80'
+                : 'w-1.5 hover:w-2 hover:bg-white/40 transition-all'
             )}
             onPointerDown={(e) => {
               e.stopPropagation()
               onPointerDownClip(e, clip, 'trim-end')
             }}
-          />
+            title="Drag to trim end"
+          >
+            {trimMode && selected && <div className="w-0.5 h-8 bg-white/90 rounded" />}
+          </div>
         </div>
       </TooltipTrigger>
       <TooltipContent side="top">

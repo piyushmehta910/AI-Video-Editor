@@ -33,6 +33,16 @@ const ALLOWED_HOSTS = [
   'opencode.ai',
   'api.deezer.com',
   'api.elevenlabs.io',
+  'freesound.org',
+  'openrouter.ai',
+  'api.firecrawl.dev',
+  'api.sketchfab.com',
+  'api.giphy.com',
+  'musicbrainz.org',
+  'api.unsplash.com',
+  'api.pexels.com',
+  'pixabay.com',
+  'api.polyhaven.com',
 ]
 
 export function isAllowedProxyUrl(url: string): boolean {
@@ -46,7 +56,7 @@ export function isAllowedProxyUrl(url: string): boolean {
 async function doFetch(url: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
   try {
     return await fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
-  } catch (err) {
+  } catch {
     await new Promise((resolve) => setTimeout(resolve, 250))
     return fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
   }

@@ -128,3 +128,69 @@
 2. **Tool Protocol**: The AI Director communicates via OpenAI-compatible tool definitions (26 distinct tools: `plan_edit`, `add_clip`, `split_clip`, `trim_clip`, `apply_effect`, `generate_script`, etc.).
 3. **Staging Engine**: Tool calls from the LLM are staged in `aiStore` as actionable diffs. The user can review, accept, or reject each edit before it modifies the timeline.
 4. **Execution Sandbox**: Approved actions call typed store actions with automatic undo-grouping.
+
+---
+
+## 6. 7-Zone Studio Workspace Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ZONE 1: TOP STUDIO HEADER                                                                                   │
+│ [Logo] [Project Name ✎] [Aspect ▾] [Resolution ▾] [FPS ▾] │ [Mode ▾] │ [↺ ↻] │ [🤖 AI Director] [🚀 Export] │
+├──────────────────────┬───────────────────────────────────────────────────────┬──────────────────────────────┤
+│ ZONE 2: LEFT PANEL   │ ZONE 3: CENTER CANVAS                                 │ ZONE 5: RIGHT PANEL          │
+│ ASSET SOURCING HUB   │ PREVIEW & SAFE ZONES                                  │ CONTEXTUAL INSPECTOR         │
+│                      │                                                       │                              │
+│ • Local Media Bin    │ • Responsive Viewport & Timecode                      │ • Transform (X,Y,Scale,Rot)  │
+│ • Stock Images       │ • Safe Zone Overlays (9:16 / 16:9)                    │ • Keyframes & Easing Curves  │
+│ • Stock Videos       │ • Interactive Crop & Transform Bounding Box           │ • Appearance & 12 Blend Modes│
+│ • Music & SFX        │ • Play/Pause, Shuttling (J/K/L), Frame Stepping (←/→) │ • Color Grading & Filters    │
+│ • 3D GLB Models      │ • Drag & Drop Ingestion Zone                          │ • Audio (EQ, Denoise, Duck)  │
+│ • Stickers & GIFs    │                                                       │ • Captions & Word Subtitles  │
+│ • Marp Slide Decks   │                                                       │ • In/Out Transitions         │
+│ • Motion Graphics    │                                                       │ • 3D Camera Rig Sliders      │
+├──────────────────────┴───────────────────────────────────────────────────────┴──────────────────────────────┤
+│ ZONE 4: BOTTOM MULTI-TRACK TIMELINE                                                                         │
+│ [Select ▾] [✂ Cut] [🔪 Split] [⎘ Duplicate] [🗑 Delete] [Ripple ⇄] │ [🧲 Snap] [⏱ Speed] [🏷 Marker] │ [🔍 Zoom/Fit] │
+│ ─────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│ V2 [🎬 Video Overlay / B-Roll] ─── [ Stock Image ] ────────── [ 3D GLB Model ] ────────                    │
+│ V1 [🎬 Main Video Track] ───────── [ Video Clip 1 ] ───────── [ Video Clip 2 ] ────────                    │
+│ T1 [📝 Captions / Lower Thirds] ── [ Subtitle Cue 1 ] ─────── [ Subtitle Cue 2 ] ──────                    │
+│ A1 [🎙️ Voiceover / Narration] ──── [ RNNoise Speech WAV ] ─────────────────────────────                    │
+│ A2 [🎵 Background Music] ───────── [ Auto-Ducked Music MP3 ] ──────────────────────────                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  ZONE 6: AI DIRECTOR ASSISTANT (Collapsible Drawer with Staged Action Diffs)
+  ZONE 7: GLOBAL MODALS (Export Queue, Settings Key Manager, Hotkey Cheatsheet `?`, Onboarding Tour)
+```
+
+---
+
+## 7. Multi-Provider API Mesh & CORS Proxy
+
+| Category | Provider | Role | Authentication | Fallback Mechanism |
+| :--- | :--- | :--- | :--- | :--- |
+| **LLM Reasoning** | **OpenRouter** | Primary AI Director reasoning & script generation | API Key (`sk-or-v1-...`) | OpenCode Zen |
+| **LLM Reasoning** | **OpenCode Zen** | Fast code & slide generation | API Key | NVIDIA NIM |
+| **LLM Reasoning** | **NVIDIA NIM** | Self-hosted & hosted AI chat *(retires Aug 2026)* | API Key (`nvapi-...`) | OpenRouter |
+| **Voice Synthesis** | **ElevenLabs** | Neural voiceover & speech cloning | API Key (`xi-api-key`) | NVIDIA FastPitch |
+| **Voice Synthesis** | **NVIDIA TTS** | Local & hosted text-to-speech | API Key | Browser Web Speech |
+| **Stock Photos** | **Unsplash** | High-resolution editorial photography | Access Key | Pexels |
+| **Stock Photos/Video**| **Pexels** | Video b-roll & stock footage | API Key | Pixabay |
+| **Stock Photos/Video**| **Pixabay** | Vector illustrations & stock photos | API Key | Unsplash |
+| **Sound Effects** | **Freesound** | Transition swooshes, UI & cinematic SFX | API Key | Synthesized SFX |
+| **Music Streaming** | **Deezer** | Keyless music catalog preview & streaming | Keyless (Proxied) | MusicBrainz |
+| **Music Metadata** | **MusicBrainz** | CC0 open-source music metadata | Keyless (Open) | Deezer |
+| **3D Assets** | **Poly Haven** | Photorealistic CC0 GLB 3D models & HDRIs | Keyless (Open) | Sketchfab |
+| **3D Assets** | **Sketchfab** | Community 3D models & animations | API Token | Poly Haven |
+| **Stickers & GIFs** | **Giphy** | Animated GIF overlays & stickers | API Key | Local Canvas SVG |
+| **Web Research** | **Firecrawl** | Article extraction & fact-checking | API Key | Direct Fetch |
+
+---
+
+## 8. Verification & Quality Assurance
+
+- **Vitest Unit Test Suite**: **176 tests passing across 22 test files** (100% pass rate in ~1.8s).
+- **AST Hook Rules Validator**: Custom TypeScript AST visitor ensures **0 conditional or nested React hook violations**.
+- **Oxlint Static Analysis**: 0 lint errors across 246 files.
+- **Production Build**: Verified with `tsc -b && vite build` generating optimized production chunks in under 2 seconds.
+

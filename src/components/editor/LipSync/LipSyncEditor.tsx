@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StatusBadge } from '../StatusBadge'
 import { DropZone } from '../DropZone'
 import { cn } from '@/lib/utils'
+import { WebMMuxer } from '@/engine/export/webm-muxer'
 
 export interface LipSyncClipData {
   id: string
@@ -64,12 +65,75 @@ export function LipSyncEditor({ clip, onSave, onClose }: LipSyncEditorProps) {
   const { processing, initialize, process, terminate } = useLipSync({
     config: { modelUrl: config.modelUrl, inputSize: [96, 96], fps: config.fps, batchSize: config.batchSize },
     onProgress: setProgress,
-    onComplete: (result) => {
+    onComplete: async (result) => {
       setStatus('completed')
-      const blob = new Blob([result.frames as unknown as BlobPart], { type: 'video/webm' })
-      const url = URL.createObjectURL(blob)
-      setOutputPreview(url)
-      onSave({ ...clip!, status: 'completed', progress: 1, outputVideoUrl: url } as LipSyncClipData)
+      try {
+        if (!result.frames || result.frames.length === 0) {
+          throw new Error('No frames returned by lip sync engine')
+        }
+        const width = result.frames[0].width
+        const height = result.frames[0].height
+        const fps = result.fps || config.fps || 25
+        const duration = result.duration || result.frames.length / fps
+
+        if (typeof VideoEncoder !== 'undefined') {
+          const muxer = new WebMMuxer({ width, height, duration, codec: 'vp8' })
+          const encoder = new VideoEncoder({
+            output: (chunk) => {
+              const bytes = new Uint8Array(chunk.byteLength)
+              chunk.copyTo(bytes)
+              muxer.addChunk({ data: bytes, timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
+            },
+            error: (e) => console.error('LipSync video encoding error:', e),
+          })
+          encoder.configure({
+            codec: 'vp8',
+            width,
+            height,
+            bitrate: 4_000_000,
+            framerate: fps,
+          })
+
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+
+          for (let i = 0; i < result.frames.length; i++) {
+            if (ctx) {
+              ctx.putImageData(result.frames[i], 0, 0)
+              const frame = new VideoFrame(canvas, {
+                timestamp: Math.round((i / fps) * 1_000_000),
+              })
+              encoder.encode(frame, { keyFrame: i % (fps * 2) === 0 })
+              frame.close()
+            }
+          }
+          await encoder.flush()
+          encoder.close()
+          const blob = muxer.finalize()
+          const url = URL.createObjectURL(blob)
+          setOutputPreview(url)
+          onSave({ ...clip!, status: 'completed', progress: 1, outputVideoUrl: url } as LipSyncClipData)
+        } else {
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (ctx) ctx.putImageData(result.frames[0], 0, 0)
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob)
+              setOutputPreview(url)
+              onSave({ ...clip!, status: 'completed', progress: 1, outputVideoUrl: url } as LipSyncClipData)
+            }
+          })
+        }
+      } catch (encodeErr) {
+        console.warn('Failed to encode lip sync frames:', encodeErr)
+        setStatus('error')
+        setError(encodeErr instanceof Error ? encodeErr.message : 'Encoding failed')
+      }
     },
     onError: (err) => {
       setStatus('error')

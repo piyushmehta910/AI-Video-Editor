@@ -163,6 +163,12 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
           className="mb-4 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm"
         />
 
+        {duration <= 0 && (
+          <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-950/40 p-3 text-sm text-amber-300">
+            Timeline is empty — import media and add clips to the timeline before exporting.
+          </div>
+        )}
+
         <p className="mb-5 text-xs text-neutral-500">
           {totalFrames} frames · {duration.toFixed(1)}s
           {formatId !== 'frames' && ' · renders in real time'}
@@ -170,10 +176,11 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
 
         <button
           onClick={startExport}
+          disabled={duration <= 0}
           data-testid="export-start-button"
-          className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+          className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Start export{activeJobs > 0 ? ` (queue: ${activeJobs})` : ''}
+          {duration <= 0 ? 'Timeline is empty' : `Start export${activeJobs > 0 ? ` (queue: ${activeJobs})` : ''}`}
         </button>
       </div>
     </div>

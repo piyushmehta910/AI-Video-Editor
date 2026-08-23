@@ -2,6 +2,7 @@ import type { Asset, Clip, Project, TextAnimation } from '@/engine/types'
 import { computeEffects, transitionAlpha } from './filters'
 import { drawCaptions, type CaptionRender } from '@/engine/captions/render'
 import { type CropWindow, type CropKeyframe } from '@/engine/reframing'
+import { interpolatePropertyKeyframe } from '@/lib/keyframes'
 
 export interface CompositeMedia {
   /** Return a drawable source for a video asset positioned at `srcTime`, or null if not ready. */
@@ -300,10 +301,18 @@ export async function compositeFrame(
       vignetteRadius = effects.vignetteRadius
     }
     grain = Math.max(grain, effects.grain)
-    const srcTime = (time - clip.startTime) * clip.speed + clip.sourceStart
+    const clipLocalTime = time - clip.startTime
+    const srcTime = clipLocalTime * clip.speed + clip.sourceStart
+
+    const currentOpacity = interpolatePropertyKeyframe(clip.keyframes, 'opacity', clipLocalTime, clip.opacity)
+    const currentPosX = interpolatePropertyKeyframe(clip.keyframes, 'position.x', clipLocalTime, clip.position.x)
+    const currentPosY = interpolatePropertyKeyframe(clip.keyframes, 'position.y', clipLocalTime, clip.position.y)
+    const currentScaleX = interpolatePropertyKeyframe(clip.keyframes, 'scale.x', clipLocalTime, clip.scale.x)
+    const currentScaleY = interpolatePropertyKeyframe(clip.keyframes, 'scale.y', clipLocalTime, clip.scale.y)
+    const currentRotation = interpolatePropertyKeyframe(clip.keyframes, 'rotation', clipLocalTime, clip.rotation)
 
     ctx.save()
-    ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
+    ctx.globalAlpha = currentOpacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out)
     ctx.filter = effects.cssFilter
     if (clip.blendMode && clip.blendMode !== 'normal') {
       ctx.globalCompositeOperation = clip.blendMode
@@ -316,9 +325,9 @@ export async function compositeFrame(
     }
     ctx.translate(w / 2, h / 2)
     // Media layers honor position (text always did).
-    ctx.translate(clip.position.x, clip.position.y)
-    ctx.rotate((clip.rotation * Math.PI) / 180)
-    ctx.scale(clip.scale.x, clip.scale.y)
+    ctx.translate(currentPosX, currentPosY)
+    ctx.rotate((currentRotation * Math.PI) / 180)
+    ctx.scale(currentScaleX, currentScaleY)
     const anchorX = (clip.anchor?.x ?? 0.5) - 0.5
     const anchorY = (clip.anchor?.y ?? 0.5) - 0.5
 
@@ -435,14 +444,22 @@ export async function compositeFrame(
   // Text overlays (drawn above clip media, below vignette).
   for (const { clip } of video) {
     if (!clip.text) continue
+    const clipLocalTime = time - clip.startTime
+    const currentOpacity = interpolatePropertyKeyframe(clip.keyframes, 'opacity', clipLocalTime, clip.opacity)
+    const currentPosX = interpolatePropertyKeyframe(clip.keyframes, 'position.x', clipLocalTime, clip.position.x)
+    const currentPosY = interpolatePropertyKeyframe(clip.keyframes, 'position.y', clipLocalTime, clip.position.y)
+    const currentScaleX = interpolatePropertyKeyframe(clip.keyframes, 'scale.x', clipLocalTime, clip.scale.x)
+    const currentScaleY = interpolatePropertyKeyframe(clip.keyframes, 'scale.y', clipLocalTime, clip.scale.y)
+    const currentRotation = interpolatePropertyKeyframe(clip.keyframes, 'rotation', clipLocalTime, clip.rotation)
+
     const t = clip.text
     const anim = textAnimationAt(t.animation ?? 'none', t.animationDuration, time, clip.startTime, clip.duration)
     ctx.save()
-    ctx.globalAlpha = clip.opacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out) * anim.alpha
+    ctx.globalAlpha = currentOpacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out) * anim.alpha
     ctx.translate(w / 2, h / 2)
-    ctx.rotate((clip.rotation * Math.PI) / 180)
-    ctx.scale(clip.scale.x, clip.scale.y)
-    ctx.translate(clip.position.x, clip.position.y)
+    ctx.rotate((currentRotation * Math.PI) / 180)
+    ctx.scale(currentScaleX, currentScaleY)
+    ctx.translate(currentPosX, currentPosY)
     if (anim.scale !== 1) ctx.scale(anim.scale, anim.scale)
     if (anim.offsetX !== 0 || anim.offsetY !== 0) ctx.translate(anim.offsetX, anim.offsetY)
 

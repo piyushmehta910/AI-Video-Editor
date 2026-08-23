@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { keyframeAt, removeKeyframe, upsertKeyframe } from './keyframes'
+import { interpolatePropertyKeyframe, keyframeAt, removeKeyframe, upsertKeyframe } from './keyframes'
 import type { ClipKeyframe } from '@/engine/types'
 
 const kf = (prop: string, time: number, value = 0): ClipKeyframe => ({
@@ -53,5 +53,33 @@ describe('removeKeyframe', () => {
     const list = [kf('a', 1), kf('b', 2)]
     const next = removeKeyframe(list, 'b-2')
     expect(next.map((k) => k.prop)).toEqual(['a'])
+  })
+})
+
+describe('interpolatePropertyKeyframe', () => {
+  it('returns default value when keyframes are empty or undefined', () => {
+    expect(interpolatePropertyKeyframe(undefined, 'opacity', 1, 1)).toBe(1)
+    expect(interpolatePropertyKeyframe([], 'opacity', 1, 0.8)).toBe(0.8)
+    expect(interpolatePropertyKeyframe([kf('scale', 0, 2)], 'opacity', 1, 0.5)).toBe(0.5)
+  })
+
+  it('returns exact value for single keyframe regardless of time', () => {
+    const list = [kf('opacity', 2, 0.4)]
+    expect(interpolatePropertyKeyframe(list, 'opacity', 0, 1)).toBe(0.4)
+    expect(interpolatePropertyKeyframe(list, 'opacity', 2, 1)).toBe(0.4)
+    expect(interpolatePropertyKeyframe(list, 'opacity', 5, 1)).toBe(0.4)
+  })
+
+  it('interpolates linearly between bracketing keyframes', () => {
+    const list = [kf('opacity', 0, 0), kf('opacity', 2, 1)]
+    expect(interpolatePropertyKeyframe(list, 'opacity', 0, 0.5)).toBe(0)
+    expect(interpolatePropertyKeyframe(list, 'opacity', 1, 0.5)).toBe(0.5)
+    expect(interpolatePropertyKeyframe(list, 'opacity', 2, 0.5)).toBe(1)
+  })
+
+  it('clamps to boundary keyframe values outside keyframe span', () => {
+    const list = [kf('opacity', 1, 0.2), kf('opacity', 3, 0.8)]
+    expect(interpolatePropertyKeyframe(list, 'opacity', 0, 0.5)).toBe(0.2)
+    expect(interpolatePropertyKeyframe(list, 'opacity', 4, 0.5)).toBe(0.8)
   })
 })

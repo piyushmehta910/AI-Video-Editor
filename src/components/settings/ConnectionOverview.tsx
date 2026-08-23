@@ -1,7 +1,22 @@
 import * as React from 'react'
 import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
-import { testNvidiaNim, testElevenLabs, testPexels, testUnsplash, testPixabay, testDeezer, testMusicBrainz, testFirecrawl, testGiphy, testSketchfab } from '@/api/config/validation'
+import {
+  testNvidiaNim,
+  testOpenRouter,
+  testOpenCodeZen,
+  testElevenLabs,
+  testPexels,
+  testUnsplash,
+  testPixabay,
+  testDeezer,
+  testMusicBrainz,
+  testFreesound,
+  testPolyHaven,
+  testFirecrawl,
+  testGiphy,
+  testSketchfab,
+} from '@/api/config/validation'
 import type { TestResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,6 +33,17 @@ export function ConnectionOverview() {
   const [results, setResults] = React.useState<Record<string, TestResult | null>>({})
   const [busy, setBusy] = React.useState(false)
 
+  const or = config.openRouter
+  const openRouterApiKey = or?.apiKey ?? ''
+  const openRouterBaseUrl = or?.baseUrl ?? 'https://openrouter.ai/api/v1'
+  const openRouterTimeoutMs = or?.timeoutMs ?? 30000
+
+  const zen = config.opencodeZen
+  const zenApiKey = zen?.apiKey ?? ''
+  const zenBaseUrl = zen?.baseUrl ?? 'https://opencode.ai/zen/v1'
+  const zenModel = zen?.model ?? 'deepseek-v4-flash-free'
+  const zenTimeoutMs = zen?.timeoutMs ?? 30000
+
   const n = config.nvidiaNim
   const nvidiaApiKey = n.apiKey ?? ''
   const nvidiaBaseUrl = n.baseUrl ?? 'https://integrate.api.nvidia.com/v1'
@@ -28,7 +54,6 @@ export function ConnectionOverview() {
   const elevenApiKey = e.apiKey ?? ''
   const elevenEndpoint = e.endpoint ?? 'https://api.elevenlabs.io'
   const elevenTimeoutMs = e.timeoutMs ?? 30000
-  const elevenVoiceId = e.voiceId ?? ''
 
   const s = config.stockImages
   const unsplashAccessKey = s.unsplash.accessKey ?? s.unsplash.apiKey ?? ''
@@ -58,6 +83,16 @@ export function ConnectionOverview() {
 
   const items: OverviewItem[] = React.useMemo(() => [
     {
+      id: 'openrouter',
+      label: 'OpenRouter',
+      run: () => testOpenRouter(openRouterApiKey, openRouterBaseUrl, openRouterTimeoutMs),
+    },
+    {
+      id: 'opencodezen',
+      label: 'OpenCode Zen',
+      run: () => testOpenCodeZen(zenApiKey, zenBaseUrl, zenModel, zenTimeoutMs),
+    },
+    {
       id: 'nvidia',
       label: 'NVIDIA NIM',
       run: () => testNvidiaNim(nvidiaApiKey, nvidiaBaseUrl, nvidiaModel, nvidiaTimeoutMs),
@@ -65,7 +100,7 @@ export function ConnectionOverview() {
     {
       id: 'elevenlabs',
       label: 'ElevenLabs',
-      run: () => testElevenLabs(elevenApiKey, elevenEndpoint, elevenTimeoutMs, elevenVoiceId),
+      run: () => testElevenLabs(elevenApiKey, elevenEndpoint, elevenTimeoutMs),
     },
     {
       id: 'unsplash',
@@ -93,6 +128,16 @@ export function ConnectionOverview() {
       run: () => testMusicBrainz(mbBaseUrl, mbUserAgent, mbTimeoutMs),
     },
     {
+      id: 'freesound',
+      label: 'Freesound',
+      run: () => testFreesound(deezerEndpoint ? (config as { freesoundApiKey?: string }).freesoundApiKey ?? '' : '', 15000),
+    },
+    {
+      id: 'polyhaven',
+      label: 'Poly Haven',
+      run: () => testPolyHaven(15000),
+    },
+    {
       id: 'firecrawl',
       label: 'Firecrawl',
       run: () => testFirecrawl(fcApiKey, fcEndpoint, fcTimeoutMs),
@@ -107,7 +152,42 @@ export function ConnectionOverview() {
       label: 'Sketchfab',
       run: () => testSketchfab(sfApiKey, sfTimeoutMs),
     },
-  ], [config])
+  ], [
+    openRouterApiKey,
+    openRouterBaseUrl,
+    openRouterTimeoutMs,
+    zenApiKey,
+    zenBaseUrl,
+    zenModel,
+    zenTimeoutMs,
+    nvidiaApiKey,
+    nvidiaBaseUrl,
+    nvidiaModel,
+    nvidiaTimeoutMs,
+    elevenApiKey,
+    elevenEndpoint,
+    elevenTimeoutMs,
+    unsplashAccessKey,
+    unsplashTimeoutMs,
+    pexelsApiKey,
+    pexelsTimeoutMs,
+    pixabayApiKey,
+    pixabayTimeoutMs,
+    deezerEndpoint,
+    deezerTimeoutMs,
+    mbBaseUrl,
+    mbUserAgent,
+    mbTimeoutMs,
+    fcApiKey,
+    fcEndpoint,
+    fcTimeoutMs,
+    giphyApiKey,
+    giphyTimeoutMs,
+    giphyRating,
+    sfApiKey,
+    sfTimeoutMs,
+    config,
+  ])
 
   const testAll = async () => {
     setBusy(true)

@@ -27,11 +27,13 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import type { Clip, EffectType, TextOverlay } from '@/engine/types'
 import { createEffect } from '@/engine/types'
+import { upsertKeyframe, removeKeyframe } from '@/lib/keyframes'
 import { generateSlides, renderSlidePng, type SlideTheme } from '@/api/llm/slides'
 import { generateMarpSlides, type MarpTheme } from '@/api/llm/marp'
 import { generateLipsyncVideo, type AvatarMouth } from '@/engine/avatar'
@@ -69,7 +71,7 @@ export type ToolSection =
   | 'script'
   | 'images'
 
-export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
+const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'effects', label: 'Effects', icon: Sparkles },
   { id: 'audio', label: 'Audio', icon: Music },
@@ -406,7 +408,7 @@ function AvatarSection() {
   React.useEffect(() => {
     if (images.length && !imageAssetId) setImageAssetId(images[0].id)
     if (audios.length && !audioAssetId) setAudioAssetId(audios[0].id)
-  }, [images, audios])
+  }, [images, audios, imageAssetId, audioAssetId])
 
   const imageAsset = assets.find((a) => a.id === imageAssetId)
   const audioAsset = assets.find((a) => a.id === audioAssetId)
@@ -1258,24 +1260,114 @@ function SpeedSection() {
 // ─── Keyframe Section ─────────────────────────────────────────────────────────
 function KeyframeSection() {
   const clip = getSelectedClip()
-  if (!clip) return <EmptyHint text="Select a clip to see animation options." icon={Diamond} />
+  const playhead = useTimelineStore((s) => s.playhead)
+  const updateClip = useTimelineStore((s) => s.updateClip)
+
+  if (!clip) return <EmptyHint text="Select a clip to view and manage keyframes." icon={Diamond} />
+
+  const keyframes = clip.keyframes ?? []
+  const clipLocalTime = Math.max(0, Math.min(clip.duration, playhead - clip.startTime))
+
+  const addKeyframeFor = (prop: string, val: number) => {
+    const updated = upsertKeyframe(keyframes, prop, clipLocalTime, val)
+    updateClip(clip.id, { keyframes: updated })
+  }
+
+  const deleteKeyframe = (id: string) => {
+    const updated = removeKeyframe(keyframes, id)
+    updateClip(clip.id, { keyframes: updated })
+  }
+
+  const clearAll = () => {
+    updateClip(clip.id, { keyframes: [] })
+  }
 
   return (
     <div className="space-y-3 p-3">
-      <SectionNotice kind="ok" text="Property keyframing is coming soon. You can already animate clips with these tools:" />
-      <div className="space-y-1.5">
-        {[
-          { label: 'Camera moves on 3D models', hint: '3D panel → turntable / orbit / dolly' },
-          { label: 'Smart reframing (crop keyframes)', hint: 'Crop panel → aspect presets' },
-          { label: 'Text entrance animations', hint: 'Captions panel → fade, slide, typewriter' },
-          { label: 'Speed ramps', hint: 'Speed panel → 0.25x–4x' },
-        ].map((row) => (
-          <div key={row.label} className="rounded border px-2 py-1.5">
-            <div className="text-[11px] font-medium">{row.label}</div>
-            <div className="text-muted-foreground text-[10px]">{row.hint}</div>
-          </div>
-        ))}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">Keyframes: {clip.name}</span>
+        <span className="text-muted-foreground font-mono text-[10px]">{keyframes.length} keyframes</span>
       </div>
+
+      <div className="space-y-1 rounded border bg-muted/20 p-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Clip Time:</span>
+          <span className="font-mono">{clipLocalTime.toFixed(2)}s / {clip.duration.toFixed(2)}s</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Add Keyframe at Playhead</Label>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={() => addKeyframeFor('opacity', clip.opacity ?? 1)}
+          >
+            + Opacity ({((clip.opacity ?? 1) * 100).toFixed(0)}%)
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={() => addKeyframeFor('rotation', clip.rotation ?? 0)}
+          >
+            + Rotation ({(clip.rotation ?? 0).toFixed(0)}°)
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={() => addKeyframeFor('scale.x', clip.scale?.x ?? 1)}
+          >
+            + Scale X ({(clip.scale?.x ?? 1).toFixed(2)})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={() => addKeyframeFor('position.y', clip.position?.y ?? 0)}
+          >
+            + Pos Y ({(clip.position?.y ?? 0).toFixed(0)})
+          </Button>
+        </div>
+      </div>
+
+      {keyframes.length > 0 ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Active Keyframes</Label>
+            <Button size="sm" variant="ghost" className="h-6 text-[10px] text-destructive" onClick={clearAll}>
+              Clear All
+            </Button>
+          </div>
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {keyframes.map((kf) => (
+              <div key={kf.id} className="flex items-center justify-between rounded border bg-card px-2 py-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <Diamond className="size-3 text-violet-400" />
+                  <span className="font-mono font-medium">{kf.prop}</span>
+                  <span className="text-muted-foreground text-[10px] font-mono">@{kf.time.toFixed(2)}s</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px]">{typeof kf.value === 'number' ? kf.value.toFixed(2) : kf.value}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteKeyframe(kf.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-center text-xs">No keyframes on this clip yet.</p>
+      )}
     </div>
   )
 }

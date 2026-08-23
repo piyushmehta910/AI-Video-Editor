@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Upload, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatBytes } from '@/lib/utils'
 
 interface DropZoneProps {
   accept: string
@@ -11,13 +11,6 @@ interface DropZoneProps {
   hint: string
   icon: React.ReactNode
   disabled?: boolean
-}
-
-export function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
-  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
 export function DropZone({ accept, file, onFile, onClear, label, hint, icon, disabled }: DropZoneProps) {

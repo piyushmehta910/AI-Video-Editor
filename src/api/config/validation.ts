@@ -58,11 +58,32 @@ export async function testNvidiaNim(apiKey: string, baseUrl: string, model: stri
   const label = 'NVIDIA NIM'
   if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
   const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`
-  return doRequest(label, url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, temperature: 0 }),
-  }, timeoutMs)
+  const start = performance.now()
+  try {
+    const res = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, temperature: 0 }),
+    }, timeoutMs)
+    const latencyMs = Math.round(performance.now() - start)
+    const isDeprecating = res.headers.get('deprecation') || res.headers.get('x-nim-deprecation') || baseUrl.includes('integrate.api.nvidia.com')
+    if (res.ok || res.status === 400) {
+      return {
+        ok: true,
+        status: 'connected',
+        message: isDeprecating
+          ? `${label}: Connected (Hosted endpoint retires Aug 26, 2026 — switch to OpenRouter or self-hosted NIM)`
+          : `${label}: Connected`,
+        latencyMs,
+      }
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, status: 'disconnected', message: `${label}: Invalid NVIDIA API key`, latencyMs }
+    }
+    return { ok: false, status: 'disconnected', message: `${label}: HTTP ${res.status}`, latencyMs }
+  } catch (err) {
+    return handleError(err, label)
+  }
 }
 
 const NON_CHAT_NIM = /(embed|reward|safety|content-safety|riva|nemo-retriever|nemoretriever|parse|clip|ocr|vil|vila|synthetic-video|cosmos-reason|neva)/i
@@ -99,8 +120,26 @@ export async function testOpenCodeZen(apiKey: string, baseUrl: string, model: st
 export async function testOpenRouter(apiKey: string, baseUrl: string, timeoutMs: number): Promise<TestResult> {
   const label = 'OpenRouter'
   if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
-  const url = `${baseUrl.replace(/\/$/, '')}/models`
-  return doRequest(label, url, { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } }, timeoutMs)
+  const start = performance.now()
+  try {
+    const res = await fetchWithTimeout('https://openrouter.ai/api/v1/auth/key', {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+    }, timeoutMs)
+    const latencyMs = Math.round(performance.now() - start)
+    if (res.ok) {
+      const data = await res.json().catch(() => null)
+      const keyLabel = data?.data?.label ? ` (${data.data.label})` : ''
+      return { ok: true, status: 'connected', message: `${label}: Connected${keyLabel}`, latencyMs }
+    }
+    if (res.status === 401) {
+      return { ok: false, status: 'disconnected', message: `${label}: Invalid OpenRouter key`, latencyMs }
+    }
+    return doRequest(label, `${baseUrl.replace(/\/$/, '')}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+    }, timeoutMs)
+  } catch (err) {
+    return handleError(err, label)
+  }
 }
 
 export async function fetchOpenRouterFreeModels(baseUrl = 'https://openrouter.ai/api/v1', timeoutMs = 20000): Promise<string[]> {
@@ -116,19 +155,38 @@ export async function testElevenLabs(apiKey: string, endpoint: string, timeoutMs
   const label = 'ElevenLabs'
   if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
   const base = endpoint.replace(/\/$/, '')
-  const modelsRes = await doRequest(label, `${base}/v1/models`, { headers: { 'xi-api-key': apiKey, Accept: 'application/json' } }, timeoutMs)
-  if (!modelsRes.ok) return modelsRes
-  let latency = modelsRes.latencyMs
-  const userRes = await doRequest(label, `${base}/v1/user`, { headers: { 'xi-api-key': apiKey, Accept: 'application/json' } }, timeoutMs)
-  latency += userRes.latencyMs
-  let message = `${label}: Connected`
-  if (voiceId) {
-    const voiceRes = await doRequest(label, `${base}/v1/voices/${encodeURIComponent(voiceId)}`, { headers: { 'xi-api-key': apiKey, Accept: 'application/json' } }, timeoutMs)
-    latency += voiceRes.latencyMs
-    if (!voiceRes.ok) return { ok: false, status: 'disconnected', message: `ElevenLabs: Voice "${voiceId}" not found`, latencyMs: latency }
-    message += ` (voice "${voiceId}" verified)`
+  const start = performance.now()
+  try {
+    const userRes = await fetchWithTimeout(`${base}/v1/user`, {
+      headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+    }, timeoutMs)
+    let latencyMs = Math.round(performance.now() - start)
+    if (userRes.ok) {
+      const data = await userRes.json().catch(() => null)
+      const sub = data?.subscription
+      let tierInfo = sub ? ` (${sub.tier ?? 'valid'}, ${sub.character_count ?? 0}/${sub.character_limit ?? 'unlimited'} chars)` : ''
+      if (voiceId) {
+        const voiceRes = await fetchWithTimeout(`${base}/v1/voices/${encodeURIComponent(voiceId)}`, {
+          headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+        }, timeoutMs)
+        latencyMs = Math.round(performance.now() - start)
+        if (!voiceRes.ok) {
+          return { ok: false, status: 'disconnected', message: `ElevenLabs: Voice "${voiceId}" not found`, latencyMs }
+        }
+        tierInfo += ` [voice "${voiceId}" ok]`
+      }
+      return { ok: true, status: 'connected', message: `${label}: Connected${tierInfo}`, latencyMs }
+    }
+    if (userRes.status === 401) {
+      return { ok: false, status: 'disconnected', message: `${label}: Invalid ElevenLabs key`, latencyMs }
+    }
+    if (userRes.status === 429) {
+      return { ok: true, status: 'connected', message: `${label}: Valid key (Rate-limited)`, latencyMs }
+    }
+    return { ok: false, status: 'disconnected', message: `${label}: HTTP ${userRes.status}`, latencyMs }
+  } catch (err) {
+    return handleError(err, label)
   }
-  return { ok: true, status: 'connected', message, latencyMs: latency }
 }
 
 export async function fetchElevenLabsModels(apiKey: string, endpoint = 'https://api.elevenlabs.io', timeoutMs = 20000): Promise<string[]> {
@@ -195,4 +253,21 @@ export async function testSketchfab(apiKey: string, timeoutMs: number): Promise<
     { headers: { Authorization: `Token ${apiKey}` } },
     timeoutMs,
   )
+}
+
+export async function testFreesound(apiKey: string, timeoutMs: number): Promise<TestResult> {
+  const label = 'Freesound'
+  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
+  return doRequest(
+    label,
+    `https://freesound.org/apiv2/search/text/?query=whoosh&token=${encodeURIComponent(apiKey)}&page_size=1`,
+    { headers: { Accept: 'application/json' } },
+    timeoutMs,
+  )
+}
+
+export async function testPolyHaven(timeoutMs: number): Promise<TestResult> {
+  return doRequest('Poly Haven (CC0)', 'https://api.polyhaven.com/assets?t=models', {
+    headers: { Accept: 'application/json' },
+  }, timeoutMs)
 }

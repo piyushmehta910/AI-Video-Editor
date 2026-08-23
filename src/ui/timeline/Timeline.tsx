@@ -1,7 +1,6 @@
 import * as React from 'react'
 import {
   ArrowLeftRight,
-  ArrowRightLeft,
   Box,
   Captions,
   ChevronDown,
@@ -16,7 +15,6 @@ import {
   Loader2,
   Magnet,
   Maximize,
-  Mic,
   MoreHorizontal,
   Music,
   Redo2,
@@ -27,7 +25,6 @@ import {
   Stamp,
   Trash2,
   Undo2,
-  Volume2,
   VolumeX,
   Wand2,
   Zap,
@@ -139,7 +136,8 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
   const [dragActive, setDragActive] = React.useState(false)
-  const [trimMode, setTrimMode] = React.useState(false)
+  const trimMode = useEditorStore((s) => s.trimMode)
+  const setTrimMode = useEditorStore((s) => s.setTrimMode)
   const [moreOpen, setMoreOpen] = React.useState(false)
   const tool = useEditorStore((s) => s.tool)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
@@ -504,17 +502,11 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <ToolbarButton label="Denoise Audio" onClick={runDenoiseOnSelection} disabled={!selection.clipIds.length}>
           <VolumeX className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Avatar Lip-Sync" onClick={() => onOpenTool?.('avatar')}>
-          <Mic className="size-4" />
-        </ToolbarButton>
         <SeparatorLine />
 
         {/* Panel tools - open right panel */}
         <ToolbarButton label="Project Insights" onClick={() => onOpenTool?.('insights')}>
           <BarChart3 className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Audio Settings" onClick={() => onOpenTool?.('audio')}>
-          <Volume2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Captions" onClick={() => onOpenTool?.('captions')}>
           <Captions className="size-4" />
@@ -536,9 +528,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         {/* Modifier tools */}
         <ToolbarButton label="Speed" onClick={() => onOpenTool?.('speed')}>
           <Loader2 className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Reverse" onClick={() => onOpenTool?.('speed')}>
-          <ArrowRightLeft className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Keyframe" onClick={() => onOpenTool?.('keyframe')}>
           <Wand2 className="size-4" />
@@ -778,8 +767,8 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               <CopyPlus className="size-3.5" />
             </ToolbarButton>
             <ToolbarButton
-              label={trimMode ? 'Trim mode on â€” drag the clip edges' : 'Trim (drag the clip edges)'}
-              onClick={() => setTrimMode((m) => !m)}
+              label={trimMode ? 'Trim mode on — drag the clip edges' : 'Trim (drag the clip edges)'}
+              onClick={() => setTrimMode(!trimMode)}
             >
               <ArrowLeftRight className={cn('size-3.5', trimMode && 'text-violet-500')} />
             </ToolbarButton>

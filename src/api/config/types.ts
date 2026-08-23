@@ -82,9 +82,14 @@ export interface DeezerConfig extends BaseConfig {
   endpoint: string
 }
 
+export interface FreesoundConfig extends BaseConfig {
+  apiKey: string
+}
+
 export interface MusicConfig {
   musicbrainz: MusicBrainzConfig
   deezer: DeezerConfig
+  freesound: FreesoundConfig
 }
 
 export interface GiphyConfig extends BaseConfig {
@@ -138,16 +143,14 @@ export interface SketchfabConfig extends BaseConfig {
 }
 
 export const defaultNvidiaNimConfig: NvidiaNimConfig = {
-  enabled: true,
+  enabled: false,
   apiKey: '',
   baseUrl: 'https://integrate.api.nvidia.com/v1',
-  // A broadly available chat model; users can refresh the catalog for their
-  // account before selecting a different one.
   model: 'meta/llama-3.1-8b-instruct',
   temperature: 0.7,
   maxTokens: 2048,
   timeoutMs: 30000,
-  priority: 1,
+  priority: 3,
   status: 'disabled',
 }
 
@@ -165,14 +168,14 @@ export const defaultOpenCodeZenConfig: OpenCodeZenConfig = {
 }
 
 export const defaultOpenRouterConfig: OpenRouterConfig = {
-  enabled: false,
+  enabled: true,
   apiKey: '',
   baseUrl: 'https://openrouter.ai/api/v1',
   model: 'nvidia/nemotron-3.5-lightning:free',
   temperature: 0.7,
   maxTokens: 2048,
   timeoutMs: 30000,
-  priority: 3,
+  priority: 1,
   status: 'disabled',
 }
 
@@ -262,9 +265,17 @@ export const defaultDeezerConfig: DeezerConfig = {
   status: 'disabled',
 }
 
+export const defaultFreesoundConfig: FreesoundConfig = {
+  enabled: true,
+  apiKey: '',
+  timeoutMs: 30000,
+  status: 'disabled',
+}
+
 export const defaultMusicConfig: MusicConfig = {
   musicbrainz: defaultMusicBrainzConfig,
   deezer: defaultDeezerConfig,
+  freesound: defaultFreesoundConfig,
 }
 
 export const defaultGiphyConfig: GiphyConfig = {
@@ -281,7 +292,7 @@ export const defaultPreferencesConfig: AiPreferencesConfig = {
   defaultAspectRatio: '16:9',
   defaultFps: 30,
   defaultExportQuality: '1080p',
-  preferredAiProvider: 'nvidia-nim',
+  preferredAiProvider: 'openRouter',
   preferredVoice: 'default',
   preferredAvatar: 'default',
   preferredStock: 'unsplash',

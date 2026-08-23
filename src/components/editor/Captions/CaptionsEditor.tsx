@@ -67,7 +67,7 @@ export function CaptionsEditor({ clip, onSave, onClose }: CaptionsEditorProps) {
       .then(() => console.log('Whisper engine ready'))
       .catch(setError)
     return () => terminate()
-  }, [])
+  }, [initialize, terminate, config.modelId, config.language, config.task])
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

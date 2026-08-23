@@ -211,7 +211,9 @@ export async function encodeFramesToWebM(
     muxer = new WebMMuxer({ width: meta.width, height: meta.height, duration: durationSec, codec })
     encoder = new VideoEncoder({
       output: (chunk) => {
-        muxer?.addChunk({ data: new Uint8Array(chunk.byteLength), timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
+        const bytes = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(bytes)
+        muxer?.addChunk({ data: bytes, timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
       },
       error: (e) => {
         throw e

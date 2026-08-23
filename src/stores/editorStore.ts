@@ -9,6 +9,9 @@ export type EditorMode = 'human' | 'hybrid' | 'ai'
 /** Active timeline mouse tool (razor splits where you click, text places clips…). */
 export type EditorTool = 'select' | 'razor' | 'text' | 'rate'
 
+/** Trim mode state for timeline edge-dragging. */
+export type TrimMode = boolean
+
 /**
  * UI-only editor state (panel visibility, bin tabs, mode switches).
  * Timeline data state — playhead, zoom, clip selection — deliberately stays in
@@ -30,6 +33,7 @@ export interface EditorUIState {
   aiDirectorOpen: boolean
   historyPanelOpen: boolean
   tool: EditorTool
+  trimMode: TrimMode
   /** Keyboard-shortcuts cheat sheet modal visibility. */
   shortcutsOpen: boolean
   /** Last unrecognised key combo, shown briefly as a hint overlay. */
@@ -51,6 +55,8 @@ export interface EditorUIState {
   setAIDirectorOpen: (open: boolean) => void
   toggleHistoryPanel: () => void
   setTool: (tool: EditorTool) => void
+  toggleTrimMode: () => void
+  setTrimMode: (open: boolean) => void
   setShortcutsOpen: (open: boolean) => void
   setKeysHint: (hint: string | null) => void
 }
@@ -86,6 +92,7 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   aiDirectorOpen: false,
   historyPanelOpen: false,
   tool: 'select',
+  trimMode: false,
   shortcutsOpen: false,
   keysHint: null,
 
@@ -127,6 +134,8 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   setAIDirectorOpen: (open) => set({ aiDirectorOpen: open }),
   toggleHistoryPanel: () => set((s) => ({ historyPanelOpen: !s.historyPanelOpen })),
   setTool: (tool) => set({ tool }),
+  toggleTrimMode: () => set((s) => ({ trimMode: !s.trimMode })),
+  setTrimMode: (open) => set({ trimMode: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
   setKeysHint: (hint) => set({ keysHint: hint }),
 }))

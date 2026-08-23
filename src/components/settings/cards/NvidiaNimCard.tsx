@@ -102,6 +102,10 @@ return (
       onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'disconnected' : 'disabled' })}
       onReset={() => update((draft) => ({ ...draft, nvidiaNim: { ...defaultNvidiaNimConfig } }))}
     >
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-500 md:col-span-2">
+        <span className="font-semibold">Notice:</span> Hosted endpoint (<code>integrate.api.nvidia.com</code>) retires on <strong>August 26, 2026</strong>. Please set OpenRouter as your primary provider or connect a self-hosted NIM instance.
+      </div>
+
       <FieldRow label="API Key" htmlFor="nim-api-key" className="md:col-span-2">
         <ApiKeyInput id="nim-api-key" value={apiKey} placeholder="nvapi-..." onChange={(e) => set({ apiKey: e.target.value })} />
       </FieldRow>
