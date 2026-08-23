@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EditorErrorBoundary } from '@/components/editor/EditorErrorBoundary'
 import { WebGPULoadingScreen } from '@/components/editor/WebGPULoadingScreen'
+import { BrowserGate } from '@/components/editor/BrowserGate'
 
 const LandingPage = lazy(() =>
   import('@/pages/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
@@ -35,13 +36,21 @@ function withSuspense(Component: React.LazyExoticComponent<React.ComponentType>)
   }
 }
 
-/** Editor route: error boundary + GPU-flavoured loader around the lazy chunk. */
+/**
+ * Editor route: gate order matters —
+ *   1. EditorErrorBoundary catches everything below (incl. gate crashes)
+ *   2. BrowserGate runs the WebGPU check BEFORE the lazy editor chunk is
+ *      requested (unsupported browsers never download editor code)
+ *   3. Suspense shows the GPU loader while the chunk streams in
+ */
 function SuspendedEditor() {
   return (
     <EditorErrorBoundary>
-      <Suspense fallback={<WebGPULoadingScreen />}>
-        <EditorPage />
-      </Suspense>
+      <BrowserGate>
+        <Suspense fallback={<WebGPULoadingScreen />}>
+          <EditorPage />
+        </Suspense>
+      </BrowserGate>
     </EditorErrorBoundary>
   )
 }
