@@ -508,13 +508,18 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'generate_script',
-      description: 'Write a full narration script (hook + numbered scenes + CTA) for a topic. Scene durations are normalized to fill the requested target duration (or the current timeline duration). The script is stored and its scene durations are authoritative for later tools like generate_voiceover and generate_motion_graphics. Staged for user review.',
+      description: 'Write a full narration script (hook + numbered scenes + CTA) for a topic with optional creator persona styling (MrBeast, Veritasium, Ali Abdaal, MKBHD, Vox, Alex Hormozi, MagnatesMedia, Viral Shorts, or Standard Neutral). Scene durations are normalized to fill the target duration. Staged for user review.',
       parameters: {
         type: 'object',
         properties: {
           topic: { type: 'string', description: 'The subject the script must explain, e.g. "how the heart pumps blood".' },
           durationSeconds: { type: 'number', description: 'Target total duration in seconds to fill. Omit to use the current timeline duration.' },
           language: { type: 'string', description: 'Optional narration language, e.g. "Hindi".' },
+          creatorStyle: {
+            type: 'string',
+            enum: ['off', 'mrbeast', 'veritasium', 'ali_abdaal', 'mkbhd', 'vox', 'alex_hormozi', 'magnates', 'shorts_viral'],
+            description: 'Optional popular YouTube creator style/persona to emulate for retention and tone.',
+          },
         },
         required: ['topic'],
       },
@@ -1677,11 +1682,13 @@ export async function applyTool(
     case 'generate_script': {
       const topic = String(args.topic ?? '')
       const language = String(args.language ?? '') || undefined
+      const creatorStyle = args.creatorStyle as any
       try {
         const script = await generateScript({
           topic,
           durationSeconds: args.durationSeconds != null ? Number(args.durationSeconds) : undefined,
           language,
+          creatorStyle,
         })
         useScriptStore.getState().setScript(script)
         return { ok: true, message: `${desc} — ${describeScript(script)}` }

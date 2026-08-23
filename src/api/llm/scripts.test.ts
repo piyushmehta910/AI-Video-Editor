@@ -9,6 +9,9 @@ import {
   normalizeScenes,
   normalizeScript,
   scriptDuration,
+  CREATOR_STYLES,
+  formatTeleprompter,
+  calculateScriptMetrics,
 } from './scripts'
 
 describe('wordCount / estimateSceneDuration', () => {
@@ -71,5 +74,69 @@ describe('normalizeScript / scriptDuration', () => {
     const script = normalizeScript({ scenes: [] }, 12, 'heart')
     expect(script.title).toBe('heart')
     expect(script.scenes).toEqual([])
+  })
+
+  it('normalizes scenes with visual cues and onScreenText', () => {
+    const script = normalizeScript(
+      {
+        title: 'Tech Video',
+        hook: 'Watch this now',
+        hookVisual: 'Close-up macro lens of phone',
+        scenes: [
+          {
+            title: 'Design',
+            text: 'Look at the aluminum frame and titanium edges.',
+            visual: 'Slow pan across edges',
+            onScreenText: 'TITANIUM FRAME',
+          },
+        ],
+        cta: 'Drop a comment below!',
+        ctaVisual: 'Channel logo animation',
+      },
+      30,
+      'Tech Video',
+      'MKBHD',
+    )
+    expect(script.creatorStyle).toBe('MKBHD')
+    expect(script.hookVisual).toBe('Close-up macro lens of phone')
+    expect(script.scenes[0].visualCue).toBe('Slow pan across edges')
+    expect(script.scenes[0].onScreenText).toBe('TITANIUM FRAME')
+    expect(script.ctaVisual).toBe('Channel logo animation')
+  })
+})
+
+describe('CREATOR_STYLES & Teleprompter', () => {
+  it('defines popular YouTube creator style presets', () => {
+    expect(CREATOR_STYLES.mrbeast).toBeDefined()
+    expect(CREATOR_STYLES.veritasium).toBeDefined()
+    expect(CREATOR_STYLES.ali_abdaal).toBeDefined()
+    expect(CREATOR_STYLES.mkbhd).toBeDefined()
+    expect(CREATOR_STYLES.vox).toBeDefined()
+    expect(CREATOR_STYLES.alex_hormozi).toBeDefined()
+    expect(CREATOR_STYLES.magnates).toBeDefined()
+    expect(CREATOR_STYLES.shorts_viral).toBeDefined()
+    expect(CREATOR_STYLES.off).toBeDefined()
+  })
+
+  it('formats teleprompter text cleanly and calculates metrics', () => {
+    const script = {
+      topic: 'Space',
+      title: 'Journey to Mars',
+      hook: 'Can humans survive on Mars?',
+      scenes: [
+        { title: 'Atmosphere', text: 'The atmosphere is razor thin.', durationSeconds: 5 },
+        { title: 'Radiation', text: 'Radiation shields are critical.', durationSeconds: 5 },
+      ],
+      cta: 'Subscribe for more space discoveries.',
+      targetDurationSeconds: 18,
+    }
+    const readout = formatTeleprompter(script)
+    expect(readout).toContain('Can humans survive on Mars?')
+    expect(readout).toContain('The atmosphere is razor thin.')
+    expect(readout).toContain('Subscribe for more space discoveries.')
+
+    const metrics = calculateScriptMetrics(script)
+    expect(metrics.totalWords).toBeGreaterThan(10)
+    expect(metrics.wpm).toBe(150)
   })
 })

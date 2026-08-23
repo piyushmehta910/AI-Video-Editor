@@ -37,12 +37,22 @@ import {
   Video,
   RotateCcw,
   Layers,
+  Copy,
+  Flame,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import type { Clip, EffectType, TextOverlay, Asset } from '@/engine/types'
 import { createEffect } from '@/engine/types'
 import { upsertKeyframe, removeKeyframe } from '@/lib/keyframes'
+import {
+  CREATOR_STYLES,
+  type CreatorStyleId,
+  generateScript,
+  formatTeleprompter,
+  calculateScriptMetrics,
+} from '@/api/llm/scripts'
+import { useScriptStore } from '@/stores/scriptStore'
 import { generateMarpSlides, parseMarpDeck, renderMarpSlideHtml, type MarpTheme } from '@/api/llm/marp'
 import { generateInductiveSlideContext, getSavedSlideDecks, type InductiveSlideContext } from '@/api/llm/slideContext'
 import { generateLipsyncVideo, type AvatarMouth, type LipsyncStyle, AVATAR_FACE_PRESETS, renderPresetFaceToBlob, type AvatarFacePreset } from '@/engine/avatar'
@@ -3609,39 +3619,40 @@ function DesignSection() {
 // ─── Script Section ───────────────────────────────────────────────────────────
 function ScriptSection() {
   const [topic, setTopic] = React.useState('')
-  const [scenes, setScenes] = React.useState(4)
-  const [tone, setTone] = React.useState('educational')
+  const [creatorStyle, setCreatorStyle] = React.useState<CreatorStyleId>('mrbeast')
+  const [targetDuration, setTargetDuration] = React.useState(60)
+  const [sceneCount, setSceneCount] = React.useState(5)
+  const [customTone, setCustomTone] = React.useState('high_energy')
+  const [language, setLanguage] = React.useState('auto')
   const [busy, setBusy] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState<'storyboard' | 'teleprompter' | 'hook'>('storyboard')
+  const [teleprompterZoom, setTeleprompterZoom] = React.useState(14)
+  const [copied, setCopied] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
-  const [script, setScript] = React.useState<string>('')
 
-  const generate = async () => {
+  const script = useScriptStore((s) => s.script)
+  const setScript = useScriptStore((s) => s.setScript)
+  const addTextClip = useTimelineStore((s) => s.addTextClip)
+  const project = useTimelineStore((s) => s.project)
+
+  const handleGenerate = async () => {
     if (!topic.trim() || busy) return
     setBusy(true)
     setError(null)
     setSuccess(null)
-    setScript('')
+
     try {
-      const { chatCompletion, getDirectorProvider } = await import('@/api/llm/director')
-      const provider = getDirectorProvider()
-      if (!provider) throw new Error('No AI provider configured. Add one in Settings.')
-      const messages = [
-        { role: 'system' as const, content: `You write video scripts. Output JSON only:
-{
-  "title": "Video Title",
-  "scenes": [
-    { "scene": 1, "visual": "Description of visuals", "narration": "Voiceover text", "duration": 5 }
-  ]
-}
-Rules: ${scenes} scenes. Tone: ${tone}. Each scene 5-10s. No markdown.` },
-        { role: 'user' as const, content: `Topic: "${topic.trim()}"` },
-      ]
-      const reply = await chatCompletion(provider, messages)
-      let content = reply.content ?? ''
-      content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-      setScript(content)
-      setSuccess('Script generated. Copy or save as text file.')
+      const result = await generateScript({
+        topic: topic.trim(),
+        durationSeconds: targetDuration,
+        creatorStyle,
+        customTone,
+        sceneCount,
+        language,
+      })
+      setScript(result)
+      setSuccess(`Script created in ${CREATOR_STYLES[creatorStyle].name} style!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -3649,41 +3660,378 @@ Rules: ${scenes} scenes. Tone: ${tone}. Each scene 5-10s. No markdown.` },
     }
   }
 
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleDownload = () => {
+    if (!script) return
+    const text = formatTeleprompter(script)
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${script.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_script.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleAddCaptionsToTimeline = () => {
+    if (!script) return
+    const targetTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
+    if (!targetTrack) {
+      setError('No text track available on timeline')
+      return
+    }
+
+    let time = 0
+    if (script.hook) {
+      addTextClip(script.hook, targetTrack.id, time)
+      time += 4
+    }
+    for (const sc of script.scenes) {
+      const textToUse = sc.onScreenText || sc.text
+      if (textToUse) {
+        addTextClip(textToUse, targetTrack.id, time)
+      }
+      time += sc.durationSeconds
+    }
+    if (script.cta) {
+      addTextClip(script.cta, targetTrack.id, time)
+    }
+    setSuccess('Added script scenes as text overlays to the timeline!')
+  }
+
+  const metrics = script ? calculateScriptMetrics(script) : null
+
   return (
-    <div className="space-y-3 p-3">
-      <div className="space-y-1.5">
-        <Label className="text-xs">Topic</Label>
-        <Input placeholder="e.g. How solar panels work" value={topic} onChange={(e) => setTopic(e.target.value)} className="h-8 text-xs" disabled={busy} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Scenes</Label>
-          <Input type="number" min={1} max={10} value={scenes} onChange={(e) => setScenes(Math.max(1, Math.min(10, Number(e.target.value))))} className="h-8 text-xs" disabled={busy} />
+    <div className="space-y-3.5 p-3">
+      {/* ── 1. Creator Persona & Style Selector ── */}
+      <div className="space-y-1.5 rounded-lg border bg-muted/10 p-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold flex items-center gap-1.5">
+            <Flame className="size-3.5 text-amber-400" />
+            Creator Persona & Style
+          </span>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {CREATOR_STYLES[creatorStyle].name}
+          </span>
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Tone</Label>
-          <Select value={tone} onValueChange={setTone} disabled={busy}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="educational">Educational</SelectItem>
-              <SelectItem value="promotional">Promotional</SelectItem>
-              <SelectItem value="storytelling">Storytelling</SelectItem>
-              <SelectItem value="technical">Technical</SelectItem>
-            </SelectContent>
-          </Select>
+
+        {/* Style Grid */}
+        <div className="grid grid-cols-3 gap-1 pt-1">
+          {(Object.values(CREATOR_STYLES) as typeof CREATOR_STYLES[CreatorStyleId][]).map((style) => (
+            <button
+              key={style.id}
+              type="button"
+              className={cn(
+                'rounded-md border p-1.5 text-left transition flex flex-col justify-between h-14',
+                creatorStyle === style.id
+                  ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500/50'
+                  : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
+              )}
+              onClick={() => setCreatorStyle(style.id)}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[11px] font-bold">{style.icon} {style.name.split(' ')[0]}</span>
+              </div>
+              <p className="text-[8px] text-muted-foreground line-clamp-1 leading-tight">{style.tagline}</p>
+            </button>
+          ))}
         </div>
       </div>
-      <Button size="sm" className="w-full" onClick={() => void generate()} disabled={busy || !topic.trim()}>
-        {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-        {busy ? 'Generating...' : 'Generate Script'}
-      </Button>
+
+      {/* ── 2. Script Topic & Pacing Controls ── */}
+      <div className="space-y-2.5 rounded-lg border bg-muted/10 p-2.5">
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold">Video Topic or Title</Label>
+          <Input
+            placeholder="e.g. 5 AI tools that will change video editing forever"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            className="h-8 text-xs bg-card"
+            disabled={busy}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] text-muted-foreground">Target Length</Label>
+              <span className="font-mono text-[10px] text-violet-400 font-semibold">{targetDuration}s</span>
+            </div>
+            <Select value={String(targetDuration)} onValueChange={(v) => setTargetDuration(Number(v))} disabled={busy}>
+              <SelectTrigger className="h-7 text-xs bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15s (Shorts/TikTok)</SelectItem>
+                <SelectItem value="30">30s (Quick Hook)</SelectItem>
+                <SelectItem value="60">60s (Standard 1-Min)</SelectItem>
+                <SelectItem value="90">90s (Deep Reel)</SelectItem>
+                <SelectItem value="120">2 Min (Explainer)</SelectItem>
+                <SelectItem value="180">3 Min (Mini-Doc)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] text-muted-foreground">Tone & Pacing</Label>
+            </div>
+            <Select value={customTone} onValueChange={setCustomTone} disabled={busy}>
+              <SelectTrigger className="h-7 text-xs bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="high_energy">High Energy & Urgent</SelectItem>
+                <SelectItem value="storytelling">Narrative Storytelling</SelectItem>
+                <SelectItem value="educational">Educational & Analytical</SelectItem>
+                <SelectItem value="humorous">Witty & Humorous</SelectItem>
+                <SelectItem value="authoritative">Authoritative & Confident</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Scenes / Beats</Label>
+            <Select value={String(sceneCount)} onValueChange={(v) => setSceneCount(Number(v))} disabled={busy}>
+              <SelectTrigger className="h-7 text-xs bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 Scenes (Tight)</SelectItem>
+                <SelectItem value="4">4 Scenes (Balanced)</SelectItem>
+                <SelectItem value="5">5 Scenes (Standard)</SelectItem>
+                <SelectItem value="6">6 Scenes (Deep)</SelectItem>
+                <SelectItem value="8">8 Scenes (Comprehensive)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Language</Label>
+            <Select value={language} onValueChange={setLanguage} disabled={busy}>
+              <SelectTrigger className="h-7 text-xs bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto / English</SelectItem>
+                <SelectItem value="Spanish">Spanish</SelectItem>
+                <SelectItem value="French">French</SelectItem>
+                <SelectItem value="German">German</SelectItem>
+                <SelectItem value="Hindi">Hindi</SelectItem>
+                <SelectItem value="Japanese">Japanese</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Button
+          size="sm"
+          className="w-full bg-violet-600 hover:bg-violet-500 text-white shadow-xs font-semibold h-8"
+          onClick={() => void handleGenerate()}
+          disabled={busy || !topic.trim()}
+        >
+          {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+          {busy ? 'Writing Viral Script...' : `Generate ${CREATOR_STYLES[creatorStyle].name} Script`}
+        </Button>
+      </div>
+
       {error && <SectionNotice kind="error" text={error} />}
       {success && <SectionNotice kind="ok" text={success} />}
+
+      {/* ── 3. Rich Script Studio Viewer ── */}
       {script && (
-        <div className="space-y-2">
-          <Label className="text-xs">Generated Script (JSON)</Label>
-          <textarea value={script} readOnly className="h-48 w-full rounded border bg-muted p-2 font-mono text-[10px] leading-relaxed" />
-          <Button size="sm" variant="outline" className="w-full" onClick={() => navigator.clipboard.writeText(script)}>Copy JSON</Button>
+        <div className="space-y-2.5 rounded-lg border bg-card p-3 shadow-xs">
+          {/* Header & Metrics */}
+          <div className="flex items-center justify-between border-b pb-2">
+            <div className="space-y-0.5">
+              <p className="text-xs font-bold text-foreground truncate max-w-[190px]">{script.title}</p>
+              {metrics && (
+                <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-mono">
+                  <span>{metrics.totalWords} words</span>
+                  <span>·</span>
+                  <span>~{metrics.estimatedSeconds}s audio</span>
+                  <span>·</span>
+                  <span>{metrics.wpm} wpm</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-7"
+                onClick={() => handleCopy(formatTeleprompter(script))}
+                title="Copy Full Script"
+              >
+                {copied ? <CheckCircle2 className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-7"
+                onClick={handleDownload}
+                title="Download Script (.txt)"
+              >
+                <Download className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Viewer Tabs */}
+          <div className="flex rounded-md border bg-muted/40 p-0.5 text-[10px]">
+            <button
+              type="button"
+              className={cn(
+                'flex-1 rounded py-1 font-medium transition text-center',
+                activeTab === 'storyboard' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setActiveTab('storyboard')}
+            >
+              📑 Visual Storyboard
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'flex-1 rounded py-1 font-medium transition text-center',
+                activeTab === 'teleprompter' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setActiveTab('teleprompter')}
+            >
+              📜 Teleprompter
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'flex-1 rounded py-1 font-medium transition text-center',
+                activeTab === 'hook' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setActiveTab('hook')}
+            >
+              🎣 Hook Breakdown
+            </button>
+          </div>
+
+          {/* ── Storyboard View ── */}
+          {activeTab === 'storyboard' && (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {/* Hook */}
+              {script.hook && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-400">
+                    <span className="flex items-center gap-1">🎣 0:00 → 0:04 · HOOK</span>
+                    <span className="text-[9px] font-normal uppercase bg-amber-500/20 px-1 rounded">High Retention</span>
+                  </div>
+                  <p className="text-xs text-foreground font-medium leading-snug">{script.hook}</p>
+                  {script.hookVisual && (
+                    <p className="text-[10px] text-muted-foreground italic border-t border-amber-500/20 pt-1">
+                      Visual: {script.hookVisual}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Scenes */}
+              {script.scenes.map((sc, i) => (
+                <div key={i} className="rounded-md border bg-muted/20 p-2 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-violet-400">
+                    <span>🎬 Scene {i + 1}: {sc.title || `Beat ${i + 1}`}</span>
+                    <span className="font-mono text-muted-foreground text-[9px]">{sc.durationSeconds.toFixed(1)}s</span>
+                  </div>
+                  <p className="text-xs text-foreground leading-relaxed">{sc.text}</p>
+                  {sc.visualCue && (
+                    <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-1 flex items-start gap-1">
+                      <span className="font-semibold text-foreground/80 shrink-0">B-Roll:</span>
+                      <span className="italic">{sc.visualCue}</span>
+                    </div>
+                  )}
+                  {sc.onScreenText && (
+                    <div className="inline-block rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                      TEXT: "{sc.onScreenText}"
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* CTA */}
+              {script.cta && (
+                <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-emerald-400">
+                    <span className="flex items-center gap-1">🚀 OUTRO / CALL TO ACTION</span>
+                  </div>
+                  <p className="text-xs text-foreground font-medium">{script.cta}</p>
+                  {script.ctaVisual && (
+                    <p className="text-[10px] text-muted-foreground italic border-t border-emerald-500/20 pt-1">
+                      Visual: {script.ctaVisual}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Teleprompter View ── */}
+          {activeTab === 'teleprompter' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>Font Size</span>
+                <div className="w-24">
+                  <Slider
+                    min={10}
+                    max={22}
+                    step={1}
+                    value={[teleprompterZoom]}
+                    onValueChange={([v]) => setTeleprompterZoom(v)}
+                  />
+                </div>
+              </div>
+              <div
+                className="max-h-64 overflow-y-auto rounded-md border bg-black/40 p-3 leading-relaxed text-foreground font-sans space-y-3 select-text"
+                style={{ fontSize: `${teleprompterZoom}px` }}
+              >
+                {script.hook && <p className="font-bold text-amber-300">{script.hook}</p>}
+                {script.scenes.map((sc, i) => (
+                  <p key={i}>{sc.text}</p>
+                ))}
+                {script.cta && <p className="font-semibold text-emerald-300">{script.cta}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* ── Hook Breakdown View ── */}
+          {activeTab === 'hook' && (
+            <div className="space-y-2 text-xs">
+              <div className="rounded-md border p-2.5 space-y-1.5 bg-muted/20">
+                <p className="font-semibold text-foreground text-xs">First 4 Seconds Analysis</p>
+                <p className="text-[11px] text-muted-foreground">
+                  The opening hook sets the visual and spoken promise. In <span className="text-violet-400 font-semibold">{script.creatorStyle || 'Creator'}</span> style, retention is maximized by immediate tension.
+                </p>
+                <div className="rounded bg-background p-2 font-mono text-[11px] text-amber-300 border border-amber-500/30">
+                  "{script.hook}"
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pipeline Quick Actions */}
+          <div className="pt-2 border-t space-y-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs h-7.5 gap-1.5"
+              onClick={handleAddCaptionsToTimeline}
+            >
+              <FileText className="size-3.5 text-cyan-400" />
+              Add Scene Titles to Timeline
+            </Button>
+          </div>
         </div>
       )}
     </div>

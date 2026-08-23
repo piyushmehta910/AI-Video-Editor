@@ -4,14 +4,19 @@ export interface ScriptScene {
   title: string
   text: string
   durationSeconds: number
+  visualCue?: string
+  onScreenText?: string
 }
 
 export interface ProjectScript {
   topic: string
   title: string
   hook: string
+  hookVisual?: string
   scenes: ScriptScene[]
   cta: string
+  ctaVisual?: string
+  creatorStyle?: string
   targetDurationSeconds: number
 }
 
