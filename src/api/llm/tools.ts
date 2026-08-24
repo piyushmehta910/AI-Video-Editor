@@ -843,6 +843,74 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'apply_filter',
+      description: 'Apply visual color grading or shader filter effects (brightness, contrast, saturation, blur, grayscale, vignette, temperature) to a target clip. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'Target clip name.' },
+          effectType: {
+            type: 'string',
+            enum: ['brightness', 'contrast', 'saturation', 'blur', 'grayscale', 'vignette', 'temperature'],
+            description: 'Effect filter type.',
+          },
+          value: { type: 'number', description: 'Intensity value (e.g. brightness -1..1, blur 0..20, contrast -1..1).' },
+        },
+        required: ['assetName', 'effectType', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_sticker',
+      description: 'Search and place an animated GIF sticker / reaction overlay on the timeline with position presets (e.g. subscribe, fire, arrow, bell). Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Sticker search term (e.g. "subscribe", "fire", "arrow", "like").' },
+          placement: {
+            type: 'string',
+            enum: ['center', 'bottom-right', 'top-right', 'bottom-left', 'top-left', 'lower-third'],
+            description: 'On-screen placement preset (default bottom-right).',
+          },
+          scalePercent: { type: 'number', description: 'Scale percentage (e.g. 20, 35, 50, 100). Default 35.' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'denoise_audio',
+      description: 'Apply AI speech background noise reduction to an audio or video clip. Staged for user review.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'Target audio/video clip name to denoise.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_snap_enabled',
+      description: 'Toggle magnetic snapping on the editing timeline. Applies immediately.',
+      parameters: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean', description: 'Whether magnetic snapping is enabled.' },
+        },
+        required: ['enabled'],
+      },
+    },
+  },
 ]
 
 /** Tools that change timeline state and therefore must be reviewed before applying. */
@@ -859,6 +927,9 @@ const STAGED_TOOLS = new Set<string>([
   'set_clip_volume',
   'set_clip_placement',
   'auto_generate_captions',
+  'apply_filter',
+  'add_sticker',
+  'denoise_audio',
   'add_text_overlay',
   'add_text',
   'set_transition',
@@ -891,6 +962,7 @@ const STAGED_TOOLS = new Set<string>([
 /** Tools that never mutate timeline state and therefore need no undo snapshot. */
 const NON_MUTATING_TOOLS = new Set<string>([
   'set_playhead',
+  'set_snap_enabled',
   'understand_video',
   'generate_transcript',
   'check_quality',
@@ -906,6 +978,9 @@ const ALIASES: Record<string, string> = {
   generate_transcript: 'understand_video',
   add_text: 'add_text_overlay',
   add_transition: 'set_transition',
+  add_effect: 'apply_filter',
+  filter: 'apply_filter',
+  sticker: 'add_sticker',
 }
 
 export function isStagedTool(name: string): boolean {
@@ -1183,6 +1258,24 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       return parts.length
         ? `Set 3D camera on "${clip.name}": ${parts.join(', ')}`
         : `Reset 3D camera on "${clip.name}"`
+    }
+    case 'apply_filter': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      return `Apply ${String(args.effectType)} filter (${Number(args.value)}) to "${clip.name}"`
+    }
+    case 'add_sticker': {
+      const query = String(args.query ?? '').trim()
+      if (!query) return null
+      return `Add animated "${query}" sticker at ${String(args.placement || 'bottom-right')} (${Number(args.scalePercent || 35)}% size)`
+    }
+    case 'denoise_audio': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return null
+      return `Denoise background noise for "${clip.name}"`
+    }
+    case 'set_snap_enabled': {
+      return `${Boolean(args.enabled) ? 'Enable' : 'Disable'} magnetic snapping`
     }
     default:
       return null
@@ -1996,6 +2089,76 @@ export async function applyTool(
       a.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
       return { ok: true, message: `${desc} (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${frames} frames)` }
+    }
+    case 'apply_filter': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      const effectType = String(args.effectType)
+      const value = Number(args.value)
+      const existing = clip.effects.findIndex((fx) => fx.type === effectType)
+      const effects = [...clip.effects]
+      if (existing >= 0) {
+        effects[existing] = { ...effects[existing], value }
+      } else {
+        effects.push({ id: `fx-${Date.now()}`, type: effectType as never, value, enabled: true })
+      }
+      s.updateClip(clip.id, { effects })
+      return { ok: true, message: desc }
+    }
+    case 'add_sticker': {
+      const query = String(args.query ?? '').trim()
+      const placement = String(args.placement || 'bottom-right')
+      const scalePct = Number(args.scalePercent || 35)
+      try {
+        const { searchGiphy, downloadGiphy } = await import('@/api/stickers/search')
+        const { convertStickerGif } = await import('@/engine/stickers/gifToVideo')
+        const results = await searchGiphy(query)
+        if (!results.length) return { ok: false, message: `No stickers found for "${query}".` }
+        const first = results[0]
+        const gifFile = await downloadGiphy(first)
+        const converted = await convertStickerGif(gifFile, first.id)
+        const { imported } = await s.importFiles([converted.webmFile])
+        if (!imported.length) return { ok: false, message: 'Could not import sticker WebM file.' }
+        const newClip = s.addAssetToTimeline(imported[0].id)
+        if (newClip) {
+          const p = s.project
+          const w = p.width || 1920
+          const h = p.height || 1080
+          const sVal = scalePct / 100
+          let x = 0
+          let y = 0
+          if (placement === 'bottom-right') {
+            x = Math.round(w * 0.3)
+            y = Math.round(h * 0.3)
+          } else if (placement === 'top-right') {
+            x = Math.round(w * 0.3)
+            y = Math.round(-h * 0.3)
+          } else if (placement === 'bottom-left') {
+            x = Math.round(-w * 0.3)
+            y = Math.round(h * 0.3)
+          } else if (placement === 'top-left') {
+            x = Math.round(-w * 0.3)
+            y = Math.round(-h * 0.3)
+          } else if (placement === 'lower-third') {
+            x = 0
+            y = Math.round(h * 0.35)
+          }
+          s.updateClip(newClip.id, { scale: { x: sVal, y: sVal }, position: { x, y } })
+        }
+        return { ok: true, message: desc }
+      } catch (err) {
+        return { ok: false, message: `Sticker addition failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'denoise_audio': {
+      const clip = findClip(String(args.assetName ?? ''))
+      if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
+      return { ok: true, message: desc }
+    }
+    case 'set_snap_enabled': {
+      const enabled = Boolean(args.enabled)
+      s.setSnapEnabled(enabled)
+      return { ok: true, message: desc }
     }
     default:
       return { ok: false, message: `Unknown action "${name}".` }

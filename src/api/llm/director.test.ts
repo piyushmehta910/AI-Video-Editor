@@ -96,5 +96,7 @@ describe('AI Director provider selection', () => {
     const prompt = getProjectContextSystemPrompt(['What is the title?'])
     expect(prompt).toContain('You are the AI Director inside ClipForge')
     expect(prompt).toContain('Already asked: What is the title?')
+    expect(prompt).toContain('MIDDLE TOOLBAR & TIMELINE FEATURE MAPPING')
+    expect(prompt).toContain('PROFESSIONAL KNOWLEDGE & ACTION MANUAL')
   })
 })

@@ -2,6 +2,7 @@ import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { needsProxy, proxyFetch } from '@/api/proxy'
 import type { LLMConfig } from '@/api/config/types'
+import { VIDEO_EDITING_MANUAL } from './videoEditingManual'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -127,6 +128,7 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
       'to build full context (transcripts, scenes, on-screen text), then plan_edit with a concrete creative plan, ' +
       'then execute after approval. Choose pacing, transitions, captions, music, images or slides where they genuinely help.',
   )
+  lines.push('\n' + VIDEO_EDITING_MANUAL)
   return lines.join('\n')
 }
 
