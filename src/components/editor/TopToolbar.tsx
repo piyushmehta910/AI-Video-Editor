@@ -3,8 +3,7 @@ import { Download, History, Home, PanelLeft, Pencil, Save, Settings } from 'luci
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
-import { ExportModal } from '@/components/export/ExportModal'
-import { ExportQueue } from '@/components/export/ExportQueue'
+import { ExportDialog } from '@/ui/export/ExportDialog'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
@@ -256,8 +255,7 @@ export function TopToolbar() {
         <ThemeToggle />
       </div>
 
-      {exportOpen && <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />}
-      <ExportQueue />
+      {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
     </div>
   )
 }

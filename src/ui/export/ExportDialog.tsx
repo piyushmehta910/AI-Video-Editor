@@ -16,15 +16,6 @@ interface ExportDialogProps {
 type Codec = 'h264' | 'vp8' | 'vp9' | 'av1'
 type Format = 'webm' | 'mp4'
 
-const RESOLUTIONS = [
-  { label: '360p', w: 640, h: 360 },
-  { label: '480p', w: 854, h: 480 },
-  { label: '720p', w: 1280, h: 720 },
-  { label: '1080p', w: 1920, h: 1080 },
-  { label: '1440p', w: 2560, h: 1440 },
-  { label: '4K UHD', w: 3840, h: 2160 },
-]
-
 const QUALITY_PRESETS: Record<string, { label: string; bitrate: number }> = {
   low: { label: 'Low (faster)', bitrate: 2_000_000 },
   medium: { label: 'Medium', bitrate: 5_000_000 },
@@ -44,7 +35,37 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const assets = useTimelineStore((s) => s.assets)
   const duration = useTimelineStore((s) => s.duration())
 
-  const [resolution, setResolution] = React.useState('1080p')
+  const resolutions: Array<{ label: string; w: number; h: number }> = React.useMemo(() => {
+    const ratio = project.width / project.height
+    const currentW = project.width
+    const currentH = project.height
+
+    const scales: Array<{ label: string; w?: number; h?: number; base?: number }> = [
+      { label: 'Match Project', w: currentW, h: currentH },
+      { label: '720p', base: 720 },
+      { label: '1080p', base: 1080 },
+      { label: '1440p', base: 1440 },
+      { label: '4K UHD', base: 2160 },
+    ]
+
+    return scales.map((s) => {
+      if (s.w != null && s.h != null) {
+        return { label: s.label, w: s.w, h: s.h }
+      }
+      const base = s.base ?? 1080
+      if (ratio >= 1) {
+        const h = base
+        const w = Math.round(h * ratio)
+        return { label: s.label, w: (w % 2 === 0 ? w : w + 1), h: (h % 2 === 0 ? h : h + 1) }
+      } else {
+        const w = base
+        const h = Math.round(w / ratio)
+        return { label: s.label, w: (w % 2 === 0 ? w : w + 1), h: (h % 2 === 0 ? h : h + 1) }
+      }
+    })
+  }, [project.width, project.height])
+
+  const [resolution, setResolution] = React.useState('Match Project')
   const [fps, setFps] = React.useState(project.fps)
   const [format, setFormat] = React.useState<Format>('mp4')
   const [codec, setCodec] = React.useState<Codec>('h264')
@@ -72,9 +93,9 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   if (!open) return null
 
   const preset = QUALITY_PRESETS[quality]
-  const res = RESOLUTIONS.find((r) => r.label === resolution) ?? RESOLUTIONS[2]
-  const width = Math.round(res.w)
-  const height = Math.round(res.h)
+  const res = resolutions.find((r) => r.label === resolution) ?? resolutions[0]
+  const width = Math.round(res?.w ?? project.width ?? 1920)
+  const height = Math.round(res?.h ?? project.height ?? 1080)
 
   const handleExport = async () => {
     setStatus('running')
@@ -101,8 +122,8 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       const url = URL.createObjectURL(blob)
       setResultUrl(url)
       setStatus('done')
-      setTotal(frames)
-      setProgress(frames)
+      setTotal(frames ?? 0)
+      setProgress(frames ?? 0)
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') {
         setStatus('idle')
@@ -146,7 +167,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {RESOLUTIONS.map((r) => (
+                  {resolutions.map((r) => (
                     <SelectItem key={r.label} value={r.label}>
                       {r.label} · {r.w}×{r.h}
                     </SelectItem>

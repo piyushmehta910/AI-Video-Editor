@@ -724,7 +724,9 @@ export function renderSlideToCanvas(
   height = 720,
   font: SlideFont = 'sans',
 ) {
-  const scale = width / 1280
+  const isPortrait = height > width
+  const minDim = Math.min(width, height)
+  const scale = minDim / 720
   const themeMeta = SLIDE_THEMES_META[theme] || SLIDE_THEMES_META.pitch_dark
   const fontDef = SLIDE_FONTS_META[font] || SLIDE_FONTS_META.sans
   const accent = themeMeta.accent
@@ -826,7 +828,7 @@ export function renderSlideToCanvas(
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
   const titleLines = wrapText(ctx, slide.title, width - 120 * scale)
-  for (const line of titleLines.slice(0, 2)) {
+  for (const line of titleLines.slice(0, 3)) {
     ctx.fillText(line, 60 * scale, contentY)
     contentY += 46 * scale
   }
@@ -847,16 +849,17 @@ export function renderSlideToCanvas(
     const numWidth = ctx.measureText(statNum).width
     ctx.font = `bold ${Math.round(22 * scale)}px ${fontDef.family}`
     ctx.fillStyle = mutedText
-    const descLines = wrapText(ctx, statDesc, width - numWidth - 160 * scale)
-    let descY = contentY + 12 * scale
+    const descLines = wrapText(ctx, statDesc, isPortrait ? width - 120 * scale : width - numWidth - 160 * scale)
+    let descY = isPortrait ? contentY + 80 * scale : contentY + 12 * scale
+    const descX = isPortrait ? 60 * scale : 80 * scale + numWidth
     for (const dl of descLines.slice(0, 2)) {
-      ctx.fillText(dl, 80 * scale + numWidth, descY)
+      ctx.fillText(dl, descX, descY)
       descY += 28 * scale
     }
 
-    contentY += 105 * scale
+    contentY = isPortrait ? descY + 20 * scale : contentY + 105 * scale
     // Supporting bullets
-    const bullets = slide.bullets.slice(slide.statLabel ? 0 : 1, 3)
+    const bullets = slide.bullets.slice(slide.statLabel ? 0 : 1, 4)
     for (const b of bullets) {
       const cleanB = b.replace(/\*\*/g, '')
       ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
@@ -868,50 +871,98 @@ export function renderSlideToCanvas(
     }
   } else if (layout === 'cards' && slide.cards?.length) {
     const cards = slide.cards.slice(0, 3)
-    const cardWidth = (width - 120 * scale - (cards.length - 1) * 20 * scale) / cards.length
-    const cardHeight = height - contentY - 60 * scale
 
-    cards.forEach((card, idx) => {
-      const cardX = 60 * scale + idx * (cardWidth + 20 * scale)
-      const cardY = contentY
+    if (isPortrait) {
+      // Stack cards vertically in portrait
+      const cardWidth = width - 120 * scale
+      const cardHeight = Math.min(140 * scale, (height - contentY - 60 * scale) / cards.length - 12 * scale)
 
-      // Card Background
-      roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 14 * scale)
-      if (theme === 'neo_brutalist') {
-        ctx.fillStyle = '#ffffff'
-        ctx.fill()
-        ctx.strokeStyle = '#000000'
-        ctx.lineWidth = 3 * scale
-        ctx.stroke()
-      } else {
-        ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.9)' : 'rgba(30, 41, 59, 0.6)'
-        ctx.fill()
-        ctx.strokeStyle = isLight ? 'rgba(203, 213, 225, 0.8)' : 'rgba(255, 255, 255, 0.12)'
-        ctx.lineWidth = 1.5 * scale
-        ctx.stroke()
-      }
+      cards.forEach((card, idx) => {
+        const cardX = 60 * scale
+        const cardY = contentY + idx * (cardHeight + 12 * scale)
 
-      let cy = cardY + 20 * scale
-      if (card.tag) {
-        ctx.font = `bold ${Math.round(11 * scale)}px ${fontDef.family}`
-        ctx.fillStyle = accent
-        ctx.fillText(card.tag.toUpperCase(), cardX + 16 * scale, cy)
-        cy += 20 * scale
-      }
+        roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 14 * scale)
+        if (theme === 'neo_brutalist') {
+          ctx.fillStyle = '#ffffff'
+          ctx.fill()
+          ctx.strokeStyle = '#000000'
+          ctx.lineWidth = 3 * scale
+          ctx.stroke()
+        } else {
+          ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.9)' : 'rgba(30, 41, 59, 0.6)'
+          ctx.fill()
+          ctx.strokeStyle = isLight ? 'rgba(203, 213, 225, 0.8)' : 'rgba(255, 255, 255, 0.12)'
+          ctx.lineWidth = 1.5 * scale
+          ctx.stroke()
+        }
 
-      ctx.font = `bold ${Math.round(18 * scale)}px ${fontDef.family}`
-      ctx.fillStyle = textColor
-      ctx.fillText(card.title, cardX + 16 * scale, cy)
-      cy += 26 * scale
+        let cy = cardY + 16 * scale
+        if (card.tag) {
+          ctx.font = `bold ${Math.round(11 * scale)}px ${fontDef.family}`
+          ctx.fillStyle = accent
+          ctx.fillText(card.tag.toUpperCase(), cardX + 16 * scale, cy)
+          cy += 18 * scale
+        }
 
-      ctx.font = `${Math.round(13 * scale)}px ${fontDef.family}`
-      ctx.fillStyle = mutedText
-      const descLines = wrapText(ctx, card.description, cardWidth - 32 * scale)
-      for (const dl of descLines.slice(0, 4)) {
-        ctx.fillText(dl, cardX + 16 * scale, cy)
-        cy += 20 * scale
-      }
-    })
+        ctx.font = `bold ${Math.round(17 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = textColor
+        ctx.fillText(card.title, cardX + 16 * scale, cy)
+        cy += 24 * scale
+
+        ctx.font = `${Math.round(13 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = mutedText
+        const descLines = wrapText(ctx, card.description, cardWidth - 32 * scale)
+        for (const dl of descLines.slice(0, 2)) {
+          ctx.fillText(dl, cardX + 16 * scale, cy)
+          cy += 18 * scale
+        }
+      })
+    } else {
+      // Horizontal cards in landscape
+      const cardWidth = (width - 120 * scale - (cards.length - 1) * 20 * scale) / cards.length
+      const cardHeight = height - contentY - 60 * scale
+
+      cards.forEach((card, idx) => {
+        const cardX = 60 * scale + idx * (cardWidth + 20 * scale)
+        const cardY = contentY
+
+        roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 14 * scale)
+        if (theme === 'neo_brutalist') {
+          ctx.fillStyle = '#ffffff'
+          ctx.fill()
+          ctx.strokeStyle = '#000000'
+          ctx.lineWidth = 3 * scale
+          ctx.stroke()
+        } else {
+          ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.9)' : 'rgba(30, 41, 59, 0.6)'
+          ctx.fill()
+          ctx.strokeStyle = isLight ? 'rgba(203, 213, 225, 0.8)' : 'rgba(255, 255, 255, 0.12)'
+          ctx.lineWidth = 1.5 * scale
+          ctx.stroke()
+        }
+
+        let cy = cardY + 20 * scale
+        if (card.tag) {
+          ctx.font = `bold ${Math.round(11 * scale)}px ${fontDef.family}`
+          ctx.fillStyle = accent
+          ctx.fillText(card.tag.toUpperCase(), cardX + 16 * scale, cy)
+          cy += 20 * scale
+        }
+
+        ctx.font = `bold ${Math.round(18 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = textColor
+        ctx.fillText(card.title, cardX + 16 * scale, cy)
+        cy += 26 * scale
+
+        ctx.font = `${Math.round(13 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = mutedText
+        const descLines = wrapText(ctx, card.description, cardWidth - 32 * scale)
+        for (const dl of descLines.slice(0, 4)) {
+          ctx.fillText(dl, cardX + 16 * scale, cy)
+          cy += 20 * scale
+        }
+      })
+    }
   } else if (layout === 'quote' && (slide.bullets.length || slide.title)) {
     const quoteText = (slide.bullets[0] || slide.title).replace(/\*\*/g, '')
     const author = slide.quoteAuthor || 'Keynote Insight'
@@ -924,7 +975,7 @@ export function renderSlideToCanvas(
     ctx.fillStyle = textColor
     const qLines = wrapText(ctx, `“${quoteText}”`, width - 180 * scale)
     let qy = contentY + 4 * scale
-    for (const ql of qLines.slice(0, 3)) {
+    for (const ql of qLines.slice(0, 4)) {
       ctx.fillText(ql, 80 * scale, qy)
       qy += 34 * scale
     }
@@ -936,44 +987,63 @@ export function renderSlideToCanvas(
     const half = Math.ceil(slide.bullets.length / 2)
     const col1 = slide.bullets.slice(0, half)
     const col2 = slide.bullets.slice(half)
-    const colWidth = (width - 160 * scale) / 2
 
-    // Col 1
-    let c1y = contentY
-    for (const b of col1) {
-      const clean = b.replace(/\*\*/g, '')
-      ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
-      ctx.fillStyle = accent
-      ctx.fillText('▸', 60 * scale, c1y)
-      ctx.fillStyle = textColor
-      const lines = wrapText(ctx, clean, colWidth - 30 * scale)
-      for (const l of lines) {
-        ctx.fillText(l, 82 * scale, c1y)
-        c1y += 24 * scale
+    if (isPortrait) {
+      // Stack split vertically in portrait
+      let cy = contentY
+      for (const b of [...col1, ...col2]) {
+        const clean = b.replace(/\*\*/g, '')
+        ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = accent
+        ctx.fillText('▸', 60 * scale, cy)
+        ctx.fillStyle = textColor
+        const lines = wrapText(ctx, clean, width - 160 * scale)
+        for (const l of lines) {
+          ctx.fillText(l, 82 * scale, cy)
+          cy += 24 * scale
+        }
+        cy += 12 * scale
       }
-      c1y += 12 * scale
-    }
+    } else {
+      const colWidth = (width - 160 * scale) / 2
 
-    // Col 2
-    let c2y = contentY
-    const col2X = 60 * scale + colWidth + 40 * scale
-    for (const b of col2) {
-      const clean = b.replace(/\*\*/g, '')
-      ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
-      ctx.fillStyle = accent
-      ctx.fillText('▸', col2X, c2y)
-      ctx.fillStyle = textColor
-      const lines = wrapText(ctx, clean, colWidth - 30 * scale)
-      for (const l of lines) {
-        ctx.fillText(l, col2X + 22 * scale, c2y)
-        c2y += 24 * scale
+      // Col 1
+      let c1y = contentY
+      for (const b of col1) {
+        const clean = b.replace(/\*\*/g, '')
+        ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = accent
+        ctx.fillText('▸', 60 * scale, c1y)
+        ctx.fillStyle = textColor
+        const lines = wrapText(ctx, clean, colWidth - 30 * scale)
+        for (const l of lines) {
+          ctx.fillText(l, 82 * scale, c1y)
+          c1y += 24 * scale
+        }
+        c1y += 12 * scale
       }
-      c2y += 12 * scale
+
+      // Col 2
+      let c2y = contentY
+      const col2X = 60 * scale + colWidth + 40 * scale
+      for (const b of col2) {
+        const clean = b.replace(/\*\*/g, '')
+        ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = accent
+        ctx.fillText('▸', col2X, c2y)
+        ctx.fillStyle = textColor
+        const lines = wrapText(ctx, clean, colWidth - 30 * scale)
+        for (const l of lines) {
+          ctx.fillText(l, col2X + 22 * scale, c2y)
+          c2y += 24 * scale
+        }
+        c2y += 12 * scale
+      }
     }
   } else {
     // Hero & Standard Checklist
     const bullets = slide.bullets.length ? slide.bullets : ['Key takeaway and essential narrative insight']
-    for (const b of bullets.slice(0, 5)) {
+    for (const b of bullets.slice(0, 6)) {
       const clean = b.replace(/\*\*/g, '')
       ctx.font = `bold ${Math.round(20 * scale)}px ${fontDef.family}`
       ctx.fillStyle = accent

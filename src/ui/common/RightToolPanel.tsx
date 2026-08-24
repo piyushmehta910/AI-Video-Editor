@@ -301,6 +301,9 @@ function SlideSection() {
       setCurrentSlideIdx(0)
       setTab('studio')
 
+      const slideW = project.width || 1280
+      const slideH = project.height || 720
+
       // Render previews for timeline
       const rendered: Array<{ blob: Blob; url: string; title: string }> = []
       for (let i = 0; i < generated.slides.length; i++) {
@@ -310,8 +313,8 @@ function SlideSection() {
           i + 1,
           generated.slides.length,
           generated.theme,
-          1280,
-          720,
+          slideW,
+          slideH,
           generated.font,
           generated.animation,
         )
@@ -323,7 +326,7 @@ function SlideSection() {
       }
 
       setPreviews(rendered)
-      setSuccess(`Generated ${generated.slides.length}-slide presentation in ${SLIDE_THEMES_META[theme].name}!`)
+      setSuccess(`Generated ${generated.slides.length}-slide presentation in ${SLIDE_THEMES_META[theme].name} (${slideW}×${slideH})!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -391,6 +394,9 @@ function SlideSection() {
     setAdding(true)
     setError(null)
 
+    const slideW = project.width || 1280
+    const slideH = project.height || 720
+
     try {
       // Re-render fresh PNGs from current deck state
       const files: File[] = []
@@ -400,8 +406,8 @@ function SlideSection() {
           i + 1,
           deck.slides.length,
           deck.theme,
-          1280,
-          720,
+          slideW,
+          slideH,
           deck.font,
           deck.animation,
         )
@@ -418,7 +424,7 @@ function SlideSection() {
             if (newClip) updateClip(newClip.id, { duration: slideDuration, sourceEnd: slideDuration, clipType: 'image' })
           })
         }
-        setSuccess(`Added ${imported.length} customized slides to the timeline!`)
+        setSuccess(`Added ${imported.length} customized slides (${slideW}×${slideH}) to the timeline!`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -432,14 +438,17 @@ function SlideSection() {
     if (!deck || !currentSlide || adding) return
     setAdding(true)
     setError(null)
+    const slideW = project.width || 1280
+    const slideH = project.height || 720
+
     try {
       const blob = await renderSlidePng(
         currentSlide,
         currentSlideIdx + 1,
         deck.slides.length,
         deck.theme,
-        1280,
-        720,
+        slideW,
+        slideH,
         deck.font,
         deck.animation,
       )
@@ -451,7 +460,7 @@ function SlideSection() {
           const newClip = addClip(imported[0].id, videoTrack.id, playhead ?? 0)
           if (newClip) updateClip(newClip.id, { duration: slideDuration, sourceEnd: slideDuration, clipType: 'image' })
         }
-        setSuccess(`Added Slide ${currentSlideIdx + 1} ("${currentSlide.title}") to the timeline!`)
+        setSuccess(`Added Slide ${currentSlideIdx + 1} ("${currentSlide.title}") (${slideW}×${slideH}) to the timeline!`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -535,8 +544,11 @@ function SlideSection() {
                 </div>
               </div>
 
-              {/* ── Live Animated 16:9 Slide Canvas ── */}
-              <div className="relative w-full aspect-video rounded-lg border overflow-hidden shadow-lg bg-black">
+              {/* ── Live Animated Adaptive Slide Canvas ── */}
+              <div
+                className="relative w-full max-h-72 rounded-lg border overflow-hidden shadow-lg bg-black mx-auto"
+                style={{ aspectRatio: `${project.width || 1280} / ${project.height || 720}` }}
+              >
                 <iframe
                   title="Slide Live Preview"
                   srcDoc={currentSlideHtml}
@@ -987,7 +999,6 @@ function SlideSection() {
 }
 
 // ─── Avatar Section ───────────────────────────────────────────────────────────
-const AVATAR_RESOLUTIONS = ['512x512', '768x768', '1024x1024']
 const AVATAR_BACKGROUNDS = ['solid', 'transparent', 'blurred'] as const
 
 function AvatarSection() {
@@ -1007,7 +1018,7 @@ function AvatarSection() {
   const [isGeneratingScript, setIsGeneratingScript] = React.useState(false)
   const [role, setRole] = React.useState<AvatarRole>('presenter')
   const [style, setStyle] = React.useState<LipsyncStyle>('realistic')
-  const [resolution, setResolution] = React.useState(avatarConfig.resolution || '768x768')
+  const [resolution, setResolution] = React.useState<string>('auto')
   const [fps, setFps] = React.useState(avatarConfig.fps || 30)
   const [background, setBackground] = React.useState<string>(avatarConfig.background || 'solid')
   const [mouth, setMouth] = React.useState<AvatarMouth>({
@@ -1143,7 +1154,9 @@ function AvatarSection() {
     abortRef.current = controller
 
     try {
-      const [width, height] = resolution.split('x').map(Number)
+      const [width, height] = resolution === 'auto'
+        ? [project.width || 768, project.height || 768]
+        : resolution.split('x').map(Number)
       let imageFile: Blob
       if (imageAssetId) {
         const customAsset = assets.find((a) => a.id === imageAssetId)
@@ -1637,9 +1650,13 @@ function AvatarSection() {
             <Select value={resolution} onValueChange={setResolution} disabled={busy}>
               <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {AVATAR_RESOLUTIONS.map((r) => (
-                  <SelectItem key={r} value={r}>{r}</SelectItem>
-                ))}
+                <SelectItem value="auto">Auto ({project.width || 768}×{project.height || 768})</SelectItem>
+                <SelectItem value="768x768">768×768 (1:1)</SelectItem>
+                <SelectItem value="1080x1920">1080×1920 (9:16)</SelectItem>
+                <SelectItem value="1280x720">1280×720 (16:9)</SelectItem>
+                <SelectItem value="1080x1080">1080×1080 (Square)</SelectItem>
+                <SelectItem value="512x512">512×512 (Fast)</SelectItem>
+                <SelectItem value="1024x1024">1024×1024 (HD)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -2716,7 +2733,7 @@ function ThreeDSection() {
   const [elevationEnd, setElevationEnd] = React.useState(20)
   const [fov, setFov] = React.useState(40)
   const [duration, setDuration] = React.useState(5)
-  const [resolution, setResolution] = React.useState('1280x720')
+  const [resolution, setResolution] = React.useState('auto')
   const [fps, setFps] = React.useState(30)
   const [lighting, setLighting] = React.useState<'studio' | 'neon' | 'sunset' | 'spotlight' | 'ambient'>('studio')
 
@@ -2821,7 +2838,9 @@ function ThreeDSection() {
         targetAsset = selectedAsset
       }
 
-      const [w, h] = resolution.split('x').map(Number)
+      const [w, h] = resolution === 'auto'
+        ? [project.width || 1280, project.height || 720]
+        : resolution.split('x').map(Number)
       const baseRadius = (targetAsset.modelRadius ?? 2.4) * 2.5 || 6.0
       const currentPreset = CAMERA_TRAJECTORY_PRESETS.find((p) => p.id === selectedPresetPathId)
       const rStart = baseRadius * (currentPreset?.radiusMultStart ?? 1.0)
@@ -3116,10 +3135,11 @@ function ThreeDSection() {
               <Select value={resolution} onValueChange={setResolution}>
                 <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1920x1080">1080p HD</SelectItem>
-                  <SelectItem value="1280x720">720p HD</SelectItem>
-                  <SelectItem value="1080x1920">9:16 Vertical</SelectItem>
-                  <SelectItem value="1080x1080">1:1 Square</SelectItem>
+                  <SelectItem value="auto">Auto ({project.width || 1280}×{project.height || 720})</SelectItem>
+                  <SelectItem value="1920x1080">1080p HD (16:9)</SelectItem>
+                  <SelectItem value="1280x720">720p HD (16:9)</SelectItem>
+                  <SelectItem value="1080x1920">9:16 Vertical (Shorts/Reels)</SelectItem>
+                  <SelectItem value="1080x1080">1:1 Square (Instagram)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -3803,7 +3823,7 @@ function DesignSection() {
   const [style, setStyle] = React.useState('Modern Tech Glow')
   const [duration, setDuration] = React.useState(5)
   const [transparent, setTransparent] = React.useState(false)
-  const [resolution, setResolution] = React.useState('1280x720')
+  const [resolution, setResolution] = React.useState('auto')
   const [fps, setFps] = React.useState(30)
   const [motionCode, setMotionCode] = React.useState<string>(BUILTIN_MOTION_PRESETS[0].code)
 
@@ -3929,7 +3949,9 @@ function DesignSection() {
     setSuccess(null)
 
     try {
-      const [w, h] = resolution.split('x').map(Number)
+      const [w, h] = resolution === 'auto'
+        ? [project.width || 1280, project.height || 720]
+        : resolution.split('x').map(Number)
       const result = await renderMotionClip({
         code: motionCode,
         width: w,
@@ -3961,6 +3983,8 @@ function DesignSection() {
   }
 
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
+  const stageW = project.width || 1280
+  const stageH = project.height || 720
 
   return (
     <div className="flex h-full flex-col gap-3.5 p-3">
@@ -3969,16 +3993,19 @@ function DesignSection() {
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
           <span className="font-semibold text-foreground flex items-center gap-1.5">
             <Sparkles className="size-3.5 text-violet-400" />
-            Live Motion Graphic Stage
+            Live Motion Graphic Stage ({stageW}×{stageH})
           </span>
           <span className="font-mono">{(currentTime * duration).toFixed(2)}s / {duration}s</span>
         </div>
 
-        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md border border-border/80 bg-zinc-950">
+        <div
+          className="relative flex w-full max-h-72 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-zinc-950 mx-auto"
+          style={{ aspectRatio: `${stageW} / ${stageH}` }}
+        >
           <canvas
             ref={previewCanvasRef}
-            width={640}
-            height={360}
+            width={stageW}
+            height={stageH}
             className="size-full object-contain"
           />
         </div>
@@ -4183,10 +4210,11 @@ function DesignSection() {
             <Select value={resolution} onValueChange={setResolution}>
               <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="1920x1080">1080p Full HD</SelectItem>
-                <SelectItem value="1280x720">720p HD</SelectItem>
-                <SelectItem value="1080x1920">9:16 Vertical</SelectItem>
-                <SelectItem value="1080x1080">1:1 Square</SelectItem>
+                <SelectItem value="auto">Auto ({project.width || 1280}×{project.height || 720})</SelectItem>
+                <SelectItem value="1920x1080">1080p HD (16:9)</SelectItem>
+                <SelectItem value="1280x720">720p HD (16:9)</SelectItem>
+                <SelectItem value="1080x1920">9:16 Vertical (Shorts/Reels)</SelectItem>
+                <SelectItem value="1080x1080">1:1 Square (Instagram)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -4657,6 +4685,7 @@ function ScriptSection() {
 // ─── Images Section ───────────────────────────────────────────────────────────
 function ImagesSection() {
   const importFiles = useTimelineStore((s) => s.importFiles)
+  const project = useTimelineStore((s) => s.project)
   const config = useApiConfigStore((s) => s.config)
   const [query, setQuery] = React.useState('')
   const [results, setResults] = React.useState<Array<{ id: string; url: string; thumb: string; alt: string }>>([])
@@ -4664,6 +4693,12 @@ function ImagesSection() {
   const [importingId, setImportingId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
+
+  const orientation = React.useMemo(() => {
+    if (project.aspectRatio === '9:16' || project.width < project.height) return 'portrait'
+    if (project.aspectRatio === '1:1' || project.width === project.height) return 'squarish'
+    return 'landscape'
+  }, [project.aspectRatio, project.width, project.height])
 
   const search = async () => {
     if (!query.trim() || searching) return
@@ -4673,13 +4708,13 @@ function ImagesSection() {
     try {
       const providers = []
       if (config.stockImages.unsplash.enabled && config.stockImages.unsplash.accessKey) {
-        providers.push(searchUnsplash(query.trim(), 8))
+        providers.push(searchUnsplash(query.trim(), 8, orientation))
       }
       if (config.stockImages.pexels.enabled && config.stockImages.pexels.apiKey) {
-        providers.push(searchPexels(query.trim(), 8))
+        providers.push(searchPexels(query.trim(), 8, orientation === 'squarish' ? 'square' : orientation))
       }
       if (config.stockImages.pixabay.enabled && config.stockImages.pixabay.apiKey) {
-        providers.push(searchPixabay(query.trim(), 8))
+        providers.push(searchPixabay(query.trim(), 8, orientation === 'portrait' ? 'vertical' : orientation === 'landscape' ? 'horizontal' : 'all'))
       }
       if (providers.length === 0) {
         setError('Configure at least one stock image provider in Settings.')
@@ -4723,13 +4758,25 @@ function ImagesSection() {
           {searching ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
         </Button>
       </div>
+
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground px-0.5">
+        <span>Format matching canvas</span>
+        <span className="font-semibold text-violet-400 capitalize">{orientation} ({project.aspectRatio || '16:9'})</span>
+      </div>
+
       {error && <SectionNotice kind="error" text={error} />}
       {success && <SectionNotice kind="ok" text={success} />}
       {results.length > 0 && (
         <div className="grid max-h-64 grid-cols-2 gap-1.5 overflow-y-auto">
           {results.map((r) => (
             <button key={r.id} type="button" className="group relative overflow-hidden rounded border bg-muted" onClick={() => void importImage(r)} disabled={importingId === r.id}>
-              <img src={r.thumb} alt={r.alt} className="aspect-square w-full object-cover" loading="lazy" />
+              <img
+                src={r.thumb}
+                alt={r.alt}
+                style={{ aspectRatio: `${project.width || 16} / ${project.height || 9}` }}
+                className="w-full object-cover"
+                loading="lazy"
+              />
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                 {importingId === r.id ? <Loader2 className="size-4 animate-spin text-white" /> : <Download className="size-4 text-white" />}
               </div>
@@ -4744,26 +4791,29 @@ function ImagesSection() {
   )
 }
 
-async function searchUnsplash(query: string, limit: number) {
+async function searchUnsplash(query: string, limit: number, orientation?: string) {
   const cfg = useApiConfigStore.getState().config.stockImages.unsplash
-  const res = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${limit}&client_id=${cfg.accessKey}`)
+  const orientParam = orientation ? `&orientation=${orientation}` : ''
+  const res = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${limit}&client_id=${cfg.accessKey}${orientParam}`)
   if (!res.ok) return []
   const data = await res.json()
   return (data.results ?? []).map((p: any) => ({ id: p.id, url: p.urls.regular, thumb: p.urls.thumb, alt: p.alt_description || query }))
 }
 
-async function searchPexels(query: string, limit: number) {
+async function searchPexels(query: string, limit: number, orientation?: string) {
   const cfg = useApiConfigStore.getState().config.stockImages.pexels
   if (!cfg.apiKey) return []
-  const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}`, { headers: { Authorization: cfg.apiKey } })
+  const orientParam = orientation ? `&orientation=${orientation}` : ''
+  const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}${orientParam}`, { headers: { Authorization: cfg.apiKey } })
   if (!res.ok) return []
   const data = await res.json()
   return (data.photos ?? []).map((p: any) => ({ id: String(p.id), url: p.src.large, thumb: p.src.medium, alt: p.alt || query }))
 }
 
-async function searchPixabay(query: string, limit: number) {
+async function searchPixabay(query: string, limit: number, orientation?: string) {
   const cfg = useApiConfigStore.getState().config.stockImages.pixabay
-  const res = await fetch(`https://pixabay.com/api/?key=${cfg.apiKey}&q=${encodeURIComponent(query)}&per_page=${limit}&image_type=photo`)
+  const orientParam = orientation && orientation !== 'all' ? `&orientation=${orientation}` : ''
+  const res = await fetch(`https://pixabay.com/api/?key=${cfg.apiKey}&q=${encodeURIComponent(query)}&per_page=${limit}&image_type=photo${orientParam}`)
   if (!res.ok) return []
   const data = await res.json()
   return (data.hits ?? []).map((h: any) => ({ id: String(h.id), url: h.largeImageURL, thumb: h.webformatURL, alt: h.tags || query }))
