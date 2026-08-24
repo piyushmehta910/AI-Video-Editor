@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Play, Plus, Scan, Trash2, Type } from 'lucide-react'
+import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Play, Plus, Scan, Trash2 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -299,7 +299,7 @@ function MediaItem({
           <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-cover" />
         ) : (
           <div className="bg-muted flex h-full w-full items-center justify-center">
-            <Type className="text-muted-foreground size-6" />
+            <AssetIcon type={asset.type} />
           </div>
         )}
         {asset.duration != null && (

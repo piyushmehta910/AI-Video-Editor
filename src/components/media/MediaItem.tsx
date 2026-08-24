@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Copy, Film, Info, Music2, Play, Plus, Trash2 } from 'lucide-react'
+import { Box, Copy, Film, Image as ImageIcon, Info, Music2, Play, Plus, Trash2 } from 'lucide-react'
 import type { Asset } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
 import { cn } from '@/lib/utils'
@@ -20,7 +20,8 @@ function formatBytes(bytes: number): string {
 export function AssetIcon({ type }: { type: Asset['type'] }) {
   if (type === 'video') return <Film className="size-3.5" />
   if (type === 'audio') return <Music2 className="size-3.5" />
-  return <Film className="size-3.5" />
+  if (type === 'model') return <Box className="size-3.5" />
+  return <ImageIcon className="size-3.5" />
 }
 
 function describeAsset(asset: Asset): string {

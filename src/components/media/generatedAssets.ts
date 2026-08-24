@@ -29,3 +29,14 @@ export function generatedCategory(asset: Asset): GeneratedKind {
   if (n.includes('slide') || n.includes('sticker') || n.includes('motion') || n.includes('animation')) return 'animations'
   return 'images'
 }
+
+export function isRecording(asset: Asset): boolean {
+  const n = asset.name.toLowerCase()
+  return (
+    n.includes('recording') ||
+    n.includes('webcam') ||
+    n.includes('screen-record') ||
+    n.includes('studio-voiceover') ||
+    n.includes('voiceover')
+  )
+}
