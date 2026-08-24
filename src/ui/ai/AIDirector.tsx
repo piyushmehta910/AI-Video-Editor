@@ -949,16 +949,16 @@ export function AIDirector({
           title="Drag AI Director anywhere or click to open"
           aria-label="AI Director"
         >
-          <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-purple-600 to-indigo-600 text-white shadow-2xl shadow-violet-600/40 ring-2 ring-violet-400/40 hover:scale-105 transition-transform">
-            <Clapperboard className="size-7 text-white" />
-            <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-amber-400 shadow-md ring-1 ring-amber-200">
+          <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600/80 via-purple-600/75 to-indigo-600/80 text-white shadow-[0_8px_32px_0_rgba(124,58,237,0.4)] backdrop-blur-2xl border border-white/30 ring-1 ring-white/20 hover:scale-105 hover:border-white/50 transition-all">
+            <Clapperboard className="size-7 text-white drop-shadow-md" />
+            <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-amber-400/90 shadow-md ring-1 ring-white/40 backdrop-blur-xs">
               <Sparkles className="size-2.5 text-amber-950 fill-amber-950" />
             </span>
             {busy && (
               <span className="absolute -bottom-1 -right-1 size-3.5 animate-ping rounded-full bg-emerald-400" />
             )}
           </div>
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-lg bg-card/95 px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-lg border border-border/80 backdrop-blur whitespace-nowrap">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-xl bg-background/75 dark:bg-slate-950/70 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-xl border border-white/20 backdrop-blur-xl whitespace-nowrap">
             AI Director <span className="text-muted-foreground font-normal">(Drag me)</span>
           </div>
         </div>
@@ -968,16 +968,16 @@ export function AIDirector({
         <div
           ref={panelRef}
           style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
-          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2 rounded-full border border-violet-500/50 bg-card/95 px-3 py-1.5 shadow-2xl backdrop-blur-md cursor-grab active:cursor-grabbing transition-shadow"
+          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2.5 rounded-full border border-white/30 dark:border-white/15 bg-background/70 dark:bg-slate-950/70 px-4 py-2 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-2xl cursor-grab active:cursor-grabbing transition-all ring-1 ring-white/10"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           title="Drag to move AI Director"
         >
-          <div className="flex size-6 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white">
+          <div className="flex size-6 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xs">
             <Clapperboard className="size-3.5" />
           </div>
-          <span className="text-xs font-semibold text-foreground">AI Director</span>
+          <span className="text-xs font-bold text-foreground tracking-tight">AI Director</span>
           {busy && <span className="size-2 animate-ping rounded-full bg-violet-400" />}
           <button
             type="button"
@@ -985,7 +985,7 @@ export function AIDirector({
               e.stopPropagation()
               setIsMinimized(false)
             }}
-            className="ml-1 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="ml-1 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
             title="Expand AI Director"
           >
             <Maximize2 className="size-3.5" />
@@ -996,7 +996,7 @@ export function AIDirector({
               e.stopPropagation()
               changeOpen(false)
             }}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
             title="Close AI Director"
           >
             <X className="size-3.5" />
@@ -1014,38 +1014,38 @@ export function AIDirector({
             maxWidth: 'calc(100vw - 20px)',
             maxHeight: 'calc(100vh - 20px)',
           }}
-          className={`fixed top-0 left-0 z-50 flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-md transition-shadow ${
+          className={`fixed top-0 left-0 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/30 dark:border-white/15 bg-background/75 dark:bg-slate-950/75 shadow-[0_16px_48px_0_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all ${
             isResizing ? 'select-none' : ''
           }`}
         >
-          {/* Draggable Header Bar */}
+          {/* Draggable Header Bar with Glassmorphism */}
           <div
-            className="relative flex cursor-grab active:cursor-grabbing select-none items-center gap-2 border-b bg-muted/40 px-3.5 py-2.5 touch-none"
+            className="relative flex cursor-grab active:cursor-grabbing select-none items-center gap-2.5 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-4 py-2.5 backdrop-blur-xl touch-none"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             title="Drag header to reposition AI Director anywhere"
           >
-            <div className="flex items-center text-muted-foreground hover:text-foreground">
+            <div className="flex items-center text-muted-foreground hover:text-foreground transition">
               <GripHorizontal className="size-4 opacity-75" />
             </div>
-            <div className="flex size-7 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
+            <div className="flex size-7 items-center justify-center rounded-xl bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30 shadow-xs">
               <Clapperboard className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <h3 className="text-xs font-semibold leading-none">AI Director</h3>
+                <h3 className="text-xs font-bold leading-none text-foreground tracking-tight">AI Director</h3>
                 {busy ? (
-                  <span className="rounded-full bg-violet-500/20 px-1.5 py-0.2 text-[9px] font-medium text-violet-400 animate-pulse">
+                  <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-semibold text-violet-400 border border-violet-500/30 animate-pulse">
                     Thinking...
                   </span>
                 ) : (
-                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-medium text-emerald-500">
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 border border-emerald-500/30">
                     Active
                   </span>
                 )}
               </div>
-              <p className="text-muted-foreground truncate text-[10px]">
+              <p className="text-muted-foreground truncate text-[10px] pt-0.5">
                 {size.width}×{size.height} • Drag edges to resize
               </p>
             </div>
@@ -1057,8 +1057,8 @@ export function AIDirector({
                 <button
                   type="button"
                   onClick={() => setShowSizeMenu((s) => !s)}
-                  className={`rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ${
-                    showSizeMenu ? 'bg-muted text-foreground' : ''
+                  className={`rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition-colors ${
+                    showSizeMenu ? 'bg-white/20 text-foreground' : ''
                   }`}
                   title="Adjust Window Size"
                   aria-label="Adjust Window Size"
@@ -1066,8 +1066,8 @@ export function AIDirector({
                   <Scaling className="size-3.5" />
                 </button>
                 {showSizeMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-xl border border-border/80 bg-card/98 p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95">
-                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-xl border border-white/25 dark:border-white/15 bg-background/85 dark:bg-slate-950/85 p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
+                    <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                       Window Size
                     </div>
                     <button
@@ -1076,7 +1076,7 @@ export function AIDirector({
                         applyPresetSize(360, 480)
                         setShowSizeMenu(false)
                       }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
                     >
                       <span>Compact</span>
                       <span className="text-[10px] text-muted-foreground">360 × 480</span>
@@ -1087,7 +1087,7 @@ export function AIDirector({
                         applyPresetSize(440, 580)
                         setShowSizeMenu(false)
                       }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors font-medium text-violet-500 dark:text-violet-400"
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors font-medium text-violet-500 dark:text-violet-400"
                     >
                       <span>Standard</span>
                       <span className="text-[10px] text-muted-foreground">440 × 580</span>
@@ -1098,7 +1098,7 @@ export function AIDirector({
                         applyPresetSize(560, 700)
                         setShowSizeMenu(false)
                       }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
                     >
                       <span>Large</span>
                       <span className="text-[10px] text-muted-foreground">560 × 700</span>
@@ -1109,19 +1109,19 @@ export function AIDirector({
                         applyPresetSize(720, 650)
                         setShowSizeMenu(false)
                       }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
                     >
                       <span>Wide Studio</span>
                       <span className="text-[10px] text-muted-foreground">720 × 650</span>
                     </button>
-                    <div className="my-1 border-t border-border/50" />
+                    <div className="my-1 border-t border-white/10" />
                     <button
                       type="button"
                       onClick={() => {
                         toggleMaximize()
                         setShowSizeMenu(false)
                       }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
                     >
                       <span>{isMaximized ? 'Restore Normal' : 'Full Expand'}</span>
                       <Maximize2 className="size-3 text-muted-foreground" />
@@ -1133,7 +1133,7 @@ export function AIDirector({
               <button
                 type="button"
                 onClick={resetPosition}
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title="Reset Position & Size"
                 aria-label="Reset Position & Size"
               >
@@ -1145,8 +1145,8 @@ export function AIDirector({
                   setShowQuality((s) => !s)
                   if (!checking && issues.length === 0) void runQualityCheck()
                 }}
-                className={`rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground ${
-                  showQuality ? 'text-violet-600 dark:text-violet-400' : ''
+                className={`rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition ${
+                  showQuality ? 'text-violet-600 dark:text-violet-400 bg-white/10' : ''
                 }`}
                 title="Check project quality"
                 aria-label="Check project quality"
@@ -1155,7 +1155,7 @@ export function AIDirector({
               </button>
               <Link
                 to="/settings"
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title="Configure AI provider"
               >
                 <Settings className="size-3.5" />
@@ -1163,7 +1163,7 @@ export function AIDirector({
               <button
                 type="button"
                 onClick={toggleMaximize}
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title={isMaximized ? 'Restore window' : 'Maximize window'}
                 aria-label={isMaximized ? 'Restore' : 'Maximize'}
               >
@@ -1172,7 +1172,7 @@ export function AIDirector({
               <button
                 type="button"
                 onClick={() => setIsMinimized(true)}
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title="Minimize to floating pill"
                 aria-label="Minimize"
               >
@@ -1181,7 +1181,7 @@ export function AIDirector({
               <button
                 type="button"
                 onClick={() => changeOpen(false)}
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title="Close AI Director"
                 aria-label="Close"
               >
@@ -1201,42 +1201,42 @@ export function AIDirector({
                     key={s}
                     type="button"
                     onClick={() => void send(s)}
-                    className="flex w-full items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-left text-xs transition-colors hover:border-violet-500/40 hover:bg-violet-500/5"
+                    className="flex w-full items-center gap-2 rounded-xl border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 px-3.5 py-2.5 text-left text-xs transition-all hover:border-violet-400/50 hover:bg-white/60 dark:hover:bg-white/10 backdrop-blur-md shadow-xs"
                   >
-                    <MessageSquare className="text-muted-foreground size-3.5 shrink-0" />
-                    {s}
+                    <MessageSquare className="text-violet-500 dark:text-violet-400 size-3.5 shrink-0" />
+                    <span>{s}</span>
                   </button>
                 ))}
               </div>
             )}
 
             {plan && plan.status === 'pending' && (
-              <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400">
+              <div className="space-y-2.5 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md">
+                <div className="flex items-center gap-2 text-xs font-bold text-violet-700 dark:text-violet-300">
                   <Clapperboard className="size-3.5" />
                   Proposed plan — nothing has been changed yet
                 </div>
-                <p className="text-sm font-medium">{plan.plan.goal}</p>
+                <p className="text-sm font-semibold">{plan.plan.goal}</p>
                 {plan.plan.scenesAffected.length > 0 && (
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground font-medium">
                     Affects: {plan.plan.scenesAffected.join(', ')}
                   </div>
                 )}
                 <div className="space-y-1.5">
                   {plan.plan.actions.map((a, i) => (
-                    <div key={i} className="flex gap-2 rounded-md border border-violet-500/20 bg-background/60 px-2 py-1.5 text-xs">
-                      <span className="mt-0.5 size-4 shrink-0 rounded-full bg-violet-600/15 text-center text-[10px] leading-4 text-violet-600 dark:text-violet-400">
+                    <div key={i} className="flex gap-2 rounded-lg border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 px-2.5 py-1.5 text-xs backdrop-blur-md">
+                      <span className="mt-0.5 size-4 shrink-0 rounded-full bg-violet-600/20 text-center text-[10px] leading-4 text-violet-700 dark:text-violet-300 font-bold">
                         {i + 1}
                       </span>
                       <div className="min-w-0">
-                        <div className="truncate font-medium">{describeTool(a.tool, a.arguments)}</div>
-                        {a.reason && <div className="text-muted-foreground">Why: {a.reason}</div>}
+                        <div className="truncate font-semibold">{describeTool(a.tool, a.arguments)}</div>
+                        {a.reason && <div className="text-muted-foreground text-[11px]">Why: {a.reason}</div>}
                       </div>
                     </div>
                   ))}
                 </div>
                 {revising ? (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 pt-1">
                     <input
                       autoFocus
                       value={reviseInput}
@@ -1245,10 +1245,10 @@ export function AIDirector({
                         if (e.key === 'Enter') submitRevise()
                       }}
                       placeholder="What should change? (e.g. 'instead, trim the start')"
-                      className="w-full rounded-lg border bg-background px-2 py-1.5 text-xs outline-none focus:border-violet-500"
+                      className="w-full rounded-xl border border-white/30 dark:border-white/15 bg-white/50 dark:bg-white/5 px-3 py-2 text-xs outline-none focus:border-violet-500 backdrop-blur-md"
                     />
                     <div className="flex gap-1.5">
-                      <Button type="button" size="sm" className="h-7 flex-1 text-xs" onClick={submitRevise}>
+                      <Button type="button" size="sm" className="h-7 flex-1 text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white" onClick={submitRevise}>
                         Send revision
                       </Button>
                       <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setRevising(false)}>
@@ -1257,12 +1257,12 @@ export function AIDirector({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5">
-                    <Button type="button" size="sm" className="h-7 flex-1 text-xs" onClick={() => void approvePlan()}>
-                      <Check className="size-3" />
+                  <div className="flex gap-2 pt-1">
+                    <Button type="button" size="sm" className="h-8 flex-1 text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white shadow-xs" onClick={() => void approvePlan()}>
+                      <Check className="size-3.5 mr-1" />
                       Approve plan
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={startRevise}>
+                    <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-semibold border-white/20 bg-white/10 hover:bg-white/20" onClick={startRevise}>
                       Revise
                     </Button>
                   </div>
@@ -1271,34 +1271,38 @@ export function AIDirector({
             )}
 
             {messages.map((m) => (
-              <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div
-                  className={`flex size-7 shrink-0 items-center justify-center rounded-full ${
-                    m.role === 'user' ? 'bg-violet-600 text-white' : 'bg-violet-600/15 text-violet-600 dark:text-violet-400'
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full shadow-xs ${
+                    m.role === 'user'
+                      ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white'
+                      : 'bg-violet-600/20 text-violet-700 dark:text-violet-300 border border-violet-500/30'
                   }`}
                 >
                   {m.role === 'user' ? <User className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                 </div>
-                <div className={`max-w-[80%] space-y-1.5 ${m.role === 'user' ? 'text-right' : ''}`}>
+                <div className={`max-w-[82%] space-y-1.5 ${m.role === 'user' ? 'text-right' : ''}`}>
                   <div
-                    className={`inline-block whitespace-pre-wrap rounded-2xl px-3 py-2 text-left text-sm ${
-                      m.role === 'user' ? 'bg-violet-600 text-white' : 'bg-muted text-foreground'
+                    className={`inline-block whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-left text-xs sm:text-sm leading-relaxed shadow-sm transition-all ${
+                      m.role === 'user'
+                        ? 'bg-gradient-to-tr from-violet-600/90 to-purple-600/90 text-white backdrop-blur-md border border-white/25 rounded-tr-xs'
+                        : 'bg-white/50 dark:bg-white/10 backdrop-blur-md border border-white/20 dark:border-white/10 text-foreground rounded-tl-xs'
                     }`}
                   >
                     {m.text}
                   </div>
                   {m.tools && m.tools.length > 0 && (
-                    <div className="text-muted-foreground text-[10px]">
+                    <div className="text-muted-foreground text-[10px] font-mono">
                       {m.proposed ? 'Proposed' : 'Used'}: {m.tools.join(', ')}
                     </div>
                   )}
                   {m.review && m.review.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-0.5">
-                      <Button type="button" size="sm" className="h-6 px-2 text-[11px]" onClick={applyAllFixes}>
-                        <Check className="size-3" />
+                      <Button type="button" size="sm" className="h-6 px-2 text-[11px] font-bold bg-violet-600 text-white" onClick={applyAllFixes}>
+                        <Check className="size-3 mr-1" />
                         Fix All ({m.review.filter((i) => i.fix.kind !== 'none').length})
                       </Button>
-                      <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => setShowQuality(true)}>
+                      <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px] border-white/20 bg-white/10" onClick={() => setShowQuality(true)}>
                         Review Changes
                       </Button>
                     </div>
@@ -1311,7 +1315,7 @@ export function AIDirector({
                           type="button"
                           onClick={() => void send(f)}
                           disabled={busy}
-                          className="rounded-full border border-violet-500/30 bg-violet-500/5 px-2.5 py-1 text-[11px] text-violet-600 transition-colors hover:bg-violet-500/15 disabled:opacity-50 dark:text-violet-400"
+                          className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-semibold text-violet-700 dark:text-violet-300 transition-colors hover:bg-violet-500/20 disabled:opacity-50 backdrop-blur-xs"
                         >
                           {f}
                         </button>
@@ -1323,10 +1327,10 @@ export function AIDirector({
             ))}
 
             {pendingQuestion && (
-              <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
-                <p className="text-xs font-semibold text-violet-600 dark:text-violet-400">The director needs to know:</p>
-                <p className="text-sm">{pendingQuestion}</p>
-                <div className="flex gap-1.5">
+              <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md">
+                <p className="text-xs font-bold text-violet-700 dark:text-violet-300">The director needs to know:</p>
+                <p className="text-sm font-medium">{pendingQuestion}</p>
+                <div className="flex gap-1.5 pt-1">
                   <input
                     autoFocus
                     value={questionAnswer}
@@ -1335,9 +1339,9 @@ export function AIDirector({
                       if (e.key === 'Enter') submitAnswer()
                     }}
                     placeholder="Type your answer..."
-                    className="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus:border-violet-500"
+                    className="min-w-0 flex-1 rounded-xl border border-white/30 dark:border-white/15 bg-white/50 dark:bg-white/5 px-3 py-2 text-xs outline-none focus:border-violet-500 backdrop-blur-md text-foreground"
                   />
-                  <Button size="sm" className="h-8" onClick={submitAnswer} disabled={!questionAnswer.trim()} aria-label="Send answer">
+                  <Button size="sm" className="h-8 px-3 bg-violet-600 text-white font-bold" onClick={submitAnswer} disabled={!questionAnswer.trim()} aria-label="Send answer">
                     <Send className="size-3.5" />
                   </Button>
                 </div>
@@ -1345,15 +1349,15 @@ export function AIDirector({
             )}
 
             {busy && (
-              <div className="flex gap-2" aria-live="polite" aria-atomic="true" aria-label="AI Director status">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-violet-600/15 text-violet-600 dark:text-violet-400" aria-hidden="true">
+              <div className="flex gap-2.5" aria-live="polite" aria-atomic="true" aria-label="AI Director status">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-violet-600/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 shadow-xs" aria-hidden="true">
                   <Clapperboard className="size-3.5" />
                 </div>
-                <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2" role="status">
+                <div className="rounded-2xl rounded-tl-xs border border-white/20 dark:border-white/10 bg-white/50 dark:bg-white/10 px-3.5 py-2.5 backdrop-blur-md shadow-xs" role="status">
                   <div className="flex gap-1">
-                    <span className="size-1.5 animate-bounce rounded-full bg-current" aria-hidden="true" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0.1s]" aria-hidden="true" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:0.2s]" aria-hidden="true" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-violet-500" aria-hidden="true" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-violet-500 [animation-delay:0.15s]" aria-hidden="true" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-violet-500 [animation-delay:0.3s]" aria-hidden="true" />
                   </div>
                   <span className="sr-only">AI Director is thinking</span>
                 </div>
@@ -1362,9 +1366,9 @@ export function AIDirector({
           </div>
 
           {showQuality && (
-            <div className="border-t border-amber-500/30 bg-amber-500/5" aria-live="polite" aria-atomic="true" aria-label="Quality check status">
-              <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            <div className="border-t border-white/15 dark:border-white/10 bg-amber-500/10 backdrop-blur-xl" aria-live="polite" aria-atomic="true" aria-label="Quality check status">
+              <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-1.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
                   <ListChecks className="size-3.5" />
                   {checking
                     ? 'Checking...'
@@ -1376,11 +1380,11 @@ export function AIDirector({
                   {!checking && (
                     <>
                       {fixableCount > 0 && (
-                        <Button type="button" size="sm" className="h-6 px-2 text-xs" onClick={applyAllFixes}>
+                        <Button type="button" size="sm" className="h-6 px-2 text-xs font-bold bg-amber-600 text-white hover:bg-amber-500" onClick={applyAllFixes}>
                           Fix all ({fixableCount})
                         </Button>
                       )}
-                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => void runQualityCheck()}>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-white/15" onClick={() => void runQualityCheck()}>
                         Re-check
                       </Button>
                     </>
@@ -1388,22 +1392,22 @@ export function AIDirector({
                 </div>
               </div>
               {issues.length > 0 && (
-                <div className="max-h-40 space-y-1 overflow-y-auto px-3 pb-2.5">
+                <div className="max-h-40 space-y-1 overflow-y-auto px-3.5 pb-2.5">
                   {issues.map((issue) => (
                     <div
                       key={issue.id}
-                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${ISSUE_STYLE[issue.severity]}`}
+                      className={`flex items-center gap-2 rounded-xl border border-white/20 px-2.5 py-1.5 text-xs backdrop-blur-md ${ISSUE_STYLE[issue.severity]}`}
                     >
-                      <span className="min-w-0 flex-1">{issue.message}</span>
+                      <span className="min-w-0 flex-1 font-medium">{issue.message}</span>
                       {issue.fix.kind !== 'none' && (
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-6 shrink-0 px-2 text-xs"
+                          className="h-6 shrink-0 px-2 text-xs hover:bg-white/20 font-bold"
                           onClick={() => applyIssueFix(issue)}
                         >
-                          <Check className="size-3" />
+                          <Check className="size-3 mr-1" />
                           {issue.fix.kind === 'remove_clip' ? 'Remove' : 'Fix'}
                         </Button>
                       )}
@@ -1415,42 +1419,42 @@ export function AIDirector({
           )}
 
           {proposals.length > 0 && (
-            <div className="border-t border-violet-500/30 bg-violet-500/5" aria-live="polite" aria-atomic="true" aria-label="AI Director proposals">
-              <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400">
+            <div className="border-t border-white/15 dark:border-white/10 bg-violet-500/10 backdrop-blur-xl" aria-live="polite" aria-atomic="true" aria-label="AI Director proposals">
+              <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-1.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold text-violet-700 dark:text-violet-300">
                   <Clapperboard className="size-3.5" />
                   {pendingCount > 0 ? `${pendingCount} proposed change${pendingCount > 1 ? 's' : ''} awaiting review` : 'No pending changes'}
                 </span>
                 <div className="ml-auto flex items-center gap-1">
                   {pendingCount > 0 && (
                     <>
-                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={discardAll}>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-white/15" onClick={discardAll}>
                         Discard all
                       </Button>
-                      <Button type="button" size="sm" className="h-6 px-2 text-xs" onClick={applyAll}>
+                      <Button type="button" size="sm" className="h-6 px-2 text-xs font-bold bg-violet-600 text-white" onClick={applyAll}>
                         Apply all ({pendingCount})
                       </Button>
                     </>
                   )}
                   {resolvedCount > 0 && (
-                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={clearResolved}>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-white/15" onClick={clearResolved}>
                       Clear
                     </Button>
                   )}
                 </div>
               </div>
-              <div className="max-h-40 space-y-1 overflow-y-auto px-3 pb-2.5">
+              <div className="max-h-40 space-y-1 overflow-y-auto px-3.5 pb-2.5">
                 {proposals.map((p) => (
                   <div
                     key={p.id}
-                    className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                    className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs backdrop-blur-md ${
                       p.status === 'applied'
-                        ? 'border-emerald-500/40 bg-emerald-500/10'
+                        ? 'border-emerald-500/40 bg-emerald-500/20'
                         : p.status === 'failed'
-                          ? 'border-destructive/40 bg-destructive/10'
+                          ? 'border-destructive/40 bg-destructive/20'
                           : p.status === 'discarded'
-                            ? 'border-muted bg-muted/30 opacity-60'
-                            : 'border-violet-500/40 bg-violet-500/10'
+                            ? 'border-muted/40 bg-muted/30 opacity-60'
+                            : 'border-violet-500/40 bg-violet-500/20'
                     }`}
                   >
                     {p.status === 'applied' ? (
@@ -1460,7 +1464,7 @@ export function AIDirector({
                     ) : (
                       <Clapperboard className="size-3.5 shrink-0 text-violet-500" />
                     )}
-                    <span className="min-w-0 flex-1 truncate" title={p.label}>
+                    <span className="min-w-0 flex-1 truncate font-medium" title={p.label}>
                       {p.label}
                       {p.status !== 'pending' && p.message && (
                         <span className="text-muted-foreground ml-1 truncate text-[10px]">— {p.message}</span>
@@ -1468,12 +1472,12 @@ export function AIDirector({
                     </span>
                     {p.status === 'pending' && (
                       <>
-                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => discardOne(p.id)}>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-white/20" onClick={() => discardOne(p.id)}>
                           <Trash2 className="size-3" />
                           Discard
                         </Button>
-                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => applyOne(p.id)}>
-                          <Check className="size-3" />
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-white/20 font-bold text-violet-600 dark:text-violet-300" onClick={() => applyOne(p.id)}>
+                          <Check className="size-3 mr-0.5" />
                           Apply
                         </Button>
                       </>
@@ -1484,13 +1488,14 @@ export function AIDirector({
             </div>
           )}
 
-          <div className="border-t p-3">
+          {/* Bottom Action & Input Bar with Glassmorphism */}
+          <div className="border-t border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 p-3 backdrop-blur-xl">
             <div className="mb-2 flex gap-1.5">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 flex-1 text-[11px]"
+                className="h-7 flex-1 text-[11px] font-semibold border-white/25 dark:border-white/15 bg-white/30 dark:bg-white/5 hover:bg-white/50 backdrop-blur-md shadow-xs text-violet-700 dark:text-violet-300"
                 disabled={busy}
                 onClick={() =>
                   void send(
@@ -1498,8 +1503,8 @@ export function AIDirector({
                   )
                 }
               >
-                <Sparkles className="mr-1 size-3" />
-                Auto-Pilot
+                <Sparkles className="mr-1 size-3 text-violet-500" />
+                Auto-Pilot Direct
               </Button>
             </div>
             <div className="flex gap-2">
@@ -1510,9 +1515,15 @@ export function AIDirector({
                   if (e.key === 'Enter') void send(input)
                 }}
                 placeholder="Tell the director what to do..."
-                className="min-w-0 flex-1 rounded-xl border bg-background px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus:border-violet-500"
+                className="min-w-0 flex-1 rounded-xl border border-white/25 dark:border-white/15 bg-white/40 dark:bg-white/5 px-3 py-2 text-xs sm:text-sm outline-none placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 backdrop-blur-md text-foreground transition-all"
               />
-              <Button size="icon" onClick={() => void send(input)} disabled={!input.trim() || busy} aria-label="Send">
+              <Button
+                size="icon"
+                className="size-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-md"
+                onClick={() => void send(input)}
+                disabled={!input.trim() || busy}
+                aria-label="Send"
+              >
                 <Send className="size-4" />
               </Button>
             </div>

@@ -165,16 +165,18 @@ export function AIDirectorPanel({ initialPrompt }: { initialPrompt?: string }) {
 
   return (
     <aside
-      className="flex w-[360px] shrink-0 flex-col border-l border-neutral-800 bg-[#1e1e2e]"
+      className="flex w-[360px] shrink-0 flex-col border-l border-white/15 dark:border-white/10 bg-background/80 dark:bg-slate-950/80 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]"
       data-testid="ai-director-panel"
     >
       {/* Header */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-neutral-800 px-3">
-        <Clapperboard className="size-4 text-violet-400" />
-        <h2 className="text-xs font-semibold tracking-wide text-neutral-200">AI Director</h2>
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-3.5 backdrop-blur-md">
+        <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600/20 text-violet-400 border border-violet-500/30">
+          <Clapperboard className="size-3.5" />
+        </div>
+        <h2 className="text-xs font-bold tracking-tight text-foreground">AI Director</h2>
         <Link
           to="/settings"
-          className="ml-auto rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
+          className="ml-auto rounded-lg p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
           title="Configure AI provider"
         >
           <Settings2 className="size-3.5" />
@@ -183,29 +185,29 @@ export function AIDirectorPanel({ initialPrompt }: { initialPrompt?: string }) {
           onClick={() => close(false)}
           aria-label="Close AI Director panel"
           title="Close (Ctrl+Shift+A)"
-          className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+          className="rounded-lg p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
         >
           <X className="size-4" />
         </button>
       </div>
 
       {/* Mode toggle */}
-      <div className="shrink-0 border-b border-neutral-800 px-3 py-2">
-        <div className="flex rounded-lg border border-neutral-700 p-0.5">
+      <div className="shrink-0 border-b border-white/15 dark:border-white/10 px-3 py-2 bg-white/10 dark:bg-white/5 backdrop-blur-xs">
+        <div className="flex rounded-xl border border-white/20 dark:border-white/10 bg-white/30 dark:bg-white/5 p-0.5 backdrop-blur-sm">
           {MODES.map((m) => (
             <button
               key={m.id}
               onClick={() => setMode(m.id)}
               data-testid={`ai-mode-${m.id}`}
-              className={`flex-1 rounded-md px-2 py-1 text-[11px] font-medium transition ${
-                mode === m.id ? 'bg-violet-600 text-white' : 'text-neutral-400 hover:text-neutral-200'
+              className={`flex-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                mode === m.id ? 'bg-violet-600 text-white shadow-xs' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {m.label}
             </button>
           ))}
         </div>
-        <p className="mt-1 text-[10px] text-neutral-500">{activeModeHint}</p>
+        <p className="mt-1 text-[10px] text-muted-foreground font-medium">{activeModeHint}</p>
       </div>
 
       {/* Project context */}
@@ -216,7 +218,7 @@ export function AIDirectorPanel({ initialPrompt }: { initialPrompt?: string }) {
 
       {/* Suggestions */}
       {(visibleIssues.length > 0 || issues.length > 0) && (
-        <div className="max-h-44 shrink-0 space-y-1.5 overflow-y-auto border-b border-neutral-800 px-3 py-2" data-testid="ai-suggestions">
+        <div className="max-h-44 shrink-0 space-y-1.5 overflow-y-auto border-b border-white/15 dark:border-white/10 px-3 py-2 bg-white/5 backdrop-blur-xs" data-testid="ai-suggestions">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
               Suggestions {visibleIssues.length > 0 && `(${visibleIssues.length})`}

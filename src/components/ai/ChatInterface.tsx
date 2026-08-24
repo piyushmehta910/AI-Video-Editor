@@ -17,15 +17,15 @@ function MessageBubble({ role, text }: { role: 'user' | 'ai'; text: string }) {
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex max-w-[85%] items-start gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
         <div
-          className={`flex size-6 shrink-0 items-center justify-center rounded-full ${
-            isUser ? 'bg-[#1e3a5f] text-blue-300' : 'bg-violet-950/60 text-violet-400 border border-violet-800/40'
+          className={`flex size-6 shrink-0 items-center justify-center rounded-full shadow-xs ${
+            isUser ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white' : 'bg-violet-600/20 text-violet-400 border border-violet-500/30'
           }`}
         >
           {isUser ? <User className="size-3" /> : <Clapperboard className="size-3 text-violet-400" />}
         </div>
         <div
-          className={`whitespace-pre-wrap rounded-xl px-3 py-2 text-xs leading-relaxed ${
-            isUser ? 'rounded-tr-sm bg-[#1e3a5f] text-neutral-100' : 'rounded-tl-sm bg-[#2a2a3e] text-neutral-200'
+          className={`whitespace-pre-wrap rounded-2xl px-3 py-2 text-xs leading-relaxed backdrop-blur-md shadow-xs ${
+            isUser ? 'rounded-tr-xs bg-gradient-to-tr from-violet-600/90 to-purple-600/90 text-white border border-white/20' : 'rounded-tl-xs bg-white/40 dark:bg-white/10 text-foreground border border-white/20 dark:border-white/10'
           }`}
           data-testid={isUser ? 'chat-user-message' : 'chat-ai-message'}
         >
@@ -206,28 +206,28 @@ export function ChatInterface({ director }: { director: AiDirectorApi }) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-neutral-800 p-2.5">
+      <div className="border-t border-white/15 dark:border-white/10 bg-white/10 dark:bg-white/5 p-2.5 backdrop-blur-md">
         {pendingCount > 0 && (
           <div className="mb-2 flex items-center gap-1.5">
-            <span className="flex-1 text-[10px] text-neutral-500">
+            <span className="flex-1 text-[10px] text-muted-foreground">
               {pendingCount} pending change{pendingCount > 1 ? 's' : ''}
             </span>
             <button
               onClick={() => setShowReview(true)}
-              className="rounded-md border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:bg-neutral-800"
+              className="rounded-md border border-white/20 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
             >
               Review Changes
             </button>
             <button
               onClick={director.discardAll}
-              className="rounded-md border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:bg-neutral-800"
+              className="rounded-md border border-white/20 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
             >
               Ignore All
             </button>
             <button
               data-testid="apply-all-button"
               onClick={() => void Promise.resolve(director.applyAll())}
-              className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-emerald-500"
+              className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-emerald-500 shadow-xs"
             >
               Apply All ({pendingCount})
             </button>
@@ -242,13 +242,13 @@ export function ChatInterface({ director }: { director: AiDirectorApi }) {
             }}
             placeholder="Type instruction…"
             data-testid="ai-chat-input"
-            className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-violet-500"
+            className="min-w-0 flex-1 rounded-xl border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 px-3 py-2 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-violet-500 backdrop-blur-md transition-all"
           />
           <button
             onClick={submit}
             disabled={!input.trim() || busy}
             data-testid="ai-chat-send"
-            className="rounded-lg bg-blue-600 px-3 text-white transition hover:bg-blue-500 disabled:opacity-40"
+            className="rounded-xl bg-violet-600 hover:bg-violet-500 px-3 text-white transition disabled:opacity-40 shadow-xs"
             aria-label="Send"
           >
             <Send className="size-3.5" />
