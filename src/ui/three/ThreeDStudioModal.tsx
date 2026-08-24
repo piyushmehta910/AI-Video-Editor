@@ -298,7 +298,7 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="relative flex h-[92vh] w-[96vw] max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
         {/* ── Top Header Bar ── */}
-        <div className="flex items-center justify-between border-b px-4 py-2.5 bg-muted/20">
+        <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/20">
           <div className="flex items-center gap-2.5">
             <div className="rounded-lg bg-violet-600/20 p-1.5 text-violet-400">
               <Box className="size-5" />
@@ -332,6 +332,91 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
           </div>
         </div>
 
+        {/* ── TOP 3D SEARCH & DISCOVERY BAR ── */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2">
+          <div className="flex flex-1 min-w-[280px] items-center gap-2">
+            <Select
+              value={searchSource}
+              onValueChange={(v) => {
+                setSearchSource(v as 'polyhaven' | 'sketchfab')
+                setSearchResults([])
+              }}
+            >
+              <SelectTrigger className="h-8 w-40 text-xs font-semibold bg-background border-border/80">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="polyhaven">Poly Haven (Free CC0)</SelectItem>
+                <SelectItem value="sketchfab">Sketchfab Library</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search 100,000+ 3D models (e.g. drone, trophy, robot, car, sword, space)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setActiveTab('library')
+                    void handleSearchModels()
+                  }
+                }}
+                className="h-8 pl-8 text-xs bg-background border-border/80"
+              />
+            </div>
+
+            <Button
+              size="sm"
+              className="h-8 bg-violet-600 hover:bg-violet-500 text-white text-xs px-3 font-semibold shadow-xs"
+              onClick={() => {
+                setActiveTab('library')
+                void handleSearchModels()
+              }}
+              disabled={isSearching}
+            >
+              {isSearching ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5 mr-1" />}
+              Search 3D
+            </Button>
+          </div>
+
+          {/* Quick Search Tag Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-md">
+            <span className="text-[10px] text-muted-foreground font-semibold shrink-0">Quick:</span>
+            {['drone', 'robot', 'car', 'statue', 'chair', 'sword', 'camera', 'trophy', 'space'].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="rounded-md border border-border/60 bg-background/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:border-violet-500/60 hover:bg-violet-500/10 hover:text-violet-300 transition shrink-0 capitalize"
+                onClick={() => {
+                  setSearchQuery(tag)
+                  setActiveTab('library')
+                  setIsSearching(true)
+                  setError(null)
+                  void (async () => {
+                    try {
+                      if (searchSource === 'sketchfab') {
+                        const models = await searchSketchfabModels(tag, { maxResults: 12 })
+                        setSearchResults(models.map((m) => ({ ...m, source: 'sketchfab' as const })))
+                      } else {
+                        const models = await searchModels(tag, { maxResults: 12 })
+                        setSearchResults(models.map((m) => ({ ...m, source: 'polyhaven' as const })))
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : String(err))
+                    } finally {
+                      setIsSearching(false)
+                    }
+                  })()
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── Main Workspace: Left 3D Viewport, Right Studio Tabs ── */}
         <div className="flex flex-1 overflow-hidden">
           {/* ── LEFT: Interactive 3D WebGL Viewport ── */}
@@ -342,6 +427,24 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
                 <span className="rounded bg-violet-500/20 px-2 py-0.5 text-[10px] font-mono text-violet-300">
                   {resolution} @ {fps}fps
                 </span>
+                {/* Viewport Lighting Quick Chips */}
+                <div className="hidden sm:flex items-center gap-1 border-l pl-2 ml-1">
+                  {(['studio', 'neon', 'sunset', 'spotlight', 'ambient'] as const).map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      className={cn(
+                        'rounded px-1.5 py-0.5 text-[9px] font-medium capitalize transition',
+                        lighting === l
+                          ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/50'
+                          : 'text-muted-foreground hover:text-foreground bg-muted/30',
+                      )}
+                      onClick={() => setLighting(l)}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
