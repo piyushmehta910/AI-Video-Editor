@@ -20,6 +20,11 @@ export type CreatorStyleId =
   | 'alex_hormozi'
   | 'magnates'
   | 'shorts_viral'
+  | 'dhruv_rathee'
+  | 'tech_burner'
+  | 'tanmay_bhat'
+  | 'sandeep_maheshwari'
+  | 'custom'
 
 export interface CreatorStyle {
   id: CreatorStyleId
@@ -101,6 +106,46 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     promptDirective:
       'ALEX HORMOZI STYLE: High-conviction, direct, no-BS tone. Opens with a bold contrarian truth ("Look, here\'s the brutal truth about..."). Uses simple math, leverage frameworks, eliminates excuses, and delivers dense actionable value.',
   },
+  dhruv_rathee: {
+    id: 'dhruv_rathee',
+    name: 'Dhruv Rathee',
+    creator: 'Dhruv Rathee',
+    tagline: 'Logical case studies, visual chapter maps & deep-dive facts',
+    badge: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+    icon: 'newspaper',
+    promptDirective:
+      'DHRUV RATHEE STYLE: Highly structured, analytical explainer style. Opens with "Namaste doston..." or a gripping investigative question. Breaks topics into logical chronological chapters with historical context, charts, and clear balanced conclusions.',
+  },
+  tech_burner: {
+    id: 'tech_burner',
+    name: 'Tech Burner',
+    creator: 'Shlok Srivastava',
+    tagline: 'Super energetic fun tech entertainment & wild metaphors',
+    badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+    icon: 'sparkles',
+    promptDirective:
+      'TECH BURNER STYLE: Extreme energy, humorous Indian tech creator style. Fun metaphors, energetic delivery ("Doston ye dekho!"), crazy visual stunts, hilarious relatability, and fast snappy pacing.',
+  },
+  tanmay_bhat: {
+    id: 'tanmay_bhat',
+    name: 'Tanmay Bhat',
+    creator: 'Tanmay Bhat',
+    tagline: 'Witty finance breakdowns, startup insights & humor',
+    badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+    icon: 'trending-up',
+    promptDirective:
+      'TANMAY BHAT STYLE: Witty, conversational, modern creator tone. Combines pop culture memes, sharp business & startup breakdowns, relatable humor, and rapid-fire conversational pacing.',
+  },
+  sandeep_maheshwari: {
+    id: 'sandeep_maheshwari',
+    name: 'Sandeep Maheshwari',
+    creator: 'Sandeep Maheshwari',
+    tagline: 'Passionate motivational storytelling & mindset epiphanies',
+    badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+    icon: 'heart-pulse',
+    promptDirective:
+      'SANDEEP MAHESHWARI STYLE: Deeply inspiring, passionate storytelling style. Powerful emotional hooks, real-life mindset shifts, personal philosophy, and inspiring calls to overcome fear.',
+  },
   magnates: {
     id: 'magnates',
     name: 'MagnatesMedia',
@@ -120,6 +165,15 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     icon: 'flame',
     promptDirective:
       'VIRAL SHORT-FORM / REELS STYLE: Instant pattern interrupt in the first 0.5s ("Stop scrolling if you want to know..."). Hyper-dense sentences, continuous visual change cues, and a clever loop transition that connects the last sentence seamlessly back to the first sentence.',
+  },
+  custom: {
+    id: 'custom',
+    name: 'Custom Creator',
+    creator: 'User Specified',
+    tagline: 'Tailored to your favorite YouTube channel or custom persona',
+    badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
+    icon: 'wand',
+    promptDirective: 'Write in the custom creator persona specified by the user.',
   },
 }
 
@@ -306,6 +360,7 @@ export interface GenerateScriptOptions {
   durationSeconds?: number
   language?: string
   creatorStyle?: CreatorStyleId
+  customCreator?: string
   customTone?: string
   sceneCount?: number
 }
@@ -316,15 +371,47 @@ export async function generateScript(options: GenerateScriptOptions): Promise<Pr
   const styleObj = CREATOR_STYLES[style]
   const scenesDirective = options.sceneCount ? ` Structure into ${options.sceneCount} distinct scenes.` : ''
   const toneDirective = options.customTone ? ` Tone: ${options.customTone}.` : ''
-  const languageLine = options.language && options.language !== 'auto' ? ` Language: ${options.language}.` : ''
+
+  // Language formatting (English, Hindi, Hinglish, etc.)
+  let languageDirective = ''
+  if (options.language) {
+    const lang = options.language.toLowerCase()
+    if (lang.includes('hindi') && !lang.includes('hinglish')) {
+      languageDirective = ' LANGUAGE REQUIREMENT: Write the entire spoken narration in authentic conversational Hindi (हिन्दी) in standard Devanagari script.'
+    } else if (lang.includes('hinglish')) {
+      languageDirective = ' LANGUAGE REQUIREMENT: Write in authentic Hinglish (conversational Hindi-English blend written in English/Latin letters), exactly like top Indian YouTube & Reels creators (e.g. "Doston aaj hum baat karenge...").'
+    } else if (lang !== 'auto' && lang !== 'english') {
+      languageDirective = ` LANGUAGE REQUIREMENT: Write the entire spoken narration in ${options.language}.`
+    }
+  }
+
+  // Creator persona formatting (Supports preset creator OR custom creator input)
+  const creatorDirective = options.customCreator?.trim()
+    ? `CUSTOM CREATOR: ${options.customCreator.trim()} (write in the signature spoken style, catchphrases, pacing, and vibe of this creator)`
+    : `${styleObj.name} (${styleObj.tagline})`
 
   const userPrompt = `TOPIC: "${options.topic}"
 TARGET DURATION: ${target} seconds
-CREATOR PERSONA: ${styleObj.name} (${styleObj.tagline})${scenesDirective}${toneDirective}${languageLine}
+CREATOR PERSONA: ${creatorDirective}${scenesDirective}${toneDirective}${languageDirective}
 
 Write the complete viral, structured narration script now.`
 
-  return runScriptTask(userPrompt, options.topic, target, style)
+  const styleLabel = options.customCreator?.trim() ? options.customCreator.trim() : styleObj.name
+  const provider = getDirectorProvider()
+  if (!provider) throw new Error('No AI provider configured. Add one in Settings → AI & Reasoning.')
+
+  const systemPrompt = options.customCreator?.trim()
+    ? `${SYSTEM_PROMPT}\n\nSTYLE DIRECTIVE:\nMimic the exact spoken tone, humor, catchphrases, pacing, and storytelling rhythm of creator "${options.customCreator.trim()}".`
+    : `${SYSTEM_PROMPT}\n\nSTYLE DIRECTIVE:\n${styleObj.promptDirective}`
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ]
+  const reply = await chatCompletion(provider, messages)
+  const raw = extractJson(reply.content ?? '')
+  if (!raw || typeof raw !== 'object') throw new Error('Script response was not an object.')
+  return normalizeScript(raw as RawScript, target, options.topic, styleLabel)
 }
 
 export async function rewriteScript(instruction: string, current: ProjectScript): Promise<ProjectScript> {

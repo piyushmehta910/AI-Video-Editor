@@ -115,6 +115,11 @@ describe('CREATOR_STYLES & Teleprompter', () => {
     expect(CREATOR_STYLES.alex_hormozi).toBeDefined()
     expect(CREATOR_STYLES.magnates).toBeDefined()
     expect(CREATOR_STYLES.shorts_viral).toBeDefined()
+    expect(CREATOR_STYLES.dhruv_rathee).toBeDefined()
+    expect(CREATOR_STYLES.tech_burner).toBeDefined()
+    expect(CREATOR_STYLES.tanmay_bhat).toBeDefined()
+    expect(CREATOR_STYLES.sandeep_maheshwari).toBeDefined()
+    expect(CREATOR_STYLES.custom).toBeDefined()
     expect(CREATOR_STYLES.off).toBeDefined()
   })
 

@@ -23,6 +23,9 @@ import {
   Crosshair,
   ArrowUpDown,
   SlidersHorizontal,
+  Maximize2,
+  PanelRight,
+  PanelLeft,
 } from 'lucide-react'
 import { useScriptStore } from '@/stores/scriptStore'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -37,9 +40,19 @@ import { cn } from '@/lib/utils'
 interface ScriptStudioModalProps {
   open: boolean
   onClose: () => void
+  initialLayout?: 'full' | 'half-right' | 'half-left'
 }
 
-export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
+export function ScriptStudioModal({ open, onClose, initialLayout }: ScriptStudioModalProps) {
+  const [layoutMode, setLayoutMode] = React.useState<'full' | 'half-right' | 'half-left'>(
+    initialLayout ?? 'full',
+  )
+
+  React.useEffect(() => {
+    if (initialLayout && open) {
+      setLayoutMode(initialLayout)
+    }
+  }, [initialLayout, open])
   const script = useScriptStore((s) => s.script)
   const updateScript = useScriptStore((s) => s.updateScript)
   const updateScene = useScriptStore((s) => s.updateScene)
@@ -235,124 +248,177 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
     maxWidthMode === 'compact' ? 'max-w-xl' : maxWidthMode === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl text-foreground select-none">
-      {/* ─── TOP CONTROL BAR ─── */}
-      <div className="flex h-14 items-center justify-between border-b border-border/80 px-4 bg-card/60">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-violet-600/20 text-violet-400 font-bold border border-violet-500/30">
-              <ScrollText className="size-4" />
-            </span>
-            <div>
-              <h2 className="text-sm font-bold truncate max-w-sm">{script.title || 'Studio Script'}</h2>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
-                <span>{metrics.totalWords} words</span>
-                <span>·</span>
-                <span>~{metrics.estimatedSeconds}s read</span>
-                <span>·</span>
-                <span className="text-violet-600 dark:text-violet-400 font-medium capitalize">{script.creatorStyle || 'Creator'}</span>
+    <>
+      {/* Background Dimmer when in Fullscreen Mode */}
+      {layoutMode === 'full' && (
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs" onClick={onClose} />
+      )}
+
+      <div
+        className={cn(
+          'z-50 flex flex-col bg-background/95 backdrop-blur-2xl text-foreground select-none shadow-2xl transition-all duration-200',
+          layoutMode === 'full' && 'fixed inset-0',
+          layoutMode === 'half-right' &&
+            'fixed top-0 bottom-0 right-0 w-full md:w-1/2 border-l border-border animate-in slide-in-from-right duration-200',
+          layoutMode === 'half-left' &&
+            'fixed top-0 bottom-0 left-0 w-full md:w-1/2 border-r border-border animate-in slide-in-from-left duration-200',
+        )}
+      >
+        {/* ─── TOP CONTROL BAR ─── */}
+        <div className="flex h-14 items-center justify-between border-b border-border/80 px-4 bg-card/60 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-600/20 text-violet-400 font-bold border border-violet-500/30">
+                <ScrollText className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold truncate max-w-[200px] sm:max-w-xs">{script.title || 'Studio Script'}</h2>
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono truncate">
+                  <span>{metrics.totalWords} words</span>
+                  <span>·</span>
+                  <span>~{metrics.estimatedSeconds}s read</span>
+                  <span>·</span>
+                  <span className="text-violet-600 dark:text-violet-400 font-medium capitalize">{script.creatorStyle || 'Creator'}</span>
+                </div>
               </div>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="hidden sm:flex rounded-lg border bg-muted/40 p-0.5 ml-2 shrink-0">
+              <button
+                type="button"
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition',
+                  mode === 'teleprompter' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setMode('teleprompter')}
+              >
+                <ScrollText className="size-3.5" />
+                <span>Prompter</span>
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition',
+                  mode === 'editor' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setMode('editor')}
+              >
+                <Pencil className="size-3.5" />
+                <span>Editor</span>
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition',
+                  mode === 'hook' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setMode('hook')}
+              >
+                <Flame className="size-3.5" />
+                <span>Hooks</span>
+              </button>
             </div>
           </div>
 
-          {/* Mode Switcher */}
-          <div className="flex rounded-lg border bg-muted/40 p-0.5 ml-4">
-            <button
-              type="button"
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition',
-                mode === 'teleprompter' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => setMode('teleprompter')}
+          {/* Action Buttons & Layout Mode Switcher */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Audio Recorder Button */}
+            {recorder.isRecording ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 gap-1.5 font-bold animate-pulse text-xs px-2.5"
+                onClick={recorder.stopRecording}
+              >
+                <Square className="size-3.5 fill-current" />
+                <span>Stop ({recorder.duration.toFixed(1)}s)</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 bg-red-600 hover:bg-red-500 text-white font-semibold shadow-xs text-xs px-2.5"
+                onClick={() => void recorder.startRecording()}
+              >
+                <Mic className="size-3.5" />
+                <span className="hidden sm:inline">Record Voiceover</span>
+                <span className="sm:hidden">Record</span>
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="hidden lg:flex h-8 text-xs gap-1.5 border-violet-500/30 hover:bg-violet-500/10 text-violet-300 px-2.5"
+              onClick={() => void handleSynthesizeTts()}
+              disabled={isSynthesizingTts}
             >
-              <ScrollText className="size-3.5" />
-              <span>Teleprompter</span>
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition',
-                mode === 'editor' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => setMode('editor')}
+              {isSynthesizingTts ? <Loader2 className="size-3.5 animate-spin" /> : <Volume2 className="size-3.5" />}
+              TTS
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="hidden xl:flex h-8 text-xs gap-1.5 px-2.5"
+              onClick={handleAddScenesAsTextOverlays}
             >
-              <Pencil className="size-3.5" />
-              <span>Scene Editor</span>
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition',
-                mode === 'hook' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => setMode('hook')}
-            >
-              <Flame className="size-3.5" />
-              <span>Hook Breakdown</span>
-            </button>
+              <FileText className="size-3.5 text-cyan-400" />
+              Overlays
+            </Button>
+
+            <Button size="icon" variant="ghost" className="size-8" onClick={handleCopy} title="Copy full script">
+              {copied ? <CheckCircle2 className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
+            </Button>
+
+            <Button size="icon" variant="ghost" className="size-8" onClick={handleDownload} title="Download .txt">
+              <Download className="size-4" />
+            </Button>
+
+            {/* Layout Mode Switcher */}
+            <div className="flex items-center rounded-md border bg-muted/40 p-0.5 ml-1" title="Prompter Layout">
+              <button
+                type="button"
+                className={cn(
+                  'rounded p-1 text-muted-foreground transition hover:text-foreground',
+                  layoutMode === 'full' && 'bg-card text-violet-300 font-bold shadow-xs',
+                )}
+                onClick={() => setLayoutMode('full')}
+                title="Fullscreen Prompter Studio"
+              >
+                <Maximize2 className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'rounded p-1 text-muted-foreground transition hover:text-foreground',
+                  layoutMode === 'half-right' && 'bg-card text-violet-300 font-bold shadow-xs',
+                )}
+                onClick={() => setLayoutMode('half-right')}
+                title="Half-Right Split (Read & Record alongside Video)"
+              >
+                <PanelRight className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'rounded p-1 text-muted-foreground transition hover:text-foreground',
+                  layoutMode === 'half-left' && 'bg-card text-violet-300 font-bold shadow-xs',
+                )}
+                onClick={() => setLayoutMode('half-left')}
+                title="Half-Left Split (Read & Record alongside Video)"
+              >
+                <PanelLeft className="size-3.5" />
+              </button>
+            </div>
+
+            <div className="h-5 w-px bg-border mx-0.5" />
+
+            <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={onClose}>
+              <X className="size-4" />
+            </Button>
           </div>
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Audio Recorder Button */}
-          {recorder.isRecording ? (
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-8 gap-2 font-bold animate-pulse"
-              onClick={recorder.stopRecording}
-            >
-              <Square className="size-3.5 fill-current" />
-              Stop Recording ({recorder.duration.toFixed(1)}s)
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 bg-red-600 hover:bg-red-500 text-white font-semibold shadow-xs"
-              onClick={() => void recorder.startRecording()}
-            >
-              <Mic className="size-3.5" />
-              Record Voiceover
-            </Button>
-          )}
-
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 border-violet-500/30 hover:bg-violet-500/10 text-violet-300"
-            onClick={() => void handleSynthesizeTts()}
-            disabled={isSynthesizingTts}
-          >
-            {isSynthesizingTts ? <Loader2 className="size-3.5 animate-spin" /> : <Volume2 className="size-3.5" />}
-            Synthesize Audio (TTS)
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5"
-            onClick={handleAddScenesAsTextOverlays}
-          >
-            <FileText className="size-3.5 text-cyan-400" />
-            Add Overlays to Timeline
-          </Button>
-
-          <Button size="icon" variant="ghost" className="size-8" onClick={handleCopy} title="Copy full script">
-            {copied ? <CheckCircle2 className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
-          </Button>
-
-          <Button size="icon" variant="ghost" className="size-8" onClick={handleDownload} title="Download .txt">
-            <Download className="size-4" />
-          </Button>
-
-          <div className="h-5 w-px bg-border mx-1" />
-
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        </div>
-      </div>
 
       {/* Notice Banner */}
       {notice && (
@@ -812,5 +878,6 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
         )}
       </div>
     </div>
-  )
+  </>
+)
 }

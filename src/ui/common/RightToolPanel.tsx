@@ -60,6 +60,8 @@ import {
   Target,
   Pencil,
   Boxes,
+  Wand2,
+  PanelRight,
 } from 'lucide-react'
 
 const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -72,6 +74,11 @@ const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: s
   briefcase: Box,
   clapperboard: Clapperboard,
   flame: Flame,
+  newspaper: FileText,
+  sparkles: Sparkles,
+  'trending-up': Sparkles,
+  'heart-pulse': Sparkles,
+  wand: Wand2,
 }
 
 const CAMERA_PRESET_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -4572,6 +4579,7 @@ function DesignSection() {
 function ScriptSection() {
   const [topic, setTopic] = React.useState('')
   const [creatorStyle, setCreatorStyle] = React.useState<CreatorStyleId>('mrbeast')
+  const [customCreator, setCustomCreator] = React.useState('')
   const [targetDuration, setTargetDuration] = React.useState(60)
   const [sceneCount, setSceneCount] = React.useState(5)
   const [customTone, setCustomTone] = React.useState('high_energy')
@@ -4583,6 +4591,7 @@ function ScriptSection() {
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
   const [isStudioOpen, setIsStudioOpen] = React.useState(false)
+  const [studioLayout, setStudioLayout] = React.useState<'full' | 'half-right' | 'half-left'>('full')
   const [isSynthesizingTts, setIsSynthesizingTts] = React.useState(false)
 
   const script = useScriptStore((s) => s.script)
@@ -4637,12 +4646,14 @@ function ScriptSection() {
         topic: topic.trim(),
         durationSeconds: targetDuration,
         creatorStyle,
+        customCreator: customCreator.trim() || undefined,
         customTone,
         sceneCount,
         language,
       })
       setScript(result)
-      setSuccess(`Script created in ${CREATOR_STYLES[creatorStyle].name} style!`)
+      const personaName = customCreator.trim() ? customCreator.trim() : CREATOR_STYLES[creatorStyle].name
+      setSuccess(`Script created in ${personaName} style (${language === 'Hindi' ? 'हिन्दी' : language === 'Hinglish' ? 'Hinglish' : 'English'})!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -4747,19 +4758,19 @@ function ScriptSection() {
   return (
     <div className="space-y-3.5 p-3">
       {/* ── 1. Creator Persona & Style Selector ── */}
-      <div className="space-y-1.5 rounded-lg border bg-muted/10 p-2.5">
+      <div className="space-y-2 rounded-lg border bg-muted/10 p-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold flex items-center gap-1.5">
             <Flame className="size-3.5 text-amber-400" />
             Creator Persona & Style
           </span>
           <span className="text-[10px] text-muted-foreground font-mono">
-            {CREATOR_STYLES[creatorStyle].name}
+            {customCreator.trim() ? customCreator.trim() : CREATOR_STYLES[creatorStyle].name}
           </span>
         </div>
 
         {/* Style Grid */}
-        <div className="grid grid-cols-3 gap-1 pt-1">
+        <div className="grid grid-cols-3 gap-1 pt-0.5">
           {(Object.values(CREATOR_STYLES) as typeof CREATOR_STYLES[CreatorStyleId][]).map((style) => {
             const Icon = CREATOR_STYLE_ICON_MAP[style.icon] || Mic
             return (
@@ -4768,11 +4779,14 @@ function ScriptSection() {
                 type="button"
                 className={cn(
                   'rounded-md border p-1.5 text-left transition flex flex-col justify-between h-14',
-                  creatorStyle === style.id
+                  creatorStyle === style.id && !customCreator.trim()
                     ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500/50'
                     : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
                 )}
-                onClick={() => setCreatorStyle(style.id)}
+                onClick={() => {
+                  setCreatorStyle(style.id)
+                  if (style.id !== 'custom') setCustomCreator('')
+                }}
               >
                 <div className="flex items-center gap-1.5 w-full">
                   <Icon className="size-3 text-violet-600 dark:text-violet-400 shrink-0" />
@@ -4782,6 +4796,24 @@ function ScriptSection() {
               </button>
             )
           })}
+        </div>
+
+        {/* Optional Custom Creator Input Field */}
+        <div className="space-y-1 pt-1.5 border-t">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="font-semibold text-muted-foreground">Custom Creator / Channel:</span>
+            <span className="text-[9px] text-violet-400 font-medium">Optional</span>
+          </div>
+          <Input
+            placeholder="e.g. CodeWithHarry, CarryMinati, Fireship, Iman Gadzhi..."
+            value={customCreator}
+            onChange={(e) => {
+              setCustomCreator(e.target.value)
+              if (e.target.value.trim()) setCreatorStyle('custom')
+            }}
+            className="h-7 text-xs bg-card"
+            disabled={busy}
+          />
         </div>
       </div>
 
@@ -4799,10 +4831,10 @@ function ScriptSection() {
           {/* Quick Instant Topic Pills */}
           <div className="flex flex-wrap gap-1 pt-1">
             {[
-              { label: '5 AI Secrets', topic: '5 secret AI video tools that feel illegal to use in 2026', style: 'viral_hook' as CreatorStyleId },
-              { label: 'WebGPU Engine', topic: 'Why WebGPU neural shaders are replacing legacy video editors', style: 'tech_reviewer' as CreatorStyleId },
-              { label: 'High-Converting UGC', topic: 'Stop editing videos manually — here is the 10x AI workflow', style: 'storyteller' as CreatorStyleId },
-              { label: 'Startup Pitch', topic: 'ClipForge: The Next-Generation Browser-Native AI Video Platform', style: 'educator' as CreatorStyleId },
+              { label: '5 AI Secrets', topic: '5 secret AI video tools that feel illegal to use in 2026', style: 'mrbeast' as CreatorStyleId, lang: 'auto' },
+              { label: 'Hindi Tech Explainer', topic: '5 AI tools jo video editing ko 10x fast kar denge', style: 'tech_burner' as CreatorStyleId, lang: 'Hinglish' },
+              { label: 'Dhruv Rathee Analysis', topic: 'The Reality of Artificial Intelligence and Future Jobs', style: 'dhruv_rathee' as CreatorStyleId, lang: 'Hindi' },
+              { label: 'Startup Pitch', topic: 'ClipForge: The Next-Generation Browser-Native AI Video Platform', style: 'ali_abdaal' as CreatorStyleId, lang: 'auto' },
             ].map((p) => (
               <button
                 key={p.label}
@@ -4811,6 +4843,7 @@ function ScriptSection() {
                 onClick={() => {
                   setTopic(p.topic)
                   setCreatorStyle(p.style)
+                  setLanguage(p.lang)
                 }}
               >
                 {p.label}
@@ -4883,11 +4916,12 @@ function ScriptSection() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Auto / English</SelectItem>
+                <SelectItem value="auto">English (Global)</SelectItem>
+                <SelectItem value="Hindi">Hindi (हिन्दी - Devanagari)</SelectItem>
+                <SelectItem value="Hinglish">Hinglish (Hindi in Roman letters)</SelectItem>
                 <SelectItem value="Spanish">Spanish</SelectItem>
                 <SelectItem value="French">French</SelectItem>
                 <SelectItem value="German">German</SelectItem>
-                <SelectItem value="Hindi">Hindi</SelectItem>
                 <SelectItem value="Japanese">Japanese</SelectItem>
               </SelectContent>
             </Select>
@@ -4901,7 +4935,7 @@ function ScriptSection() {
           disabled={busy || !topic.trim()}
         >
           {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-          {busy ? 'Writing Viral Script...' : `Generate ${CREATOR_STYLES[creatorStyle].name} Script`}
+          {busy ? 'Writing Viral Script...' : `Generate ${customCreator.trim() ? customCreator.trim() : CREATOR_STYLES[creatorStyle].name} Script`}
         </Button>
       </div>
 
@@ -4960,12 +4994,28 @@ function ScriptSection() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[10px] gap-1 px-2 border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 font-bold"
-                onClick={() => setIsStudioOpen(true)}
-                title="Open Big Screen Teleprompter & Studio Editor"
+                className="h-7 text-[10px] gap-1 px-1.5 border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 font-semibold"
+                onClick={() => {
+                  setStudioLayout('half-right')
+                  setIsStudioOpen(true)
+                }}
+                title="Open Half-Screen Prompter to Read & Record alongside Video"
+              >
+                <PanelRight className="size-3 text-violet-400" />
+                Half-Screen
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] gap-1 px-1.5"
+                onClick={() => {
+                  setStudioLayout('full')
+                  setIsStudioOpen(true)
+                }}
+                title="Open Fullscreen Teleprompter & Studio Editor"
               >
                 <Maximize2 className="size-3" />
-                Big Screen
+                Fullscreen
               </Button>
               <Button
                 size="icon"
@@ -5282,6 +5332,7 @@ function ScriptSection() {
       <ScriptStudioModal
         open={isStudioOpen}
         onClose={() => setIsStudioOpen(false)}
+        initialLayout={studioLayout}
       />
     </div>
   )
