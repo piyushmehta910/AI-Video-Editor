@@ -755,38 +755,49 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               </div>
             </div>
 
-            {/* Tracks, grouped by type */}
+            {/* Tracks, grouped by type — only show groups that have clips */}
             <div>
-              {groups.map((group) => {
-                const clipCount = group.tracks.reduce((sum, t) => sum + t.clips.length, 0)
-                const isCollapsed = Boolean(collapsed[group.type])
-                return (
-                  <div key={group.type}>
-                    <SectionHeader
-                      label={TYPE_META[group.type].label}
-                      color={TYPE_META[group.type].badge}
-                      count={clipCount}
-                      trackCount={group.tracks.length}
-                      collapsed={isCollapsed}
-                      onToggle={() => setCollapsed((c) => ({ ...c, [group.type]: !c[group.type] }))}
-                    />
-                    {!isCollapsed &&
-                      group.tracks.map((track, i) => (
-                        <TrackLane 
-                          key={track.id}
-                          track={track}
-                          shortLabel={trackShortLabel(group.type, i + 1)}
-                          zoom={zoom}
-                          assetById={assetById}
-                          selected={selection.clipIds}
-                          playhead={playhead}
-                          trimMode={trimMode}
-                          onPointerDownClip={startDrag}
-                        />
-                      ))}
-                  </div>
-                )
-              })}
+              {groups.filter((g) => g.tracks.some((t) => t.clips.length > 0)).length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                  <span className="text-muted-foreground/40 text-4xl">🎬</span>
+                  <p className="text-muted-foreground text-xs font-medium">Drop media here or use the toolbar to add assets</p>
+                </div>
+              ) : (
+                groups.map((group) => {
+                  const clipCount = group.tracks.reduce((sum, t) => sum + t.clips.length, 0)
+                  // Don't render section at all if no clips in this group
+                  if (clipCount === 0) return null
+                  const isCollapsed = Boolean(collapsed[group.type])
+                  return (
+                    <div key={group.type}>
+                      <SectionHeader
+                        label={TYPE_META[group.type].label}
+                        color={TYPE_META[group.type].badge}
+                        count={clipCount}
+                        trackCount={group.tracks.filter((t) => t.clips.length > 0).length}
+                        collapsed={isCollapsed}
+                        onToggle={() => setCollapsed((c) => ({ ...c, [group.type]: !c[group.type] }))}
+                      />
+                      {!isCollapsed &&
+                        group.tracks
+                          .filter((track) => track.clips.length > 0)
+                          .map((track, i) => (
+                            <TrackLane
+                              key={track.id}
+                              track={track}
+                              shortLabel={trackShortLabel(group.type, i + 1)}
+                              zoom={zoom}
+                              assetById={assetById}
+                              selected={selection.clipIds}
+                              playhead={playhead}
+                              trimMode={trimMode}
+                              onPointerDownClip={startDrag}
+                            />
+                          ))}
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>

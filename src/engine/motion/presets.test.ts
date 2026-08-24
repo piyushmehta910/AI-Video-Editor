@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { BUILTIN_MOTION_PRESETS } from './presets'
 import { getMotionHistory, saveMotionToHistory } from '@/api/llm/motionGenerator'
+import { WebMMuxer } from '@/engine/export/webm-muxer'
 
 describe('Motion Graphics Presets & Generator', () => {
   it('loads all built-in motion graphics presets', () => {
@@ -26,5 +27,15 @@ describe('Motion Graphics Presets & Generator', () => {
 
     const history = getMotionHistory()
     expect(history.some((h) => h.id === entry.id)).toBe(true)
+  })
+
+  it('generates valid multi-keyframe WebM cluster timestamps without scale inflation', () => {
+    const muxer = new WebMMuxer({ width: 640, height: 360, duration: 4, codec: 'vp8' })
+    muxer.addChunk({ data: new Uint8Array([10, 20]), timestamp: 0, isKey: true })
+    muxer.addChunk({ data: new Uint8Array([30, 40]), timestamp: 1000, isKey: false })
+    muxer.addChunk({ data: new Uint8Array([50, 60]), timestamp: 2000, isKey: true })
+    const blob = muxer.finalize()
+    expect(blob.size).toBeGreaterThan(0)
+    expect(muxer.clusterCount).toBe(2)
   })
 })

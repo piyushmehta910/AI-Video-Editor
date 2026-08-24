@@ -153,7 +153,7 @@ export class WebMMuxer {
   private flushCluster(segment: ByteWriter, currentCluster: { timestamp: number; data: ByteWriter }) {
     const cluster = new ByteWriter()
     const payload = new ByteWriter()
-    payload.element(0xe7, uintWriter(currentCluster.timestamp * TIMESTAMP_SCALE))
+    payload.element(0xe7, uintWriter(Math.max(0, Math.round(currentCluster.timestamp))))
     payload.push(currentCluster.data.toUint8Array())
     cluster.element(0x1f43b675, payload)
     segment.push(cluster.toUint8Array())

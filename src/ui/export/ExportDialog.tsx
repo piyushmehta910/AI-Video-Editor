@@ -21,12 +21,15 @@ const RESOLUTIONS = [
   { label: '480p', w: 854, h: 480 },
   { label: '720p', w: 1280, h: 720 },
   { label: '1080p', w: 1920, h: 1080 },
+  { label: '1440p', w: 2560, h: 1440 },
+  { label: '4K UHD', w: 3840, h: 2160 },
 ]
 
 const QUALITY_PRESETS: Record<string, { label: string; bitrate: number }> = {
   low: { label: 'Low (faster)', bitrate: 2_000_000 },
   medium: { label: 'Medium', bitrate: 5_000_000 },
   high: { label: 'High (slower)', bitrate: 10_000_000 },
+  very_high: { label: 'Very High (4K)', bitrate: 35_000_000 },
 }
 
 const CODEC_INFO: Record<Codec, string> = {
@@ -237,6 +240,12 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           </div>
 
           <p className="text-muted-foreground text-xs">{CODEC_INFO[codec]}</p>
+
+          {(resolution === '4K UHD' || resolution === '1440p') && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400">
+              ⚠️ High-resolution export requires significant time and memory. For 4K, choose VP9 or H.264 with Very High quality.
+            </div>
+          )}
 
           <div className="text-muted-foreground flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs">
             <span>

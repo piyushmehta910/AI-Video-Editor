@@ -3158,122 +3158,179 @@ function SpeedSection() {
   const clip = getSelectedClip()
   const updateClip = useTimelineStore((s) => s.updateClip)
   const [rippleDuration, setRippleDuration] = React.useState(true)
+  const [inputValue, setInputValue] = React.useState('')
+  const [inputFocused, setInputFocused] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!inputFocused && clip) {
+      setInputValue(clip.speed.toFixed(2))
+    }
+  }, [clip?.speed, inputFocused, clip])
 
   if (!clip) return <EmptyHint text="Select any video or audio clip on the timeline to adjust its playback speed." icon={Gauge} />
 
   const sourceDuration = Math.max(0.1, clip.sourceEnd - clip.sourceStart)
 
   const handleSetSpeed = (newSpeed: number) => {
-    const safeSpeed = Math.max(0.1, Math.min(10, newSpeed))
+    const safeSpeed = Math.max(0.05, Math.min(16, newSpeed))
     const updates: Partial<Clip> = { speed: safeSpeed }
     if (rippleDuration) {
       const newDur = Math.max(0.1, sourceDuration / safeSpeed)
       updates.duration = newDur
     }
     updateClip(clip.id, updates)
+    setInputValue(safeSpeed.toFixed(2))
   }
 
-  const presets = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 4.0, 8.0]
+  const handleInputCommit = () => {
+    const val = parseFloat(inputValue)
+    if (!isNaN(val) && val > 0) handleSetSpeed(val)
+    else setInputValue(clip.speed.toFixed(2))
+  }
+
+  const nudge = (delta: number) => handleSetSpeed(clip.speed + delta)
+
+  const quickPresets = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 4.0]
+  const stylePresets = [
+    { label: '🎭 Cinematic Slow-Mo', speed: 0.5, desc: '50% — silky smooth slow motion' },
+    { label: '🐌 Ultra Slow-Mo', speed: 0.25, desc: '25% — dramatic impact' },
+    { label: '⚡ Fast Forward', speed: 2.0, desc: '2× — energetic cut' },
+    { label: '🚀 Time-Lapse', speed: 4.0, desc: '4× — montage and b-roll' },
+    { label: '🎯 Normal Speed', speed: 1.0, desc: 'Reset to 100%' },
+    { label: '🌀 Ultra Fast', speed: 8.0, desc: '8× — hyperlapse effect' },
+  ]
+
+  const timelineAfter = rippleDuration
+    ? `${(sourceDuration / clip.speed).toFixed(2)}s`
+    : `${clip.duration.toFixed(2)}s (fixed)`
 
   return (
     <div className="space-y-3 p-3">
-      {/* ── Clip Info Header ── */}
+      {/* ── Clip Info ── */}
       <div className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold truncate max-w-[160px]">{clip.name}</span>
-          <span className="font-mono text-violet-400 text-xs font-bold">{clip.speed.toFixed(2)}x Speed</span>
+          <span className="font-mono text-violet-400 text-xs font-bold">{clip.speed.toFixed(2)}×</span>
         </div>
         <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-          <div>
-            <span>Source Length: </span>
-            <span className="font-mono text-foreground">{sourceDuration.toFixed(1)}s</span>
-          </div>
-          <div>
-            <span>Timeline Length: </span>
-            <span className="font-mono text-foreground">{clip.duration.toFixed(1)}s</span>
-          </div>
+          <div><span>Source: </span><span className="font-mono text-foreground">{sourceDuration.toFixed(2)}s</span></div>
+          <div><span>On Timeline: </span><span className="font-mono text-foreground">{timelineAfter}</span></div>
         </div>
       </div>
 
-      {/* ── Precision Slider ── */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-medium">Speed Multiplier</Label>
-          <span className="font-mono text-xs text-muted-foreground">{clip.speed.toFixed(2)}x</span>
+      {/* ── Precise Input + Nudge ── */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Speed Multiplier</Label>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className="h-7 w-7 flex items-center justify-center rounded border bg-card text-sm font-bold hover:bg-muted transition text-muted-foreground"
+            onClick={() => nudge(-0.25)}
+            title="Decrease speed by 0.25×"
+          >−</button>
+          <button
+            type="button"
+            className="h-7 w-7 flex items-center justify-center rounded border bg-card text-xs font-bold hover:bg-muted transition text-muted-foreground"
+            onClick={() => nudge(-0.05)}
+            title="Decrease speed by 0.05×"
+          >‒</button>
+          <input
+            type="number"
+            min={0.05}
+            max={16}
+            step={0.05}
+            value={inputFocused ? inputValue : clip.speed.toFixed(2)}
+            onChange={(e) => setInputValue(e.target.value)}
+            onFocus={() => { setInputFocused(true); setInputValue(clip.speed.toFixed(2)) }}
+            onBlur={() => { setInputFocused(false); handleInputCommit() }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { handleInputCommit(); (e.target as HTMLInputElement).blur() } }}
+            className="h-7 flex-1 min-w-0 rounded border bg-card px-2 text-center font-mono text-xs outline-none focus:ring-1 focus:ring-violet-500"
+          />
+          <span className="text-muted-foreground text-xs font-mono">×</span>
+          <button
+            type="button"
+            className="h-7 w-7 flex items-center justify-center rounded border bg-card text-xs font-bold hover:bg-muted transition text-muted-foreground"
+            onClick={() => nudge(0.05)}
+            title="Increase speed by 0.05×"
+          >+</button>
+          <button
+            type="button"
+            className="h-7 w-7 flex items-center justify-center rounded border bg-card text-sm font-bold hover:bg-muted transition text-muted-foreground"
+            onClick={() => nudge(0.25)}
+            title="Increase speed by 0.25×"
+          >＋</button>
         </div>
         <Slider
-          min={0.1}
+          min={0.05}
           max={8}
           step={0.05}
-          value={[clip.speed]}
+          value={[Math.min(clip.speed, 8)]}
           onValueChange={([v]) => handleSetSpeed(v)}
+          className="mt-1"
         />
+        <div className="flex justify-between text-[9px] text-muted-foreground font-mono pt-0.5">
+          <span>0.05×</span><span>0.5×</span><span>1×</span><span>2×</span><span>4×</span><span>8×</span>
+        </div>
       </div>
 
-      {/* ── Quick Preset Buttons ── */}
+      {/* ── Quick Preset Chips ── */}
       <div className="space-y-1">
         <Label className="text-[10px] text-muted-foreground">Quick Presets</Label>
-        <div className="grid grid-cols-5 gap-1">
-          {presets.map((p) => (
+        <div className="grid grid-cols-4 gap-1">
+          {quickPresets.map((p) => (
             <button
               key={p}
               type="button"
               className={cn(
                 'rounded py-1 text-center font-mono text-[10px] font-semibold transition',
-                Math.abs(clip.speed - p) < 0.04
+                Math.abs(clip.speed - p) < 0.03
                   ? 'bg-violet-600 text-white shadow-xs'
                   : 'border bg-card text-muted-foreground hover:border-violet-500/50 hover:text-foreground',
               )}
               onClick={() => handleSetSpeed(p)}
             >
-              {p}x
+              {p}×
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Speed Ramps / Styles ── */}
-      <div className="space-y-1.5 pt-1">
-        <Label className="text-[10px] text-muted-foreground">Speed Presets</Label>
+      {/* ── Style Presets ── */}
+      <div className="space-y-1.5">
+        <Label className="text-[10px] text-muted-foreground">Style Presets</Label>
         <div className="grid grid-cols-2 gap-1.5">
-          {[
-            { label: 'Cinematic Slow-Mo', speed: 0.5, desc: 'Silky smooth 50% slow-motion' },
-            { label: 'Dramatic 0.25x', speed: 0.25, desc: 'Ultra slow-mo for impact shots' },
-            { label: 'Time-Lapse (4x)', speed: 4.0, desc: 'Fast motion montage' },
-            { label: 'Normal Speed (1x)', speed: 1.0, desc: 'Reset to native 100% speed' },
-          ].map((ramp) => (
+          {stylePresets.map((ramp) => (
             <button
               key={ramp.label}
               type="button"
               className={cn(
-                'rounded-md border p-1.5 text-left text-[10px] transition',
+                'rounded-md border p-2 text-left text-[10px] transition',
                 Math.abs(clip.speed - ramp.speed) < 0.05
                   ? 'border-violet-500 bg-violet-500/15 text-foreground'
-                  : 'bg-card text-muted-foreground hover:bg-muted/20',
+                  : 'bg-card text-muted-foreground hover:bg-muted/30',
               )}
               onClick={() => handleSetSpeed(ramp.speed)}
             >
-              <p className="font-semibold text-foreground">{ramp.label}</p>
-              <p className="text-[9px] text-muted-foreground">{ramp.desc}</p>
+              <p className="font-semibold text-foreground leading-tight">{ramp.label}</p>
+              <p className="text-[9px] text-muted-foreground mt-0.5">{ramp.desc}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Toggles ── */}
+      {/* ── Options ── */}
       <div className="space-y-2 pt-1 border-t">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label className="text-xs">Ripple Timeline Duration</Label>
-            <p className="text-[10px] text-muted-foreground">Auto-scale timeline clip length with speed</p>
+            <p className="text-[10px] text-muted-foreground">Auto-resize clip on timeline with speed</p>
           </div>
           <Switch checked={rippleDuration} onCheckedChange={setRippleDuration} />
         </div>
-
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label className="text-xs">Preserve Audio Pitch</Label>
-            <p className="text-[10px] text-muted-foreground">Prevent voice pitch change during speed changes</p>
+            <p className="text-[10px] text-muted-foreground">Prevent chipmunk effect at high speed</p>
           </div>
           <Switch
             checked={clip.preservePitch !== false}
@@ -3284,6 +3341,7 @@ function SpeedSection() {
     </div>
   )
 }
+
 
 // ─── Keyframe Section ─────────────────────────────────────────────────────────
 function KeyframeSection() {

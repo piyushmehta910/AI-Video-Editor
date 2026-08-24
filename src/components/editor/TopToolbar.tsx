@@ -1,8 +1,7 @@
 import * as React from 'react'
-import { Bot, Download, History, PanelLeft, Pencil, Redo2, Save, Sparkles, Undo2 } from 'lucide-react'
+import { Download, History, PanelLeft, Pencil, Save, Sparkles } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import { useEditorStore, type EditorMode } from '@/stores/editorStore'
-import { useUndoRedo } from '@/hooks/useUndoRedo'
+import { useEditorStore } from '@/stores/editorStore'
 import { ExportModal } from '@/components/export/ExportModal'
 import { ExportQueue } from '@/components/export/ExportQueue'
 import { Button } from '@/components/ui/button'
@@ -15,12 +14,6 @@ import {
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-
-const MODES: { value: EditorMode; label: string; hint: string }[] = [
-  { value: 'human', label: 'Human', hint: 'Manual editing only' },
-  { value: 'hybrid', label: 'Hybrid', hint: 'Manual editing with AI assist' },
-  { value: 'ai', label: 'AI', hint: 'AI Director drives the timeline' },
-]
 
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2', '2:3'] as const
 const FPS_OPTIONS = [24, 25, 30, 48, 50, 60]
@@ -80,10 +73,7 @@ export function TopToolbar() {
   const renameProject = useTimelineStore((s) => s.renameProject)
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
-  const { canUndo, canRedo, undoLabel, redoLabel, undo, redo } = useUndoRedo()
 
-  const mode = useEditorStore((s) => s.mode)
-  const setMode = useEditorStore((s) => s.setMode)
   const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
   const toggleAIDirector = useEditorStore((s) => s.toggleAIDirector)
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
@@ -150,31 +140,6 @@ export function TopToolbar() {
         </button>
       )}
 
-      {/* Mode switcher */}
-      <div className="bg-muted ml-2 flex shrink-0 items-center gap-0.5 rounded-lg p-0.5" role="radiogroup" aria-label="Editing mode">
-        {MODES.map(({ value, label, hint }) => (
-          <Tooltip key={value}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={mode === value}
-                onClick={() => setMode(value)}
-                className={cn(
-                  'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                  mode === value
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {label}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{hint}</TooltipContent>
-          </Tooltip>
-        ))}
-      </div>
-
       {/* Project settings (aspect / fps / resolution) — compact, desktop only */}
       <div className="hidden items-center gap-1 xl:flex">
         <Select
@@ -236,12 +201,6 @@ export function TopToolbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-0.5">
-        <ToolButton label={undoLabel} onClick={undo} disabled={!canUndo}>
-          <Undo2 className="size-4" />
-        </ToolButton>
-        <ToolButton label={redoLabel} onClick={redo} disabled={!canRedo}>
-          <Redo2 className="size-4" />
-        </ToolButton>
         <ToolButton label="History" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
         </ToolButton>
@@ -264,7 +223,7 @@ export function TopToolbar() {
           )}
           onClick={toggleAIDirector}
         >
-          {mode === 'ai' ? <Sparkles className="size-3.5" /> : <Bot className="size-3.5" />}
+          <Sparkles className="size-3.5" />
           AI Director
         </Button>
       </div>
