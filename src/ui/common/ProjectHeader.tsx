@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Download, Pencil } from 'lucide-react'
+import { Download, Home, Pencil, Settings } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
 import { ExportDialog } from '@/ui/export/ExportDialog'
@@ -46,7 +47,22 @@ export function ProjectHeader() {
   }
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-3 border-b px-3">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-background/95 px-2 backdrop-blur">
+      <Button
+        asChild
+        variant="ghost"
+        size="sm"
+        className="h-8 gap-1 px-1.5 text-xs font-medium"
+      >
+        <Link to="/" title="Home">
+          <div className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold">
+            CF
+          </div>
+          <Home className="size-3.5" />
+        </Link>
+      </Button>
+
+      <div className="bg-border h-4 w-px" />
       {editingName ? (
         <input
           autoFocus
@@ -139,7 +155,7 @@ export function ProjectHeader() {
         </SelectContent>
       </Select>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
@@ -149,6 +165,16 @@ export function ProjectHeader() {
         >
           <Download className="size-3.5" />
           <span className="hidden sm:inline">Export</span>
+        </Button>
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          className="size-8"
+        >
+          <Link to="/settings" title="Settings">
+            <Settings className="size-3.5" />
+          </Link>
         </Button>
       </div>
 

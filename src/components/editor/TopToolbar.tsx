@@ -1,9 +1,11 @@
 import * as React from 'react'
-import { Download, History, PanelLeft, Pencil, Save } from 'lucide-react'
+import { Download, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { ExportModal } from '@/components/export/ExportModal'
 import { ExportQueue } from '@/components/export/ExportQueue'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -91,7 +93,30 @@ export function TopToolbar() {
   }
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur">
+      {/* Home navigation & brand badge */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs font-medium hover:bg-muted"
+          >
+            <Link to="/" title="Home">
+              <div className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold">
+                CF
+              </div>
+              <Home className="size-3.5" />
+              <span className="hidden sm:inline">Home</span>
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Back to Home</TooltipContent>
+      </Tooltip>
+
+      <div className="bg-border mx-0.5 h-4 w-px" />
+
       {/* Media bin hamburger */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -208,6 +233,27 @@ export function TopToolbar() {
         <ToolButton label="Export video" onClick={() => setExportOpen(true)} testId="export-button">
           <Download className="size-4" />
         </ToolButton>
+
+        <div className="bg-border mx-1 h-4 w-px" />
+
+        {/* Small Settings icon */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+            >
+              <Link to="/settings" title="Settings">
+                <Settings className="size-4" />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Settings</TooltipContent>
+        </Tooltip>
+
+        <ThemeToggle />
       </div>
 
       {exportOpen && <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />}

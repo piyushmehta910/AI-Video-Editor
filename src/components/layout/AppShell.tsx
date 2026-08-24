@@ -1,15 +1,26 @@
-import { Clapperboard, Home, Settings } from 'lucide-react'
-import { Link, Outlet } from '@tanstack/react-router'
+import { Home, Settings } from 'lucide-react'
+import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
-  { to: '/editor', label: 'Editor', icon: Clapperboard },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
 export function AppShell() {
+  const isEditor = useRouterState({
+    select: (s) => s.location.pathname.startsWith('/editor') || s.location.pathname.startsWith('/studio') || s.location.pathname.startsWith('/app'),
+  })
+
+  if (isEditor) {
+    return (
+      <main className="flex h-svh w-screen overflow-hidden flex-col">
+        <Outlet />
+      </main>
+    )
+  }
+
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b bg-background/95 sticky top-0 z-40 backdrop-blur">
