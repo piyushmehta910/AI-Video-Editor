@@ -119,6 +119,7 @@ import {
   type SlideLayout,
 } from '@/api/llm/slides'
 import { generateInductiveSlideContext, getSavedSlideDecks, type InductiveSlideContext } from '@/api/llm/slideContext'
+import { SlideStudioModal } from '@/ui/slides/SlideStudioModal'
 import { generateLipsyncVideo, type AvatarMouth, type LipsyncStyle, AVATAR_FACE_PRESETS, renderPresetFaceToBlob, type AvatarFacePreset, sliceAudioBlob } from '@/engine/avatar'
 import { generateAvatarVideo, type AvatarRole } from '@/api/llm/avatarGenerator'
 import { readMediaFile } from '@/engine/storage/opfs'
@@ -279,6 +280,7 @@ function SlideSection() {
   const playhead = useTimelineStore((s) => s.playhead)
 
   const [tab, setTab] = React.useState<'studio' | 'generator' | 'inductive' | 'markdown' | 'history'>('generator')
+  const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [topic, setTopic] = React.useState('')
   const [count, setCount] = React.useState(4)
   const [theme, setTheme] = React.useState<SlideTheme>('pitch_dark')
@@ -536,6 +538,21 @@ function SlideSection() {
 
   return (
     <div className="space-y-3 p-3">
+      {/* ── Open Full Studio Banner Button ── */}
+      <Button
+        size="sm"
+        className="h-8 w-full gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-xs font-semibold text-white shadow-xs hover:from-violet-500 hover:to-indigo-500"
+        onClick={() => setIsModalOpen(true)}
+      >
+        <Maximize2 className="size-3.5" />
+        <span>Open Presentation Studio</span>
+        {deck && (
+          <span className="rounded bg-black/30 px-1.5 py-0.5 text-[9px] font-mono text-violet-200">
+            {deck.slides.length} slides
+          </span>
+        )}
+      </Button>
+
       {/* ── Sub Navigation Tabs ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
@@ -869,6 +886,25 @@ function SlideSection() {
               className="h-8 text-xs bg-card"
               disabled={busy}
             />
+            {/* Quick Topic Chips */}
+            <div className="flex flex-wrap gap-1 pt-1">
+              {[
+                'Startup Pitch',
+                'Tech Architecture',
+                'Product Roadmap',
+                'Growth Metrics',
+                'Explainer',
+              ].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground transition"
+                  onClick={() => setTopic(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -1050,6 +1086,13 @@ function SlideSection() {
 
       {error && <SectionNotice kind="error" text={error} />}
       {success && <SectionNotice kind="ok" text={success} />}
+
+      <SlideStudioModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialDeck={deck}
+        onDeckChange={(d) => setDeck(d)}
+      />
     </div>
   )
 }
@@ -3395,6 +3438,9 @@ function StickersSection() {
   const [importingId, setImportingId] = React.useState<string | null>(null)
   const [importPhase, setImportPhase] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [defaultPlacement, setDefaultPlacement] = React.useState<'center' | 'bottom-right' | 'top-right' | 'bottom-left' | 'top-left' | 'lower-third'>('bottom-right')
+  const [defaultScalePct, setDefaultScalePct] = React.useState<number>(35)
+
   const hasKey = Boolean(config.giphy.apiKey)
 
   React.useEffect(() => {
@@ -3411,12 +3457,14 @@ function StickersSection() {
     setLoading(false)
   }
 
-  const search = async () => {
-    if (!query.trim()) return
+  const search = async (term?: string) => {
+    const q = (term ?? query).trim()
+    if (!q) return
+    setQuery(q)
     setLoading(true)
     setError(null)
     setResults([])
-    const r = await searchGiphy(query.trim())
+    const r = await searchGiphy(q)
     if (r.length === 0) setError('No stickers found. Try different terms.')
     setResults(r)
     setLoading(false)
@@ -3440,8 +3488,41 @@ function StickersSection() {
       })
       const { imported } = await importFiles([converted.webmFile])
       if (imported.length) {
-        const clip = useTimelineStore.getState().addAssetToTimeline(imported[0].id)
-        if (!clip) setError('No video track available for the sticker')
+        const store = useTimelineStore.getState()
+        const clip = store.addAssetToTimeline(imported[0].id)
+        if (clip) {
+          const p = store.project
+          const w = p.width || 1920
+          const h = p.height || 1080
+          const s = defaultScalePct / 100
+
+          let posX = 0
+          let posY = 0
+          if (defaultPlacement === 'bottom-right') {
+            posX = Math.round(w * 0.28)
+            posY = Math.round(h * 0.28)
+          } else if (defaultPlacement === 'top-right') {
+            posX = Math.round(w * 0.28)
+            posY = Math.round(-h * 0.28)
+          } else if (defaultPlacement === 'bottom-left') {
+            posX = Math.round(-w * 0.28)
+            posY = Math.round(h * 0.28)
+          } else if (defaultPlacement === 'top-left') {
+            posX = Math.round(-w * 0.28)
+            posY = Math.round(-h * 0.28)
+          } else if (defaultPlacement === 'lower-third') {
+            posX = 0
+            posY = Math.round(h * 0.3)
+          }
+
+          store.updateClip(clip.id, {
+            scale: { x: s, y: s },
+            position: { x: posX, y: posY },
+          })
+          store.select([clip.id])
+        } else {
+          setError('No video track available for the sticker')
+        }
       } else setError('Failed to import sticker')
     } catch {
       setError('Failed to import sticker')
@@ -3460,9 +3541,24 @@ function StickersSection() {
       )}
       {hasKey && (
         <p className="text-muted-foreground text-[10px] leading-relaxed">
-          Animated stickers are converted to looping video clips on import. Note: browser encoders can't preserve GIF transparency yet — transparent areas become black.
+          Animated stickers convert to video clips with auto-scaling & placement presets.
         </p>
       )}
+
+      {/* Quick Search Tag Pills */}
+      <div className="flex flex-wrap gap-1">
+        {['Fire', 'Reaction', 'Subscribe', 'Emoji', 'Like', 'Arrow', 'Celebrate', 'Heart', 'Meme', 'Wow'].map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground transition"
+            onClick={() => void search(tag)}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+
       <div className="flex gap-1.5">
         <Input
           placeholder="Search stickers..."
@@ -3475,6 +3571,59 @@ function StickersSection() {
           {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
         </Button>
       </div>
+
+      {/* Default Placement & Scale Options */}
+      <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-2">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="font-semibold text-muted-foreground">Sticker Staging on Add:</span>
+          <span className="font-mono text-violet-400 font-bold">{defaultScalePct}% size</span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1">
+          {[
+            { id: 'center' as const, label: 'Center' },
+            { id: 'bottom-right' as const, label: 'Bottom-R' },
+            { id: 'top-right' as const, label: 'Top-R' },
+            { id: 'lower-third' as const, label: 'Lower-3rd' },
+            { id: 'bottom-left' as const, label: 'Bottom-L' },
+            { id: 'top-left' as const, label: 'Top-L' },
+          ].map((pl) => (
+            <button
+              key={pl.id}
+              type="button"
+              onClick={() => setDefaultPlacement(pl.id)}
+              className={cn(
+                'rounded border py-0.5 text-center text-[9px] font-medium transition',
+                defaultPlacement === pl.id
+                  ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                  : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {pl.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 pt-0.5">
+          <span className="text-[9px] text-muted-foreground">Size:</span>
+          {[20, 35, 50, 100].map((sz) => (
+            <button
+              key={sz}
+              type="button"
+              onClick={() => setDefaultScalePct(sz)}
+              className={cn(
+                'flex-1 rounded py-0.5 text-center font-mono text-[9px]',
+                defaultScalePct === sz
+                  ? 'bg-violet-600 font-bold text-white shadow-xs'
+                  : 'bg-muted/40 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {sz}%
+            </button>
+          ))}
+        </div>
+      </div>
+
       {error && <p className="text-destructive text-[10px]">{error}</p>}
       {results.length > 0 && (
         <div className="grid max-h-64 grid-cols-2 gap-1.5 overflow-y-auto">
