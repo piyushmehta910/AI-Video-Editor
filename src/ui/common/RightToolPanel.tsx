@@ -179,7 +179,7 @@ export type ToolSection =
   | 'script'
   | 'images'
 
-const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
+export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'text', label: 'Text & Titles', icon: Type },
   { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'effects', label: 'Effects', icon: Sparkles },

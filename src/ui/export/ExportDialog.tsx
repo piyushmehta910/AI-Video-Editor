@@ -192,21 +192,21 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const finalFilename = `${customName.trim() || 'clipforge-export'}.${format}`
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog Container */}
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-border/80 bg-card shadow-2xl overflow-hidden z-10">
+      <div className="relative w-full max-w-xl max-h-[94svh] flex flex-col rounded-2xl border border-border/80 bg-card shadow-2xl overflow-hidden z-10">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border/80 px-5 py-3.5 bg-muted/20 shrink-0">
+        <div className="flex items-center justify-between border-b border-border/80 px-3.5 sm:px-5 py-3 sm:py-3.5 bg-muted/20 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-xs">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-xs shrink-0">
               <FileVideo className="size-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-foreground">Export Project Video</h2>
-              <p className="text-[11px] text-muted-foreground">High-performance GPU browser render</p>
+              <h2 className="text-xs sm:text-sm font-bold text-foreground">Export Project Video</h2>
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground">High-performance GPU browser render</p>
             </div>
           </div>
           <button
@@ -219,7 +219,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         </div>
 
         {/* Body Content (Scrollable if screen is small) */}
-        <div className="flex-1 overflow-y-auto space-y-4 px-5 py-4 text-xs">
+        <div className="flex-1 overflow-y-auto space-y-3.5 sm:space-y-4 px-3.5 sm:px-5 py-3 sm:py-4 text-xs">
           {/* Quick Platform Presets */}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">

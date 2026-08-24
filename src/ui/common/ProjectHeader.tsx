@@ -48,12 +48,12 @@ export function ProjectHeader() {
   }
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-background/95 px-2 backdrop-blur">
+    <div className="flex h-10 shrink-0 items-center gap-1.5 border-b bg-background/95 px-2 backdrop-blur overflow-x-auto no-scrollbar">
       <Button
         asChild
         variant="ghost"
         size="sm"
-        className="h-8 gap-1 px-1.5 text-xs font-medium"
+        className="h-8 gap-1 px-1.5 text-xs font-medium shrink-0"
       >
         <Link to="/" title="Home">
           <div className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold">
@@ -63,7 +63,7 @@ export function ProjectHeader() {
         </Link>
       </Button>
 
-      <div className="bg-border h-4 w-px" />
+      <div className="bg-border h-4 w-px shrink-0" />
       {editingName ? (
         <input
           autoFocus
@@ -77,7 +77,7 @@ export function ProjectHeader() {
               setEditingName(false)
             }
           }}
-          className="h-7 w-40 rounded-md border bg-muted/40 px-2 text-sm font-semibold outline-none"
+          className="h-7 w-28 sm:w-40 rounded-md border bg-muted/40 px-2 text-xs sm:text-sm font-semibold outline-none shrink-0"
         />
       ) : (
         <button
@@ -87,13 +87,14 @@ export function ProjectHeader() {
             setEditingName(true)
           }}
           title="Rename project"
-          className="group flex shrink-0 items-center gap-1 text-sm font-semibold"
+          className="group flex shrink-0 items-center gap-1 text-xs sm:text-sm font-semibold max-w-[110px] sm:max-w-[180px]"
         >
           <span className="truncate">{project.name}</span>
           <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
         </button>
       )}
 
+      {/* Aspect Ratio */}
       <Select
         value={project.aspectRatio}
         onValueChange={(v) => {
@@ -105,63 +106,69 @@ export function ProjectHeader() {
           }
         }}
       >
-        <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs hover:bg-muted">
+        <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs hover:bg-muted shrink-0">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="z-[10050]">
           {ASPECT_RATIOS.map((r) => (
             <SelectItem key={r} value={r}>{r}</SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      <Select
-        value={String(project.fps)}
-        onValueChange={(v) => setProjectSettings({ fps: Number(v) })}
-      >
-        <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
-          <SelectValue /> <span className="text-muted-foreground">fps</span>
-        </SelectTrigger>
-        <SelectContent>
-          {FPS_OPTIONS.map((f) => (
-            <SelectItem key={f} value={String(f)}>{f} fps</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* FPS */}
+      <div className="hidden sm:flex shrink-0">
+        <Select
+          value={String(project.fps)}
+          onValueChange={(v) => setProjectSettings({ fps: Number(v) })}
+        >
+          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
+            <SelectValue /> <span className="text-muted-foreground">fps</span>
+          </SelectTrigger>
+          <SelectContent className="z-[10050]">
+            {FPS_OPTIONS.map((f) => (
+              <SelectItem key={f} value={String(f)}>{f} fps</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <Select
-        value={`${project.width}x${project.height}`}
-        onValueChange={(v) => {
-          const [w, h] = v.split('x').map(Number)
-          const ratio = w / h
-          let bestLabel = project.aspectRatio
-          let bestDiff = Infinity
-          for (const a of ASPECT_RATIOS) {
-            const [aw, ah] = a.split(':').map(Number)
-            const diff = Math.abs(aw / ah - ratio)
-            if (diff < bestDiff) { bestDiff = diff; bestLabel = a }
-          }
-          setProjectSettings({ width: w, height: h, aspectRatio: bestLabel })
-        }}
-      >
-        <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {RESOLUTIONS.map((r) => (
-            <SelectItem key={r.label} value={`${r.w}x${r.h}`}>
-              {r.label} · {r.w}×{r.h}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Resolution */}
+      <div className="hidden md:flex shrink-0">
+        <Select
+          value={`${project.width}x${project.height}`}
+          onValueChange={(v) => {
+            const [w, h] = v.split('x').map(Number)
+            const ratio = w / h
+            let bestLabel = project.aspectRatio
+            let bestDiff = Infinity
+            for (const a of ASPECT_RATIOS) {
+              const [aw, ah] = a.split(':').map(Number)
+              const diff = Math.abs(aw / ah - ratio)
+              if (diff < bestDiff) { bestDiff = diff; bestLabel = a }
+            }
+            setProjectSettings({ width: w, height: h, aspectRatio: bestLabel })
+          }}
+        >
+          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="z-[10050]">
+            {RESOLUTIONS.map((r) => (
+              <SelectItem key={r.label} value={`${r.w}x${r.h}`}>
+                {r.label} · {r.w}×{r.h}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-1 shrink-0">
         <ThemeToggle />
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 px-2"
+          className="h-8 px-2 text-violet-600 dark:text-violet-400 font-semibold"
           onClick={() => setExportOpen(true)}
           title="Export project"
         >

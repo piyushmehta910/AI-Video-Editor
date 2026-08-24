@@ -66,7 +66,7 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
       onClick={onClose}
     >
       <div
-        className="w-[500px] rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-200 shadow-2xl"
+        className="w-[94vw] max-w-[500px] max-h-[92svh] overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6 text-neutral-200 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
