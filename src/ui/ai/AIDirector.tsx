@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Bot, Check, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, RotateCcw, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
+import { Bot, Check, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -91,9 +91,39 @@ interface Position {
   y: number
 }
 
-const STORAGE_KEY = 'clipforge_ai_director_pos'
+interface PanelSize {
+  width: number
+  height: number
+}
 
+type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
+const STORAGE_KEY = 'clipforge_ai_director_pos'
+const SIZE_STORAGE_KEY = 'clipforge_ai_director_size'
 const LAUNCHER_STORAGE_KEY = 'clipforge-ai-director-launcher-pos'
+
+function getInitialSize(): PanelSize {
+  if (typeof window === 'undefined') return { width: 440, height: 580 }
+  try {
+    const saved = localStorage.getItem(SIZE_STORAGE_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+        const maxWidth = Math.max(320, window.innerWidth - 20)
+        const maxHeight = Math.max(380, window.innerHeight - 20)
+        return {
+          width: Math.min(Math.max(320, parsed.width), maxWidth),
+          height: Math.min(Math.max(380, parsed.height), maxHeight),
+        }
+      }
+    }
+  } catch {
+    // fallback
+  }
+  const defaultWidth = Math.min(440, window.innerWidth - 20)
+  const defaultHeight = Math.min(580, window.innerHeight - 60)
+  return { width: defaultWidth, height: defaultHeight }
+}
 
 function getInitialPosition(): Position {
   if (typeof window === 'undefined') return { x: 20, y: 100 }
@@ -113,8 +143,8 @@ function getInitialPosition(): Position {
   } catch {
     // fallback
   }
-  const defaultX = Math.max(10, window.innerWidth - 410)
-  const defaultY = Math.max(10, window.innerHeight - 620)
+  const defaultX = Math.max(10, window.innerWidth - 460)
+  const defaultY = Math.max(10, window.innerHeight - 640)
   return { x: defaultX, y: defaultY }
 }
 
@@ -160,17 +190,31 @@ export function AIDirector({
     onOpenChange?.(next)
   }
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
+  const [size, setSize] = React.useState<PanelSize>(getInitialSize)
   const [isDragging, setIsDragging] = React.useState(false)
+  const [isResizing, setIsResizing] = React.useState(false)
   const [isMinimized, setIsMinimized] = React.useState(false)
+  const [isMaximized, setIsMaximized] = React.useState(false)
+  const preMaximizeRef = React.useRef<{ position: Position; size: PanelSize } | null>(null)
+
   const dragStartRef = React.useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null)
+  const resizeStartRef = React.useRef<{
+    direction: ResizeDirection
+    mouseX: number
+    mouseY: number
+    startWidth: number
+    startHeight: number
+    startX: number
+    startY: number
+  } | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
 
   // Viewport resize guard
   React.useEffect(() => {
     const handleResize = () => {
       setPosition((prev) => {
-        const width = panelRef.current?.offsetWidth || 390
-        const height = panelRef.current?.offsetHeight || 560
+        const width = size.width || 440
+        const height = size.height || 580
         const maxX = Math.max(10, window.innerWidth - width - 10)
         const maxY = Math.max(10, window.innerHeight - height - 10)
         return {
@@ -181,10 +225,10 @@ export function AIDirector({
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [size.width, size.height])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || isMaximized) return
     const target = e.target as HTMLElement
     if (target.closest('button') || target.closest('a') || target.closest('input')) return
 
@@ -202,8 +246,8 @@ export function AIDirector({
     if (!isDragging || !dragStartRef.current) return
     const dx = e.clientX - dragStartRef.current.mouseX
     const dy = e.clientY - dragStartRef.current.mouseY
-    const width = panelRef.current?.offsetWidth || 390
-    const height = panelRef.current?.offsetHeight || 560
+    const width = size.width || 440
+    const height = size.height || 580
     const maxX = Math.max(10, window.innerWidth - width - 10)
     const maxY = Math.max(10, window.innerHeight - height - 10)
 
@@ -229,18 +273,132 @@ export function AIDirector({
     }
   }
 
-  const resetPosition = () => {
-    const defaultX = Math.max(10, window.innerWidth - 410)
-    const defaultY = Math.max(10, window.innerHeight - 620)
-    const pos = { x: defaultX, y: defaultY }
-    setPosition(pos)
+  const handleResizePointerDown = (e: React.PointerEvent, direction: ResizeDirection) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (e.button !== 0 || isMaximized) return
+
+    resizeStartRef.current = {
+      direction,
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startWidth: size.width,
+      startHeight: size.height,
+      startX: position.x,
+      startY: position.y,
+    }
+    setIsResizing(true)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const handleResizePointerMove = (e: React.PointerEvent) => {
+    if (!isResizing || !resizeStartRef.current) return
+    const { direction, mouseX, mouseY, startWidth, startHeight, startX, startY } = resizeStartRef.current
+    const dx = e.clientX - mouseX
+    const dy = e.clientY - mouseY
+
+    const minWidth = 320
+    const minHeight = 380
+    const maxWidth = Math.max(minWidth, window.innerWidth - 20)
+    const maxHeight = Math.max(minHeight, window.innerHeight - 20)
+
+    let newWidth = startWidth
+    let newHeight = startHeight
+    let newX = startX
+    let newY = startY
+
+    if (direction.includes('e')) {
+      newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + dx))
+    }
+    if (direction.includes('w')) {
+      const desiredWidth = startWidth - dx
+      newWidth = Math.min(maxWidth, Math.max(minWidth, desiredWidth))
+      newX = startX + (startWidth - newWidth)
+    }
+    if (direction.includes('s')) {
+      newHeight = Math.min(maxHeight, Math.max(minHeight, startHeight + dy))
+    }
+    if (direction.includes('n')) {
+      const desiredHeight = startHeight - dy
+      newHeight = Math.min(maxHeight, Math.max(minHeight, desiredHeight))
+      newY = startY + (startHeight - newHeight)
+    }
+
+    newX = Math.max(10, Math.min(newX, window.innerWidth - newWidth - 10))
+    newY = Math.max(10, Math.min(newY, window.innerHeight - newHeight - 10))
+
+    const updatedSize = { width: Math.round(newWidth), height: Math.round(newHeight) }
+    const updatedPos = { x: Math.round(newX), y: Math.round(newY) }
+    setSize(updatedSize)
+    setPosition(updatedPos)
+  }
+
+  const handleResizePointerUp = (e: React.PointerEvent) => {
+    if (!isResizing) return
+    setIsResizing(false)
+    resizeStartRef.current = null
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(size))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
     } catch {
       // ignore
     }
   }
 
+  const toggleMaximize = () => {
+    if (isMaximized) {
+      if (preMaximizeRef.current) {
+        setPosition(preMaximizeRef.current.position)
+        setSize(preMaximizeRef.current.size)
+      }
+      setIsMaximized(false)
+    } else {
+      preMaximizeRef.current = { position, size }
+      setPosition({ x: 16, y: 16 })
+      setSize({
+        width: Math.max(320, window.innerWidth - 32),
+        height: Math.max(380, window.innerHeight - 32),
+      })
+      setIsMaximized(true)
+    }
+  }
+
+  const applyPresetSize = (w: number, h: number) => {
+    const maxWidth = Math.max(320, window.innerWidth - 20)
+    const maxHeight = Math.max(380, window.innerHeight - 20)
+    const finalW = Math.min(Math.max(320, w), maxWidth)
+    const finalH = Math.min(Math.max(380, h), maxHeight)
+    setSize({ width: finalW, height: finalH })
+    setIsMaximized(false)
+    try {
+      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify({ width: finalW, height: finalH }))
+    } catch {
+      // ignore
+    }
+  }
+
+  const resetPosition = () => {
+    const defaultX = Math.max(10, window.innerWidth - 460)
+    const defaultY = Math.max(10, window.innerHeight - 640)
+    const pos = { x: defaultX, y: defaultY }
+    const defaultSize = { width: 440, height: 580 }
+    setPosition(pos)
+    setSize(defaultSize)
+    setIsMaximized(false)
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
+      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(defaultSize))
+    } catch {
+      // ignore
+    }
+  }
+
+  const [showSizeMenu, setShowSizeMenu] = React.useState(false)
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
   const [busy, setBusy] = React.useState(false)
@@ -849,12 +1007,20 @@ export function AIDirector({
       {open && !isMinimized && (
         <div
           ref={panelRef}
-          style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
-          className="fixed top-0 left-0 z-50 flex h-[560px] max-h-[80svh] w-[min(25rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-md"
+          style={{
+            transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+            width: isMaximized ? 'calc(100vw - 32px)' : `${size.width}px`,
+            height: isMaximized ? 'calc(100vh - 32px)' : `${size.height}px`,
+            maxWidth: 'calc(100vw - 20px)',
+            maxHeight: 'calc(100vh - 20px)',
+          }}
+          className={`fixed top-0 left-0 z-50 flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-md transition-shadow ${
+            isResizing ? 'select-none' : ''
+          }`}
         >
           {/* Draggable Header Bar */}
           <div
-            className="flex cursor-grab active:cursor-grabbing select-none items-center gap-2 border-b bg-muted/40 px-3.5 py-2.5 touch-none"
+            className="relative flex cursor-grab active:cursor-grabbing select-none items-center gap-2 border-b bg-muted/40 px-3.5 py-2.5 touch-none"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -880,18 +1046,96 @@ export function AIDirector({
                 )}
               </div>
               <p className="text-muted-foreground truncate text-[10px]">
-                Drag title to move anywhere
+                {size.width}×{size.height} • Drag edges to resize
               </p>
             </div>
 
             {/* Header Controls */}
             <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+              {/* Quick Size Preset Selector */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSizeMenu((s) => !s)}
+                  className={`rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ${
+                    showSizeMenu ? 'bg-muted text-foreground' : ''
+                  }`}
+                  title="Adjust Window Size"
+                  aria-label="Adjust Window Size"
+                >
+                  <Scaling className="size-3.5" />
+                </button>
+                {showSizeMenu && (
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-xl border border-border/80 bg-card/98 p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95">
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Window Size
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyPresetSize(360, 480)
+                        setShowSizeMenu(false)
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                    >
+                      <span>Compact</span>
+                      <span className="text-[10px] text-muted-foreground">360 × 480</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyPresetSize(440, 580)
+                        setShowSizeMenu(false)
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors font-medium text-violet-500 dark:text-violet-400"
+                    >
+                      <span>Standard</span>
+                      <span className="text-[10px] text-muted-foreground">440 × 580</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyPresetSize(560, 700)
+                        setShowSizeMenu(false)
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                    >
+                      <span>Large</span>
+                      <span className="text-[10px] text-muted-foreground">560 × 700</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyPresetSize(720, 650)
+                        setShowSizeMenu(false)
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                    >
+                      <span>Wide Studio</span>
+                      <span className="text-[10px] text-muted-foreground">720 × 650</span>
+                    </button>
+                    <div className="my-1 border-t border-border/50" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleMaximize()
+                        setShowSizeMenu(false)
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-muted transition-colors"
+                    >
+                      <span>{isMaximized ? 'Restore Normal' : 'Full Expand'}</span>
+                      <Maximize2 className="size-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={resetPosition}
                 className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                title="Reset Position"
-                aria-label="Reset Position"
+                title="Reset Position & Size"
+                aria-label="Reset Position & Size"
               >
                 <RotateCcw className="size-3.5" />
               </button>
@@ -918,12 +1162,21 @@ export function AIDirector({
               </Link>
               <button
                 type="button"
+                onClick={toggleMaximize}
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title={isMaximized ? 'Restore window' : 'Maximize window'}
+                aria-label={isMaximized ? 'Restore' : 'Maximize'}
+              >
+                {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsMinimized(true)}
                 className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 title="Minimize to floating pill"
                 aria-label="Minimize"
               >
-                <Minimize2 className="size-3.5" />
+                <span className="inline-block w-3 h-0.5 bg-current rounded-full mb-1" />
               </button>
               <button
                 type="button"
@@ -1264,6 +1517,85 @@ export function AIDirector({
               </Button>
             </div>
           </div>
+
+          {/* 8-Directional Interactive Resize Handles */}
+          {!isMaximized && (
+            <>
+              {/* Top edge */}
+              <div
+                className="absolute top-0 left-4 right-4 h-2 cursor-ns-resize z-40 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'n')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+                title="Drag to resize height"
+              />
+              {/* Bottom edge */}
+              <div
+                className="absolute bottom-0 left-4 right-4 h-2 cursor-ns-resize z-40 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 's')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+                title="Drag to resize height"
+              />
+              {/* Left edge */}
+              <div
+                className="absolute left-0 top-4 bottom-4 w-2 cursor-ew-resize z-40 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'w')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+                title="Drag to resize width"
+              />
+              {/* Right edge */}
+              <div
+                className="absolute right-0 top-4 bottom-4 w-2 cursor-ew-resize z-40 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'e')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+                title="Drag to resize width"
+              />
+              {/* Top-Left corner */}
+              <div
+                className="absolute top-0 left-0 size-4 cursor-nwse-resize z-50 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'nw')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+              />
+              {/* Top-Right corner */}
+              <div
+                className="absolute top-0 right-0 size-4 cursor-nesw-resize z-50 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'ne')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+              />
+              {/* Bottom-Left corner */}
+              <div
+                className="absolute bottom-0 left-0 size-4 cursor-nesw-resize z-50 touch-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'sw')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+              />
+              {/* Bottom-Right corner with visual grip ridges */}
+              <div
+                className="absolute bottom-0 right-0 size-6 cursor-nwse-resize z-50 flex items-end justify-end p-1 group/grip touch-none select-none"
+                onPointerDown={(e) => handleResizePointerDown(e, 'se')}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={handleResizePointerUp}
+                title="Drag corner to resize window"
+              >
+                <svg
+                  className="size-3 text-muted-foreground/40 group-hover/grip:text-violet-500 transition-colors pointer-events-none"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M10 2L2 10" strokeLinecap="round" />
+                  <path d="M10 6L6 10" strokeLinecap="round" />
+                  <path d="M10 9L9 10" strokeLinecap="round" />
+                </svg>
+              </div>
+            </>
+          )}
         </div>
       )}
 
