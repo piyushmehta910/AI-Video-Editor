@@ -1,6 +1,8 @@
 import * as React from 'react'
 import { Link2, Link2Off, RotateCcw } from 'lucide-react'
 import type { InspectorApi } from '@/hooks/useInspector'
+import { useTimelineStore } from '@/stores/timelineStore'
+import type { Track } from '@/engine/types'
 import { KeyframeButton } from './KeyframeButton'
 import { LabeledSlider, NumInput, Row, Section } from './controls'
 
@@ -129,6 +131,85 @@ export function TransformSection({ insp }: { insp: InspectorApi }) {
           />
         }
       />
+
+      <Row label="Fit Mode" stack>
+        <div className="grid grid-cols-4 gap-1 pt-0.5">
+          {[
+            { id: 'cover', label: 'Cover (Fill)' },
+            { id: 'contain', label: 'Fit (Show All)' },
+            { id: 'fill', label: 'Stretch' },
+            { id: 'none', label: '1:1 Pixel' },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              className={
+                (clip.fitMode ?? 'cover') === mode.id
+                  ? 'rounded border border-violet-500 bg-violet-500/20 py-1 text-center font-mono text-[9px] font-semibold text-violet-300 shadow-xs'
+                  : 'rounded border border-border/60 bg-[#0f0f1a] py-1 text-center font-mono text-[9px] text-muted-foreground hover:text-foreground'
+              }
+              onClick={() => insp.update({ fitMode: mode.id as any }, `Changed fit mode of '${clip.name}'`)}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+      </Row>
+
+      <Row label="Layer Order (Z-Index)" stack>
+        <div className="grid grid-cols-4 gap-1 pt-0.5">
+          <button
+            type="button"
+            className="rounded border border-border/60 bg-[#0f0f1a] py-1 text-center text-[9px] font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            onClick={() => {
+              const store = useTimelineStore.getState()
+              const videoTracks = store.project.tracks.filter((t: Track) => t.type === 'video' || t.type === 'text')
+              if (videoTracks.length) store.moveClip(clip.id, 0, videoTracks[0].id)
+            }}
+            title="Bring clip to topmost foreground layer"
+          >
+            ⬆ Top Layer
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border/60 bg-[#0f0f1a] py-1 text-center text-[9px] font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            onClick={() => {
+              const store = useTimelineStore.getState()
+              const currentIdx = store.project.tracks.findIndex((t: Track) => t.id === clip.trackId)
+              if (currentIdx > 0) store.moveClip(clip.id, 0, store.project.tracks[currentIdx - 1].id)
+            }}
+            title="Move layer up"
+          >
+            ▲ Up
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border/60 bg-[#0f0f1a] py-1 text-center text-[9px] font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            onClick={() => {
+              const store = useTimelineStore.getState()
+              const currentIdx = store.project.tracks.findIndex((t: Track) => t.id === clip.trackId)
+              if (currentIdx >= 0 && currentIdx < store.project.tracks.length - 1) {
+                store.moveClip(clip.id, 0, store.project.tracks[currentIdx + 1].id)
+              }
+            }}
+            title="Move layer down"
+          >
+            ▼ Down
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border/60 bg-[#0f0f1a] py-1 text-center text-[9px] font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            onClick={() => {
+              const store = useTimelineStore.getState()
+              const videoTracks = store.project.tracks.filter((t: Track) => t.type === 'video' || t.type === 'text')
+              if (videoTracks.length) store.moveClip(clip.id, 0, videoTracks[videoTracks.length - 1].id)
+            }}
+            title="Send clip to background layer"
+          >
+            ⬇ Bottom Layer
+          </button>
+        </div>
+      </Row>
 
       <Row label="Anchor" stack>
         <div className="flex items-center gap-3">

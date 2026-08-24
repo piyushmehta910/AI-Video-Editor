@@ -378,9 +378,24 @@ export async function compositeFrame(
             drawBorder(-w / 2 + anchorX * w, -h / 2 + anchorY * h, w, h)
           } else {
             const r = applyManualCrop(sw, sh)
-            const scale = Math.max(w / r.sw, h / r.sh)
-            const dw = r.sw * scale
-            const dh = r.sh * scale
+            let dw = r.sw
+            let dh = r.sh
+            if (clip.fitMode === 'contain') {
+              const scale = Math.min(w / r.sw, h / r.sh)
+              dw = r.sw * scale
+              dh = r.sh * scale
+            } else if (clip.fitMode === 'fill') {
+              dw = w
+              dh = h
+            } else if (clip.fitMode === 'none') {
+              dw = r.sw
+              dh = r.sh
+            } else {
+              // default 'cover'
+              const scale = Math.max(w / r.sw, h / r.sh)
+              dw = r.sw * scale
+              dh = r.sh * scale
+            }
             const dx = -dw / 2 + anchorX * dw
             const dy = -dh / 2 + anchorY * dh
             drawVideoWithEffects(ctx, source, r.sx, r.sy, r.sw, r.sh, dx, dy, dw, dh, effects)
@@ -392,7 +407,7 @@ export async function compositeFrame(
         if (thumb) {
           const { w: tw, h: th } = sourceSize(thumb)
           if (tw > 0 && th > 0) {
-            const scale = Math.max(w / tw, h / th)
+            const scale = clip.fitMode === 'contain' ? Math.min(w / tw, h / th) : Math.max(w / tw, h / th)
             ctx.drawImage(thumb, ((-tw * scale) / 2) + anchorX * tw * scale, ((-th * scale) / 2) + anchorY * th * scale, tw * scale, th * scale)
           } else {
             drawImagePlaceholder(ctx, w, h, asset.name ?? 'Video')
@@ -412,9 +427,24 @@ export async function compositeFrame(
         const { w: iw, h: ih } = sourceSize(img)
         if (iw > 0 && ih > 0) {
           const r = applyManualCrop(iw, ih)
-          const scale = Math.max(w / r.sw, h / r.sh)
-          const dw = r.sw * scale
-          const dh = r.sh * scale
+          let dw = r.sw
+          let dh = r.sh
+          if (clip.fitMode === 'contain') {
+            const scale = Math.min(w / r.sw, h / r.sh)
+            dw = r.sw * scale
+            dh = r.sh * scale
+          } else if (clip.fitMode === 'fill') {
+            dw = w
+            dh = h
+          } else if (clip.fitMode === 'none') {
+            dw = r.sw
+            dh = r.sh
+          } else {
+            // default 'cover'
+            const scale = Math.max(w / r.sw, h / r.sh)
+            dw = r.sw * scale
+            dh = r.sh * scale
+          }
           const dx = -dw / 2 + anchorX * dw
           const dy = -dh / 2 + anchorY * dh
           ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, dx, dy, dw, dh)

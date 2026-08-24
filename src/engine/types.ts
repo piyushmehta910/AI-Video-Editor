@@ -330,6 +330,8 @@ export interface Clip {
   avatarRole?: 'intro' | 'outro' | 'presenter' | 'narrator'
   /** Content subtype on video/audio tracks (video, image, avatar, animation / audio, music, voice, sfx). */
   clipType?: MediaClipType
+  /** Fit mode within project viewport (cover fills canvas, contain fits with letterbox, fill stretches, none is 1:1). */
+  fitMode?: 'cover' | 'contain' | 'fill' | 'none'
   /** Content subtype on text tracks. */
   textType?: TextClipType
   /** Content subtype on fx tracks. */
