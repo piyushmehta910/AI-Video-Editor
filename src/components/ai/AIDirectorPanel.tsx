@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Clapperboard, Film, RefreshCw, Settings2, X, Eye, Mic } from 'lucide-react'
+import { Clapperboard, Film, RefreshCw, Settings2, X, Eye, Mic, Bot } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -8,6 +8,7 @@ import { useAIStore, type AiDirectorMode } from '@/stores/aiStore'
 import { projectDuration } from '@/engine/types'
 import { useAIDirector } from '@/hooks/useAIDirector'
 import { aiContextManager } from '@/ai/context/AIContextManager'
+import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
 import { ChatInterface } from './ChatInterface'
 import { SuggestionCard } from './SuggestionCard'
 
@@ -79,6 +80,50 @@ function ContextSummary() {
             {sceneCount} Scenes
           </span>
         )}
+      </div>
+    </div>
+  )
+}
+
+function SubagentActivityBar() {
+  const [activeEvent, setActiveEvent] = React.useState<{
+    stage: string
+    activeRole?: string
+    progressPercent: number
+    message: string
+  } | null>(null)
+
+  React.useEffect(() => {
+    const unsub = subagentOrchestrator.subscribe((event) => {
+      if (event.stage === 'completed' || event.stage === 'failed') {
+        setActiveEvent(event)
+        const timer = setTimeout(() => setActiveEvent(null), 6000)
+        return () => clearTimeout(timer)
+      } else {
+        setActiveEvent(event)
+      }
+    })
+    return unsub
+  }, [])
+
+  if (!activeEvent) return null
+
+  return (
+    <div className="border-b border-border/80 bg-violet-500/10 px-3 py-2 animate-in fade-in duration-200">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1.5 truncate">
+          <Bot className="size-3.5 text-violet-500 animate-pulse shrink-0" />
+          <span className="truncate">{activeEvent.message}</span>
+        </span>
+        <span className="font-mono text-[10px] text-violet-600 dark:text-violet-400 font-bold ml-2 shrink-0">
+          {activeEvent.progressPercent}%
+        </span>
+      </div>
+      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted/40">
+        <div
+          className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-300"
+          style={{ width: `${activeEvent.progressPercent}%` }}
+        />
       </div>
     </div>
   )
@@ -165,6 +210,9 @@ export function AIDirectorPanel({ initialPrompt }: { initialPrompt?: string }) {
 
       {/* Project context */}
       <ContextSummary />
+
+      {/* Live Autonomous Subagents Status */}
+      <SubagentActivityBar />
 
       {/* Suggestions */}
       {(visibleIssues.length > 0 || issues.length > 0) && (

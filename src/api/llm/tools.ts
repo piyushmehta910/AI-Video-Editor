@@ -911,6 +911,45 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'execute_autonomous_video_plan',
+      description: 'Orchestrates specialized subagents (Script Architect, Audio Producer, Visual Animator, Asset Curator, Timeline Editor, Motion Subtitler, and Quality Critic) to autonomously create or transform a video from a high-level creative prompt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          goal: { type: 'string', description: 'Creative goal or high-level video prompt.' },
+          targetDurationSeconds: { type: 'number', description: 'Target video duration in seconds (e.g. 15, 30, 60).' },
+          aspectRatio: { type: 'string', enum: ['16:9', '9:16', '1:1', '4:5', '21:9'], description: 'Canvas aspect ratio.' },
+          style: { type: 'string', enum: ['energetic', 'educational', 'cinematic', 'minimalist', 'tech'], description: 'Video aesthetic & pacing style.' },
+          topic: { type: 'string', description: 'Core topic/subject.' },
+        },
+        required: ['goal'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'dispatch_subagent_task',
+      description: 'Dispatches an isolated sub-task to a specialized subagent (script_architect, audio_producer, visual_animator, asset_curator, timeline_editor, motion_subtitler, quality_critic).',
+      parameters: {
+        type: 'object',
+        properties: {
+          role: {
+            type: 'string',
+            enum: ['script_architect', 'audio_producer', 'visual_animator', 'asset_curator', 'timeline_editor', 'motion_subtitler', 'quality_critic'],
+            description: 'Target subagent role.',
+          },
+          taskTitle: { type: 'string', description: 'Descriptive title of the sub-task.' },
+          tool: { type: 'string', description: 'Specific tool to execute.' },
+          arguments: { type: 'object', description: 'Tool arguments.' },
+        },
+        required: ['role', 'taskTitle', 'tool'],
+      },
+    },
+  },
 ]
 
 /** Tools that change timeline state and therefore must be reviewed before applying. */
@@ -957,6 +996,8 @@ const STAGED_TOOLS = new Set<string>([
   'generate_avatar_narrator',
   'smart_reframe',
   'remove_background',
+  'execute_autonomous_video_plan',
+  'dispatch_subagent_task',
 ])
 
 /** Tools that never mutate timeline state and therefore need no undo snapshot. */
@@ -1276,6 +1317,17 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
     }
     case 'set_snap_enabled': {
       return `${Boolean(args.enabled) ? 'Enable' : 'Disable'} magnetic snapping`
+    }
+    case 'execute_autonomous_video_plan': {
+      const goal = String(args.goal ?? '')
+      if (!goal.trim()) return null
+      return `Autonomously generate video through subagents: "${goal}"`
+    }
+    case 'dispatch_subagent_task': {
+      const role = String(args.role ?? '')
+      const taskTitle = String(args.taskTitle ?? '')
+      if (!role || !taskTitle) return null
+      return `Dispatch [${role}]: ${taskTitle}`
     }
     default:
       return null
@@ -2159,6 +2211,46 @@ export async function applyTool(
       const enabled = Boolean(args.enabled)
       s.setSnapEnabled(enabled)
       return { ok: true, message: desc }
+    }
+    case 'execute_autonomous_video_plan': {
+      try {
+        const { subagentOrchestrator } = await import('@/ai/subagents/SubagentOrchestrator')
+        const goal = String(args.goal ?? '').trim()
+        const targetDurationSeconds = args.targetDurationSeconds ? Number(args.targetDurationSeconds) : undefined
+        const aspectRatio = args.aspectRatio as any
+        const style = args.style as any
+        const topic = args.topic ? String(args.topic) : undefined
+
+        const plan = await subagentOrchestrator.formulateAutonomousPlan({
+          goal,
+          targetDurationSeconds,
+          aspectRatio,
+          style,
+          topic,
+        })
+        const results = await subagentOrchestrator.executePlan(plan)
+        const passedCount = results.filter((r) => r.ok).length
+        return {
+          ok: true,
+          message: `Autonomous generation executed successfully! (${passedCount}/${results.length} subagents completed).`,
+        }
+      } catch (err) {
+        return { ok: false, message: `Autonomous generation failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'dispatch_subagent_task': {
+      try {
+        const tool = String(args.tool ?? '')
+        const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {}
+        const role = String(args.role ?? 'timeline_editor')
+        const res = await applyTool(tool, toolArgs, { undoStep: false })
+        return {
+          ok: res.ok,
+          message: `[${role}] ${res.message}`,
+        }
+      } catch (err) {
+        return { ok: false, message: `Subagent dispatch failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
     }
     default:
       return { ok: false, message: `Unknown action "${name}".` }

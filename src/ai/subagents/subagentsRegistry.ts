@@ -1,0 +1,95 @@
+import type { SubagentInfo, SubagentRole } from './types'
+
+export const SUBAGENT_REGISTRY: Record<SubagentRole, SubagentInfo> = {
+  script_architect: {
+    role: 'script_architect',
+    name: 'Script & Narrative Architect',
+    title: 'Scriptwriter & Storyboarder',
+    description: 'Decomposes video goals into viral hooks, structured body beats, and high-converting calls to action.',
+    capabilities: [
+      'Viral short-form hook generation',
+      'Structured scene beats & timing allocation',
+      'Call to action (CTA) and outro formulation',
+      'Bilingual scripts (English / Hindi / Hinglish)',
+    ],
+    icon: 'ScrollText',
+  },
+  audio_producer: {
+    role: 'audio_producer',
+    name: 'Audio & Voiceover Producer',
+    title: 'Sound Engineer & TTS Director',
+    description: 'Generates neural TTS voiceovers, curates atmospheric background music, balances volume, and removes background noise.',
+    capabilities: [
+      'Neural TTS speech synthesis',
+      'Background music search & mood matching',
+      'Automatic audio ducking (-12dB under speech)',
+      'AI Denoise and background noise reduction',
+    ],
+    icon: 'Music',
+  },
+  visual_animator: {
+    role: 'visual_animator',
+    name: 'Visual & Avatar Animator',
+    title: 'Motion & Avatar Animator',
+    description: 'Creates lip-synced AI avatar presenters and compiles interactive Marp presentation slide sequences.',
+    capabilities: [
+      'Wav2Lip neural lip-sync avatar rendering',
+      'Marp AI presentation slide decks',
+      'Dynamic HTML/CSS motion graphics',
+      'Visual atmosphere & theme styling',
+    ],
+    icon: 'Clapperboard',
+  },
+  asset_curator: {
+    role: 'asset_curator',
+    name: 'Media & 3D Asset Curator',
+    title: 'B-Roll & 3D Model Specialist',
+    description: 'Searches and imports 3D GLB models from Poly Haven / Sketchfab, stock images, and animated stickers.',
+    capabilities: [
+      '3D GLB model discovery and orbital camera animation',
+      'Stock B-roll photography matching',
+      'Animated GIF reaction sticker placement',
+      'Green-screen background removal',
+    ],
+    icon: 'Box',
+  },
+  timeline_editor: {
+    role: 'timeline_editor',
+    name: 'Timeline & Pacing Assembler',
+    title: 'Master Video Editor',
+    description: 'Performs non-linear editing cuts, splits, trimming, clip sequencing, magnetic alignment, and smooth transitions.',
+    capabilities: [
+      'Precise multi-track clip arrangement',
+      'Razor cuts, dead space trimming & gap closing',
+      'Cinematic transitions (cross-dissolve, wipe, zoom, slide)',
+      'Playback speed ramps & aspect ratio reframing',
+    ],
+    icon: 'Scissors',
+  },
+  motion_subtitler: {
+    role: 'motion_subtitler',
+    name: 'Typography & Motion Subtitler',
+    title: 'Kinetic Typography Designer',
+    description: 'Generates animated karaoke captions, lower-third presenter badges, and high-impact title overlays.',
+    capabilities: [
+      'Speech-synchronized animated captions',
+      'Custom typography presets (Neon, Cyber, Modern, Minimal)',
+      'Lower-third presenter cards with backdrops',
+      'Entrance motion animations (pop, typewriter, slide-up)',
+    ],
+    icon: 'Type',
+  },
+  quality_critic: {
+    role: 'quality_critic',
+    name: 'Quality Critic & Director Reviewer',
+    title: 'Executive QA Supervisor',
+    description: 'Audits project health, detects audio overlaps, uncaptioned dialogue, dead silence gaps, and verifies pacing.',
+    capabilities: [
+      'Automated timeline health scoring',
+      'Silent gap & dead space detection (>1.5s)',
+      'Overlapping audio speech diagnostics',
+      'Visual OCR overlay conflict prevention',
+    ],
+    icon: 'Sparkles',
+  },
+}

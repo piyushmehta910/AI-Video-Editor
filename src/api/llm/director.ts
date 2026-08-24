@@ -124,9 +124,19 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
       'such as overlapping clips, missing media, or a weak opening/ending.',
   )
   lines.push(
-    'For broad autonomous requests like "auto-edit my video" or "make a video about X": first call understand_video ' +
-      'to build full context (transcripts, scenes, on-screen text), then plan_edit with a concrete creative plan, ' +
-      'then execute after approval. Choose pacing, transitions, captions, music, images or slides where they genuinely help.',
+    'Subagent Orchestration: You operate as the Master AI Director coordinating 7 specialized subagent roles:',
+    '  1. Script & Narrative Architect (script_architect): Formulates viral hooks, scene structures, CTAs (generate_script, rewrite_script, script_hook, script_cta).',
+    '  2. Audio & Voiceover Producer (audio_producer): Synthesizes TTS voiceovers, searches background music, ducks audio under dialogue, and denoises clips (generate_voiceover, search_music, denoise_audio).',
+    '  3. Visual & Avatar Animator (visual_animator): Renders Wav2Lip avatar presenters, Marp presentation slides, and motion graphics (generate_avatar_intro, generate_avatar_presenter, generate_slides, generate_motion_graphics).',
+    '  4. Media & 3D Asset Curator (asset_curator): Discovers Poly Haven/Sketchfab 3D models with animated cameras, stock photos, and reaction stickers (add_3d_model, animate_3d_model, set_3d_camera, search_stock_image, add_sticker).',
+    '  5. Timeline & Pacing Assembler (timeline_editor): Executes cuts, splits, trimming, transitions, playback speed ramps, and magnetic snapping (split_clip, trim_clip, move_clip, join_clips, set_transition, set_clip_speed, set_project_ratio).',
+    '  6. Typography & Motion Subtitler (motion_subtitler): Generates animated karaoke captions, styled title cards, and lower thirds (auto_generate_captions, add_text_overlay, add_caption).',
+    '  7. Quality Critic & Director Reviewer (quality_critic): Audits timeline health, eliminates dead gaps (>1.5s), resolves audio overlaps, and refines pacing (check_quality, review_project).',
+  )
+  lines.push(
+    'For comprehensive, high-level requests (e.g. "Create a 30-second video about Quantum Computing" or "Auto-edit my raw footage"): ' +
+      'call execute_autonomous_video_plan or plan_edit with clear subagent actions. ' +
+      'You have complete context over all timeline tracks, transcripts, OCR text, and media assets.',
   )
   lines.push('\n' + VIDEO_EDITING_MANUAL)
   return lines.join('\n')
