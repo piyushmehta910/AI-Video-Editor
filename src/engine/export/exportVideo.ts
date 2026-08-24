@@ -6,6 +6,7 @@ import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { WebMMuxer } from './webm-muxer'
+import { createEncoderGuard, waitForDrain, yieldToBrowser } from './encoderGuard'
 
 export interface ExportOptions {
   width: number
@@ -42,21 +43,26 @@ export function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
       resolve()
       return
     }
-    const onSeeked = () => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
       el.removeEventListener('seeked', onSeeked)
+      window.clearTimeout(timeout)
       resolve()
     }
-    el.addEventListener('seeked', onSeeked)
+    const onSeeked = () => finish()
+    el.addEventListener('seeked', onSeeked, { once: true })
+    const timeout = window.setTimeout(finish, 1500)
     try {
       el.currentTime = time
     } catch {
-      resolve()
+      finish()
     }
-    window.setTimeout(resolve, 1500)
   })
 }
 
-export async function loadMediaElement(asset: Asset): Promise<HTMLVideoElement> {
+export async function loadMediaElement(asset: Asset, urlSink?: string[]): Promise<HTMLVideoElement> {
   const el = document.createElement('video')
   el.preload = 'auto'
   el.muted = true
@@ -64,6 +70,7 @@ export async function loadMediaElement(asset: Asset): Promise<HTMLVideoElement> 
   el.crossOrigin = 'anonymous'
   const file = await readMediaFile(asset.filePath)
   const url = URL.createObjectURL(file)
+  urlSink?.push(url)
   el.src = url
   await new Promise<void>((resolve) => {
     if (el.readyState >= 2) {
@@ -87,7 +94,7 @@ function encodedChunkBytes(chunk: EncodedAudioChunk): Uint8Array {
  * Encode a mixed audio buffer to Opus and feed the chunks to the muxer.
  * Skips silently when WebCodecs AudioEncoder is unavailable.
  */
-async function encodeAudio(muxer: WebMMuxer, mixed: MixedAudio, signal?: AbortSignal): Promise<void> {
+async function encodeAudio(muxer: WebMMuxer, mixed: MixedAudio, signal?: AbortSignal, guard?: ReturnType<typeof createEncoderGuard>): Promise<void> {
   if (typeof AudioEncoder === 'undefined') return
   const channels: Float32Array[] = []
   for (let c = 0; c < Math.min(2, mixed.buffer.numberOfChannels); c++) {
@@ -108,33 +115,35 @@ async function encodeAudio(muxer: WebMMuxer, mixed: MixedAudio, signal?: AbortSi
     output: (chunk) => {
       muxer.addAudioChunk({ data: encodedChunkBytes(chunk), timestamp: chunk.timestamp / 1000 })
     },
-    error: (e) => {
-      throw e
-    },
+    error: (e) => guard?.fail(e),
   })
   encoder.configure(config)
 
-  const CHUNK_FRAMES = 1024
-  for (let offset = 0; offset < mixed.buffer.length; offset += CHUNK_FRAMES) {
-    if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
-    const frames = Math.min(CHUNK_FRAMES, mixed.buffer.length - offset)
-    const plane = new Float32Array(frames * channels.length)
-    for (let c = 0; c < channels.length; c++) {
-      plane.set(channels[c].subarray(offset, offset + frames), c * frames)
+  try {
+    const CHUNK_FRAMES = 1024
+    for (let offset = 0; offset < mixed.buffer.length; offset += CHUNK_FRAMES) {
+      if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
+      await waitForDrain(encoder, 16)
+      const frames = Math.min(CHUNK_FRAMES, mixed.buffer.length - offset)
+      const plane = new Float32Array(frames * channels.length)
+      for (let c = 0; c < channels.length; c++) {
+        plane.set(channels[c].subarray(offset, offset + frames), c * frames)
+      }
+      const data = new AudioData({
+        format: 'f32-planar',
+        sampleRate: mixed.sampleRate,
+        numberOfFrames: frames,
+        numberOfChannels: channels.length,
+        timestamp: Math.round((offset / mixed.sampleRate) * 1_000_000),
+        data: plane,
+      })
+      encoder.encode(data)
+      data.close()
     }
-    const data = new AudioData({
-      format: 'f32-planar',
-      sampleRate: mixed.sampleRate,
-      numberOfFrames: frames,
-      numberOfChannels: channels.length,
-      timestamp: Math.round((offset / mixed.sampleRate) * 1_000_000),
-      data: plane,
-    })
-    encoder.encode(data)
-    data.close()
+    await encoder.flush()
+  } finally {
+    if (encoder.state !== 'closed') encoder.close()
   }
-  await encoder.flush()
-  encoder.close()
 }
 
 export async function exportProject(
@@ -154,15 +163,16 @@ export async function exportProject(
 
   const muxer = new WebMMuxer({ width: opts.width, height: opts.height, duration: projectDuration(project.tracks), codec: opts.codec })
 
+  // Callback errors must reject the export promise instead of becoming
+  // uncaught exceptions that can crash the tab.
+  const guard = createEncoderGuard()
   const encoder = new VideoEncoder({
     output: (chunk) => {
       const bytes = new Uint8Array(chunk.byteLength)
       chunk.copyTo(bytes)
       muxer.addChunk({ data: bytes, timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
     },
-    error: (e) => {
-      throw e
-    },
+    error: (e) => guard.fail(e),
   })
 
   const encoderConfig: VideoEncoderConfig = {
@@ -183,6 +193,7 @@ export async function exportProject(
 
   const mediaElements = new Map<string, HTMLVideoElement>()
   const imageCache = new Map<string, HTMLImageElement>()
+  const blobUrls: string[] = []
   const total = Math.max(1, Math.round(projectDuration(project.tracks) * opts.fps))
 
   const mixedAudio =
@@ -195,6 +206,7 @@ export async function exportProject(
     if (cached) return cached
     const file = await readMediaFile(asset.filePath)
     const url = URL.createObjectURL(file)
+    blobUrls.push(url)
     const img = new Image()
     await new Promise<void>((resolve) => {
       img.onload = () => resolve()
@@ -205,61 +217,81 @@ export async function exportProject(
     return img
   }
 
-  const duration = projectDuration(project.tracks)
-  for (let i = 0; i < total; i++) {
-    if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
-    const time = Math.min((i / opts.fps), duration - 1 / opts.fps)
-    ctx.clearRect(0, 0, opts.width, opts.height)
+  try {
+    const duration = projectDuration(project.tracks)
+    for (let i = 0; i < total; i++) {
+      if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
+      // Backpressure: wait until the hardware encoder has caught up before
+      // compositing more frames. Without this the queue grows unboundedly
+      // (each queued 4K frame ≈ 33 MB) and exhausts memory.
+      await waitForDrain(encoder, 4)
+      if (guard.failed) throw guard.error ?? new Error('Video encoder failed')
+      const time = Math.min((i / opts.fps), duration - 1 / opts.fps)
+      ctx.clearRect(0, 0, opts.width, opts.height)
 
-    await compositeFrame(
-      ctx,
-      project,
-      assets,
-      time,
-      {
-        video: async (_clip, asset, srcTime) => {
-          let el = mediaElements.get(asset.id)
-          if (!el) {
-            el = await loadMediaElement(asset)
-            mediaElements.set(asset.id, el)
-          }
-          // Loop short sources when the clip runs past their end (stickers).
-          const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration)
-          await seekTo(el, elTime)
-          return el.videoWidth > 0 ? el : null
+      await compositeFrame(
+        ctx,
+        project,
+        assets,
+        time,
+        {
+          video: async (_clip, asset, srcTime) => {
+            let el = mediaElements.get(asset.id)
+            if (!el) {
+              el = await loadMediaElement(asset, blobUrls)
+              mediaElements.set(asset.id, el)
+            }
+            // Loop short sources when the clip runs past their end (stickers).
+            const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration)
+            await seekTo(el, elTime)
+            return el.videoWidth > 0 ? el : null
+          },
+          image: (asset) => loadImage(asset),
+          model: async (clip, asset, time, size) => {
+            const { renderModelFrame } = await import('@/engine/three/modelRenderer')
+            return renderModelFrame({
+              asset,
+              rig: clip.modelRig ?? defaultCameraRig(),
+              time,
+              clipStart: clip.startTime,
+              clipDuration: clip.duration,
+              width: size.width,
+              height: size.height,
+              signal: opts.signal,
+            })
+          },
+          captions: makeCaptionsProvider(project),
         },
-        image: (asset) => loadImage(asset),
-        model: async (clip, asset, time, size) => {
-          const { renderModelFrame } = await import('@/engine/three/modelRenderer')
-          return renderModelFrame({
-            asset,
-            rig: clip.modelRig ?? defaultCameraRig(),
-            time,
-            clipStart: clip.startTime,
-            clipDuration: clip.duration,
-            width: size.width,
-            height: size.height,
-            signal: opts.signal,
-          })
-        },
-        captions: makeCaptionsProvider(project),
-      },
-      { width: opts.width, height: opts.height },
-    )
+        { width: opts.width, height: opts.height },
+      )
 
-    const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
-    encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
-    frame.close()
+      const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
+      encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
+      frame.close()
 
-    opts.onProgress(i + 1, total)
-    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0))
+      opts.onProgress(i + 1, total)
+      // Yield to the event loop every frame so UI events, GC and encoder
+      // callbacks keep running — prevents the page from freezing at 100% CPU.
+      await yieldToBrowser()
+    }
+
+    await Promise.race([encoder.flush(), guard.failure])
+    if (mixedAudio) await encodeAudio(muxer, mixedAudio, opts.signal, guard)
+  } finally {
+    if (encoder.state !== 'closed') encoder.close()
+    for (const el of mediaElements.values()) {
+      try {
+        el.pause()
+        el.removeAttribute('src')
+        el.load()
+      } catch {
+        /* element already torn down */
+      }
+    }
+    mediaElements.clear()
+    imageCache.clear()
+    for (const url of blobUrls) URL.revokeObjectURL(url)
   }
-
-  await encoder.flush()
-  encoder.close()
-  if (mixedAudio) await encodeAudio(muxer, mixedAudio, opts.signal)
-  for (const el of mediaElements.values()) el.src = ''
-  for (const url of imageCache.values()) url.src = ''
 
   const blob = muxer.finalize()
   return { blob, frames: total }

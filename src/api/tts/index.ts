@@ -1,15 +1,18 @@
 import { useApiConfigStore } from '@/api/config/store'
 import { elevenLabsProvider, ELEVENLABS_PROVIDER_ID } from './elevenlabs'
 import { nvidiaTtsProvider, NVIDIA_TTS_PROVIDER_ID } from './nvidia'
+import { magpieTtsProvider, MAGPIE_TTS_PROVIDER_ID } from './magpie'
 import type { TtsProvider } from './types'
 
 export type { TtsProvider } from './types'
+export { MAGPIE_VOICE_PRESETS, NVIDIA_MAGPIE_MODEL } from './magpie'
 
-const ALL_PROVIDERS: TtsProvider[] = [elevenLabsProvider, nvidiaTtsProvider]
+const ALL_PROVIDERS: TtsProvider[] = [elevenLabsProvider, nvidiaTtsProvider, magpieTtsProvider]
 
 export const TTS_PROVIDER_IDS: Record<string, string> = {
   [ELEVENLABS_PROVIDER_ID]: 'ElevenLabs',
-  [NVIDIA_TTS_PROVIDER_ID]: 'NVIDIA NIM',
+  [NVIDIA_TTS_PROVIDER_ID]: 'NVIDIA NIM TTS',
+  [MAGPIE_TTS_PROVIDER_ID]: 'Magpie-TTS-zeroshot (NVIDIA)',
 }
 
 /** Every provider that has enough config to synthesize speech. */

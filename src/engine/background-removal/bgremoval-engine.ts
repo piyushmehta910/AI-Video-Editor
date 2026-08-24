@@ -1,4 +1,4 @@
-import * as ort from 'onnxruntime-web'
+﻿import * as ort from 'onnxruntime-web'
 
 export interface BackgroundRemovalConfig {
   modelUrl: string
@@ -48,7 +48,7 @@ export class BackgroundRemovalEngine {
       })
 
       this.initialized = true
-      console.log('Background removal engine initialized')
+     
     } catch (err) {
       console.error('Failed to initialize background removal engine:', err)
       throw new Error(`Background removal initialization failed: ${err}`)

@@ -1,4 +1,4 @@
-import * as React from 'react'
+﻿import * as React from 'react'
 import { Mic, FileText, Download, Loader2, Play, Globe } from 'lucide-react'
 import { useCaptions, generateSRT, generateVTT, downloadSubtitle } from '@/hooks/useCaptions'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -64,7 +64,6 @@ export function CaptionsEditor({ clip, onSave, onClose }: CaptionsEditorProps) {
 
   React.useEffect(() => {
     initialize({ modelId: config.modelId, language: config.language, task: config.task, chunkLengthSeconds: 30, strideLengthSeconds: 5 })
-      .then(() => console.log('Whisper engine ready'))
       .catch(setError)
     return () => terminate()
   }, [initialize, terminate, config.modelId, config.language, config.task])
@@ -77,6 +76,13 @@ export function CaptionsEditor({ clip, onSave, onClose }: CaptionsEditorProps) {
       setError(null)
     }
   }
+
+  // Revoke the previous blob URL whenever it changes or on unmount.
+  React.useEffect(() => {
+    return () => {
+      if (videoPreview) URL.revokeObjectURL(videoPreview)
+    }
+  }, [videoPreview])
 
   const handleGenerate = async () => {
     if (!videoFile) {

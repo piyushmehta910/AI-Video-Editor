@@ -175,16 +175,21 @@ async function extractVideoFrames(video: HTMLVideoElement): Promise<ImageData[]>
 async function decodeAudio(file: File): Promise<Float32Array> {
   const arrayBuffer = await file.arrayBuffer()
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 })
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-  const channelData = audioBuffer.getChannelData(0)
-  const resampled = new Float32Array(Math.floor(channelData.length * 16000 / audioBuffer.sampleRate))
-  for (let i = 0; i < resampled.length; i++) {
-    const srcIndex = i * audioBuffer.sampleRate / 16000
-    const idx = Math.floor(srcIndex)
-    const frac = srcIndex - idx
-    resampled[i] = channelData[idx] * (1 - frac) + (channelData[idx + 1] || 0) * frac
+  // Close the context when done — leaked contexts exhaust the browser cap.
+  try {
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+    const channelData = audioBuffer.getChannelData(0)
+    const resampled = new Float32Array(Math.floor(channelData.length * 16000 / audioBuffer.sampleRate))
+    for (let i = 0; i < resampled.length; i++) {
+      const srcIndex = i * audioBuffer.sampleRate / 16000
+      const idx = Math.floor(srcIndex)
+      const frac = srcIndex - idx
+      resampled[i] = channelData[idx] * (1 - frac) + (channelData[idx + 1] || 0) * frac
+    }
+    return resampled
+  } finally {
+    void audioContext.close()
   }
-  return resampled
 }
 
 export function renderFramesToVideo(frames: ImageData[], fps: number): Promise<Blob> {

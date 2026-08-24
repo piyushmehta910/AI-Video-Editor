@@ -1,4 +1,4 @@
-import * as ort from 'onnxruntime-web'
+﻿import * as ort from 'onnxruntime-web'
 
 export interface Wav2LipConfig {
   modelUrl: string
@@ -56,7 +56,7 @@ export class Wav2LipEngine {
       })
 
       this.initialized = true
-      console.log('Wav2Lip engine initialized')
+     
     } catch (err) {
       console.error('Failed to initialize Wav2Lip engine:', err)
       throw new Error(`Wav2Lip initialization failed: ${err}`)

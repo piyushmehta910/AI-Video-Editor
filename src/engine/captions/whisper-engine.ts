@@ -1,4 +1,4 @@
-import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@xenova/transformers'
+﻿import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@xenova/transformers'
 import { groupWordsIntoSentences } from './transcript'
 
 env.allowLocalModels = false
@@ -84,7 +84,6 @@ export class WhisperEngine {
         },
       )
       this.initialized = true
-      console.log(`Whisper model ${this.config.modelId} loaded`)
     } catch (err) {
       console.error('Failed to initialize Whisper:', err)
       throw new Error(`Whisper initialization failed: ${err}`)
@@ -131,7 +130,7 @@ export class WhisperEngine {
       result = await this.pipe!(audioData, callArgs)
     } catch (err) {
       if (signal?.aborted) throw err
-      // Word-level timestamps unsupported for this model — fall back to segment-level.
+      // Word-level timestamps unsupported for this model â€” fall back to segment-level.
       result = await this.pipe!(audioData, { ...baseArgs, return_timestamps: true, chunk_callback: chunkCallback })
     }
     onProgress?.(1)

@@ -1,4 +1,4 @@
-import { Rnnoise, DenoiseState } from '@shiguredo/rnnoise-wasm'
+﻿import { Rnnoise, DenoiseState } from '@shiguredo/rnnoise-wasm'
 
 export interface RNNoiseConfig {
   sampleRate: number
@@ -33,7 +33,7 @@ export class RNNoiseEngine {
       this.denoiser = this.rnnoise.createDenoiseState()
       this.config.frameSize = this.rnnoise.frameSize
       this.initialized = true
-      console.log('RNNoise engine initialized, frameSize:', this.config.frameSize)
+     
     } catch (err) {
       console.error('Failed to initialize RNNoise:', err)
       throw new Error(`RNNoise initialization failed: ${err}`)

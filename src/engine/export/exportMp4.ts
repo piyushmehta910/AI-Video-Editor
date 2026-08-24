@@ -6,6 +6,7 @@ import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { loadMediaElement, seekTo } from './exportVideo'
 import type { ExportOptions, ExportResult } from './exportVideo'
+import { createEncoderGuard, waitForDrain, yieldToBrowser } from './encoderGuard'
 import {
   BufferTarget,
   EncodedAudioPacketSource,
@@ -62,27 +63,31 @@ async function encodeAudioAac(
   }
   if (channels.length === 0) return
 
-  const CHUNK_FRAMES = 1024
-  for (let offset = 0; offset < mixed.buffer.length; offset += CHUNK_FRAMES) {
-    if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
-    const frames = Math.min(CHUNK_FRAMES, mixed.buffer.length - offset)
-    const plane = new Float32Array(frames * channels.length)
-    for (let c = 0; c < channels.length; c++) {
-      plane.set(channels[c].subarray(offset, offset + frames), c * frames)
+  try {
+    const CHUNK_FRAMES = 1024
+    for (let offset = 0; offset < mixed.buffer.length; offset += CHUNK_FRAMES) {
+      if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
+      await waitForDrain(encoder, 16)
+      const frames = Math.min(CHUNK_FRAMES, mixed.buffer.length - offset)
+      const plane = new Float32Array(frames * channels.length)
+      for (let c = 0; c < channels.length; c++) {
+        plane.set(channels[c].subarray(offset, offset + frames), c * frames)
+      }
+      const data = new AudioData({
+        format: 'f32-planar',
+        sampleRate: mixed.sampleRate,
+        numberOfFrames: frames,
+        numberOfChannels: channels.length,
+        timestamp: Math.round((offset / mixed.sampleRate) * 1_000_000),
+        data: plane,
+      })
+      encoder.encode(data)
+      data.close()
     }
-    const data = new AudioData({
-      format: 'f32-planar',
-      sampleRate: mixed.sampleRate,
-      numberOfFrames: frames,
-      numberOfChannels: channels.length,
-      timestamp: Math.round((offset / mixed.sampleRate) * 1_000_000),
-      data: plane,
-    })
-    encoder.encode(data)
-    data.close()
+    await encoder.flush()
+  } finally {
+    if (encoder.state !== 'closed') encoder.close()
   }
-  await encoder.flush()
-  encoder.close()
 }
 
 /**
@@ -123,13 +128,12 @@ export async function exportMp4(
   await output.start()
 
   const encoderConfig = await pickVideoConfig(opts)
+  const guard = createEncoderGuard()
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
       videoSource.add(EncodedPacket.fromEncodedChunk(chunk), meta)
     },
-    error: (e) => {
-      throw e
-    },
+    error: (e) => guard.fail(e),
   })
   encoder.configure(encoderConfig)
 
@@ -149,9 +153,7 @@ export async function exportMp4(
           output: (chunk, meta) => {
             audioSource?.add(EncodedPacket.fromEncodedChunk(chunk), meta)
           },
-          error: (e) => {
-            throw e
-          },
+          error: (e) => guard.fail(e),
         })
         audioEncoder.configure(aacConfig)
       }
@@ -162,6 +164,7 @@ export async function exportMp4(
 
   const mediaElements = new Map<string, HTMLVideoElement>()
   const imageCache = new Map<string, HTMLImageElement>()
+  const blobUrls: string[] = []
   const total = Math.max(1, Math.round(projectDuration(project.tracks) * opts.fps))
   const duration = projectDuration(project.tracks)
 
@@ -170,6 +173,7 @@ export async function exportMp4(
     if (cached) return cached
     const file = await readMediaFile(asset.filePath)
     const url = URL.createObjectURL(file)
+    blobUrls.push(url)
     const img = new Image()
     await new Promise<void>((resolve) => {
       img.onload = () => resolve()
@@ -180,61 +184,78 @@ export async function exportMp4(
     return img
   }
 
-  for (let i = 0; i < total; i++) {
-    if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
-    const time = Math.min(i / opts.fps, duration - 1 / opts.fps)
-    ctx.clearRect(0, 0, opts.width, opts.height)
+  try {
+    for (let i = 0; i < total; i++) {
+      if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
+      // Backpressure: let the hardware encoder catch up before compositing
+      // more frames — an unbounded queue exhausts memory and pegs the CPU.
+      await waitForDrain(encoder, 4)
+      if (guard.failed) throw guard.error ?? new Error('Video encoder failed')
+      const time = Math.min(i / opts.fps, duration - 1 / opts.fps)
+      ctx.clearRect(0, 0, opts.width, opts.height)
 
-    await compositeFrame(
-      ctx,
-      project,
-      assets,
-      time,
-      {
-        video: async (_clip, asset, srcTime) => {
-          let el = mediaElements.get(asset.id)
-          if (!el) {
-            el = await loadMediaElement(asset)
-            mediaElements.set(asset.id, el)
-          }
-          const elTime = Math.min(Math.max(0, srcTime), Math.max(0, (asset.duration ?? srcTime) - 0.05))
-          await seekTo(el, elTime)
-          return el.videoWidth > 0 ? el : null
+      await compositeFrame(
+        ctx,
+        project,
+        assets,
+        time,
+        {
+          video: async (_clip, asset, srcTime) => {
+            let el = mediaElements.get(asset.id)
+            if (!el) {
+              el = await loadMediaElement(asset, blobUrls)
+              mediaElements.set(asset.id, el)
+            }
+            const elTime = Math.min(Math.max(0, srcTime), Math.max(0, (asset.duration ?? srcTime) - 0.05))
+            await seekTo(el, elTime)
+            return el.videoWidth > 0 ? el : null
+          },
+          image: (asset) => loadImage(asset),
+          model: async (clip, asset, time, size) => {
+            const { renderModelFrame } = await import('@/engine/three/modelRenderer')
+            return renderModelFrame({
+              asset,
+              rig: clip.modelRig ?? defaultCameraRig(),
+              time,
+              clipStart: clip.startTime,
+              clipDuration: clip.duration,
+              width: size.width,
+              height: size.height,
+              signal: opts.signal,
+            })
+          },
+          captions: makeCaptionsProvider(project),
         },
-        image: (asset) => loadImage(asset),
-        model: async (clip, asset, time, size) => {
-          const { renderModelFrame } = await import('@/engine/three/modelRenderer')
-          return renderModelFrame({
-            asset,
-            rig: clip.modelRig ?? defaultCameraRig(),
-            time,
-            clipStart: clip.startTime,
-            clipDuration: clip.duration,
-            width: size.width,
-            height: size.height,
-            signal: opts.signal,
-          })
-        },
-        captions: makeCaptionsProvider(project),
-      },
-      { width: opts.width, height: opts.height },
-    )
+        { width: opts.width, height: opts.height },
+      )
 
-    const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
-    encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
-    frame.close()
+      const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
+      encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
+      frame.close()
 
-    opts.onProgress(i + 1, total)
-    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0))
+      opts.onProgress(i + 1, total)
+      // Yield every frame so UI events, GC and encoder callbacks keep running.
+      await yieldToBrowser()
+    }
+
+    await Promise.race([encoder.flush(), guard.failure])
+    if (audioEncoder && mixedAudio) await encodeAudioAac(audioEncoder, mixedAudio, opts.signal)
+  } finally {
+    if (encoder.state !== 'closed') encoder.close()
+    if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close()
+    for (const el of mediaElements.values()) {
+      try {
+        el.pause()
+        el.removeAttribute('src')
+        el.load()
+      } catch {
+        /* element already torn down */
+      }
+    }
+    mediaElements.clear()
+    imageCache.clear()
+    for (const url of blobUrls) URL.revokeObjectURL(url)
   }
-
-  await encoder.flush()
-  encoder.close()
-  if (audioEncoder) {
-    if (mixedAudio) await encodeAudioAac(audioEncoder, mixedAudio, opts.signal)
-  }
-  for (const el of mediaElements.values()) el.src = ''
-  for (const url of imageCache.values()) url.src = ''
 
   await output.finalize()
   const buffer = output.target.buffer as ArrayBuffer

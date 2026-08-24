@@ -110,6 +110,12 @@
 }
 
 @layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
   .timeline-scroll {
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;

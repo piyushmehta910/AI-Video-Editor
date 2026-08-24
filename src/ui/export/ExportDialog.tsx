@@ -17,6 +17,7 @@ import {
 import { useTimelineStore } from '@/stores/timelineStore'
 import { exportProject } from '@/engine/export/exportVideo'
 import { exportMp4 } from '@/engine/export/exportMp4'
+import { setExportActive } from '@/engine/export/exportSession'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -88,6 +89,9 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const [error, setError] = React.useState('')
   const [resultUrl, setResultUrl] = React.useState('')
   const abortRef = React.useRef<AbortController | null>(null)
+  // Throttle progress re-renders — updating state on every frame caused a
+  // React render storm (60+ renders/sec) on top of the encoder load.
+  const lastProgressAtRef = React.useRef(0)
 
   React.useEffect(() => {
     if (!open) {
@@ -150,6 +154,10 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     setError('')
     const controller = new AbortController()
     abortRef.current = controller
+    // Pause the live preview so playback compositing does not compete with
+    // the export loop for CPU/GPU (see exportSession.ts / usePlayback).
+    setExportActive(true)
+    lastProgressAtRef.current = 0
     try {
       const shared = {
         width,
@@ -157,8 +165,12 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         fps,
         bitrate: preset.bitrate,
         onProgress: (done: number, totalFrames: number) => {
-          setProgress(done)
-          setTotal(totalFrames)
+          const now = performance.now()
+          if (now - lastProgressAtRef.current >= 120 || done >= totalFrames) {
+            lastProgressAtRef.current = now
+            setProgress(done)
+            setTotal(totalFrames)
+          }
         },
         signal: controller.signal,
       }
@@ -179,6 +191,8 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       }
       setStatus('error')
       setError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setExportActive(false)
     }
   }
 

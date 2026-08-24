@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Clapperboard, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
+import { Check, Clapperboard, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, Play, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X, Zap } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -208,6 +208,20 @@ export function AIDirector({
     startY: number
   } | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
+
+  // Dedicated drag ref for the minimized pill (independent from full-panel drag)
+  const minimizedDragRef = React.useRef<{
+    mouseX: number
+    mouseY: number
+    startX: number
+    startY: number
+    hasMoved: boolean
+  } | null>(null)
+
+  // Production mode: autopilot = auto-apply all changes; review = stage for approval
+  const [productionMode, setProductionMode] = React.useState<'autopilot' | 'review'>(() => {
+    try { return (localStorage.getItem('ai_director_mode') as 'autopilot' | 'review') || 'review' } catch { return 'review' }
+  })
 
   // Viewport resize guard
   React.useEffect(() => {
@@ -468,6 +482,59 @@ export function AIDirector({
       setIsMinimized(false)
     }
   }
+
+  // ── Minimized pill dedicated drag handlers ──────────────────────────────────
+  const handleMinimizedPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    // Allow button clicks through without starting drag
+    if (target.closest('button')) return
+    minimizedDragRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startX: position.x,
+      startY: position.y,
+      hasMoved: false,
+    }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+
+  const handleMinimizedPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!minimizedDragRef.current) return
+    const dx = e.clientX - minimizedDragRef.current.mouseX
+    const dy = e.clientY - minimizedDragRef.current.mouseY
+    if (!minimizedDragRef.current.hasMoved && Math.hypot(dx, dy) > 4) {
+      minimizedDragRef.current.hasMoved = true
+    }
+    if (minimizedDragRef.current.hasMoved) {
+      const maxX = Math.max(10, window.innerWidth - 200)
+      const maxY = Math.max(10, window.innerHeight - 50)
+      setPosition({
+        x: Math.min(Math.max(10, minimizedDragRef.current.startX + dx), maxX),
+        y: Math.min(Math.max(10, minimizedDragRef.current.startY + dy), maxY),
+      })
+    }
+  }
+
+  const handleMinimizedPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!minimizedDragRef.current) return
+    const hasMoved = minimizedDragRef.current.hasMoved
+    minimizedDragRef.current = null
+    try { ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+    if (hasMoved) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(position)) } catch { /* ignore */ }
+    }
+  }
+
+  const toggleProductionMode = () => {
+    setProductionMode((prev) => {
+      const next = prev === 'review' ? 'autopilot' : 'review'
+      try { localStorage.setItem('ai_director_mode', next) } catch { /* ignore */ }
+      return next
+    })
+  }
+
   const [plan, setPlan] = React.useState<PendingPlan | null>(null)
   const [pendingQuestion, setPendingQuestion] = React.useState<string | null>(null)
   const [questionAnswer, setQuestionAnswer] = React.useState('')
@@ -550,7 +617,9 @@ export function AIDirector({
         }
 
         const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
-        const autoApply = confirmationLevel === 'none'
+        // Autopilot mode overrides confirmation — always auto-applies.
+        // Review mode uses the per-user settings confirmationLevel.
+        const autoApply = productionMode === 'autopilot' || confirmationLevel === 'none'
 
         const baseSystem = getProjectContextSystemPrompt(askedQuestions)
         let understanding = ''
@@ -968,27 +1037,34 @@ export function AIDirector({
         <div
           ref={panelRef}
           style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
-          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2.5 rounded-full border border-white/30 dark:border-white/15 bg-background/70 dark:bg-slate-950/70 px-4 py-2 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-2xl cursor-grab active:cursor-grabbing transition-all ring-1 ring-white/10"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          title="Drag to move AI Director"
+          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2 rounded-full border border-white/30 dark:border-white/15 bg-background/80 dark:bg-slate-950/80 px-3 py-1.5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-2xl cursor-grab active:cursor-grabbing touch-none ring-1 ring-white/10"
+          onPointerDown={handleMinimizedPointerDown}
+          onPointerMove={handleMinimizedPointerMove}
+          onPointerUp={handleMinimizedPointerUp}
+          title="Drag to move — click Expand to restore"
         >
-          <div className="flex size-6 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xs">
-            <Clapperboard className="size-3.5" />
+          <div className="flex size-5 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xs flex-shrink-0">
+            <Clapperboard className="size-3" />
           </div>
-          <span className="text-xs font-bold text-foreground tracking-tight">AI Director</span>
-          {busy && <span className="size-2 animate-ping rounded-full bg-violet-400" />}
+          <span className="text-[11px] font-bold text-foreground tracking-tight whitespace-nowrap">AI Director</span>
+          {busy && <span className="size-1.5 animate-ping rounded-full bg-violet-400 flex-shrink-0" />}
+          <span className={`text-[9px] font-semibold rounded-full px-1.5 py-0.5 flex-shrink-0 ${
+            productionMode === 'autopilot'
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+          }`}>
+            {productionMode === 'autopilot' ? 'Auto' : 'Review'}
+          </span>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               setIsMinimized(false)
             }}
-            className="ml-1 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
+            className="ml-0.5 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0"
             title="Expand AI Director"
           >
-            <Maximize2 className="size-3.5" />
+            <Maximize2 className="size-3" />
           </button>
           <button
             type="button"
@@ -996,10 +1072,10 @@ export function AIDirector({
               e.stopPropagation()
               changeOpen(false)
             }}
-            className="rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
+            className="rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0"
             title="Close AI Director"
           >
-            <X className="size-3.5" />
+            <X className="size-3" />
           </button>
         </div>
       )}
@@ -1046,12 +1122,29 @@ export function AIDirector({
                 )}
               </div>
               <p className="text-muted-foreground truncate text-[10px] pt-0.5">
-                {size.width}×{size.height} • Drag edges to resize
+                Drag to move • Drag edges to resize
               </p>
             </div>
 
             {/* Header Controls */}
             <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+              {/* Autopilot / Review mode toggle */}
+              <button
+                type="button"
+                onClick={toggleProductionMode}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold transition-all border ${
+                  productionMode === 'autopilot'
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                    : 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
+                }`}
+                title={productionMode === 'autopilot' ? 'Autopilot: changes applied immediately. Click to switch to Review mode.' : 'Review mode: changes staged for approval. Click to switch to Autopilot.'}
+              >
+                {productionMode === 'autopilot' ? (
+                  <><Zap className="size-2.5" /> Auto</>
+                ) : (
+                  <><ListChecks className="size-2.5" /> Review</>
+                )}
+              </button>
               {/* Quick Size Preset Selector */}
               <div className="relative">
                 <button
@@ -1192,10 +1285,65 @@ export function AIDirector({
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !busy && (
-              <div className="space-y-3 pt-2">
-                <p className="text-muted-foreground text-xs">
-                  Try one of these, or type anything about your project:
-                </p>
+              <div className="space-y-3 pt-1">
+                {/* Generate Video from text prompt */}
+                <div className="rounded-xl border border-violet-500/40 bg-violet-500/8 p-3.5 space-y-2.5 backdrop-blur-md shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30">
+                      <Clapperboard className="size-3.5" />
+                    </div>
+                    <span className="text-xs font-bold text-foreground">Generate Video from Prompt</span>
+                    <span className="ml-auto text-[9px] font-semibold rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5">Planning Mode</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Describe what you want to make. The AI Director will clarify your requirements, then plan and build the video step by step.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && input.trim()) {
+                          void send(`Create a video: ${input.trim()}. Before starting, ask me any clarifying questions about style, duration, audience, or tone that you need to make the best possible video. Then present your full plan before executing.`)
+                        }
+                      }}
+                      placeholder="e.g. 'A 60s product demo for my SaaS app'"
+                      className="min-w-0 flex-1 rounded-xl border border-white/25 dark:border-white/15 bg-white/40 dark:bg-white/5 px-3 py-2 text-xs outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 backdrop-blur-md text-foreground"
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="size-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-md flex-shrink-0"
+                      disabled={!input.trim() || busy}
+                      onClick={() => {
+                        if (!input.trim()) return
+                        const prompt = `Create a video: ${input.trim()}. Before starting, ask me any clarifying questions about style, duration, audience, or tone that you need to make the best possible video. Then present your full plan before executing.`
+                        setInput('')
+                        void send(prompt)
+                      }}
+                      aria-label="Generate video"
+                    >
+                      <Play className="size-3.5 fill-white" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Mode banner */}
+                <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border text-[11px] ${
+                  productionMode === 'autopilot'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                }`}>
+                  {productionMode === 'autopilot' ? <Zap className="size-3 flex-shrink-0" /> : <ListChecks className="size-3 flex-shrink-0" />}
+                  <span className="font-semibold">{productionMode === 'autopilot' ? 'Autopilot mode' : 'Review mode'}</span>
+                  <span className="text-muted-foreground">
+                    {productionMode === 'autopilot'
+                      ? '— changes applied instantly, no confirmation needed.'
+                      : '— all changes will be staged for your review first.'}
+                  </span>
+                </div>
+
+                <p className="text-muted-foreground text-[11px] font-medium pt-1">Quick actions:</p>
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}

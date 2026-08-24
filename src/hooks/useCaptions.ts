@@ -106,9 +106,14 @@ export function useCaptions(options: UseCaptionsOptions = {}) {
   const transcribeFromFile = useCallback(async (file: File) => {
     const arrayBuffer = await file.arrayBuffer()
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 })
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-    const channelData = audioBuffer.getChannelData(0)
-    return transcribe(channelData, audioBuffer.sampleRate)
+    // Close the context when done — leaked contexts exhaust the browser cap.
+    try {
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      const channelData = audioBuffer.getChannelData(0)
+      return await transcribe(channelData, audioBuffer.sampleRate)
+    } finally {
+      void audioContext.close()
+    }
   }, [transcribe])
 
   const transcribeFromVideo = useCallback(async (videoFile: File) => {

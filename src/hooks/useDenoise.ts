@@ -128,9 +128,15 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
   const denoiseFromFile = useCallback(async (file: File): Promise<DenoiseResult> => {
     const arrayBuffer = await file.arrayBuffer()
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 })
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-    const channelData = audioBuffer.getChannelData(0)
-    return denoiseBuffer(channelData, audioBuffer.sampleRate)
+    // Close the context when done — browsers cap concurrent AudioContexts
+    // (~6) and leaked contexts make every subsequent run fail.
+    try {
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      const channelData = audioBuffer.getChannelData(0)
+      return await denoiseBuffer(channelData, audioBuffer.sampleRate)
+    } finally {
+      void audioContext.close()
+    }
   }, [denoiseBuffer])
 
   const denoiseFromVideo = useCallback(async (videoFile: File): Promise<DenoiseResult> => {
@@ -156,8 +162,12 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
             const audioBufferDecoded = await audioContext.decodeAudioData(arrayBuffer)
             const channelData = audioBufferDecoded.getChannelData(0)
             URL.revokeObjectURL(video.src)
-            const res = await denoiseBuffer(channelData, audioBufferDecoded.sampleRate)
-            resolve(res)
+            try {
+              const res = await denoiseBuffer(channelData, audioBufferDecoded.sampleRate)
+              resolve(res)
+            } finally {
+              void audioContext.close()
+            }
           }
           recorder.onerror = reject
 

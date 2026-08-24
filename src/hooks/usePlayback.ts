@@ -7,6 +7,7 @@ import { assetTimeAt, topmostVideoClip } from '@/engine/captions/captions'
 import { wrapSourceTime } from '@/engine/media/sourceTime'
 import type { Asset, Clip, Project, Track } from '@/engine/types'
 import { defaultCameraRig } from '@/engine/types'
+import { isExportActive } from '@/engine/export/exportSession'
 
 interface ElementRef {
   clipId: string | null
@@ -382,6 +383,11 @@ React.useEffect(() => {
       raf = requestAnimationFrame(loop)
       const state = storeRef.current
       let time = state.playhead
+      if (isPlaying && isExportActive()) {
+        // An export render is running — pause the preview so the compositor,
+        // decoders and encoder don't compete for CPU/GPU.
+        setIsPlaying(false)
+      }
       if (isPlaying) {
         const duration = state.duration()
         if (duration <= 0) {

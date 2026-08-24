@@ -178,12 +178,14 @@ export type ToolSection =
   | 'design'
   | 'script'
   | 'images'
+  | 'voiceover'
 
 export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'text', label: 'Text & Titles', icon: Type },
   { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'effects', label: 'Effects', icon: Sparkles },
   { id: 'audio', label: 'Audio', icon: Music },
+  { id: 'voiceover', label: 'Voiceover', icon: Mic },
   { id: 'captions', label: 'Captions', icon: FileText },
   { id: '3d', label: '3D', icon: Box },
   { id: 'transitions', label: 'Transitions', icon: ArrowLeftRight },
@@ -203,6 +205,7 @@ const SECTION_DESCRIPTIONS: Partial<Record<ToolSection, string>> = {
   insights: 'Project health, coverage and quality',
   effects: 'Color, light and stylized looks',
   audio: 'Music, voice and sound cleanup',
+  voiceover: 'AI text-to-speech with NVIDIA Magpie zero-shot voice cloning',
   captions: 'Text overlays and titles',
   '3d': 'Search, download and animate models',
   transitions: 'How clips flow into each other',
@@ -4733,82 +4736,141 @@ function DesignSection() {
 
   const history = React.useMemo(() => getMotionHistory(), [busy])
 
-  // Live Canvas Evaluation Loop
+  // ── Sandboxed motion preview (Web Worker) ──────────────────────────────
+  // Motion code runs inside motionPreview.worker.ts (no DOM/storage access).
+  // One OffscreenCanvas ping-pongs between main thread and worker.
+  const motionWorkerRef = React.useRef<Worker | null>(null)
+  const motionCanvasRef = React.useRef<OffscreenCanvas | null>(null)
+  const motionSizeRef = React.useRef<{ w: number; h: number } | null>(null)
+  const motionBusyRef = React.useRef(false)
+  const motionQueuedRef = React.useRef<{ t: number; needInit: boolean } | null>(null)
+  const motionInitedCodeRef = React.useRef<string | null>(null)
+
+  const getMotionWorker = React.useCallback((): Worker | null => {
+    if (motionWorkerRef.current) return motionWorkerRef.current
+    if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null
+    const worker = new Worker(new URL('../../workers/motionPreview.worker.ts', import.meta.url), { type: 'module' })
+    worker.onmessage = (ev: MessageEvent) => {
+      const { ok, canvas, message } = ev.data as { ok: boolean; canvas?: OffscreenCanvas; message?: string }
+      motionCanvasRef.current = canvas ?? null
+      motionBusyRef.current = false
+      void ok
+      void message
+      const offscreen = motionCanvasRef.current
+      const size = motionSizeRef.current
+      const visible = previewCanvasRef.current?.getContext('2d')
+      if (offscreen && visible && size) {
+        visible.imageSmoothingEnabled = true
+        visible.imageSmoothingQuality = 'high'
+        try {
+          visible.clearRect(0, 0, size.w, size.h)
+          visible.drawImage(offscreen as unknown as CanvasImageSource, 0, 0)
+        } catch {
+          /* frame dropped */
+        }
+      }
+      const queued = motionQueuedRef.current
+      if (queued && offscreen && size) {
+        motionQueuedRef.current = null
+        dispatchMotionFrameRef.current(offscreen, size.w, size.h, queued.t, queued.needInit)
+      }
+    }
+    motionWorkerRef.current = worker
+    return worker
+  }, [])
+
+  const dispatchMotionFrameRef = React.useRef<
+    (canvas: OffscreenCanvas, w: number, h: number, t: number, needInit: boolean) => void
+  >(() => {})
+
+  function dispatchMotionFrame(canvas: OffscreenCanvas, w: number, h: number, t: number, needInit: boolean) {
+    const worker = getMotionWorker()
+    if (!worker) return
+    motionBusyRef.current = true
+    worker.postMessage({ canvas, code: motionCode, t, width: w, height: h, needInit }, [canvas])
+    motionCanvasRef.current = null
+  }
+
+  React.useEffect(() => {
+    dispatchMotionFrameRef.current = dispatchMotionFrame
+  })
+
+  const requestMotionFrame = React.useCallback(
+    (t: number, needInit: boolean) => {
+      const canvasEl = previewCanvasRef.current
+      if (!canvasEl || !motionCode.trim()) return
+      const worker = getMotionWorker()
+      if (!worker) return
+      const w = canvasEl.width
+      const h = canvasEl.height
+      let offscreen = motionCanvasRef.current
+      if (!offscreen || motionSizeRef.current?.w !== w || motionSizeRef.current?.h !== h) {
+        if (offscreen) {
+          // Size changed — discard the old buffer (ownership currently here).
+          offscreen = null
+          motionCanvasRef.current = null
+        }
+        offscreen = new OffscreenCanvas(w, h)
+        motionCanvasRef.current = offscreen
+        motionSizeRef.current = { w, h }
+        needInit = true
+      }
+      if (motionBusyRef.current) {
+        motionQueuedRef.current = { t, needInit }
+        return
+      }
+      const initForCode = needInit || motionInitedCodeRef.current !== motionCode
+      if (initForCode) motionInitedCodeRef.current = motionCode
+      dispatchMotionFrameRef.current(offscreen, w, h, t, initForCode)
+    },
+    [motionCode, getMotionWorker],
+  )
+
+  // Terminate the sandbox worker on unmount.
+  React.useEffect(() => {
+    return () => {
+      motionWorkerRef.current?.terminate()
+      motionWorkerRef.current = null
+      motionCanvasRef.current = null
+      motionBusyRef.current = false
+      motionQueuedRef.current = null
+    }
+  }, [])
+
+  // Live Canvas Playback Loop (sandboxed)
   React.useEffect(() => {
     const canvas = previewCanvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-
-    let isMounted = true
-    let animateFn: ((ctx: CanvasRenderingContext2D, t: number, w: number, h: number) => void) | null = null
-    let initFn: ((ctx: CanvasRenderingContext2D, w: number, h: number) => void) | null = null
-
-    try {
-      // Safe sandboxed function evaluation for preview
-      const createScope = new Function('window', motionCode)
-      const fakeWindow: Record<string, unknown> = {}
-      createScope(fakeWindow)
-      if (typeof fakeWindow.__ANIMATE === 'function') {
-        animateFn = fakeWindow.__ANIMATE as (ctx: CanvasRenderingContext2D, t: number, w: number, h: number) => void
-      }
-      if (typeof fakeWindow.__INIT === 'function') {
-        initFn = fakeWindow.__INIT as (ctx: CanvasRenderingContext2D, w: number, h: number) => void
-      }
-      if (initFn) initFn(ctx, canvas.width, canvas.height)
-    } catch {
-      // Silent error during active code typing
-    }
 
     let startTime = performance.now()
+    let lastT = -1
     const loop = (now: number) => {
-      if (!isMounted) return
-      if (isPlaying) {
-        const elapsed = ((now - startTime) / 1000) % duration
-        const t = elapsed / duration
-        setCurrentTime(t)
-        if (animateFn) {
-          try {
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-            animateFn(ctx, t, canvas.width, canvas.height)
-          } catch {
-            // ignore frame error
-          }
-        }
+      if (!isPlaying) return
+      const elapsed = ((now - startTime) / 1000) % duration
+      const t = elapsed / duration
+      setCurrentTime(t)
+      if (t !== lastT) {
+        lastT = t
+        requestMotionFrame(t, false)
       }
       animFrameRef.current = requestAnimationFrame(loop)
     }
 
+    // Initial paint for the current code.
+    requestMotionFrame(currentTime, true)
     animFrameRef.current = requestAnimationFrame(loop)
 
     return () => {
-      isMounted = false
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  }, [motionCode, isPlaying, duration])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motionCode, isPlaying, duration, requestMotionFrame])
 
-  // Update canvas on manual time scrub
+  // Update canvas on manual time scrub (rendered in the sandbox worker)
   const handleScrubTime = (t: number) => {
     setCurrentTime(t)
     setIsPlaying(false)
-    const canvas = previewCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    try {
-      const createScope = new Function('window', motionCode)
-      const fakeWindow: Record<string, unknown> = {}
-      createScope(fakeWindow)
-      if (typeof fakeWindow.__ANIMATE === 'function') {
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        const fn = fakeWindow.__ANIMATE as (ctx: CanvasRenderingContext2D, t: number, w: number, h: number) => void
-        fn(ctx, t, canvas.width, canvas.height)
-      }
-    } catch {
-      // ignore
-    }
+    requestMotionFrame(t, false)
   }
 
   // Generate Motion Code with AI
@@ -6354,6 +6416,207 @@ function CoverageBar({ label, pct }: { label: string; pct: number }) {
   )
 }
 
+// ─── Voiceover / TTS Studio ──────────────────────────────────────────────────
+function VoiceoverSection() {
+  const config = useApiConfigStore((s) => s.config)
+  const [text, setText] = React.useState('')
+  const [provider, setProvider] = React.useState<'nvidia' | 'magpie' | 'elevenlabs'>('magpie')
+  const [magpieVoice, setMagpieVoice] = React.useState('Finn')
+  const [nvidiaVoice, setNvidiaVoice] = React.useState(config.nvidiaTts.voice || 'en-US-ryan-high')
+  const [elevenVoice, setElevenVoice] = React.useState(config.elevenLabs.voiceId || '')
+  const [speed, setSpeed] = React.useState(1.0)
+  const [busy, setBusy] = React.useState(false)
+  const [audioUrl, setAudioUrl] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const generate = async () => {
+    if (!text.trim()) return
+    setBusy(true)
+    setError(null)
+    setAudioUrl(null)
+    try {
+      // Override preferred provider based on selection
+      let synthesizeResult: { blob: Blob; url: string }
+      if (provider === 'magpie') {
+        const { magpieTtsProvider } = await import('@/api/tts/magpie')
+        if (!magpieTtsProvider.isConfigured()) throw new Error('NVIDIA API key not configured. Add it in Settings → NVIDIA NIM.')
+        synthesizeResult = await magpieTtsProvider.synthesize({ text: text.trim(), voiceId: magpieVoice, speed })
+      } else if (provider === 'nvidia') {
+        const { nvidiaTtsProvider } = await import('@/api/tts/nvidia')
+        if (!nvidiaTtsProvider.isConfigured()) throw new Error('NVIDIA TTS API key not configured. Add it in Settings → NVIDIA TTS.')
+        synthesizeResult = await nvidiaTtsProvider.synthesize({ text: text.trim(), voiceId: nvidiaVoice, speed })
+      } else {
+        const { elevenLabsProvider } = await import('@/api/tts/elevenlabs')
+        if (!elevenLabsProvider.isConfigured()) throw new Error('ElevenLabs API key not configured. Add it in Settings → ElevenLabs.')
+        synthesizeResult = await elevenLabsProvider.synthesize({ text: text.trim(), voiceId: elevenVoice, speed })
+      }
+      setAudioUrl(synthesizeResult.url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addToTimeline = async () => {
+    if (!audioUrl) return
+    const store = useTimelineStore.getState()
+    const res = await fetch(audioUrl)
+    const blob = await res.blob()
+    const fname = `voiceover_${magpieVoice}_${Date.now()}.wav`
+    const file = new File([blob], fname, { type: blob.type || 'audio/wav' })
+    const { imported, errors } = await store.importFiles([file])
+    if (errors.length) {
+      setError(errors[0])
+      return
+    }
+    const asset = imported[0]
+    if (asset) store.addAssetToTimeline(asset.id)
+  }
+
+  // Dynamic import of MAGPIE_VOICE_PRESETS
+  const [voicePresets, setVoicePresets] = React.useState<{ id: string; label: string; style: string }[]>([])
+  React.useEffect(() => {
+    import('@/api/tts/index').then(({ MAGPIE_VOICE_PRESETS }) => setVoicePresets(MAGPIE_VOICE_PRESETS ?? []))
+  }, [])
+
+  return (
+    <div className="space-y-4 p-3">
+      {/* Provider selector */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-foreground">TTS Provider</Label>
+        <div className="grid grid-cols-3 gap-1">
+          {(['magpie', 'nvidia', 'elevenlabs'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setProvider(p)}
+              className={cn(
+                'rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-all',
+                provider === p
+                  ? 'border-violet-500/60 bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                  : 'border-border bg-card text-muted-foreground hover:border-violet-400/40 hover:text-foreground',
+              )}
+            >
+              {p === 'magpie' ? 'Magpie' : p === 'nvidia' ? 'NVIDIA NIM' : 'ElevenLabs'}
+            </button>
+          ))}
+        </div>
+        {provider === 'magpie' && (
+          <p className="text-[10px] text-muted-foreground">Zero-shot voice cloning via NVIDIA NIM — uses your NVIDIA API key</p>
+        )}
+      </div>
+
+      {/* Voice selector */}
+      {provider === 'magpie' && (
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-foreground">Voice</Label>
+          <select
+            value={magpieVoice}
+            onChange={(e) => setMagpieVoice(e.target.value)}
+            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 transition-all"
+          >
+            {voicePresets.map((v) => (
+              <option key={v.id} value={v.id}>{v.label} — {v.style}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {provider === 'nvidia' && (
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-foreground">Voice ID</Label>
+          <Input
+            value={nvidiaVoice}
+            onChange={(e) => setNvidiaVoice(e.target.value)}
+            placeholder="e.g. en-US-ryan-high"
+            className="h-8 text-xs"
+          />
+        </div>
+      )}
+
+      {provider === 'elevenlabs' && (
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-foreground">Voice ID</Label>
+          <Input
+            value={elevenVoice}
+            onChange={(e) => setElevenVoice(e.target.value)}
+            placeholder="Paste ElevenLabs voice ID"
+            className="h-8 text-xs"
+          />
+        </div>
+      )}
+
+      {/* Speed */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold text-foreground">Speed</Label>
+          <span className="text-xs text-muted-foreground">{speed.toFixed(1)}×</span>
+        </div>
+        <Slider
+          min={0.5}
+          max={2.0}
+          step={0.1}
+          value={[speed]}
+          onValueChange={([v]) => setSpeed(v)}
+          className="w-full"
+        />
+      </div>
+
+      {/* Script textarea */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-foreground">Script / Text</Label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={5}
+          placeholder="Type or paste your script here..."
+          className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 transition-all"
+        />
+        <p className="text-[10px] text-muted-foreground">{text.length} chars • ~{Math.round(text.split(' ').filter(Boolean).length / 150)} min read</p>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
+
+      {/* Audio preview */}
+      {audioUrl && (
+        <div className="space-y-2">
+          <audio controls src={audioUrl} className="w-full h-8" />
+          <Button
+            type="button"
+            size="sm"
+            className="w-full h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
+            onClick={() => void addToTimeline()}
+          >
+            <Plus className="size-3.5 mr-1.5" />
+            Add to Timeline
+          </Button>
+        </div>
+      )}
+
+      {/* Generate button */}
+      <Button
+        type="button"
+        size="sm"
+        className="w-full h-9 text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white shadow-md"
+        disabled={!text.trim() || busy}
+        onClick={() => void generate()}
+      >
+        {busy ? (
+          <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Generating...</>
+        ) : (
+          <><AudioLines className="size-3.5 mr-1.5" />Generate Voiceover</>
+        )}
+      </Button>
+    </div>
+  )
+}
+
 // ─── Panel ────────────────────────────────────────────────────────────────────
 interface RightToolPanelProps {
   section: ToolSection
@@ -6365,6 +6628,7 @@ const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
   insights: InsightsSection,
   effects: EffectsSection,
   audio: AudioSection,
+  voiceover: VoiceoverSection,
   captions: CaptionsSection,
   '3d': ThreeDSection,
   transitions: TransitionsSection,
