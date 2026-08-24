@@ -62,6 +62,7 @@ import {
   Boxes,
   Wand2,
   PanelRight,
+  Type,
 } from 'lucide-react'
 
 const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -159,6 +160,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils'
 
 export type ToolSection =
+  | 'text'
   | 'insights'
   | 'effects'
   | 'audio'
@@ -176,6 +178,7 @@ export type ToolSection =
   | 'images'
 
 const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { id: 'text', label: 'Text & Titles', icon: Type },
   { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'effects', label: 'Effects', icon: Sparkles },
   { id: 'audio', label: 'Audio', icon: Music },
@@ -194,6 +197,7 @@ const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ classNam
 ]
 
 const SECTION_DESCRIPTIONS: Partial<Record<ToolSection, string>> = {
+  text: 'Add titles, headings, lower thirds and styled text presets',
   insights: 'Project health, coverage and quality',
   effects: 'Color, light and stylized looks',
   audio: 'Music, voice and sound cleanup',
@@ -2503,6 +2507,361 @@ function AudioSection() {
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Text & Titles Section ──────────────────────────────────────────────────
+const TEXT_TYPOGRAPHY_PRESETS = [
+  {
+    id: 'heading-bold',
+    name: 'Bold Heading',
+    category: 'Essential',
+    text: 'YOUR TITLE HERE',
+    fontSize: 56,
+    color: '#ffffff',
+    backgroundColor: 'transparent',
+    fontFamily: 'Inter',
+    animation: 'fade-in' as const,
+    fontWeight: '800',
+    description: 'High-impact uppercase headline',
+  },
+  {
+    id: 'subtitle-clean',
+    name: 'Subtitle / Bio',
+    category: 'Essential',
+    text: 'A clean supporting description or subtitle',
+    fontSize: 28,
+    color: '#e2e8f0',
+    backgroundColor: 'transparent',
+    fontFamily: 'Inter',
+    animation: 'slide-up' as const,
+    fontWeight: '500',
+    description: 'Crisp body and narration copy',
+  },
+  {
+    id: 'lower-third-modern',
+    name: 'Lower Third Pill',
+    category: 'Badges',
+    text: 'Piyush Mehta — Video Creator',
+    fontSize: 24,
+    color: '#38bdf8',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    fontFamily: 'Inter',
+    animation: 'slide-up' as const,
+    fontWeight: '600',
+    description: 'Presenter name badge with backdrop',
+  },
+  {
+    id: 'callout-punchy',
+    name: 'Action Callout',
+    category: 'Badges',
+    text: 'NEW EPISODE OUT NOW!',
+    fontSize: 48,
+    color: '#fbbf24',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    fontFamily: 'Impact',
+    animation: 'pop' as const,
+    fontWeight: '900',
+    description: 'Attention grabbing alert banner',
+  },
+  {
+    id: 'neon-cyber',
+    name: 'Neon Cyberpunk',
+    category: 'Stylized',
+    text: 'CYBERPUNK CITY',
+    fontSize: 48,
+    color: '#22d3ee',
+    backgroundColor: 'transparent',
+    fontFamily: 'Space Grotesk',
+    animation: 'pop' as const,
+    fontWeight: '800',
+    description: 'Vibrant neon sci-fi title',
+  },
+  {
+    id: 'purple-vaporwave',
+    name: 'Synthwave Glow',
+    category: 'Stylized',
+    text: 'RETRO HORIZON',
+    fontSize: 48,
+    color: '#c084fc',
+    backgroundColor: 'transparent',
+    fontFamily: 'Space Grotesk',
+    animation: 'fade-in' as const,
+    fontWeight: '800',
+    description: 'Synthwave gradient glow header',
+  },
+  {
+    id: 'cinematic-gold',
+    name: 'Cinematic Gold',
+    category: 'Cinematic',
+    text: 'A FILM BY CREATOR',
+    fontSize: 40,
+    color: '#fef08a',
+    backgroundColor: 'transparent',
+    fontFamily: 'Playfair Display',
+    animation: 'fade-in' as const,
+    fontWeight: '600',
+    description: 'Elegant golden film title',
+  },
+  {
+    id: 'typewriter-narrative',
+    name: 'Typewriter Log',
+    category: 'Narrative',
+    text: 'The journey began on a rainy night...',
+    fontSize: 24,
+    color: '#f8fafc',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    fontFamily: 'JetBrains Mono',
+    animation: 'typewriter' as const,
+    fontWeight: '500',
+    description: 'Live typing letter-by-letter',
+  },
+]
+
+function TextSection() {
+  const project = useTimelineStore((s) => s.project)
+  const addTextClip = useTimelineStore((s) => s.addTextClip)
+  const updateClip = useTimelineStore((s) => s.updateClip)
+  const select = useTimelineStore((s) => s.select)
+  const playhead = useTimelineStore((s) => s.playhead)
+  const selectedClip = getSelectedClip()
+
+  const [category, setCategory] = React.useState<string>('All')
+  const [customTextDraft, setCustomTextDraft] = React.useState('Your Text Here')
+  const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+
+  const isTextSelected = Boolean(selectedClip && selectedClip.text)
+
+  const categories = ['All', 'Essential', 'Badges', 'Stylized', 'Cinematic', 'Narrative']
+
+  const filteredPresets = React.useMemo(() => {
+    if (category === 'All') return TEXT_TYPOGRAPHY_PRESETS
+    return TEXT_TYPOGRAPHY_PRESETS.filter((p) => p.category === category)
+  }, [category])
+
+  const handleApplyPreset = (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number]) => {
+    const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
+    if (!textTrack) {
+      setNotice({ kind: 'error', text: 'No track available for text' })
+      return
+    }
+
+    const clip = addTextClip(preset.text, textTrack.id, playhead)
+    if (clip) {
+      const baseText = clip.text ?? {
+        text: preset.text,
+        fontSize: preset.fontSize,
+        fontFamily: preset.fontFamily,
+        fontWeight: 'bold' as const,
+        fontStyle: 'normal' as const,
+        color: preset.color,
+        backgroundColor: preset.backgroundColor,
+        textAlign: 'center' as const,
+        paddingTop: 8,
+        paddingBottom: 8,
+        paddingLeft: 12,
+        paddingRight: 12,
+        borderRadius: 6,
+        shadow: true,
+        animation: preset.animation,
+        animationDuration: 0.5,
+      }
+      updateClip(clip.id, {
+        text: {
+          ...baseText,
+          text: preset.text,
+          fontSize: preset.fontSize,
+          color: preset.color,
+          backgroundColor: preset.backgroundColor,
+          fontFamily: preset.fontFamily,
+          fontWeight: preset.fontWeight === '800' || preset.fontWeight === '900' || preset.fontWeight === '600' ? 'bold' : 'normal',
+          animation: preset.animation,
+        },
+      })
+      select([clip.id], textTrack.id)
+      setNotice({ kind: 'ok', text: `Added "${preset.name}" at ${playhead.toFixed(1)}s` })
+    }
+  }
+
+  const handleAddCustomText = () => {
+    const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
+    if (!textTrack) {
+      setNotice({ kind: 'error', text: 'No track available for text' })
+      return
+    }
+
+    const clip = addTextClip(customTextDraft.trim() || 'Your Text Here', textTrack.id, playhead)
+    if (clip) {
+      select([clip.id], textTrack.id)
+      setNotice({ kind: 'ok', text: `Added custom text at ${playhead.toFixed(1)}s` })
+    }
+  }
+
+  return (
+    <div className="space-y-4 p-3 text-xs">
+      {notice && (
+        <SectionNotice kind={notice.kind} text={notice.text} />
+      )}
+
+      {/* Quick Add Custom Input */}
+      <div className="space-y-2 rounded-lg border bg-card/60 p-3 shadow-xs">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <Type className="size-3.5 text-violet-500" />
+            Quick Insert Text
+          </Label>
+          <span className="text-[10px] font-mono text-muted-foreground">@ {playhead.toFixed(1)}s</span>
+        </div>
+        <div className="flex gap-1.5">
+          <input
+            value={customTextDraft}
+            onChange={(e) => setCustomTextDraft(e.target.value)}
+            placeholder="Type text overlay..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddCustomText()
+            }}
+            className="flex-1 rounded-md border bg-background px-2.5 py-1 text-xs text-foreground outline-none ring-1 ring-border/40 focus:ring-violet-500"
+          />
+          <Button
+            size="sm"
+            onClick={handleAddCustomText}
+            className="h-8 gap-1 bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
+          >
+            <Plus className="size-3.5" />
+            Add
+          </Button>
+        </div>
+      </div>
+
+      {/* Active Selected Clip Inspector Hint or Live Controls */}
+      {isTextSelected && selectedClip?.text && (
+        <div className="space-y-2 rounded-lg border border-violet-500/40 bg-violet-500/10 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-violet-300 flex items-center gap-1">
+              <Pencil className="size-3" />
+              Selected Text Clip
+            </span>
+            <span className="font-mono text-[10px] text-violet-400">
+              {selectedClip.startTime.toFixed(1)}s – {(selectedClip.startTime + selectedClip.duration).toFixed(1)}s
+            </span>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[10px] text-muted-foreground">Edit Content</Label>
+            <input
+              value={selectedClip.text.text}
+              onChange={(e) => updateClip(selectedClip.id, { text: { ...selectedClip.text!, text: e.target.value } })}
+              className="w-full rounded border bg-background px-2 py-1 text-xs text-foreground outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Font Size ({selectedClip.text.fontSize ?? 48}px)</Label>
+              <Slider
+                min={14}
+                max={120}
+                step={2}
+                value={[selectedClip.text.fontSize ?? 48]}
+                onValueChange={([v]) => updateClip(selectedClip.id, { text: { ...selectedClip.text!, fontSize: v } })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Color</Label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="color"
+                  value={selectedClip.text.color ?? '#ffffff'}
+                  onChange={(e) => updateClip(selectedClip.id, { text: { ...selectedClip.text!, color: e.target.value } })}
+                  className="size-6 cursor-pointer rounded border-0 bg-transparent p-0"
+                />
+                <span className="font-mono text-[10px] text-muted-foreground">{selectedClip.text.color ?? '#ffffff'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preset Categories */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold text-foreground">Typography Presets</Label>
+          <span className="text-[10px] text-muted-foreground">{filteredPresets.length} styles</span>
+        </div>
+
+        <div className="flex flex-wrap gap-1">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={cn(
+                'rounded-full border px-2 py-0.5 text-[10px] font-medium transition',
+                category === cat
+                  ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold shadow-xs'
+                  : 'border-border/60 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Preset Cards Grid */}
+        <div className="space-y-2 pt-1">
+          {filteredPresets.map((preset) => (
+            <div
+              key={preset.id}
+              onClick={() => handleApplyPreset(preset)}
+              className="group cursor-pointer rounded-lg border border-border/80 bg-card p-2.5 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/30"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-foreground">{preset.name}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.2 text-[9px] font-mono text-muted-foreground">
+                      {preset.category}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{preset.description}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="size-7 p-0 opacity-0 group-hover:opacity-100 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleApplyPreset(preset)
+                  }}
+                  title="Add at Playhead"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+
+              {/* Visual typography preview card */}
+              <div
+                className="mt-2 flex items-center justify-center rounded-md border border-border/40 p-3 text-center overflow-hidden"
+                style={{
+                  backgroundColor: preset.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.4)' : preset.backgroundColor,
+                }}
+              >
+                <span
+                  style={{
+                    color: preset.color,
+                    fontFamily: preset.fontFamily,
+                    fontSize: `${Math.min(22, preset.fontSize * 0.45)}px`,
+                    fontWeight: preset.fontWeight as any,
+                  }}
+                  className="truncate max-w-full tracking-wide"
+                >
+                  {preset.text}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -5701,6 +6060,7 @@ interface RightToolPanelProps {
 }
 
 const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
+  text: TextSection,
   insights: InsightsSection,
   effects: EffectsSection,
   audio: AudioSection,

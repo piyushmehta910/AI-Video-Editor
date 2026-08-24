@@ -24,6 +24,7 @@ import {
   Sparkles,
   Stamp,
   Trash2,
+  Type,
   Undo2,
   VolumeX,
   Wand2,
@@ -467,6 +468,18 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     }
   }
 
+  const handleAddText = React.useCallback(() => {
+    const s = useTimelineStore.getState()
+    const targetTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks.find((t) => t.type === 'video')
+    if (targetTrack) {
+      const clip = s.addTextClip('Your Heading Here', targetTrack.id, s.playhead)
+      if (clip) {
+        s.select([clip.id], targetTrack.id)
+      }
+    }
+    onOpenTool?.('text')
+  }, [onOpenTool])
+
   const { step, labelEvery } = computeTicks(duration, zoom)
   const tickCount = Math.min(5000, Math.floor(duration / step) + 1)
   const ticks = Array.from({ length: tickCount }, (_, i) => i * step)
@@ -509,6 +522,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <SeparatorLine />
 
         {/* Add tools */}
+        <ToolbarButton label="Add Text (T)" onClick={handleAddText}>
+          <Type className="size-4" />
+        </ToolbarButton>
         <ToolbarButton label="Audio" onClick={() => onOpenTool?.('audio')}>
           <Music className="size-4" />
         </ToolbarButton>
@@ -624,6 +640,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               />
               <div className="absolute top-full right-0 z-50 mt-1 flex w-52 flex-col gap-0.5 rounded-lg border bg-card p-1.5 shadow-xl">
                 <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Add</p>
+                <MenuRow icon={<Type className="size-4" />} label="Add Text" onClick={() => { handleAddText(); setMoreOpen(false) }} />
                 <MenuRow icon={<Music className="size-4" />} label="Audio" onClick={() => { onOpenTool?.('audio'); setMoreOpen(false) }} />
                 <MenuRow icon={<Box className="size-4" />} label="3D Assets" onClick={() => { onOpenTool?.('3d'); setMoreOpen(false) }} />
                 <MenuRow icon={<Layers className="size-4" />} label="Slide Generator" onClick={() => { onOpenTool?.('slide'); setMoreOpen(false) }} />
