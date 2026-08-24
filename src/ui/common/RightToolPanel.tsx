@@ -1,6 +1,8 @@
 import * as React from 'react'
 import {
   ChevronLeft,
+  ChevronRight,
+  ChevronDown,
   FolderUp,
   Search,
   Loader2,
@@ -11,6 +13,7 @@ import {
   Smile,
   Box,
   Clapperboard,
+  Film,
   Sparkles,
   Image,
   FileText,
@@ -41,7 +44,51 @@ import {
   Flame,
   Mic,
   Square,
+  Star,
+  LayoutGrid,
+  Zap,
+  Columns2,
+  Quote,
+  ListChecks,
+  Brain,
+  History,
+  FastForward,
+  Compass,
+  Crosshair,
+  Sun,
+  Camera,
+  Target,
+  Pencil,
+  Boxes,
 } from 'lucide-react'
+
+const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  mic: Mic,
+  zap: Zap,
+  flask: Sparkles,
+  'book-open': FileText,
+  smartphone: Image,
+  map: Compass,
+  briefcase: Box,
+  clapperboard: Clapperboard,
+  flame: Flame,
+}
+
+const CAMERA_PRESET_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  orbit: RotateCcw,
+  'zoom-in': Maximize2,
+  'zoom-out': Crop,
+  crane: ArrowLeftRight,
+  compass: Compass,
+  spiral: Sparkles,
+  film: Clapperboard,
+  focus: Crosshair,
+  box: Box,
+  'arrow-down': ChevronDown,
+  search: Search,
+  'arrow-left': ChevronLeft,
+  'arrow-right': ChevronRight,
+}
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import type { Clip, EffectType, TextOverlay, Asset } from '@/engine/types'
@@ -492,21 +539,22 @@ function SlideSection() {
       {/* ── Sub Navigation Tabs ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'studio' as const, label: '🎬 Slide Studio' },
-          { id: 'generator' as const, label: '🚀 AI Generator' },
-          { id: 'inductive' as const, label: '✨ Inductive' },
-          { id: 'history' as const, label: 'History' },
-        ].map(({ id, label }) => (
+          { id: 'studio' as const, label: 'Slide Studio', icon: Presentation },
+          { id: 'generator' as const, label: 'AI Generator', icon: Sparkles },
+          { id: 'inductive' as const, label: 'Inductive', icon: Brain },
+          { id: 'history' as const, label: 'History', icon: History },
+        ].map(({ id, label, icon: TabIcon }) => (
           <button
             key={id}
             type="button"
             className={cn(
-              'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
+              'flex-1 flex items-center justify-center gap-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
               tab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setTab(id)}
           >
-            {label}
+            <TabIcon className="size-3 shrink-0" />
+            <span>{label}</span>
           </button>
         ))}
       </div>
@@ -531,7 +579,7 @@ function SlideSection() {
                     onClick={() => setCurrentSlideIdx((prev) => Math.max(0, prev - 1))}
                     disabled={currentSlideIdx === 0}
                   >
-                    ◀
+                    <ChevronLeft className="size-3.5" />
                   </Button>
                   <span className="font-mono text-[10px] text-violet-700 dark:text-violet-300 font-bold px-1">
                     {currentSlideIdx + 1} / {deck.slides.length}
@@ -543,7 +591,7 @@ function SlideSection() {
                     onClick={() => setCurrentSlideIdx((prev) => Math.min(deck.slides.length - 1, prev + 1))}
                     disabled={currentSlideIdx === deck.slides.length - 1}
                   >
-                    ▶
+                    <ChevronRight className="size-3.5" />
                   </Button>
                 </div>
               </div>
@@ -575,27 +623,31 @@ function SlideSection() {
                   <Label className="text-[10px] text-muted-foreground">Slide Layout</Label>
                   <div className="grid grid-cols-3 gap-1">
                     {[
-                      { id: 'hero' as SlideLayout, label: '🌟 Hero' },
-                      { id: 'cards' as SlideLayout, label: '📦 Cards' },
-                      { id: 'big_stat' as SlideLayout, label: '⚡ Big Stat' },
-                      { id: 'split' as SlideLayout, label: '⚖️ Split' },
-                      { id: 'quote' as SlideLayout, label: '💬 Quote' },
-                      { id: 'checklist' as SlideLayout, label: '📋 Bullets' },
-                    ].map((l) => (
-                      <button
-                        key={l.id}
-                        type="button"
-                        className={cn(
-                          'rounded border py-1 text-[10px] font-medium transition',
-                          (currentSlide.layout || 'hero') === l.id
-                            ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
-                            : 'border-border/60 bg-muted/20 text-muted-foreground hover:text-foreground',
-                        )}
-                        onClick={() => updateCurrentSlide({ layout: l.id })}
-                      >
-                        {l.label}
-                      </button>
-                    ))}
+                      { id: 'hero' as SlideLayout, label: 'Hero', icon: Star },
+                      { id: 'cards' as SlideLayout, label: 'Cards', icon: LayoutGrid },
+                      { id: 'big_stat' as SlideLayout, label: 'Big Stat', icon: Zap },
+                      { id: 'split' as SlideLayout, label: 'Split', icon: Columns2 },
+                      { id: 'quote' as SlideLayout, label: 'Quote', icon: Quote },
+                      { id: 'checklist' as SlideLayout, label: 'Bullets', icon: ListChecks },
+                    ].map((l) => {
+                      const Icon = l.icon
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          className={cn(
+                            'flex items-center justify-center gap-1 rounded border py-1 text-[10px] font-medium transition',
+                            (currentSlide.layout || 'hero') === l.id
+                              ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
+                              : 'border-border/60 bg-muted/20 text-muted-foreground hover:text-foreground',
+                          )}
+                          onClick={() => updateCurrentSlide({ layout: l.id })}
+                        >
+                          <Icon className="size-2.5 shrink-0" />
+                          <span>{l.label}</span>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -1419,32 +1471,35 @@ function AvatarSection() {
             <button
               type="button"
               className={cn(
-                'rounded px-2 py-0.5 text-[10px] font-medium transition',
+                'flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition',
                 inputMode === 'timeline' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
               )}
               onClick={() => setInputMode('timeline')}
             >
-              🎙️ Timeline Audio
+              <Mic className="size-3 shrink-0" />
+              <span>Timeline Audio</span>
             </button>
             <button
               type="button"
               className={cn(
-                'rounded px-2 py-0.5 text-[10px] font-medium transition',
+                'flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition',
                 inputMode === 'script' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
               )}
               onClick={() => setInputMode('script')}
             >
-              ✨ Script (TTS)
+              <Sparkles className="size-3 shrink-0" />
+              <span>Script (TTS)</span>
             </button>
             <button
               type="button"
               className={cn(
-                'rounded px-2 py-0.5 text-[10px] font-medium transition',
+                'flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition',
                 inputMode === 'audio' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
               )}
               onClick={() => setInputMode('audio')}
             >
-              📁 Audio File
+              <FolderUp className="size-3 shrink-0" />
+              <span>Audio File</span>
             </button>
           </div>
         </div>
@@ -1487,13 +1542,10 @@ function AvatarSection() {
               </div>
             ) : (
               <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2.5 text-center space-y-1.5">
-                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">No audio clips found on the timeline.</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">No Audio Clips Found on Timeline</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Add an audio or video clip to your timeline, or switch to "Script (TTS)" to generate spoken voiceover with AI.
+                  Record a voiceover in Script Studio or drag an audio file onto the audio track, then switch back here.
                 </p>
-                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => setInputMode('script')}>
-                  Switch to Script (TTS)
-                </Button>
               </div>
             )}
           </div>
@@ -1504,7 +1556,10 @@ function AvatarSection() {
           <div className="space-y-2">
             {/* AI Topic Prompt Bar */}
             <div className="space-y-1 rounded border border-violet-500/30 bg-violet-500/5 p-2">
-              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">✨ Generate Script with AI</span>
+              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                <Sparkles className="size-3" />
+                <span>Generate Script with AI</span>
+              </span>
               <div className="flex items-center gap-1.5 pt-0.5">
                 <input
                   type="text"
@@ -2523,20 +2578,21 @@ function CaptionsSection() {
       {/* ── Sub Navigation ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'auto' as const, label: '⚡ Auto Captions' },
-          { id: 'style' as const, label: 'Overlay Style' },
-          { id: 'cues' as const, label: `Cues (${captionClips.length})` },
-        ].map(({ id, label }) => (
+          { id: 'auto' as const, label: 'Auto Captions', icon: Zap },
+          { id: 'style' as const, label: 'Overlay Style', icon: SlidersHorizontal },
+          { id: 'cues' as const, label: `Cues (${captionClips.length})`, icon: FileText },
+        ].map(({ id, label, icon: TabIcon }) => (
           <button
             key={id}
             type="button"
             className={cn(
-              'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
+              'flex-1 flex items-center justify-center gap-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
               tab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setTab(id)}
           >
-            {label}
+            <TabIcon className="size-3 shrink-0" />
+            <span>{label}</span>
           </button>
         ))}
       </div>
@@ -2582,8 +2638,8 @@ function CaptionsSection() {
               onClick={() => void handleAutoGenerateCaptions()}
               disabled={generating}
             >
-              {generating ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Play className="mr-2 size-3.5" />}
-              {generating ? progressText || `Transcribing Audio (${progressPercent}%)...` : '⚡ Auto-Generate Captions & Auto-Play'}
+              {generating ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Zap className="mr-2 size-3.5" />}
+              {generating ? progressText || `Transcribing Audio (${progressPercent}%)...` : 'Auto-Generate Captions & Auto-Play'}
             </Button>
           </div>
         </div>
@@ -2985,21 +3041,22 @@ function ThreeDSection() {
       {/* ── 2. Organized Sub-Tabs ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'camera' as const, label: '🎥 Camera' },
-          { id: 'search' as const, label: '🔍 3D Search' },
-          { id: 'lighting' as const, label: '💡 Lighting' },
-          { id: 'render' as const, label: '🎬 Render' },
-        ].map(({ id, label }) => (
+          { id: 'camera' as const, label: 'Camera', icon: Camera },
+          { id: 'search' as const, label: '3D Search', icon: Search },
+          { id: 'lighting' as const, label: 'Lighting', icon: Sun },
+          { id: 'render' as const, label: 'Render', icon: Play },
+        ].map(({ id, label, icon: TabIcon }) => (
           <button
             key={id}
             type="button"
             className={cn(
-              'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
+              'flex-1 flex items-center justify-center gap-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
               panelTab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setPanelTab(id)}
           >
-            {label}
+            <TabIcon className="size-3 shrink-0" />
+            <span>{label}</span>
           </button>
         ))}
       </div>
@@ -3015,22 +3072,25 @@ function ThreeDSection() {
           </div>
 
           <div className="grid grid-cols-2 gap-1">
-            {CAMERA_TRAJECTORY_PRESETS.slice(0, 6).map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className={cn(
-                  'flex items-center gap-1.5 rounded p-1.5 text-[10px] font-medium transition text-left',
-                  selectedPresetPathId === preset.id
-                    ? 'border border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
-                    : 'border border-border/60 bg-card text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => applyTrajectoryPreset(preset)}
-              >
-                <span>{preset.icon}</span>
-                <span className="truncate">{preset.name}</span>
-              </button>
-            ))}
+            {CAMERA_TRAJECTORY_PRESETS.slice(0, 6).map((preset) => {
+              const Icon = CAMERA_PRESET_ICON_MAP[preset.icon] || Camera
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={cn(
+                    'flex items-center gap-1.5 rounded p-1.5 text-[10px] font-medium transition text-left',
+                    selectedPresetPathId === preset.id
+                      ? 'border border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
+                      : 'border border-border/60 bg-card text-muted-foreground hover:text-foreground',
+                  )}
+                  onClick={() => applyTrajectoryPreset(preset)}
+                >
+                  <Icon className="size-3 shrink-0 text-violet-600 dark:text-violet-400" />
+                  <span className="truncate">{preset.name}</span>
+                </button>
+              )
+            })}
           </div>
 
           <div className="grid grid-cols-3 gap-1 pt-1 border-t">
@@ -3505,12 +3565,12 @@ function SpeedSection() {
 
   const quickPresets = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 4.0]
   const stylePresets = [
-    { label: '🎭 Cinematic Slow-Mo', speed: 0.5, desc: '50% — silky smooth slow motion' },
-    { label: '🐌 Ultra Slow-Mo', speed: 0.25, desc: '25% — dramatic impact' },
-    { label: '⚡ Fast Forward', speed: 2.0, desc: '2× — energetic cut' },
-    { label: '🚀 Time-Lapse', speed: 4.0, desc: '4× — montage and b-roll' },
-    { label: '🎯 Normal Speed', speed: 1.0, desc: 'Reset to 100%' },
-    { label: '🌀 Ultra Fast', speed: 8.0, desc: '8× — hyperlapse effect' },
+    { label: 'Cinematic Slow-Mo', speed: 0.5, icon: Film, desc: '50% — silky smooth slow motion' },
+    { label: 'Ultra Slow-Mo', speed: 0.25, icon: Gauge, desc: '25% — dramatic impact' },
+    { label: 'Fast Forward', speed: 2.0, icon: Zap, desc: '2× — energetic cut' },
+    { label: 'Time-Lapse', speed: 4.0, icon: Sparkles, desc: '4× — montage and b-roll' },
+    { label: 'Normal Speed', speed: 1.0, icon: Target, desc: 'Reset to 100%' },
+    { label: 'Ultra Fast', speed: 8.0, icon: FastForward, desc: '8× — hyperlapse effect' },
   ]
 
   const timelineAfter = rippleDuration
@@ -3612,22 +3672,28 @@ function SpeedSection() {
       <div className="space-y-1.5">
         <Label className="text-[10px] text-muted-foreground">Style Presets</Label>
         <div className="grid grid-cols-2 gap-1.5">
-          {stylePresets.map((ramp) => (
-            <button
-              key={ramp.label}
-              type="button"
-              className={cn(
-                'rounded-md border p-2 text-left text-[10px] transition',
-                Math.abs(clip.speed - ramp.speed) < 0.05
-                  ? 'border-violet-500 bg-violet-500/15 text-foreground'
-                  : 'bg-card text-muted-foreground hover:bg-muted/30',
-              )}
-              onClick={() => handleSetSpeed(ramp.speed)}
-            >
-              <p className="font-semibold text-foreground leading-tight">{ramp.label}</p>
-              <p className="text-[9px] text-muted-foreground mt-0.5">{ramp.desc}</p>
-            </button>
-          ))}
+          {stylePresets.map((ramp) => {
+            const Icon = ramp.icon
+            return (
+              <button
+                key={ramp.label}
+                type="button"
+                className={cn(
+                  'rounded-md border p-2 text-left text-[10px] transition',
+                  Math.abs(clip.speed - ramp.speed) < 0.05
+                    ? 'border-violet-500 bg-violet-500/15 text-foreground'
+                    : 'bg-card text-muted-foreground hover:bg-muted/30',
+                )}
+                onClick={() => handleSetSpeed(ramp.speed)}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Icon className="size-3 text-violet-600 dark:text-violet-400 shrink-0" />
+                  <p className="font-semibold text-foreground leading-tight">{ramp.label}</p>
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-0.5">{ramp.desc}</p>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -4045,23 +4111,24 @@ function DesignSection() {
       {/* ── Sub Navigation Tabs ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'prompt' as const, label: '✨ AI Generator' },
-          { id: 'presets' as const, label: '📦 Presets' },
-          { id: 'code' as const, label: '💻 Code' },
-          { id: 'history' as const, label: '📜 History' },
-        ].map(({ id, label }) => (
+          { id: 'prompt' as const, label: 'AI Generator', icon: Sparkles },
+          { id: 'presets' as const, label: 'Presets', icon: Boxes },
+          { id: 'code' as const, label: 'Code', icon: Code },
+          { id: 'history' as const, label: 'History', icon: History },
+        ].map(({ id, label, icon: TabIcon }) => (
           <button
             key={id}
             type="button"
             className={cn(
-              'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
+              'flex-1 flex items-center justify-center gap-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
               motionSubTab === id
                 ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setMotionSubTab(id)}
           >
-            {label}
+            <TabIcon className="size-3 shrink-0" />
+            <span>{label}</span>
           </button>
         ))}
       </div>
@@ -4456,24 +4523,28 @@ function ScriptSection() {
 
         {/* Style Grid */}
         <div className="grid grid-cols-3 gap-1 pt-1">
-          {(Object.values(CREATOR_STYLES) as typeof CREATOR_STYLES[CreatorStyleId][]).map((style) => (
-            <button
-              key={style.id}
-              type="button"
-              className={cn(
-                'rounded-md border p-1.5 text-left transition flex flex-col justify-between h-14',
-                creatorStyle === style.id
-                  ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500/50'
-                  : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
-              )}
-              onClick={() => setCreatorStyle(style.id)}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="text-[11px] font-bold">{style.icon} {style.name.split(' ')[0]}</span>
-              </div>
-              <p className="text-[8px] text-muted-foreground line-clamp-1 leading-tight">{style.tagline}</p>
-            </button>
-          ))}
+          {(Object.values(CREATOR_STYLES) as typeof CREATOR_STYLES[CreatorStyleId][]).map((style) => {
+            const Icon = CREATOR_STYLE_ICON_MAP[style.icon] || Mic
+            return (
+              <button
+                key={style.id}
+                type="button"
+                className={cn(
+                  'rounded-md border p-1.5 text-left transition flex flex-col justify-between h-14',
+                  creatorStyle === style.id
+                    ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500/50'
+                    : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
+                )}
+                onClick={() => setCreatorStyle(style.id)}
+              >
+                <div className="flex items-center gap-1.5 w-full">
+                  <Icon className="size-3 text-violet-600 dark:text-violet-400 shrink-0" />
+                  <span className="text-[11px] font-bold truncate">{style.name.split(' ')[0]}</span>
+                </div>
+                <p className="text-[8px] text-muted-foreground line-clamp-1 leading-tight">{style.tagline}</p>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -4692,42 +4763,46 @@ function ScriptSection() {
             <button
               type="button"
               className={cn(
-                'flex-1 rounded py-1 font-medium transition text-center',
+                'flex-1 flex items-center justify-center gap-1 rounded py-1 font-medium transition text-center',
                 activeTab === 'storyboard' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setActiveTab('storyboard')}
             >
-              📑 Storyboard
+              <Layers className="size-3 shrink-0" />
+              <span>Storyboard</span>
             </button>
             <button
               type="button"
               className={cn(
-                'flex-1 rounded py-1 font-medium transition text-center',
+                'flex-1 flex items-center justify-center gap-1 rounded py-1 font-medium transition text-center',
                 activeTab === 'editor' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setActiveTab('editor')}
             >
-              ✏️ Edit Script
+              <Pencil className="size-3 shrink-0" />
+              <span>Edit Script</span>
             </button>
             <button
               type="button"
               className={cn(
-                'flex-1 rounded py-1 font-medium transition text-center',
+                'flex-1 flex items-center justify-center gap-1 rounded py-1 font-medium transition text-center',
                 activeTab === 'teleprompter' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setActiveTab('teleprompter')}
             >
-              📜 Prompter
+              <ScrollText className="size-3 shrink-0" />
+              <span>Prompter</span>
             </button>
             <button
               type="button"
               className={cn(
-                'flex-1 rounded py-1 font-medium transition text-center',
+                'flex-1 flex items-center justify-center gap-1 rounded py-1 font-medium transition text-center',
                 activeTab === 'hook' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setActiveTab('hook')}
             >
-              🎣 Hook
+              <Flame className="size-3 shrink-0" />
+              <span>Hook</span>
             </button>
           </div>
 
@@ -4738,7 +4813,10 @@ function ScriptSection() {
               {script.hook && (
                 <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 space-y-1">
                   <div className="flex items-center justify-between text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                    <span className="flex items-center gap-1">🎣 0:00 → 0:04 · HOOK</span>
+                    <span className="flex items-center gap-1.5">
+                      <Flame className="size-3 text-amber-500 shrink-0" />
+                      <span>0:00 → 0:04 · HOOK</span>
+                    </span>
                     <span className="text-[9px] font-semibold uppercase bg-amber-500/20 px-1 rounded text-amber-800 dark:text-amber-300">High Retention</span>
                   </div>
                   <p className="text-xs text-foreground font-medium leading-snug">{script.hook}</p>
@@ -4754,7 +4832,10 @@ function ScriptSection() {
               {script.scenes.map((sc, i) => (
                 <div key={i} className="rounded-md border bg-muted/20 p-2 space-y-1">
                   <div className="flex items-center justify-between text-[10px] font-semibold text-violet-600 dark:text-violet-400">
-                    <span>🎬 Scene {i + 1}: {sc.title || `Beat ${i + 1}`}</span>
+                    <span className="flex items-center gap-1.5">
+                      <Clapperboard className="size-3 text-violet-500 shrink-0" />
+                      <span>Scene {i + 1}: {sc.title || `Beat ${i + 1}`}</span>
+                    </span>
                     <span className="font-mono text-muted-foreground text-[9px]">{sc.durationSeconds.toFixed(1)}s</span>
                   </div>
                   <p className="text-xs text-foreground leading-relaxed">{sc.text}</p>
@@ -4776,7 +4857,10 @@ function ScriptSection() {
               {script.cta && (
                 <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2 space-y-1">
                   <div className="flex items-center justify-between text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                    <span className="flex items-center gap-1">🚀 OUTRO / CALL TO ACTION</span>
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="size-3 text-emerald-500 shrink-0" />
+                      <span>OUTRO / CALL TO ACTION</span>
+                    </span>
                   </div>
                   <p className="text-xs text-foreground font-medium">{script.cta}</p>
                   {script.ctaVisual && (
@@ -4794,7 +4878,10 @@ function ScriptSection() {
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {/* Hook Edit */}
               <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 space-y-1.5">
-                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">🎣 Opening Hook (0-4s)</span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                  <Flame className="size-3 text-amber-500 shrink-0" />
+                  <span>Opening Hook (0-4s)</span>
+                </span>
                 <textarea
                   value={script.hook}
                   onChange={(e) => updateScript({ hook: e.target.value })}
@@ -4861,7 +4948,10 @@ function ScriptSection() {
 
               {/* CTA Edit */}
               <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 space-y-1.5">
-                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">🚀 Outro / CTA</span>
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                  <Sparkles className="size-3 text-emerald-500 shrink-0" />
+                  <span>Outro / CTA</span>
+                </span>
                 <textarea
                   value={script.cta}
                   onChange={(e) => updateScript({ cta: e.target.value })}

@@ -437,23 +437,23 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
             {/* Inspector Navigation Tabs */}
             <div className="flex border-b bg-muted/30 p-1 gap-1">
               {[
-                { id: 'camera' as const, label: '🎥 Camera & Angles', icon: Camera },
-                { id: 'library' as const, label: '🔍 3D Search', icon: Search },
-                { id: 'lighting' as const, label: '💡 Lighting', icon: Sun },
-                { id: 'render' as const, label: '🎬 Capture & Render', icon: Play },
+                { id: 'camera' as const, label: 'Camera & Angles', icon: Camera },
+                { id: 'library' as const, label: '3D Search', icon: Search },
+                { id: 'lighting' as const, label: 'Lighting', icon: Sun },
+                { id: 'render' as const, label: 'Capture & Render', icon: Play },
               ].map(({ id, label, icon: TabIcon }) => (
                 <button
                   key={id}
                   type="button"
                   className={cn(
-                    'flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-center text-[10px] font-bold transition',
+                    'flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-center text-[10px] font-bold transition',
                     activeTab === id
-                      ? 'bg-card text-violet-300 shadow-xs border border-border/80'
+                      ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs border border-border/80'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                   onClick={() => setActiveTab(id)}
                 >
-                  <TabIcon className="size-3" />
+                  <TabIcon className="size-3 shrink-0" />
                   <span>{label}</span>
                 </button>
               ))}

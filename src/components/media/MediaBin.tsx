@@ -12,6 +12,7 @@ import {
   Square,
   Type,
   X,
+  Check,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore, type MediaFilter, type MediaSort, type GeneratedSubTab } from '@/stores/editorStore'
@@ -398,7 +399,9 @@ export function MediaBin() {
                     <span className="truncate">
                       {job.progress < 100 ? `Processing ${job.name}… ${Math.round(job.progress)}%` : `${job.name} — Done`}
                     </span>
-                    <span className="shrink-0 font-mono">{job.progress >= 100 ? '✓' : `${Math.round(job.progress)}%`}</span>
+                    <span className="shrink-0 font-mono">
+                      {job.progress >= 100 ? <Check className="size-3 text-emerald-500 inline" /> : `${Math.round(job.progress)}%`}
+                    </span>
                   </div>
                   {job.progress < 100 && (
                     <div className="mt-1 h-1 overflow-hidden rounded-full bg-neutral-800">

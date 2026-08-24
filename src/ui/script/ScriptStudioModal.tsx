@@ -17,6 +17,12 @@ import {
   Volume2,
   FileText,
   Loader2,
+  ScrollText,
+  Pencil,
+  Flame,
+  Crosshair,
+  ArrowUpDown,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useScriptStore } from '@/stores/scriptStore'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -101,42 +107,37 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
     }
 
     lastTimeRef.current = performance.now()
-    const loop = (now: number) => {
-      const dt = (now - lastTimeRef.current) / 1000
+
+    const step = (now: number) => {
+      const delta = (now - lastTimeRef.current) / 1000
       lastTimeRef.current = now
 
       if (prompterContainerRef.current) {
-        prompterContainerRef.current.scrollTop += scrollSpeed * dt
-        // Pause if reached bottom
-        const { scrollTop, scrollHeight, clientHeight } = prompterContainerRef.current
-        if (scrollTop + clientHeight >= scrollHeight - 5) {
-          setIsPlaying(false)
-          return
-        }
+        prompterContainerRef.current.scrollTop += scrollSpeed * delta
       }
-      scrollAnimRef.current = requestAnimationFrame(loop)
+
+      scrollAnimRef.current = requestAnimationFrame(step)
     }
 
-    scrollAnimRef.current = requestAnimationFrame(loop)
+    scrollAnimRef.current = requestAnimationFrame(step)
+
     return () => {
       if (scrollAnimRef.current) cancelAnimationFrame(scrollAnimRef.current)
     }
   }, [isPlaying, scrollSpeed])
 
-  // Spacebar play/pause listener
+  // Spacebar toggle playback shortcut
   React.useEffect(() => {
     if (!open) return
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && mode === 'teleprompter' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      if (e.code === 'Space' && (e.target as HTMLElement)?.tagName !== 'INPUT' && (e.target as HTMLElement)?.tagName !== 'TEXTAREA') {
         e.preventDefault()
         setIsPlaying((p) => !p)
-      } else if (e.key === 'Escape') {
-        onClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, mode, onClose])
+  }, [open])
 
   if (!open || !script) return null
 
@@ -154,34 +155,35 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${script.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_script.txt`
+    a.download = `${(script.title || 'script').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_teleprompter.txt`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const handleAddCaptionsToTimeline = () => {
-    const targetTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
-    if (!targetTrack) {
-      setNotice({ kind: 'error', text: 'No text track available on timeline' })
+  const handleAddScenesAsTextOverlays = () => {
+    const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
+    if (!textTrack) {
+      setNotice({ kind: 'error', text: 'No text or video track available on timeline' })
       return
     }
 
     let time = playhead ?? 0
     if (script.hook) {
-      addTextClip(script.hook, targetTrack.id, time)
+      addTextClip(script.hook, textTrack.id, time)
       time += 4
     }
     for (const sc of script.scenes) {
       const textToUse = sc.onScreenText || sc.text
       if (textToUse) {
-        addTextClip(textToUse, targetTrack.id, time)
+        addTextClip(textToUse, textTrack.id, time)
       }
       time += sc.durationSeconds
     }
     if (script.cta) {
-      addTextClip(script.cta, targetTrack.id, time)
+      addTextClip(script.cta, textTrack.id, time)
     }
-    setNotice({ kind: 'ok', text: 'Added scene titles and hooks as text overlays to the timeline!' })
+
+    setNotice({ kind: 'ok', text: 'Successfully placed script scenes as text overlays on timeline!' })
   }
 
   const handleSynthesizeTts = async () => {
@@ -199,7 +201,6 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
           audioBlob = ttsResult.blob
         } else {
           const { generateAvatarVideo } = await import('@/api/llm/avatarGenerator')
-          // Fallback synthesized speech
           const res = await generateAvatarVideo({ role: 'presenter', topic: script.title, scriptText: fullText })
           audioBlob = res.videoBlob
         }
@@ -209,7 +210,7 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
         audioBlob = res.videoBlob
       }
 
-      const file = new File([audioBlob], `script-voiceover-${Date.now()}.wav`, { type: 'audio/wav' })
+      const file = new File([audioBlob], `studio-voiceover-${Date.now()}.wav`, { type: 'audio/wav' })
       const { imported, errors } = await importFiles([file])
       if (imported.length) {
         const audioTrack = project.tracks.find((t) => t.type === 'audio') || project.tracks.find((t) => t.type === 'video')
@@ -217,11 +218,11 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
           const clip = addClip(imported[0].id, audioTrack.id, playhead ?? 0)
           if (clip) {
             updateClip(clip.id, { duration: metrics.estimatedSeconds, sourceEnd: metrics.estimatedSeconds, clipType: 'audio' })
-            setNotice({ kind: 'ok', text: `Synthesized ~${metrics.estimatedSeconds}s spoken voiceover directly to timeline!` })
+            setNotice({ kind: 'ok', text: `Added ~${metrics.estimatedSeconds}s synthesized voiceover to timeline!` })
           }
         }
       } else {
-        setNotice({ kind: 'error', text: errors[0] ?? 'Could not import synthesized audio' })
+        setNotice({ kind: 'error', text: errors[0] ?? 'Could not import TTS audio' })
       }
     } catch (err) {
       setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'TTS synthesis failed' })
@@ -231,7 +232,7 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
   }
 
   const containerMaxWidth =
-    maxWidthMode === 'compact' ? 'max-w-2xl' : maxWidthMode === 'wide' ? 'max-w-5xl' : 'max-w-4xl'
+    maxWidthMode === 'compact' ? 'max-w-xl' : maxWidthMode === 'wide' ? 'max-w-5xl' : 'max-w-3xl'
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl text-foreground select-none">
@@ -240,7 +241,7 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-lg bg-violet-600/20 text-violet-400 font-bold border border-violet-500/30">
-              📜
+              <ScrollText className="size-4" />
             </span>
             <div>
               <h2 className="text-sm font-bold truncate max-w-sm">{script.title || 'Studio Script'}</h2>
@@ -249,7 +250,7 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
                 <span>·</span>
                 <span>~{metrics.estimatedSeconds}s read</span>
                 <span>·</span>
-                <span className="text-violet-400 font-medium capitalize">{script.creatorStyle || 'Creator'}</span>
+                <span className="text-violet-600 dark:text-violet-400 font-medium capitalize">{script.creatorStyle || 'Creator'}</span>
               </div>
             </div>
           </div>
@@ -259,32 +260,35 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
             <button
               type="button"
               className={cn(
-                'rounded-md px-3 py-1 text-xs font-semibold transition',
-                mode === 'teleprompter' ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition',
+                mode === 'teleprompter' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setMode('teleprompter')}
             >
-              📜 Big Teleprompter
+              <ScrollText className="size-3.5" />
+              <span>Teleprompter</span>
             </button>
             <button
               type="button"
               className={cn(
-                'rounded-md px-3 py-1 text-xs font-semibold transition',
-                mode === 'editor' ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition',
+                mode === 'editor' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setMode('editor')}
             >
-              ✏️ Studio Scene Editor
+              <Pencil className="size-3.5" />
+              <span>Scene Editor</span>
             </button>
             <button
               type="button"
               className={cn(
-                'rounded-md px-3 py-1 text-xs font-semibold transition',
-                mode === 'hook' ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition',
+                mode === 'hook' ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setMode('hook')}
             >
-              🎣 Hook Breakdown
+              <Flame className="size-3.5" />
+              <span>Hook Breakdown</span>
             </button>
           </div>
         </div>
@@ -328,7 +332,7 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
             size="sm"
             variant="outline"
             className="h-8 text-xs gap-1.5"
-            onClick={handleAddCaptionsToTimeline}
+            onClick={handleAddScenesAsTextOverlays}
           >
             <FileText className="size-3.5 text-cyan-400" />
             Add Overlays to Timeline
@@ -466,32 +470,35 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
                   <button
                     type="button"
                     className={cn(
-                      'rounded px-2 py-1 text-[11px] font-medium border transition',
+                      'flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium border transition',
                       mirrorY ? 'border-violet-500 bg-violet-500/20 text-violet-300' : 'border-border/60 text-muted-foreground',
                     )}
                     onClick={() => setMirrorY(!mirrorY)}
                     title="Flip Vertical"
                   >
-                    ⇅ Flip Vert
+                    <ArrowUpDown className="size-3" />
+                    <span>Flip Vert</span>
                   </button>
                   <button
                     type="button"
                     className={cn(
-                      'rounded px-2 py-1 text-[11px] font-medium border transition',
+                      'flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium border transition',
                       guideLine ? 'border-violet-500 bg-violet-500/20 text-violet-300' : 'border-border/60 text-muted-foreground',
                     )}
                     onClick={() => setGuideLine(!guideLine)}
                     title="Toggle Reading Focus Line"
                   >
-                    🎯 Focus Line
+                    <Crosshair className="size-3" />
+                    <span>Focus Line</span>
                   </button>
                   <button
                     type="button"
-                    className="rounded px-2 py-1 text-[11px] font-medium border border-border/60 text-muted-foreground hover:text-foreground transition capitalize"
+                    className="flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium border border-border/60 text-muted-foreground hover:text-foreground transition capitalize"
                     onClick={() => setMaxWidthMode((m) => (m === 'normal' ? 'wide' : m === 'wide' ? 'compact' : 'normal'))}
                     title="Toggle Teleprompter Stage Width"
                   >
-                    📐 {maxWidthMode}
+                    <SlidersHorizontal className="size-3" />
+                    <span>{maxWidthMode}</span>
                   </button>
                 </div>
               </div>
@@ -604,7 +611,8 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
               <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                    🎣 Opening Hook (First 0-4 Seconds)
+                    <Flame className="size-3.5 text-amber-500" />
+                    <span>Opening Hook (First 0-4 Seconds)</span>
                   </span>
                   <span className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-semibold">Max Retention Zone</span>
                 </div>
@@ -730,7 +738,8 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
               <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                    🚀 Outro & Call to Action (CTA)
+                    <Sparkles className="size-3.5 text-emerald-500" />
+                    <span>Outro &amp; Call to Action (CTA)</span>
                   </span>
                   <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-mono font-semibold">Closing Conversion</span>
                 </div>

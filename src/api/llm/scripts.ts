@@ -38,7 +38,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Neutral / Custom',
     tagline: 'Clean, balanced, conversational video narration',
     badge: 'bg-muted text-muted-foreground',
-    icon: '🎙',
+    icon: 'mic',
     promptDirective: 'Write clear, natural, engaging narration suitable for high quality video.',
   },
   mrbeast: {
@@ -47,7 +47,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Jimmy Donaldson',
     tagline: 'Hyper-retention, extreme pacing, high stakes in frame 1',
     badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-    icon: '⚡',
+    icon: 'zap',
     promptDirective:
       'MRBEAST YOUTUBE STYLE: High-octane urgency. The hook in the first 3 seconds must state massive stakes or a crazy challenge. Every scene escalates the difficulty or tension. Zero filler. Short, punchy sentences. Constant visual callouts and extreme pacing to maximize 100% viewer retention.',
   },
@@ -57,7 +57,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Derek Muller / Vsauce',
     tagline: 'Counterintuitive inquiry, scientific mystery & epiphany',
     badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
-    icon: '🔬',
+    icon: 'flask',
     promptDirective:
       'VERITASIUM / SCIENCE ESSAY STYLE: Open with a question that breaks common sense or exposes a paradox. Guide the viewer through progressive scientific reasoning, thought experiments, and historical twists. Conclude with an inspiring philosophical paradigm shift.',
   },
@@ -67,7 +67,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Ali Abdaal',
     tagline: 'Warm productivity, 3-part framework & actionable insights',
     badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-    icon: '📚',
+    icon: 'book-open',
     promptDirective:
       'ALI ABDAAL PRODUCTIVITY STYLE: Warm, thoughtful, conversational tone. Uses structured frameworks ("Rule of 3"), evidence-based psychology, personal relatable anecdotes, and clear actionable takeaways for the viewer.',
   },
@@ -77,7 +77,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Marques Brownlee',
     tagline: 'Crisp tech review, design philosophy & aesthetic verdict',
     badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
-    icon: '📱',
+    icon: 'smartphone',
     promptDirective:
       'MKBHD (MARQUES BROWNLEE) STYLE: Crisp, aesthetic tech review tone. Opens with "So I\'ve been using this for the past few weeks...", focuses on build quality, design nuances, day-to-day feel, key compromises, and ends with a decisive verdict.',
   },
@@ -87,7 +87,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Johnny Harris / Vox',
     tagline: 'Investigative visual essay with maps & historical depth',
     badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
-    icon: '🗺',
+    icon: 'map',
     promptDirective:
       'VOX / JOHNNY HARRIS INVESTIGATIVE STYLE: Journalistic visual essay. Builds narrative suspense, uses timeline and map animation cues, dives into historical and economic systems, and connects unexpected dots to reveal the bigger picture.',
   },
@@ -97,7 +97,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Alex Hormozi',
     tagline: 'No-BS high conviction business frameworks & raw truth',
     badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
-    icon: '💼',
+    icon: 'briefcase',
     promptDirective:
       'ALEX HORMOZI STYLE: High-conviction, direct, no-BS tone. Opens with a bold contrarian truth ("Look, here\'s the brutal truth about..."). Uses simple math, leverage frameworks, eliminates excuses, and delivers dense actionable value.',
   },
@@ -107,7 +107,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'MagnatesMedia / Moon',
     tagline: 'Dark cinematic storytelling, corporate drama & suspense',
     badge: 'bg-red-500/20 text-red-300 border-red-500/40',
-    icon: '🎬',
+    icon: 'clapperboard',
     promptDirective:
       'MAGNATESMEDIA DARK STORYTELLING STYLE: Cinematic, suspenseful docudrama about corporate empires, scandals, and epic downfalls. Atmospheric pacing, intense intrigue, psychological motives, and theatrical climaxes.',
   },
@@ -117,7 +117,7 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     creator: 'Viral Short-form',
     tagline: '0.5s visual pattern interrupt with seamless loop ending',
     badge: 'bg-pink-500/20 text-pink-300 border-pink-500/40',
-    icon: '🔥',
+    icon: 'flame',
     promptDirective:
       'VIRAL SHORT-FORM / REELS STYLE: Instant pattern interrupt in the first 0.5s ("Stop scrolling if you want to know..."). Hyper-dense sentences, continuous visual change cues, and a clever loop transition that connects the last sentence seamlessly back to the first sentence.',
   },
@@ -230,14 +230,14 @@ export function calculateScriptMetrics(script: ProjectScript) {
 /** Build the human-readable summary used by tool responses. */
 export function describeScript(script: ProjectScript): string {
   const lines = [`Script "${script.title}" (${scriptDuration(script).toFixed(1)}s${script.creatorStyle ? ` · ${script.creatorStyle}` : ''}):`]
-  if (script.hook) lines.push(`  🎣 Hook (${HOOK_SECONDS}s): ${script.hook}`)
+  if (script.hook) lines.push(`  Hook (${HOOK_SECONDS}s): ${script.hook}`)
   let start = HOOK_SECONDS
   for (const scene of script.scenes) {
     const visual = scene.visualCue ? ` [Visual: ${scene.visualCue.slice(0, 30)}]` : ''
-    lines.push(`  🎬 ${start.toFixed(1)}s→${(start + scene.durationSeconds).toFixed(1)}s: ${scene.title || scene.text.slice(0, 40)}${visual}`)
+    lines.push(`  Scene: ${start.toFixed(1)}s→${(start + scene.durationSeconds).toFixed(1)}s: ${scene.title || scene.text.slice(0, 40)}${visual}`)
     start += scene.durationSeconds
   }
-  if (script.cta) lines.push(`  🚀 CTA (${CTA_SECONDS}s): ${script.cta}`)
+  if (script.cta) lines.push(`  CTA (${CTA_SECONDS}s): ${script.cta}`)
   return lines.join('\n')
 }
 

@@ -583,7 +583,7 @@ export function renderSlideHtml(
       .slide-subtitle { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 3px; color: #ec4899; }
       .slide-title { font-size: 46px; font-weight: 900; line-height: 1.15; color: #06b6d4; text-shadow: 0 0 20px rgba(6,182,212,0.6); margin: 0 0 20px 0; }
       .slide-bullets { margin: 0; padding: 0 0 0 20px; list-style: none; font-size: 24px; line-height: 1.6; color: #cbd5e1; }
-      .slide-bullets li::before { content: "⚡"; position: absolute; left: -24px; }
+      .slide-bullets li::before { content: "•"; position: absolute; left: -24px; }
       .stat-number { font-size: 72px; font-weight: 900; color: #ec4899; text-shadow: 0 0 25px rgba(236,72,153,0.7); }
       .stat-label { font-size: 20px; color: #06b6d4; font-family: monospace; }
       .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -600,7 +600,7 @@ export function renderSlideHtml(
       .slide-subtitle { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; opacity: 0.9; margin-bottom: 6px; }
       .slide-title { font-size: 46px; font-weight: 900; line-height: 1.15; margin: 0 0 20px 0; text-shadow: 0 2px 14px rgba(0,0,0,0.3); }
       .slide-bullets { margin: 0; padding: 0 0 0 22px; list-style: none; font-size: 25px; line-height: 1.6; text-shadow: 0 1px 6px rgba(0,0,0,0.2); }
-      .slide-bullets li::before { content: "★"; position: absolute; left: -24px; color: #fef08a; }
+      .slide-bullets li::before { content: "•"; position: absolute; left: -24px; color: #fef08a; }
       .stat-number { font-size: 76px; font-weight: 900; color: #ffffff; text-shadow: 0 4px 20px rgba(0,0,0,0.35); }
       .stat-label { font-size: 22px; font-weight: 700; color: #fde047; }
       .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }

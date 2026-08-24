@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, Loader2, Download, FileVideo } from 'lucide-react'
+import { X, Loader2, Download, FileVideo, AlertTriangle } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { exportProject } from '@/engine/export/exportVideo'
 import { exportMp4 } from '@/engine/export/exportMp4'
@@ -263,8 +263,9 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           <p className="text-muted-foreground text-xs">{CODEC_INFO[codec]}</p>
 
           {(resolution === '4K UHD' || resolution === '1440p') && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400">
-              ⚠️ High-resolution export requires significant time and memory. For 4K, choose VP9 or H.264 with Very High quality.
+            <div className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="size-3.5 shrink-0 text-amber-500 mt-0.5" />
+              <span>High-resolution export requires significant time and memory. For 4K, choose VP9 or H.264 with Very High quality.</span>
             </div>
           )}
 

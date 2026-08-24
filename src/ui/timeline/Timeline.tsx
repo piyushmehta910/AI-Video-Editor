@@ -764,7 +764,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             <div>
               {groups.filter((g) => g.tracks.some((t) => t.clips.length > 0)).length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                  <span className="text-muted-foreground/40 text-4xl">🎬</span>
+                  <Clapperboard className="text-muted-foreground/40 size-8" />
                   <p className="text-muted-foreground text-xs font-medium">Drop media here or use the toolbar to add assets</p>
                 </div>
               ) : (

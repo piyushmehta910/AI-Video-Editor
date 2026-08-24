@@ -1,5 +1,15 @@
 import * as React from 'react'
-import { Link2, Link2Off, RotateCcw } from 'lucide-react'
+import {
+  Link2,
+  Link2Off,
+  RotateCcw,
+  CircleDot,
+  ArrowUpLeft,
+  ArrowUpRight,
+  ArrowDown,
+  LayoutTemplate,
+  Maximize2,
+} from 'lucide-react'
 import type { InspectorApi } from '@/hooks/useInspector'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Track } from '@/engine/types'
@@ -135,35 +145,39 @@ export function TransformSection({ insp }: { insp: InspectorApi }) {
       <Row label="Quick Placement" stack>
         <div className="grid grid-cols-4 gap-1 pt-0.5">
           {[
-            { id: 'center', label: '⏺ Center', fn: () => insp.update({ position: { x: 0, y: 0 } }, `Centered '${clip.name}'`) },
-            { id: 'top-left', label: '↖ Top-L', fn: () => {
+            { id: 'center', label: 'Center', icon: CircleDot, fn: () => insp.update({ position: { x: 0, y: 0 } }, `Centered '${clip.name}'`) },
+            { id: 'top-left', label: 'Top-L', icon: ArrowUpLeft, fn: () => {
               const p = useTimelineStore.getState().project
               insp.update({ position: { x: -p.width * 0.25, y: -p.height * 0.25 } }, `Aligned '${clip.name}' top-left`)
             }},
-            { id: 'top-right', label: '↗ Top-R', fn: () => {
+            { id: 'top-right', label: 'Top-R', icon: ArrowUpRight, fn: () => {
               const p = useTimelineStore.getState().project
               insp.update({ position: { x: p.width * 0.25, y: -p.height * 0.25 } }, `Aligned '${clip.name}' top-right`)
             }},
-            { id: 'bottom-center', label: '⬇ Lower-3rd', fn: () => {
+            { id: 'bottom-center', label: 'Lower-3rd', icon: ArrowDown, fn: () => {
               const p = useTimelineStore.getState().project
               insp.update({ position: { x: 0, y: p.height * 0.3 } }, `Aligned '${clip.name}' lower-third`)
             }},
-            { id: 'pip', label: '🔲 PiP Corner', fn: () => {
+            { id: 'pip', label: 'PiP', icon: LayoutTemplate, fn: () => {
               const p = useTimelineStore.getState().project
               insp.update({ position: { x: p.width * 0.3, y: p.height * 0.28 }, scale: { x: 0.38, y: 0.38 } }, `PiP '${clip.name}'`)
             }},
-            { id: 'fill', label: '⬛ Fill View', fn: () => insp.update({ position: { x: 0, y: 0 }, scale: { x: 1, y: 1 } }, `Filled '${clip.name}'`) },
-            { id: 'reset', label: '🔄 Reset All', fn: resetTransform },
-          ].map((btn) => (
-            <button
-              key={btn.id}
-              type="button"
-              className="rounded border border-border/60 bg-[#0f0f1a] py-1 text-center font-mono text-[9px] text-muted-foreground hover:bg-violet-600/30 hover:text-white transition"
-              onClick={btn.fn}
-            >
-              {btn.label}
-            </button>
-          ))}
+            { id: 'fill', label: 'Fill View', icon: Maximize2, fn: () => insp.update({ position: { x: 0, y: 0 }, scale: { x: 1, y: 1 } }, `Filled '${clip.name}'`) },
+            { id: 'reset', label: 'Reset', icon: RotateCcw, fn: resetTransform },
+          ].map((btn) => {
+            const Icon = btn.icon
+            return (
+              <button
+                key={btn.id}
+                type="button"
+                className="flex items-center justify-center gap-1 rounded border border-border/60 bg-muted/30 py-1 text-center font-mono text-[9px] text-muted-foreground hover:bg-violet-600/20 hover:text-foreground transition"
+                onClick={btn.fn}
+              >
+                <Icon className="size-2.5 shrink-0" />
+                <span>{btn.label}</span>
+              </button>
+            )
+          })}
         </div>
       </Row>
 
