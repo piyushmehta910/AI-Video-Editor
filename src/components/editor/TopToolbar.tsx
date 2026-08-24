@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Download, History, PanelLeft, Pencil, Save, Sparkles } from 'lucide-react'
+import { Download, History, PanelLeft, Pencil, Save } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { ExportModal } from '@/components/export/ExportModal'
@@ -74,8 +74,6 @@ export function TopToolbar() {
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
 
-  const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
-  const toggleAIDirector = useEditorStore((s) => s.toggleAIDirector)
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
   const leftOpen = useEditorStore((s) => s.leftOpen)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
@@ -210,22 +208,6 @@ export function TopToolbar() {
         <ToolButton label="Export video" onClick={() => setExportOpen(true)} testId="export-button">
           <Download className="size-4" />
         </ToolButton>
-
-        <div className="bg-border mx-1.5 h-5 w-px" />
-
-        <Button
-          variant="ghost"
-          size="sm"
-          data-testid="ai-director-button"
-          className={cn(
-            'h-8 gap-1.5 px-2 text-xs font-medium',
-            aiDirectorOpen && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30',
-          )}
-          onClick={toggleAIDirector}
-        >
-          <Sparkles className="size-3.5" />
-          AI Director
-        </Button>
       </div>
 
       {exportOpen && <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} />}

@@ -93,6 +93,8 @@ interface Position {
 
 const STORAGE_KEY = 'clipforge_ai_director_pos'
 
+const LAUNCHER_STORAGE_KEY = 'clipforge-ai-director-launcher-pos'
+
 function getInitialPosition(): Position {
   if (typeof window === 'undefined') return { x: 20, y: 100 }
   try {
@@ -113,6 +115,29 @@ function getInitialPosition(): Position {
   }
   const defaultX = Math.max(10, window.innerWidth - 410)
   const defaultY = Math.max(10, window.innerHeight - 620)
+  return { x: defaultX, y: defaultY }
+}
+
+function getInitialLauncherPosition(): Position {
+  if (typeof window === 'undefined') return { x: 20, y: 20 }
+  try {
+    const saved = localStorage.getItem(LAUNCHER_STORAGE_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+        const maxX = Math.max(10, window.innerWidth - 70)
+        const maxY = Math.max(10, window.innerHeight - 70)
+        return {
+          x: Math.min(Math.max(10, parsed.x), maxX),
+          y: Math.min(Math.max(10, parsed.y), maxY),
+        }
+      }
+    }
+  } catch {
+    // fallback
+  }
+  const defaultX = Math.max(10, window.innerWidth - 85)
+  const defaultY = Math.max(10, window.innerHeight - 130)
   return { x: defaultX, y: defaultY }
 }
 
@@ -223,6 +248,68 @@ export function AIDirector({
   const [showQuality, setShowQuality] = React.useState(false)
   const [issues, setIssues] = React.useState<QualityIssue[]>([])
   const [checking, setChecking] = React.useState(false)
+
+  const [launcherPos, setLauncherPos] = React.useState<Position>(getInitialLauncherPosition)
+  const launcherDragStartRef = React.useRef<{
+    mouseX: number
+    mouseY: number
+    startX: number
+    startY: number
+    hasMoved: boolean
+  } | null>(null)
+
+  const handleLauncherPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    launcherDragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startX: launcherPos.x,
+      startY: launcherPos.y,
+      hasMoved: false,
+    }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const handleLauncherPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!launcherDragStartRef.current) return
+    const dx = e.clientX - launcherDragStartRef.current.mouseX
+    const dy = e.clientY - launcherDragStartRef.current.mouseY
+    if (!launcherDragStartRef.current.hasMoved && Math.hypot(dx, dy) > 4) {
+      launcherDragStartRef.current.hasMoved = true
+    }
+    if (launcherDragStartRef.current.hasMoved) {
+      const maxX = Math.max(10, window.innerWidth - 65)
+      const maxY = Math.max(10, window.innerHeight - 65)
+      const nextX = Math.min(Math.max(10, launcherDragStartRef.current.startX + dx), maxX)
+      const nextY = Math.min(Math.max(10, launcherDragStartRef.current.startY + dy), maxY)
+      setLauncherPos({ x: nextX, y: nextY })
+    }
+  }
+
+  const handleLauncherPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!launcherDragStartRef.current) return
+    const wasMoved = launcherDragStartRef.current.hasMoved
+    const finalX = launcherPos.x
+    const finalY = launcherPos.y
+    launcherDragStartRef.current = null
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+
+    if (wasMoved) {
+      try {
+        localStorage.setItem(LAUNCHER_STORAGE_KEY, JSON.stringify({ x: finalX, y: finalY }))
+      } catch {
+        // ignore
+      }
+    } else {
+      // Clean tap/click -> open panel!
+      changeOpen(true)
+      setIsMinimized(false)
+    }
+  }
   const [plan, setPlan] = React.useState<PendingPlan | null>(null)
   const [pendingQuestion, setPendingQuestion] = React.useState<string | null>(null)
   const [questionAnswer, setQuestionAnswer] = React.useState('')
@@ -694,15 +781,29 @@ export function AIDirector({
 
   return (
     <>
-      {controlledOpen === undefined && (
-        <button
-          type="button"
-          onClick={() => changeOpen((o) => !o)}
-          className="fixed right-5 bottom-20 z-50 flex size-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-2xl shadow-violet-600/30 transition-all hover:bg-violet-500 md:bottom-5"
+      {!open && (
+        <div
+          style={{ transform: `translate3d(${launcherPos.x}px, ${launcherPos.y}px, 0)` }}
+          className="fixed top-0 left-0 z-50 flex items-center gap-2 group cursor-grab active:cursor-grabbing select-none touch-none"
+          onPointerDown={handleLauncherPointerDown}
+          onPointerMove={handleLauncherPointerMove}
+          onPointerUp={handleLauncherPointerUp}
+          title="Drag AI Director anywhere or click to open"
           aria-label="AI Director"
         >
-          {open ? <X className="size-6" /> : <Bot className="size-7" />}
-        </button>
+          <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-500 text-white shadow-2xl shadow-violet-600/40 ring-2 ring-violet-400/40 hover:scale-105 transition-transform">
+            <Bot className="size-7" />
+            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-violet-400">
+              <Sparkles className="size-2 text-violet-950" />
+            </span>
+            {busy && (
+              <span className="absolute -bottom-1 -right-1 size-3.5 animate-ping rounded-full bg-emerald-400" />
+            )}
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-lg bg-card/95 px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-lg border border-border/80 backdrop-blur whitespace-nowrap">
+            AI Director <span className="text-muted-foreground font-normal">(Drag me)</span>
+          </div>
+        </div>
       )}
 
       {open && isMinimized && (
