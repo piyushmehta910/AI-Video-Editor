@@ -607,7 +607,7 @@ export const useTimelineStore = create<TimelineState>()(
       if (!track) return undefined
 
       const duration = asset.type === 'image' || asset.type === 'model' ? 4 : Math.min(asset.duration || 5, 30)
-      const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
+      const start = Math.max(0, startTime ?? Math.max(0, Math.floor(playhead * 10) / 10))
       const targetTrack = findNonCollidingTrack(project, track, start, duration)
 
       const clipType: MediaClipType =
@@ -658,7 +658,7 @@ export const useTimelineStore = create<TimelineState>()(
       const track = project.tracks.find((t) => t.id === trackId)
       if (!track) return undefined
 
-      const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
+      const start = Math.max(0, startTime ?? Math.max(0, Math.floor(playhead * 10) / 10))
       const duration = 4
       const targetTrack = findNonCollidingTrack(project, track, start, duration)
 
@@ -717,6 +717,8 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     addClipToTrack: (clip) => {
+      clip.startTime = Math.max(0, clip.startTime)
+      clip.sourceStart = Math.max(0, clip.sourceStart)
       get().begin({ type: 'add', description: `Added '${clip.name}'`, clipId: clip.id })
       mutate((p) => {
         let t = p.tracks.find((tr) => tr.id === clip.trackId)
@@ -742,9 +744,16 @@ export const useTimelineStore = create<TimelineState>()(
       const found = findClip(get().project, clipId)
       const subject = found ? `'${found.clip.name}'` : 'clip'
       beginHistory({ type: describePatch(patch).type, description: `${describePatch(patch).description} ${subject}`, clipId })
+      const safePatch = { ...patch }
+      if (typeof safePatch.startTime === 'number') {
+        safePatch.startTime = Math.max(0, safePatch.startTime)
+      }
+      if (typeof safePatch.sourceStart === 'number') {
+        safePatch.sourceStart = Math.max(0, safePatch.sourceStart)
+      }
       mutate((p) => {
         for (const track of p.tracks) {
-          track.clips = track.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c))
+          track.clips = track.clips.map((c) => (c.id === clipId ? { ...c, ...safePatch } : c))
         }
         return p
       })
@@ -754,9 +763,16 @@ export const useTimelineStore = create<TimelineState>()(
     updateClips: (clipIds, patch) => {
       const ids = new Set(clipIds)
       beginHistory({ type: describePatch(patch).type, description: `Edited ${clipIds.length} ${clipIds.length === 1 ? 'clip' : 'clips'}` })
+      const safePatch = { ...patch }
+      if (typeof safePatch.startTime === 'number') {
+        safePatch.startTime = Math.max(0, safePatch.startTime)
+      }
+      if (typeof safePatch.sourceStart === 'number') {
+        safePatch.sourceStart = Math.max(0, safePatch.sourceStart)
+      }
       mutate((p) => {
         for (const track of p.tracks) {
-          track.clips = track.clips.map((c) => (ids.has(c.id) ? { ...c, ...patch } : c))
+          track.clips = track.clips.map((c) => (ids.has(c.id) ? { ...c, ...safePatch } : c))
         }
         return p
       })
@@ -776,13 +792,14 @@ export const useTimelineStore = create<TimelineState>()(
         for (const track of p.tracks) {
           track.clips = track.clips.map((c) => {
             if (c.id !== clipId) return c
+            const nextStart = Math.max(0, c.startTime + delta)
             if (targetTrackId && targetTrackId !== c.trackId) {
               const target = p.tracks.find((t) => t.id === targetTrackId)
               if (target && target.type === track.type) {
-                return { ...c, trackId: target.id, startTime: c.startTime + delta }
+                return { ...c, trackId: target.id, startTime: nextStart }
               }
             }
-            return { ...c, startTime: c.startTime + delta }
+            return { ...c, startTime: nextStart }
           })
         }
         return p
@@ -802,12 +819,12 @@ export const useTimelineStore = create<TimelineState>()(
         if (edge === 'start') {
           const newStart = Math.max(0, clip.sourceStart + delta)
           const applied = Math.min(newStart, clip.sourceEnd - frame)
-          clip.startTime += applied - clip.sourceStart
-          clip.duration -= applied - clip.sourceStart
+          clip.startTime = Math.max(0, clip.startTime + (applied - clip.sourceStart))
+          clip.duration = Math.max(frame, clip.duration - (applied - clip.sourceStart))
           clip.sourceStart = applied
         } else {
           const newEnd = Math.min(clip.sourceEnd + delta, (clip.sourceStart + 3600))
-          clip.duration += newEnd - clip.sourceEnd
+          clip.duration = Math.max(frame, clip.duration + (newEnd - clip.sourceEnd))
           clip.sourceEnd = newEnd
         }
         return p
