@@ -20,6 +20,10 @@ const DEFAULT_LEFT_WIDTH = 270
 const MIN_LEFT_WIDTH = 200
 const MAX_LEFT_WIDTH = 480
 
+const DEFAULT_RIGHT_WIDTH = 300
+const MIN_RIGHT_WIDTH = 250
+const MAX_RIGHT_WIDTH = 580
+
 function loadNum(key: string, fallback: number): number {
   const v = Number(localStorage.getItem(key))
   return Number.isFinite(v) && v > 0 ? v : fallback
@@ -29,12 +33,11 @@ function loadNum(key: string, fallback: number): number {
  * 4-panel editor workspace (CSS grid):
  *   ┌──────────┬──────────────────────┬───────────┐
  *   │ MediaBin │    PreviewCanvas     │ Inspector │
- *   │  270px   │       flexible       │   280px   │
+ *   │  270px   │       flexible       │   300px   │
  *   ├──────────┴──────────────────────┴───────────┤
  *   │                Timeline                     │
  *   └─────────────────────────────────────────────┘
- * All panels are collapsible; the timeline is drag-resizable. The AI tool
- * panel opens as an overlay drawer so tool workflows stay reachable.
+ * All panels are collapsible; both sidebars and the timeline are drag-resizable.
  */
 export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const leftOpen = useEditorStore((s) => s.leftOpen)
@@ -53,6 +56,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const [leftWidth, setLeftWidth] = React.useState(() =>
     loadNum('clipforge-left-width', DEFAULT_LEFT_WIDTH),
   )
+  const [rightWidth, setRightWidth] = React.useState(() =>
+    loadNum('clipforge-right-width', DEFAULT_RIGHT_WIDTH),
+  )
 
   const openMedia = React.useCallback(() => setLeftOpen(true), [setLeftOpen])
 
@@ -65,6 +71,26 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
       const next = Math.max(MIN_LEFT_WIDTH, Math.min(MAX_LEFT_WIDTH, startW + (ev.clientX - startX)))
       setLeftWidth(next)
       localStorage.setItem('clipforge-left-width', String(next))
+    }
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }
+
+  const onRightResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = rightWidth
+
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(MIN_RIGHT_WIDTH, Math.min(MAX_RIGHT_WIDTH, startW - (ev.clientX - startX)))
+      setRightWidth(next)
+      localStorage.setItem('clipforge-right-width', String(next))
     }
 
     const onUp = () => {
@@ -145,18 +171,33 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
         {historyPanelOpen && <HistoryPanel onClose={toggleHistoryPanel} />}
 
         {inspectorOpen ? (
-          <aside className="hidden w-70 shrink-0 border-l lg:block" data-testid="inspector-panel">
-            <div className="flex h-full flex-col">
-              <div className="flex h-9 shrink-0 items-center justify-end border-b px-1.5">
-                <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Hide Inspector" title="Hide Inspector">
-                  <ChevronLeft className="size-4" />
-                </Button>
-              </div>
-              <div className="min-h-0 flex-1">
-                <InspectorPanel onOpenMedia={openMedia} />
-              </div>
+          <div
+            className="relative hidden shrink-0 lg:flex"
+            style={{ width: rightWidth }}
+            data-testid="inspector-panel"
+          >
+            {/* Drag Resizer on Left Edge of Right Panel */}
+            <div
+              className="group absolute -left-1 top-0 bottom-0 z-20 w-2 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 transition"
+              onPointerDown={onRightResizeStart}
+              title="Drag to resize Inspector"
+              style={{ touchAction: 'none' }}
+            >
+              <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-violet-500" />
             </div>
-          </aside>
+            <aside className="w-full h-full border-l overflow-hidden">
+              <div className="flex h-full flex-col">
+                <div className="flex h-9 shrink-0 items-center justify-end border-b px-1.5 bg-muted/20">
+                  <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Hide Inspector" title="Hide Inspector">
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <InspectorPanel onOpenMedia={openMedia} />
+                </div>
+              </div>
+            </aside>
+          </div>
         ) : (
           <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 lg:flex">
             <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Show Inspector" title="Show Inspector">
@@ -169,24 +210,24 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
         {toolPanelSection && (
           <>
             <button
-              className="absolute inset-0 z-30 bg-black/30"
+              className="absolute inset-0 z-30 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
               onClick={() => setToolPanelSection(null)}
               aria-label="Close tools"
             />
-            <aside className="bg-background absolute inset-y-0 right-0 z-40 flex w-80 max-w-[85vw] flex-col border-l shadow-2xl">
-              <div className="flex h-9 shrink-0 items-center justify-between border-b px-3">
-                <span className="text-xs font-semibold tracking-wide uppercase">{toolPanelSection}</span>
-                <Button variant="ghost" size="icon" className="size-7" onClick={() => setToolPanelSection(null)} aria-label="Close tools" title="Close tools">
+            <aside className="bg-background absolute inset-y-0 right-0 z-40 flex w-[420px] sm:w-[480px] max-w-[90vw] flex-col border-l shadow-2xl animate-in slide-in-from-right duration-200">
+              <div className="flex h-10 shrink-0 items-center justify-between border-b px-3.5 bg-muted/20">
+                <span className="text-xs font-bold tracking-wide uppercase text-foreground">{toolPanelSection} Studio</span>
+                <Button variant="ghost" size="icon" className="size-7 rounded-lg" onClick={() => setToolPanelSection(null)} aria-label="Close tools" title="Close tools">
                   <X className="size-4" />
                 </Button>
               </div>
-              <div className="min-h-0 flex-1">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <RightToolPanel section={toolPanelSection as ToolSection} onCollapse={() => setToolPanelSection(null)} />
               </div>
             </aside>
           </>
         )}
-        </div>
+      </div>
 
       <HistoryToast />
     </div>

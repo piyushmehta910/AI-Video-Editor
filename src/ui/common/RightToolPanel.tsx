@@ -6369,7 +6369,7 @@ export function RightToolPanel({ section, onCollapse }: RightToolPanelProps) {
   const SectionContent = SECTION_COMPONENTS[section]
 
   return (
-    <div className="flex h-full w-80 flex-col border-l bg-card">
+    <div className="flex h-full w-full flex-col bg-card">
       <div className="shrink-0 border-b px-3 py-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -6,6 +6,13 @@ import {
   Music,
   Sparkles,
   Type,
+  Copy,
+  Scissors,
+  Volume2,
+  VolumeX,
+  RotateCcw,
+  Trash2,
+  Film,
 } from 'lucide-react'
 import type { CameraMode, Clip, TextOverlay, TrackType } from '@/engine/types'
 import { CAMERA_MODES, clampRig, formatSeconds } from '@/engine/types'
@@ -64,6 +71,15 @@ export function InspectorPanel({
   const insp = useInspector()
   const target = insp.target
   const clip = target?.clip
+  const project = useTimelineStore((s) => s.project)
+  const playhead = useTimelineStore((s) => s.playhead)
+  const splitClip = useTimelineStore((s) => s.splitClip)
+  const deleteClips = useTimelineStore((s) => s.deleteClips)
+  const addClip = useTimelineStore((s) => s.addClip)
+  const updateClip = useTimelineStore((s) => s.updateClip)
+  const addTextClip = useTimelineStore((s) => s.addTextClip)
+
+  const [activeTab, setActiveTab] = React.useState<string>('all')
 
   // Text-track clips always carry an overlay so the Text section is editable.
   React.useEffect(() => {
@@ -74,26 +90,79 @@ export function InspectorPanel({
   }, [target])
 
   if (!target || !clip) {
+    const totalClips = project.tracks.reduce((sum, t) => sum + t.clips.length, 0)
+    const duration = useTimelineStore.getState().duration()
     return (
-      <div className="flex h-full w-full flex-col bg-muted/30">
-        <PanelHeader title="Inspector" onCollapse={onCollapse} />
-        <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto p-6 text-center">
-          <div>
-            <div className="bg-muted mx-auto flex size-12 items-center justify-center rounded-xl">
-              <MousePointerClick className="text-muted-foreground size-6" />
+      <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
+        <PanelHeader title="Project Inspector" onCollapse={onCollapse} />
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          {/* Project Summary Card */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-2.5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-foreground truncate max-w-[180px]">{project.name || 'Untitled Project'}</span>
+              <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-violet-600 dark:text-violet-400">
+                {project.width}×{project.height}
+              </span>
             </div>
-            <p className="mt-3 text-sm font-semibold">No clip selected</p>
-            <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-              Select a clip in the timeline to edit its transform, appearance, audio, effects and
-              transitions here.
-            </p>
+            <div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
+              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40">
+                <span className="text-[9px] text-muted-foreground block font-sans font-medium">Duration</span>
+                <span className="font-bold text-foreground">~{formatSeconds(duration)}</span>
+              </div>
+              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40">
+                <span className="text-[9px] text-muted-foreground block font-sans font-medium">Framerate</span>
+                <span className="font-bold text-foreground">{project.fps} fps</span>
+              </div>
+              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40">
+                <span className="text-[9px] text-muted-foreground block font-sans font-medium">Clips / Tracks</span>
+                <span className="font-bold text-foreground">{totalClips} / {project.tracks.length}</span>
+              </div>
+            </div>
           </div>
-          {onOpenMedia && (
-            <Button size="sm" variant="outline" onClick={onOpenMedia}>
-              Browse media
-            </Button>
-          )}
-          <div className="w-full pt-2 text-left">
+
+          {/* Quick Creation Shortcuts */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Quick Add & Tools</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs justify-start gap-1.5 border-border/60 hover:border-violet-500/40 hover:bg-violet-500/10 font-medium"
+                onClick={() => {
+                  const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[0]
+                  if (textTrack) addTextClip('New Title', textTrack.id, playhead ?? 0)
+                }}
+              >
+                <Type className="size-3 text-sky-500" />
+                Add Text Title
+              </Button>
+              {onOpenMedia && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs justify-start gap-1.5 border-border/60 hover:border-violet-500/40 hover:bg-violet-500/10 font-medium"
+                  onClick={onOpenMedia}
+                >
+                  <Film className="size-3 text-emerald-500" />
+                  Browse Media
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-dashed border-border p-4 text-center space-y-2">
+            <div className="bg-violet-500/10 text-violet-500 mx-auto flex size-10 items-center justify-center rounded-xl">
+              <MousePointerClick className="size-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground">Select a Clip to Edit</p>
+              <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
+                Click any video, audio, text, or fx clip on the timeline below to inspect and customize properties.
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full pt-1 text-left">
             <CaptionsPanel />
           </div>
         </div>
@@ -104,37 +173,160 @@ export function InspectorPanel({
   const meta = TYPE_META[target.track.type]
   const Icon = meta.icon
 
+  // Quick Action Handlers
+  const handleDuplicate = () => {
+    const newStart = clip.startTime + clip.duration
+    addClip(clip.assetId, target.track.id, newStart)
+  }
+
+  const handleSplit = () => {
+    if (playhead != null && playhead > clip.startTime && playhead < clip.startTime + clip.duration) {
+      splitClip(clip.id, playhead)
+    }
+  }
+
+  const isMuted = clip.volume === 0
+  const toggleMute = () => {
+    updateClip(clip.id, { volume: isMuted ? 1 : 0 })
+  }
+
+  const handleResetTransform = () => {
+    updateClip(clip.id, {
+      position: { x: 0, y: 0 },
+      scale: { x: 1, y: 1 },
+      rotation: 0,
+    })
+  }
+
+  const handleDelete = () => {
+    deleteClips([clip.id])
+  }
+
   return (
-    <div className="flex h-full w-full flex-col bg-muted/30">
+    <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
       <PanelHeader title={insp.selectionCount > 1 ? `${insp.selectionCount} clips selected` : 'Inspector'} onCollapse={onCollapse} />
 
-      <div className="flex items-center gap-2.5 border-b px-3 py-2">
-        <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-md', meta.className)}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium">{clip.name}</p>
-          <p className="text-muted-foreground font-mono text-[10px]">{formatSeconds(clip.duration)}</p>
+      {/* Clip Info Header */}
+      <div className="border-b border-border/80 px-3 py-2.5 space-y-2 bg-muted/15">
+        <div className="flex items-center gap-2.5">
+          <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg shadow-xs', meta.className)}>
+            <Icon className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-foreground">{clip.name}</p>
+            <div className="flex items-center gap-1.5 text-muted-foreground font-mono text-[10px]">
+              <span>{formatSeconds(clip.duration)}</span>
+              <span>·</span>
+              <span>@ {formatSeconds(clip.startTime)}</span>
+            </div>
+          </div>
+          <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider', meta.className)}>
+            {meta.label}
+          </span>
         </div>
-        <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold', meta.className)}>
-          {meta.label}
-        </span>
+
+        {/* Quick Action Buttons Toolbar */}
+        <div className="flex items-center gap-1 pt-0.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[10px] px-2 gap-1 flex-1 font-semibold border-border/60 hover:bg-muted"
+            onClick={handleDuplicate}
+            title="Duplicate Clip"
+          >
+            <Copy className="size-3" /> Duplicate
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[10px] px-2 gap-1 flex-1 font-semibold border-border/60 hover:bg-muted"
+            onClick={handleSplit}
+            disabled={playhead == null || playhead <= clip.startTime || playhead >= clip.startTime + clip.duration}
+            title="Split Clip at Playhead"
+          >
+            <Scissors className="size-3" /> Split
+          </Button>
+          {target.track.type !== 'text' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className={cn(
+                'h-6 text-[10px] px-2 gap-1 font-semibold border-border/60 hover:bg-muted',
+                isMuted && 'text-red-500 border-red-500/40 bg-red-500/10',
+              )}
+              onClick={toggleMute}
+              title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+            >
+              {isMuted ? <VolumeX className="size-3" /> : <Volume2 className="size-3" />}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[10px] px-1.5 border-border/60 hover:bg-muted"
+            onClick={handleResetTransform}
+            title="Reset Transform (Position, Scale, Rotation)"
+          >
+            <RotateCcw className="size-3" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[10px] px-1.5 text-red-500 hover:bg-red-500/10 hover:text-red-600"
+            onClick={handleDelete}
+            title="Delete Clip"
+          >
+            <Trash2 className="size-3" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Category Tabs Filter */}
+      <div className="flex flex-wrap gap-1 px-3 py-1.5 border-b border-border/60 bg-muted/10">
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'transform', label: 'Transform' },
+          { id: 'appearance', label: 'Appearance' },
+          { id: 'audio', label: 'Audio' },
+          { id: 'text', label: 'Text' },
+          { id: 'effects', label: 'Effects' },
+          { id: 'transitions', label: 'Transitions' },
+          { id: 'captions', label: 'Captions' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={cn(
+              'rounded-full px-2 py-0.5 text-[9px] font-semibold transition',
+              activeTab === tab.id
+                ? 'bg-violet-600 text-white shadow-xs font-bold'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+            )}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {insp.selectionCount > 1 ? (
         <MultiSelectEdits />
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6">
-          {target.track.type !== 'audio' && <TransformSection insp={insp} />}
-          <TextSection insp={insp} />
-          <AppearanceSection insp={insp} />
-          <AudioSection insp={insp} />
-          <EffectsSection insp={insp} />
-          <TransitionsSection insp={insp} />
-          <ModelCameraSection clip={clip} />
-          <Section title="Captions" defaultOpen={false}>
-            <CaptionsPanel />
-          </Section>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 space-y-1">
+          {(activeTab === 'all' || activeTab === 'transform') && target.track.type !== 'audio' && (
+            <TransformSection insp={insp} />
+          )}
+          {(activeTab === 'all' || activeTab === 'text') && <TextSection insp={insp} />}
+          {(activeTab === 'all' || activeTab === 'appearance') && <AppearanceSection insp={insp} />}
+          {(activeTab === 'all' || activeTab === 'audio') && <AudioSection insp={insp} />}
+          {(activeTab === 'all' || activeTab === 'effects') && <EffectsSection insp={insp} />}
+          {(activeTab === 'all' || activeTab === 'transitions') && <TransitionsSection insp={insp} />}
+          {(activeTab === 'all' || activeTab === 'transform') && <ModelCameraSection clip={clip} />}
+          {(activeTab === 'all' || activeTab === 'captions') && (
+            <Section title="Captions" defaultOpen={activeTab === 'captions'}>
+              <CaptionsPanel />
+            </Section>
+          )}
         </div>
       )}
     </div>
