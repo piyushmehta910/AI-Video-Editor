@@ -132,6 +132,41 @@ export function TransformSection({ insp }: { insp: InspectorApi }) {
         }
       />
 
+      <Row label="Quick Placement" stack>
+        <div className="grid grid-cols-4 gap-1 pt-0.5">
+          {[
+            { id: 'center', label: '⏺ Center', fn: () => insp.update({ position: { x: 0, y: 0 } }, `Centered '${clip.name}'`) },
+            { id: 'top-left', label: '↖ Top-L', fn: () => {
+              const p = useTimelineStore.getState().project
+              insp.update({ position: { x: -p.width * 0.25, y: -p.height * 0.25 } }, `Aligned '${clip.name}' top-left`)
+            }},
+            { id: 'top-right', label: '↗ Top-R', fn: () => {
+              const p = useTimelineStore.getState().project
+              insp.update({ position: { x: p.width * 0.25, y: -p.height * 0.25 } }, `Aligned '${clip.name}' top-right`)
+            }},
+            { id: 'bottom-center', label: '⬇ Lower-3rd', fn: () => {
+              const p = useTimelineStore.getState().project
+              insp.update({ position: { x: 0, y: p.height * 0.3 } }, `Aligned '${clip.name}' lower-third`)
+            }},
+            { id: 'pip', label: '🔲 PiP Corner', fn: () => {
+              const p = useTimelineStore.getState().project
+              insp.update({ position: { x: p.width * 0.3, y: p.height * 0.28 }, scale: { x: 0.38, y: 0.38 } }, `PiP '${clip.name}'`)
+            }},
+            { id: 'fill', label: '⬛ Fill View', fn: () => insp.update({ position: { x: 0, y: 0 }, scale: { x: 1, y: 1 } }, `Filled '${clip.name}'`) },
+            { id: 'reset', label: '🔄 Reset All', fn: resetTransform },
+          ].map((btn) => (
+            <button
+              key={btn.id}
+              type="button"
+              className="rounded border border-border/60 bg-[#0f0f1a] py-1 text-center font-mono text-[9px] text-muted-foreground hover:bg-violet-600/30 hover:text-white transition"
+              onClick={btn.fn}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+      </Row>
+
       <Row label="Fit Mode" stack>
         <div className="grid grid-cols-4 gap-1 pt-0.5">
           {[
