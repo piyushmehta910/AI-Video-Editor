@@ -64,6 +64,7 @@ import {
   Wand2,
   PanelRight,
   Type,
+  Smartphone,
 } from 'lucide-react'
 
 const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -71,7 +72,7 @@ const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: s
   zap: Zap,
   flask: Sparkles,
   'book-open': FileText,
-  smartphone: Image,
+  smartphone: Smartphone,
   map: Compass,
   briefcase: Box,
   clapperboard: Clapperboard,
@@ -5154,6 +5155,7 @@ function DesignSection() {
 // ─── Script Section ───────────────────────────────────────────────────────────
 function ScriptSection() {
   const [topic, setTopic] = React.useState('')
+  const [creatorCategory, setCreatorCategory] = React.useState<string>('all')
   const [creatorStyle, setCreatorStyle] = React.useState<CreatorStyleId>('mrbeast')
   const [customCreator, setCustomCreator] = React.useState('')
   const [targetDuration, setTargetDuration] = React.useState(60)
@@ -5184,6 +5186,15 @@ function ScriptSection() {
   const updateClip = useTimelineStore((s) => s.updateClip)
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
+
+  // Filtered creators list based on category tab
+  const filteredCreators = React.useMemo(() => {
+    const list = Object.values(CREATOR_STYLES)
+    if (creatorCategory === 'all') return list
+    if (creatorCategory === 'english') return list.filter((c) => c.language === 'english' || c.language === 'all')
+    if (creatorCategory === 'hindi') return list.filter((c) => c.language === 'hindi')
+    return list.filter((c) => c.category === creatorCategory)
+  }, [creatorCategory])
 
   // Voiceover Recording Integration
   const handleVoiceoverDone = React.useCallback(
@@ -5332,41 +5343,86 @@ function ScriptSection() {
   const metrics = script ? calculateScriptMetrics(script) : null
 
   return (
-    <div className="space-y-3.5 p-3">
+    <div className="space-y-3.5 p-3 text-xs">
       {/* ── 1. Creator Persona & Style Selector ── */}
-      <div className="space-y-2 rounded-lg border bg-muted/10 p-2.5">
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold flex items-center gap-1.5">
-            <Flame className="size-3.5 text-amber-400" />
-            Creator Persona & Style
+          <span className="font-bold flex items-center gap-1.5 text-foreground">
+            <Flame className="size-4 text-amber-500" />
+            <span>Famous Creators & Persona Presets</span>
           </span>
-          <span className="text-[10px] text-muted-foreground font-mono">
+          <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">
             {customCreator.trim() ? customCreator.trim() : CREATOR_STYLES[creatorStyle].name}
           </span>
         </div>
 
+        {/* Creator Category Filter Pills */}
+        <div className="flex flex-wrap gap-1">
+          {[
+            { id: 'all', label: `All (${Object.keys(CREATOR_STYLES).length})` },
+            { id: 'english', label: 'English Stars 🇬🇧' },
+            { id: 'hindi', label: 'Hindi & Indian Top 🇮🇳' },
+            { id: 'tech', label: 'Tech & AI' },
+            { id: 'business', label: 'Business & Finance' },
+            { id: 'education', label: 'Education & Science' },
+            { id: 'viral', label: 'Viral Shorts' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[9px] font-semibold transition',
+                creatorCategory === cat.id
+                  ? 'bg-violet-600 text-white font-bold shadow-xs'
+                  : 'bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+              onClick={() => setCreatorCategory(cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
         {/* Style Grid */}
-        <div className="grid grid-cols-3 gap-1 pt-0.5">
-          {(Object.values(CREATOR_STYLES) as typeof CREATOR_STYLES[CreatorStyleId][]).map((style) => {
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-0.5 pt-0.5">
+          {filteredCreators.map((style) => {
             const Icon = CREATOR_STYLE_ICON_MAP[style.icon] || Mic
+            const isSelected = creatorStyle === style.id && !customCreator.trim()
             return (
               <button
                 key={style.id}
                 type="button"
                 className={cn(
-                  'rounded-md border p-1.5 text-left transition flex flex-col justify-between h-14',
-                  creatorStyle === style.id && !customCreator.trim()
-                    ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500/50'
+                  'rounded-lg border p-1.5 text-left transition flex flex-col justify-between h-15 group relative',
+                  isSelected
+                    ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500'
                     : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
                 )}
                 onClick={() => {
                   setCreatorStyle(style.id)
                   if (style.id !== 'custom') setCustomCreator('')
+                  if (style.language === 'hindi' && language === 'auto') {
+                    setLanguage('Hinglish')
+                  }
                 }}
               >
-                <div className="flex items-center gap-1.5 w-full">
-                  <Icon className="size-3 text-violet-600 dark:text-violet-400 shrink-0" />
-                  <span className="text-[11px] font-bold truncate">{style.name.split(' ')[0]}</span>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Icon className="size-3 text-violet-600 dark:text-violet-400 shrink-0" />
+                    <span className="text-[10px] font-bold truncate text-foreground">{style.name}</span>
+                  </div>
+                  <span
+                    className={cn(
+                      'text-[8px] font-mono px-1 rounded uppercase font-bold shrink-0',
+                      style.language === 'hindi'
+                        ? 'bg-orange-500/20 text-orange-600 dark:text-orange-300'
+                        : style.language === 'english'
+                          ? 'bg-blue-500/20 text-blue-600 dark:text-blue-300'
+                          : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {style.language === 'hindi' ? 'HI' : style.language === 'english' ? 'EN' : 'ALL'}
+                  </span>
                 </div>
                 <p className="text-[8px] text-muted-foreground line-clamp-1 leading-tight">{style.tagline}</p>
               </button>
@@ -5375,13 +5431,13 @@ function ScriptSection() {
         </div>
 
         {/* Optional Custom Creator Input Field */}
-        <div className="space-y-1 pt-1.5 border-t">
+        <div className="space-y-1 pt-1.5 border-t border-border/40">
           <div className="flex items-center justify-between text-[10px]">
-            <span className="font-semibold text-muted-foreground">Custom Creator / Channel:</span>
-            <span className="text-[9px] text-violet-400 font-medium">Optional</span>
+            <span className="font-semibold text-muted-foreground">Custom Creator / Persona (Optional):</span>
+            <span className="text-[9px] text-violet-500 font-medium">Type any channel name</span>
           </div>
           <Input
-            placeholder="e.g. CodeWithHarry, CarryMinati, Fireship, Iman Gadzhi..."
+            placeholder="e.g. CodeWithHarry, CarryMinati, Fireship, Bhuvan Bam, Iman Gadzhi..."
             value={customCreator}
             onChange={(e) => {
               setCustomCreator(e.target.value)
@@ -5394,28 +5450,31 @@ function ScriptSection() {
       </div>
 
       {/* ── 2. Script Topic & Pacing Controls ── */}
-      <div className="space-y-2.5 rounded-lg border bg-muted/10 p-2.5">
-        <div className="space-y-1">
-          <Label className="text-xs font-semibold">Video Topic or Title</Label>
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-bold text-foreground">Video Topic or Core Premise</Label>
           <Input
-            placeholder="e.g. 5 AI tools that will change video editing forever"
+            placeholder="e.g. 5 AI tools that will change video editing forever..."
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            className="h-8 text-xs bg-card"
+            className="h-8 text-xs bg-card font-medium"
             disabled={busy}
           />
+
           {/* Quick Instant Topic Pills */}
-          <div className="flex flex-wrap gap-1 pt-1">
+          <div className="flex flex-wrap gap-1 pt-0.5">
             {[
-              { label: '5 AI Secrets', topic: '5 secret AI video tools that feel illegal to use in 2026', style: 'mrbeast' as CreatorStyleId, lang: 'auto' },
-              { label: 'Hindi Tech Explainer', topic: '5 AI tools jo video editing ko 10x fast kar denge', style: 'tech_burner' as CreatorStyleId, lang: 'Hinglish' },
+              { label: '5 AI Secrets (MrBeast)', topic: '5 secret AI video tools that feel illegal to use in 2026', style: 'mrbeast' as CreatorStyleId, lang: 'auto' },
+              { label: 'Hindi Tech (Tech Burner)', topic: '5 AI tools jo video editing ko 10x fast kar denge', style: 'tech_burner' as CreatorStyleId, lang: 'Hinglish' },
               { label: 'Dhruv Rathee Analysis', topic: 'The Reality of Artificial Intelligence and Future Jobs', style: 'dhruv_rathee' as CreatorStyleId, lang: 'Hindi' },
-              { label: 'Startup Pitch', topic: 'ClipForge: The Next-Generation Browser-Native AI Video Platform', style: 'ali_abdaal' as CreatorStyleId, lang: 'auto' },
+              { label: 'Tech Review (MKBHD)', topic: 'So I have been testing AI Video Editors for the past month', style: 'mkbhd' as CreatorStyleId, lang: 'auto' },
+              { label: 'Think School Case Study', topic: 'How Top AI Startups Dominated YouTube in 2026', style: 'think_school' as CreatorStyleId, lang: 'Hinglish' },
+              { label: 'CarryMinati Satire', topic: 'AI Influencers Aur Future Ki Kahani', style: 'carryminati' as CreatorStyleId, lang: 'Hinglish' },
             ].map((p) => (
               <button
                 key={p.label}
                 type="button"
-                className="rounded border border-border/60 bg-card px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-foreground transition"
+                className="rounded-full border border-border/60 bg-card px-2 py-0.5 text-[9px] font-medium text-muted-foreground hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-foreground transition"
                 onClick={() => {
                   setTopic(p.topic)
                   setCreatorStyle(p.style)
@@ -5428,20 +5487,52 @@ function ScriptSection() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* Language Selection Row */}
+        <div className="space-y-1 pt-1 border-t border-border/40">
+          <div className="flex items-center justify-between text-[10px]">
+            <Label className="text-[10px] font-bold text-foreground">Language & Script Format</Label>
+            <span className="text-[9px] text-muted-foreground font-mono">
+              {language === 'Hindi' ? 'हिन्दी (Devanagari)' : language === 'Hinglish' ? 'Hinglish (Latin)' : 'English'}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {[
+              { id: 'auto', label: 'English 🇬🇧' },
+              { id: 'Hindi', label: 'Hindi 🇮🇳' },
+              { id: 'Hinglish', label: 'Hinglish 🇮🇳' },
+              { id: 'Spanish', label: 'Spanish 🇪🇸' },
+            ].map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                className={cn(
+                  'rounded-md border py-1 text-[9px] font-semibold transition text-center',
+                  language === l.id
+                    ? 'border-violet-500 bg-violet-600 text-white shadow-xs font-bold'
+                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setLanguage(l.id)}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/40">
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <Label className="text-[10px] text-muted-foreground">Target Length</Label>
-              <span className="font-mono text-[10px] text-violet-400 font-semibold">{targetDuration}s</span>
+              <Label className="text-[10px] font-semibold text-muted-foreground">Duration</Label>
+              <span className="font-mono text-[9px] text-violet-500 font-bold">{targetDuration}s</span>
             </div>
             <Select value={String(targetDuration)} onValueChange={(v) => setTargetDuration(Number(v))} disabled={busy}>
-              <SelectTrigger className="h-7 text-xs bg-card">
+              <SelectTrigger className="w-full h-8 text-[10px] font-medium bg-card">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[250]">
                 <SelectItem value="15">15s (Shorts/TikTok)</SelectItem>
                 <SelectItem value="30">30s (Quick Hook)</SelectItem>
-                <SelectItem value="60">60s (Standard 1-Min)</SelectItem>
+                <SelectItem value="60">60s (1-Min Standard)</SelectItem>
                 <SelectItem value="90">90s (Deep Reel)</SelectItem>
                 <SelectItem value="120">2 Min (Explainer)</SelectItem>
                 <SelectItem value="180">3 Min (Mini-Doc)</SelectItem>
@@ -5450,14 +5541,12 @@ function ScriptSection() {
           </div>
 
           <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] text-muted-foreground">Tone & Pacing</Label>
-            </div>
+            <Label className="text-[10px] font-semibold text-muted-foreground">Tone & Pacing</Label>
             <Select value={customTone} onValueChange={setCustomTone} disabled={busy}>
-              <SelectTrigger className="h-7 text-xs bg-card">
+              <SelectTrigger className="w-full h-8 text-[10px] font-medium bg-card">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[250]">
                 <SelectItem value="high_energy">High Energy & Urgent</SelectItem>
                 <SelectItem value="storytelling">Narrative Storytelling</SelectItem>
                 <SelectItem value="educational">Educational & Analytical</SelectItem>
@@ -5466,39 +5555,19 @@ function ScriptSection() {
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Scenes / Beats</Label>
+            <Label className="text-[10px] font-semibold text-muted-foreground">Scene Beats</Label>
             <Select value={String(sceneCount)} onValueChange={(v) => setSceneCount(Number(v))} disabled={busy}>
-              <SelectTrigger className="h-7 text-xs bg-card">
+              <SelectTrigger className="w-full h-8 text-[10px] font-medium bg-card">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[250]">
                 <SelectItem value="3">3 Scenes (Tight)</SelectItem>
                 <SelectItem value="4">4 Scenes (Balanced)</SelectItem>
                 <SelectItem value="5">5 Scenes (Standard)</SelectItem>
                 <SelectItem value="6">6 Scenes (Deep)</SelectItem>
-                <SelectItem value="8">8 Scenes (Comprehensive)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Language</Label>
-            <Select value={language} onValueChange={setLanguage} disabled={busy}>
-              <SelectTrigger className="h-7 text-xs bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">English (Global)</SelectItem>
-                <SelectItem value="Hindi">Hindi (हिन्दी - Devanagari)</SelectItem>
-                <SelectItem value="Hinglish">Hinglish (Hindi in Roman letters)</SelectItem>
-                <SelectItem value="Spanish">Spanish</SelectItem>
-                <SelectItem value="French">French</SelectItem>
-                <SelectItem value="German">German</SelectItem>
-                <SelectItem value="Japanese">Japanese</SelectItem>
+                <SelectItem value="8">8 Scenes (Long)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -5506,11 +5575,11 @@ function ScriptSection() {
 
         <Button
           size="sm"
-          className="w-full bg-violet-600 hover:bg-violet-500 text-white shadow-xs font-semibold h-8"
+          className="w-full bg-violet-600 hover:bg-violet-500 text-white shadow-md font-bold h-9 gap-1.5"
           onClick={() => void handleGenerate()}
           disabled={busy || !topic.trim()}
         >
-          {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
           {busy ? 'Writing Viral Script...' : `Generate ${customCreator.trim() ? customCreator.trim() : CREATOR_STYLES[creatorStyle].name} Script`}
         </Button>
       </div>

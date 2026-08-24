@@ -18,12 +18,22 @@ export type CreatorStyleId =
   | 'mkbhd'
   | 'vox'
   | 'alex_hormozi'
+  | 'huberman'
+  | 'kurzgesagt'
+  | 'fireship'
+  | 'james_jani'
   | 'magnates'
   | 'shorts_viral'
   | 'dhruv_rathee'
+  | 'technical_guruji'
   | 'tech_burner'
   | 'tanmay_bhat'
+  | 'carryminati'
   | 'sandeep_maheshwari'
+  | 'beerbiceps'
+  | 'khan_sir'
+  | 'think_school'
+  | 'nitish_rajput'
   | 'custom'
 
 export interface CreatorStyle {
@@ -33,6 +43,8 @@ export interface CreatorStyle {
   tagline: string
   badge: string
   icon: string
+  language: 'english' | 'hindi' | 'all'
+  category: 'all' | 'entertainment' | 'tech' | 'business' | 'education' | 'viral'
   promptDirective: string
 }
 
@@ -44,6 +56,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Clean, balanced, conversational video narration',
     badge: 'bg-muted text-muted-foreground',
     icon: 'mic',
+    language: 'all',
+    category: 'all',
     promptDirective: 'Write clear, natural, engaging narration suitable for high quality video.',
   },
   mrbeast: {
@@ -53,8 +67,10 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Hyper-retention, extreme pacing, high stakes in frame 1',
     badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     icon: 'zap',
+    language: 'english',
+    category: 'entertainment',
     promptDirective:
-      'MRBEAST YOUTUBE STYLE: High-octane urgency. The hook in the first 3 seconds must state massive stakes or a crazy challenge. Every scene escalates the difficulty or tension. Zero filler. Short, punchy sentences. Constant visual callouts and extreme pacing to maximize 100% viewer retention.',
+      'MRBEAST YOUTUBE STYLE: High-octane urgency. The hook in the first 3 seconds must state massive stakes or an impossible challenge. Every scene escalates the tension. Zero filler. Short, punchy sentences. Constant visual callouts and extreme pacing to maximize 100% viewer retention.',
   },
   veritasium: {
     id: 'veritasium',
@@ -63,6 +79,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Counterintuitive inquiry, scientific mystery & epiphany',
     badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
     icon: 'flask',
+    language: 'english',
+    category: 'education',
     promptDirective:
       'VERITASIUM / SCIENCE ESSAY STYLE: Open with a question that breaks common sense or exposes a paradox. Guide the viewer through progressive scientific reasoning, thought experiments, and historical twists. Conclude with an inspiring philosophical paradigm shift.',
   },
@@ -73,6 +91,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Warm productivity, 3-part framework & actionable insights',
     badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     icon: 'book-open',
+    language: 'english',
+    category: 'education',
     promptDirective:
       'ALI ABDAAL PRODUCTIVITY STYLE: Warm, thoughtful, conversational tone. Uses structured frameworks ("Rule of 3"), evidence-based psychology, personal relatable anecdotes, and clear actionable takeaways for the viewer.',
   },
@@ -83,6 +103,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Crisp tech review, design philosophy & aesthetic verdict',
     badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
     icon: 'smartphone',
+    language: 'english',
+    category: 'tech',
     promptDirective:
       'MKBHD (MARQUES BROWNLEE) STYLE: Crisp, aesthetic tech review tone. Opens with "So I\'ve been using this for the past few weeks...", focuses on build quality, design nuances, day-to-day feel, key compromises, and ends with a decisive verdict.',
   },
@@ -93,6 +115,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Investigative visual essay with maps & historical depth',
     badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
     icon: 'map',
+    language: 'english',
+    category: 'education',
     promptDirective:
       'VOX / JOHNNY HARRIS INVESTIGATIVE STYLE: Journalistic visual essay. Builds narrative suspense, uses timeline and map animation cues, dives into historical and economic systems, and connects unexpected dots to reveal the bigger picture.',
   },
@@ -103,8 +127,82 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'No-BS high conviction business frameworks & raw truth',
     badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     icon: 'briefcase',
+    language: 'english',
+    category: 'business',
     promptDirective:
       'ALEX HORMOZI STYLE: High-conviction, direct, no-BS tone. Opens with a bold contrarian truth ("Look, here\'s the brutal truth about..."). Uses simple math, leverage frameworks, eliminates excuses, and delivers dense actionable value.',
+  },
+  huberman: {
+    id: 'huberman',
+    name: 'Andrew Huberman',
+    creator: 'Dr. Andrew Huberman / Joe Rogan',
+    tagline: 'Neuroscience protocols, biological mechanisms & deep dive',
+    badge: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+    icon: 'flask',
+    language: 'english',
+    category: 'education',
+    promptDirective:
+      'ANDREW HUBERMAN / JOE ROGAN PODCAST STYLE: Opens with an intriguing scientific fact about biology, dopamine, or human performance. Breaks down the physiological mechanism clearly in plain English, and concludes with 3 actionable, zero-cost protocols.',
+  },
+  kurzgesagt: {
+    id: 'kurzgesagt',
+    name: 'Kurzgesagt',
+    creator: 'Kurzgesagt (In a Nutshell)',
+    tagline: 'Cosmic existential wonder, epic science & optimistic nihilism',
+    badge: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+    icon: 'sparkles',
+    language: 'english',
+    category: 'education',
+    promptDirective:
+      'KURZGESAGT IN A NUTSHELL STYLE: Opens with a mind-boggling cosmic or microscopic question. Uses whimsical duck analogies and colorful thought experiments to explain massive scale, physics, or evolution, concluding with a poetic, uplifting existential reflection.',
+  },
+  fireship: {
+    id: 'fireship',
+    name: 'Fireship',
+    creator: 'Jeff Delaney',
+    tagline: '100-second hyper-fast tech breakdown & meme-dense delivery',
+    badge: 'bg-amber-600/20 text-amber-400 border-amber-600/40',
+    icon: 'zap',
+    language: 'english',
+    category: 'tech',
+    promptDirective:
+      'FIRESHIP STYLE: Lightning fast, witty, ultra-dense tech breakdown. Opens immediately with the core problem in 2 seconds. Injects programmer sarcasm and meme cultural references while explaining technical architectures with zero wasted syllables.',
+  },
+  james_jani: {
+    id: 'james_jani',
+    name: 'James Jani / Lemmino',
+    creator: 'James Jani / Lemmino',
+    tagline: 'Dark cinematic mystery documentary & corporate secrets',
+    badge: 'bg-slate-500/20 text-slate-300 border-slate-500/40',
+    icon: 'clapperboard',
+    language: 'english',
+    category: 'business',
+    promptDirective:
+      'JAMES JANI / LEMMINO CINEMATIC DOCUMENTARY STYLE: Atmospheric, dark, theatrical narrative arc. Explores greed, deception, or deep historical mysteries with slow-burning suspense, chapter titles, and philosophical commentary on human nature.',
+  },
+  magnates: {
+    id: 'magnates',
+    name: 'MagnatesMedia',
+    creator: 'MagnatesMedia / Moon',
+    tagline: 'Dark cinematic storytelling, corporate drama & suspense',
+    badge: 'bg-red-500/20 text-red-300 border-red-500/40',
+    icon: 'clapperboard',
+    language: 'english',
+    category: 'business',
+    promptDirective:
+      'MAGNATESMEDIA DARK STORYTELLING STYLE: Cinematic, suspenseful docudrama about corporate empires, scandals, and epic downfalls. Atmospheric pacing, intense intrigue, psychological motives, and theatrical climaxes.',
+  },
+  shorts_viral: {
+    id: 'shorts_viral',
+    name: 'Viral Shorts / Reels',
+    creator: 'Viral Short-form',
+    tagline: '0.5s visual pattern interrupt with seamless loop ending',
+    badge: 'bg-pink-500/20 text-pink-300 border-pink-500/40',
+    icon: 'flame',
+    language: 'all',
+    category: 'viral',
+    promptDirective:
+      'VIRAL SHORT-FORM / REELS STYLE: Instant pattern interrupt in the first 0.5s ("Stop scrolling if you want to know..."). Hyper-dense sentences, continuous visual change cues, and a clever loop transition that connects the last sentence seamlessly back to the first sentence.',
   },
   dhruv_rathee: {
     id: 'dhruv_rathee',
@@ -113,8 +211,22 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Logical case studies, visual chapter maps & deep-dive facts',
     badge: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
     icon: 'newspaper',
+    language: 'hindi',
+    category: 'education',
     promptDirective:
-      'DHRUV RATHEE STYLE: Highly structured, analytical explainer style. Opens with "Namaste doston..." or a gripping investigative question. Breaks topics into logical chronological chapters with historical context, charts, and clear balanced conclusions.',
+      'DHRUV RATHEE STYLE: Highly structured, analytical Hindi explainer style. Opens with "Namaste doston..." and a gripping investigative question. Breaks topics into logical chronological chapters with historical context, charts, and clear balanced conclusions.',
+  },
+  technical_guruji: {
+    id: 'technical_guruji',
+    name: 'Technical Guruji',
+    creator: 'Gaurav Chaudhary',
+    tagline: 'Chaliye shuru karte hain! Enthusiastic Hindi tech breakdowns',
+    badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+    icon: 'smartphone',
+    language: 'hindi',
+    category: 'tech',
+    promptDirective:
+      'TECHNICAL GURUJI STYLE: Iconic Indian Hindi tech review tone. Opens with "Namaskar doston, mera naam Gaurav hai aur chaliye shuru karte hain!". Warm, highly enthusiastic, everyday conversational Hindi explaining tech specs, real-world camera tests, and practical buyer advice.',
   },
   tech_burner: {
     id: 'tech_burner',
@@ -123,6 +235,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Super energetic fun tech entertainment & wild metaphors',
     badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
     icon: 'sparkles',
+    language: 'hindi',
+    category: 'tech',
     promptDirective:
       'TECH BURNER STYLE: Extreme energy, humorous Indian tech creator style. Fun metaphors, energetic delivery ("Doston ye dekho!"), crazy visual stunts, hilarious relatability, and fast snappy pacing.',
   },
@@ -133,8 +247,22 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Witty finance breakdowns, startup insights & humor',
     badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
     icon: 'trending-up',
+    language: 'hindi',
+    category: 'business',
     promptDirective:
       'TANMAY BHAT STYLE: Witty, conversational, modern creator tone. Combines pop culture memes, sharp business & startup breakdowns, relatable humor, and rapid-fire conversational pacing.',
+  },
+  carryminati: {
+    id: 'carryminati',
+    name: 'CarryMinati',
+    creator: 'Ajey Nagar',
+    tagline: 'High-octane energetic satire, sharp punchlines & slang',
+    badge: 'bg-red-600/20 text-red-400 border-red-600/40',
+    icon: 'zap',
+    language: 'hindi',
+    category: 'entertainment',
+    promptDirective:
+      'CARRYMINATI STYLE: High-octane, theatrical Hindi commentary and satire. Opens with intense dramatic energy ("Toh kaise hain aap log?"), sharp relatable punchlines, exaggerated reactions, and viral Hinglish slang to keep audience hooked.',
   },
   sandeep_maheshwari: {
     id: 'sandeep_maheshwari',
@@ -143,28 +271,58 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Passionate motivational storytelling & mindset epiphanies',
     badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
     icon: 'heart-pulse',
+    language: 'hindi',
+    category: 'education',
     promptDirective:
       'SANDEEP MAHESHWARI STYLE: Deeply inspiring, passionate storytelling style. Powerful emotional hooks, real-life mindset shifts, personal philosophy, and inspiring calls to overcome fear.',
   },
-  magnates: {
-    id: 'magnates',
-    name: 'MagnatesMedia',
-    creator: 'MagnatesMedia / Moon',
-    tagline: 'Dark cinematic storytelling, corporate drama & suspense',
-    badge: 'bg-red-500/20 text-red-300 border-red-500/40',
-    icon: 'clapperboard',
+  beerbiceps: {
+    id: 'beerbiceps',
+    name: 'BeerBiceps',
+    creator: 'Ranveer Allahbadia',
+    tagline: 'Intriguing podcast curiosity, spiritual & life deep dives',
+    badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+    icon: 'mic',
+    language: 'hindi',
+    category: 'education',
     promptDirective:
-      'MAGNATESMEDIA DARK STORYTELLING STYLE: Cinematic, suspenseful docudrama about corporate empires, scandals, and epic downfalls. Atmospheric pacing, intense intrigue, psychological motives, and theatrical climaxes.',
+      'BEERBICEPS (RANVEER ALLAHBADIA) STYLE: Deep curiosity, conversational podcast intro. Opens with a mysterious or mind-bending question ("Kya aapko pata hai ki hamare dimaag mein..."). Explores self-improvement, spiritual mysteries, and deep psychological questions with genuine amazement.',
   },
-  shorts_viral: {
-    id: 'shorts_viral',
-    name: 'TikTok / Viral Shorts',
-    creator: 'Viral Short-form',
-    tagline: '0.5s visual pattern interrupt with seamless loop ending',
-    badge: 'bg-pink-500/20 text-pink-300 border-pink-500/40',
-    icon: 'flame',
+  khan_sir: {
+    id: 'khan_sir',
+    name: 'Khan GS Research Centre',
+    creator: 'Khan Sir Patna',
+    tagline: 'Desi analogies, energetic humor & crystal-clear Hindi teaching',
+    badge: 'bg-green-500/20 text-green-300 border-green-500/40',
+    icon: 'book-open',
+    language: 'hindi',
+    category: 'education',
     promptDirective:
-      'VIRAL SHORT-FORM / REELS STYLE: Instant pattern interrupt in the first 0.5s ("Stop scrolling if you want to know..."). Hyper-dense sentences, continuous visual change cues, and a clever loop transition that connects the last sentence seamlessly back to the first sentence.',
+      'KHAN SIR (PATNA) STYLE: Uniquely entertaining, high-energy Indian educator style. Uses witty desi rural analogies, relatable Bhojpuri/Bihari Hindi humor, and crystal-clear storytelling to make complex geopolitics, science, and history effortless to understand.',
+  },
+  think_school: {
+    id: 'think_school',
+    name: 'Think School',
+    creator: 'Ganeshprasad / Think School',
+    tagline: 'Masterclass business case studies & geopolitical strategies',
+    badge: 'bg-blue-600/20 text-blue-300 border-blue-600/40',
+    icon: 'briefcase',
+    language: 'all',
+    category: 'business',
+    promptDirective:
+      'THINK SCHOOL BUSINESS CASE STUDY STYLE: High-level strategic breakdown. Opens with a jaw-dropping business metric ("How this company made 10,000 Crores with a simple trick"). Breaks down the business model, marketing moat, and key strategic lessons for entrepreneurs.',
+  },
+  nitish_rajput: {
+    id: 'nitish_rajput',
+    name: 'Nitish Rajput',
+    creator: 'Nitish Rajput',
+    tagline: 'Objective investigative documentaries & data-backed timelines',
+    badge: 'bg-amber-600/20 text-amber-300 border-amber-600/40',
+    icon: 'newspaper',
+    language: 'hindi',
+    category: 'education',
+    promptDirective:
+      'NITISH RAJPUT INVESTIGATIVE STYLE: Calm, highly objective, data-backed Hindi documentary tone. Opens with a clear problem statement, lays out the timeline chronologically with official reports and figures, and presents both sides of the issue before drawing an insightful conclusion.',
   },
   custom: {
     id: 'custom',
@@ -173,6 +331,8 @@ export const CREATOR_STYLES: Record<CreatorStyleId, CreatorStyle> = {
     tagline: 'Tailored to your favorite YouTube channel or custom persona',
     badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     icon: 'wand',
+    language: 'all',
+    category: 'all',
     promptDirective: 'Write in the custom creator persona specified by the user.',
   },
 }
