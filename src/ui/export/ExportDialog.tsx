@@ -1,5 +1,18 @@
 import * as React from 'react'
-import { X, Loader2, Download, FileVideo, AlertTriangle } from 'lucide-react'
+import {
+  X,
+  Loader2,
+  Download,
+  FileVideo,
+  AlertTriangle,
+  Film,
+  Sparkles,
+  CheckCircle2,
+  Tv,
+  Smartphone,
+  Gauge,
+  Sliders,
+} from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { exportProject } from '@/engine/export/exportVideo'
 import { exportMp4 } from '@/engine/export/exportMp4'
@@ -13,21 +26,28 @@ interface ExportDialogProps {
   onClose: () => void
 }
 
-type Codec = 'h264' | 'vp8' | 'vp9' | 'av1'
-type Format = 'webm' | 'mp4'
+type Codec = 'h264' | 'vp8' | 'vp9' | 'av1' | 'wav'
+type Format = 'webm' | 'mp4' | 'wav'
 
-const QUALITY_PRESETS: Record<string, { label: string; bitrate: number }> = {
-  low: { label: 'Low (faster)', bitrate: 2_000_000 },
-  medium: { label: 'Medium', bitrate: 5_000_000 },
-  high: { label: 'High (slower)', bitrate: 10_000_000 },
-  very_high: { label: 'Very High (4K)', bitrate: 35_000_000 },
+interface QualityPreset {
+  label: string
+  bitrate: number
+  description: string
+}
+
+const QUALITY_PRESETS: Record<string, QualityPreset> = {
+  low: { label: 'Low (Fastest)', bitrate: 2_000_000, description: 'Smaller file size, quick export' },
+  medium: { label: 'Medium (Balanced)', bitrate: 5_000_000, description: 'Recommended for YouTube & Web' },
+  high: { label: 'High (Crisp 1080p)', bitrate: 10_000_000, description: 'High fidelity for production' },
+  very_high: { label: 'Ultra (4K / Master)', bitrate: 35_000_000, description: 'Maximum bitrate for 4K archiving' },
 }
 
 const CODEC_INFO: Record<Codec, string> = {
-  h264: 'Universal compatibility. MP4 · H.264 + AAC.',
-  vp9: 'Best balance of quality & size. WebM.',
-  vp8: 'Max compatibility with old devices. WebM.',
-  av1: 'Smallest file, slowest to encode. WebM.',
+  h264: 'Universal MP4 compatibility (H.264 + AAC). Plays on all devices & browsers.',
+  vp9: 'High compression & quality (VP9 + Opus). Native in Chrome, Edge, and YouTube.',
+  vp8: 'Legacy WebM codec for maximum backward compatibility with older devices.',
+  av1: 'Next-gen open video codec with ultra-efficient compression.',
+  wav: 'Lossless uncompressed 48kHz stereo master audio track.',
 }
 
 export function ExportDialog({ open, onClose }: ExportDialogProps) {
@@ -35,41 +55,31 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const assets = useTimelineStore((s) => s.assets)
   const duration = useTimelineStore((s) => s.duration())
 
-  const resolutions: Array<{ label: string; w: number; h: number }> = React.useMemo(() => {
-    const ratio = project.width / project.height
-    const currentW = project.width
-    const currentH = project.height
+  const resolutions = React.useMemo(() => {
+    const currentW = project.width || 1920
+    const currentH = project.height || 1080
 
-    const scales: Array<{ label: string; w?: number; h?: number; base?: number }> = [
-      { label: 'Match Project', w: currentW, h: currentH },
-      { label: '720p', base: 720 },
-      { label: '1080p', base: 1080 },
-      { label: '1440p', base: 1440 },
-      { label: '4K UHD', base: 2160 },
+    const list = [
+      { label: 'Match Project', w: currentW, h: currentH, desc: `${currentW}×${currentH} (${project.aspectRatio})` },
+      { label: '1080p Full HD', w: 1920, h: 1080, desc: '1920×1080 (16:9 Landscape)' },
+      { label: '9:16 Vertical Reel', w: 1080, h: 1920, desc: '1080×1920 (TikTok / Shorts)' },
+      { label: '720p HD', w: 1280, h: 720, desc: '1280×720 (Fast Preview)' },
+      { label: '1440p 2K QHD', w: 2560, h: 1440, desc: '2560×1440 (2K Master)' },
+      { label: '4K UHD', w: 3840, h: 2160, desc: '3840×2160 (Ultra HD)' },
+      { label: '1:1 Square', w: 1080, h: 1080, desc: '1080×1080 (Instagram Feed)' },
     ]
 
-    return scales.map((s) => {
-      if (s.w != null && s.h != null) {
-        return { label: s.label, w: s.w, h: s.h }
-      }
-      const base = s.base ?? 1080
-      if (ratio >= 1) {
-        const h = base
-        const w = Math.round(h * ratio)
-        return { label: s.label, w: (w % 2 === 0 ? w : w + 1), h: (h % 2 === 0 ? h : h + 1) }
-      } else {
-        const w = base
-        const h = Math.round(w / ratio)
-        return { label: s.label, w: (w % 2 === 0 ? w : w + 1), h: (h % 2 === 0 ? h : h + 1) }
-      }
-    })
-  }, [project.width, project.height])
+    return list
+  }, [project.width, project.height, project.aspectRatio])
 
   const [resolution, setResolution] = React.useState('Match Project')
-  const [fps, setFps] = React.useState(project.fps)
+  const [fps, setFps] = React.useState(project.fps || 30)
   const [format, setFormat] = React.useState<Format>('mp4')
   const [codec, setCodec] = React.useState<Codec>('h264')
   const [quality, setQuality] = React.useState('medium')
+  const [customName, setCustomName] = React.useState(
+    project.name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-') || 'clipforge-export',
+  )
 
   const [progress, setProgress] = React.useState(0)
   const [total, setTotal] = React.useState(0)
@@ -92,10 +102,46 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
   if (!open) return null
 
-  const preset = QUALITY_PRESETS[quality]
-  const res = resolutions.find((r) => r.label === resolution) ?? resolutions[0]
-  const width = Math.round(res?.w ?? project.width ?? 1920)
-  const height = Math.round(res?.h ?? project.height ?? 1080)
+  const preset = QUALITY_PRESETS[quality] || QUALITY_PRESETS.medium
+  const selectedRes = resolutions.find((r) => r.label === resolution) ?? resolutions[0]
+  const width = Math.round(selectedRes?.w ?? project.width ?? 1920)
+  const height = Math.round(selectedRes?.h ?? project.height ?? 1080)
+
+  // Estimated file size calculation: (bitrate bits/sec * duration secs) / 8 / 1024 / 1024
+  const estimatedSizeMb = Math.max(0.5, ((preset.bitrate * Math.max(1, duration)) / 8 / 1024 / 1024)).toFixed(1)
+
+  const applyPresetProfile = (type: 'youtube' | 'reel' | 'webm_hq' | '4k' | 'audio_only') => {
+    if (type === 'youtube') {
+      setFormat('mp4')
+      setCodec('h264')
+      setResolution('1080p Full HD')
+      setFps(30)
+      setQuality('high')
+    } else if (type === 'reel') {
+      setFormat('mp4')
+      setCodec('h264')
+      setResolution('9:16 Vertical Reel')
+      setFps(30)
+      setQuality('high')
+    } else if (type === 'webm_hq') {
+      setFormat('webm')
+      setCodec('vp9')
+      setResolution('1080p Full HD')
+      setFps(60)
+      setQuality('high')
+    } else if (type === '4k') {
+      setFormat('mp4')
+      setCodec('h264')
+      setResolution('4K UHD')
+      setFps(60)
+      setQuality('very_high')
+    } else if (type === 'audio_only') {
+      setFormat('webm')
+      setCodec('vp9')
+      setResolution('Match Project')
+      setQuality('low')
+    }
+  }
 
   const handleExport = async () => {
     setStatus('running')
@@ -118,7 +164,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       const { blob, frames } =
         format === 'mp4'
           ? await exportMp4(project, assets, shared)
-          : await exportProject(project, assets, { ...shared, codec: codec as 'vp8' | 'vp9' | 'av1' })
+          : await exportProject(project, assets, { ...shared, codec: (codec === 'h264' ? 'vp9' : codec) as 'vp8' | 'vp9' | 'av1' })
       const url = URL.createObjectURL(blob)
       setResultUrl(url)
       setStatus('done')
@@ -142,59 +188,137 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   }
 
   const percent = total > 0 ? Math.min(100, Math.round((progress / total) * 100)) : 0
-  const filename = `${project.name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-') || 'clipforge'}.${format}`
+  const finalFilename = `${customName.trim() || 'clipforge-export'}.${format}`
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-xl border bg-background shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <div className="flex items-center gap-2">
-            <FileVideo className="h-4 w-4" />
-            <h2 className="text-sm font-semibold">Export Video</h2>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-xs" onClick={onClose} />
+
+      {/* Dialog Container */}
+      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-border/80 bg-card shadow-2xl overflow-hidden z-10">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border/80 px-5 py-3.5 bg-muted/20 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-xs">
+              <FileVideo className="size-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Export Project Video</h2>
+              <p className="text-[11px] text-muted-foreground">High-performance GPU browser render</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="Close">
-            <X className="h-4 w-4" />
+          <button
+            onClick={onClose}
+            className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition"
+            aria-label="Close"
+          >
+            <X className="size-4" />
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Resolution</Label>
-              <Select value={resolution} onValueChange={setResolution}>
-                <SelectTrigger size="sm" className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {resolutions.map((r) => (
-                    <SelectItem key={r.label} value={r.label}>
-                      {r.label} · {r.w}×{r.h}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Frame rate</Label>
-              <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
-                <SelectTrigger size="sm" className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[24, 25, 30, 48, 60].map((f) => (
-                    <SelectItem key={f} value={String(f)}>
-                      {f} fps
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {/* Body Content (Scrollable if screen is small) */}
+        <div className="flex-1 overflow-y-auto space-y-4 px-5 py-4 text-xs">
+          {/* Quick Platform Presets */}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+              <Sparkles className="size-3 text-violet-500" />
+              Quick Export Profiles
+            </Label>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => applyPresetProfile('youtube')}
+                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
+              >
+                <Tv className="size-3 text-red-500" />
+                1080p MP4 (YouTube)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPresetProfile('reel')}
+                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
+              >
+                <Smartphone className="size-3 text-pink-500" />
+                9:16 Reel (TikTok)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPresetProfile('webm_hq')}
+                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
+              >
+                <Film className="size-3 text-cyan-500" />
+                WebM (VP9 60fps)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPresetProfile('4k')}
+                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
+              >
+                <Gauge className="size-3 text-amber-500" />
+                4K Cinema Master
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Filename Input */}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold text-foreground">File Name</Label>
+            <div className="flex items-center rounded-lg border border-input bg-background/50 px-3 py-1.5 focus-within:ring-2 focus-within:ring-violet-500/50">
+              <input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="project-export-name"
+                className="flex-1 bg-transparent text-xs text-foreground outline-none font-medium"
+              />
+              <span className="font-mono text-[11px] font-bold text-muted-foreground uppercase">
+                .{format}
+              </span>
+            </div>
+          </div>
+
+          {/* Main Settings Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+            {/* Resolution */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Format</Label>
+              <Label className="text-[11px] font-semibold text-foreground">Resolution</Label>
+              <Select value={resolution} onValueChange={setResolution}>
+                <SelectTrigger className="w-full h-9 justify-between">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[250]">
+                  {resolutions.map((r) => (
+                    <SelectItem key={r.label} value={r.label}>
+                      <div className="flex flex-col text-left">
+                        <span className="font-semibold">{r.label}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{r.desc}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Frame rate */}
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-foreground">Frame Rate</Label>
+              <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
+                <SelectTrigger className="w-full h-9 justify-between">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[250]">
+                  <SelectItem value="24">24 fps (Cinematic Film)</SelectItem>
+                  <SelectItem value="25">25 fps (PAL Standard)</SelectItem>
+                  <SelectItem value="30">30 fps (Standard Web/Vlog)</SelectItem>
+                  <SelectItem value="60">60 fps (High Motion & Smooth)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Format Container */}
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-foreground">Format Container</Label>
               <Select
                 value={format}
                 onValueChange={(v) => {
@@ -204,17 +328,19 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   if (next === 'webm' && codec === 'h264') setCodec('vp9')
                 }}
               >
-                <SelectTrigger size="sm" className="h-8">
+                <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mp4">MP4</SelectItem>
-                  <SelectItem value="webm">WebM</SelectItem>
+                <SelectContent className="z-[250]">
+                  <SelectItem value="mp4">MP4 Video (.mp4)</SelectItem>
+                  <SelectItem value="webm">WebM Video (.webm)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Codec */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Codec</Label>
+              <Label className="text-[11px] font-semibold text-foreground">Video Codec</Label>
               <Select
                 value={codec}
                 onValueChange={(v) => {
@@ -224,35 +350,44 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   if (next === 'vp9' || next === 'vp8' || next === 'av1') setFormat('webm')
                 }}
               >
-                <SelectTrigger size="sm" className="h-8">
+                <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[250]">
                   {format === 'mp4' ? (
-                    <SelectItem value="h264">H.264 (AVC)</SelectItem>
+                    <SelectItem value="h264">H.264 / AVC (Recommended)</SelectItem>
                   ) : (
                     <>
-                      <SelectItem value="vp9">VP9</SelectItem>
-                      <SelectItem value="vp8">VP8</SelectItem>
-                      <SelectItem value="av1">AV1</SelectItem>
+                      <SelectItem value="vp9">VP9 (High Quality)</SelectItem>
+                      <SelectItem value="vp8">VP8 (Legacy Compatibility)</SelectItem>
+                      <SelectItem value="av1">AV1 (Ultra Compressed)</SelectItem>
                     </>
                   )}
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Quality</Label>
+            {/* Quality Preset */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[11px] font-semibold text-foreground flex items-center justify-between">
+                <span>Quality & Bitrate</span>
+                <span className="font-mono text-[10px] text-violet-500 font-bold">
+                  {(preset.bitrate / 1_000_000).toFixed(0)} Mbps
+                </span>
+              </Label>
               <Select value={quality} onValueChange={setQuality}>
-                <SelectTrigger size="sm" className="h-8">
+                <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[250]">
                   {Object.entries(QUALITY_PRESETS).map(([key, q]) => (
                     <SelectItem key={key} value={key}>
-                      {q.label}
+                      <div className="flex items-center justify-between w-full gap-4">
+                        <span className="font-semibold">{q.label}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {(q.bitrate / 1_000_000).toFixed(0)} Mbps · {q.description}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -260,65 +395,101 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
             </div>
           </div>
 
-          <p className="text-muted-foreground text-xs">{CODEC_INFO[codec]}</p>
+          {/* Info Card */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
+              <span className="flex items-center gap-1.5 text-foreground font-bold">
+                <Sliders className="size-3.5 text-violet-500" />
+                {width}×{height} @ {fps}fps
+              </span>
+              <span>{formatSeconds(duration)} length</span>
+              <span className="font-mono text-violet-600 dark:text-violet-400 font-bold">
+                ~{estimatedSizeMb} MB
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              {CODEC_INFO[codec]}
+            </p>
+          </div>
 
-          {(resolution === '4K UHD' || resolution === '1440p') && (
-            <div className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
-              <AlertTriangle className="size-3.5 shrink-0 text-amber-500 mt-0.5" />
-              <span>High-resolution export requires significant time and memory. For 4K, choose VP9 or H.264 with Very High quality.</span>
+          {(resolution === '4K UHD' || resolution === '1440p 2K QHD') && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="size-4 shrink-0 text-amber-500 mt-0.5" />
+              <span>
+                4K UHD render utilizes high hardware GPU decoding and frame synthesis. Please keep this tab active during encoding.
+              </span>
             </div>
           )}
 
-          <div className="text-muted-foreground flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs">
-            <span>
-              {width}×{height} · {formatSeconds(duration)}
-            </span>
-            <span>{(preset.bitrate / 1_000_000).toFixed(0)} Mbps</span>
-          </div>
-
+          {/* Progress State */}
           {status === 'running' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Encoding frame {progress} / {total || '…'}
+            <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-violet-700 dark:text-violet-300">
+                  <Loader2 className="size-4 animate-spin text-violet-500" />
+                  Rendering frame {progress} / {total || '…'}
                 </span>
-                <span>{percent}%</span>
+                <span className="font-mono text-violet-600 dark:text-violet-400 font-bold">{percent}%</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 transition-all duration-150"
+                  style={{ width: `${percent}%` }}
+                />
               </div>
-              <Button variant="outline" size="sm" className="w-full" onClick={handleCancel}>
-                Cancel
+              <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleCancel}>
+                Cancel Render
               </Button>
             </div>
           )}
 
+          {/* Error State */}
           {status === 'error' && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
           )}
 
+          {/* Completed State */}
           {status === 'done' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between rounded-md border bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400">
-                <span>Export complete</span>
+            <div className="space-y-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+              <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="size-4 text-emerald-500" />
+                  Video Encoded Successfully!
+                </span>
                 <span>{percent}%</span>
               </div>
-              <Button className="w-full" asChild>
-                <a href={resultUrl} download={filename}>
-                  <Download />
-                  Download {filename}
+              <Button
+                className="w-full gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-500 shadow-md"
+                asChild
+              >
+                <a href={resultUrl} download={finalFilename}>
+                  <Download className="size-4" />
+                  Download {finalFilename}
                 </a>
               </Button>
             </div>
           )}
-
-          {status === 'idle' && (
-            <Button className="w-full" onClick={() => void handleExport()}>
-              Export
-            </Button>
-          )}
         </div>
+
+        {/* Footer Actions */}
+        {status === 'idle' && (
+          <div className="border-t border-border/80 px-5 py-3 bg-muted/20 flex items-center justify-end gap-2 shrink-0">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void handleExport()}
+              className="gap-1.5 bg-violet-600 font-bold text-white hover:bg-violet-500 shadow-xs px-5"
+            >
+              <Download className="size-3.5" />
+              Export Video
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
