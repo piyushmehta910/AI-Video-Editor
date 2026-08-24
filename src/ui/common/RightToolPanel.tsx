@@ -68,7 +68,7 @@ import {
   type SlideLayout,
 } from '@/api/llm/slides'
 import { generateInductiveSlideContext, getSavedSlideDecks, type InductiveSlideContext } from '@/api/llm/slideContext'
-import { generateLipsyncVideo, type AvatarMouth, type LipsyncStyle, AVATAR_FACE_PRESETS, renderPresetFaceToBlob, type AvatarFacePreset } from '@/engine/avatar'
+import { generateLipsyncVideo, type AvatarMouth, type LipsyncStyle, AVATAR_FACE_PRESETS, renderPresetFaceToBlob, type AvatarFacePreset, sliceAudioBlob } from '@/engine/avatar'
 import { generateAvatarVideo, type AvatarRole } from '@/api/llm/avatarGenerator'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { searchMusic, searchSoundEffects, type MusicTrackResult, type SoundEffectResult } from '@/api/music/search'
@@ -992,12 +992,15 @@ const AVATAR_BACKGROUNDS = ['solid', 'transparent', 'blurred'] as const
 
 function AvatarSection() {
   const assets = useTimelineStore((s) => s.assets)
+  const project = useTimelineStore((s) => s.project)
+  const selectedClipId = useTimelineStore((s) => s.selection.clipIds[0])
   const importFiles = useTimelineStore((s) => s.importFiles)
   const avatarConfig = useApiConfigStore((s) => s.config.avatar)
 
-  const [inputMode, setInputMode] = React.useState<'script' | 'audio'>('script')
+  const [inputMode, setInputMode] = React.useState<'timeline' | 'script' | 'audio'>('timeline')
   const [selectedPresetId, setSelectedPresetId] = React.useState<string>('sarah-presenter')
   const [imageAssetId, setImageAssetId] = React.useState('')
+  const [selectedTimelineClipId, setSelectedTimelineClipId] = React.useState<string>('')
   const [audioAssetId, setAudioAssetId] = React.useState('')
   const [scriptText, setScriptText] = React.useState('Welcome back! Today we are exploring the latest AI video production tools.')
   const [topicPrompt, setTopicPrompt] = React.useState('')
@@ -1021,9 +1024,58 @@ function AvatarSection() {
   const [success, setSuccess] = React.useState<string | null>(null)
   const abortRef = React.useRef<AbortController | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const audioFileInputRef = React.useRef<HTMLInputElement>(null)
 
   const images = React.useMemo(() => assets.filter((a) => a.type === 'image'), [assets])
   const audios = React.useMemo(() => assets.filter((a) => a.type === 'audio'), [assets])
+
+  // Discover all clips on the timeline that contain audio
+  const timelineAudioClips = React.useMemo(() => {
+    const list: Array<{
+      clipId: string
+      trackId: string
+      trackName: string
+      name: string
+      assetId: string
+      startTime: number
+      duration: number
+      sourceStart: number
+      sourceEnd: number
+    }> = []
+
+    for (const track of project.tracks) {
+      for (const clip of track.clips) {
+        const asset = assets.find((a) => a.id === clip.assetId)
+        if (track.type === 'audio' || asset?.type === 'audio' || clip.clipType === 'audio' || asset?.type === 'video') {
+          list.push({
+            clipId: clip.id,
+            trackId: track.id,
+            trackName: track.name || (track.type === 'audio' ? 'Audio Track' : 'Video Track'),
+            name: asset?.name || `Audio Clip (${clip.startTime.toFixed(1)}s)`,
+            assetId: clip.assetId,
+            startTime: clip.startTime,
+            duration: clip.duration,
+            sourceStart: clip.sourceStart,
+            sourceEnd: clip.sourceEnd,
+          })
+        }
+      }
+    }
+    return list
+  }, [project.tracks, assets])
+
+  // Automatically default to selected timeline clip or first available audio clip
+  React.useEffect(() => {
+    if (selectedClipId) {
+      const match = timelineAudioClips.find((c) => c.clipId === selectedClipId)
+      if (match) {
+        setSelectedTimelineClipId(match.clipId)
+        setInputMode('timeline')
+      }
+    } else if (timelineAudioClips.length > 0 && !selectedTimelineClipId) {
+      setSelectedTimelineClipId(timelineAudioClips[0].clipId)
+    }
+  }, [selectedClipId, timelineAudioClips, selectedTimelineClipId])
 
   // Filtered preset faces
   const filteredPresets = React.useMemo(() => {
@@ -1047,6 +1099,17 @@ function AvatarSection() {
     if (imported.length) {
       setImageAssetId(imported[0].id)
       setSelectedPresetId('')
+    }
+  }
+
+  const handleCustomAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    const { imported } = await importFiles(Array.from(files))
+    if (imported.length) {
+      setAudioAssetId(imported[0].id)
+      setInputMode('audio')
+      setSuccess(`Imported "${imported[0].name}" for avatar speech!`)
     }
   }
 
@@ -1091,7 +1154,54 @@ function AvatarSection() {
         imageFile = await renderPresetFaceToBlob(preset, width, height)
       }
 
-      if (inputMode === 'script') {
+      if (inputMode === 'timeline') {
+        // Animate avatar using selected timeline audio clip
+        const targetClip = timelineAudioClips.find((c) => c.clipId === selectedTimelineClipId)
+        if (!targetClip) throw new Error('Please select an audio clip from the timeline')
+        const audioAsset = assets.find((a) => a.id === targetClip.assetId)
+        if (!audioAsset) throw new Error('Audio asset for selected timeline clip not found')
+        const rawAudio = await readMediaFile(audioAsset.filePath)
+
+        const isTrimmed = targetClip.sourceStart > 0 || (targetClip.sourceEnd > 0 && targetClip.sourceEnd < (audioAsset.duration || Infinity))
+        const audioFile = isTrimmed
+          ? await sliceAudioBlob(rawAudio, targetClip.sourceStart, targetClip.sourceStart + targetClip.duration)
+          : rawAudio
+
+        const result = await generateLipsyncVideo({
+          imageFile,
+          audioFile,
+          width,
+          height,
+          fps,
+          bitrate: 4_000_000,
+          codec: 'vp8',
+          mouth,
+          style,
+          background: background as 'transparent' | 'solid' | 'blurred',
+          signal: controller.signal,
+          onProgress: (done, total) => setProgress({ done, total }),
+        })
+
+        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, { type: 'video/webm' })
+        const { imported, errors } = await importFiles([file])
+        if (imported.length) {
+          const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
+          if (!videoTrack) throw new Error('No video track available on the timeline')
+          const clip = useTimelineStore.getState().addClip(imported[0].id, videoTrack.id, targetClip.startTime)
+          if (clip) {
+            useTimelineStore.getState().updateClip(clip.id, {
+              duration: result.duration,
+              sourceEnd: result.duration,
+              avatarRole: role,
+              clipType: 'avatar',
+              autoLipsync: true,
+            })
+            setSuccess(`Generated ${result.duration.toFixed(1)}s lip-sync avatar and synchronized with timeline audio at ${targetClip.startTime.toFixed(1)}s!`)
+          }
+        } else {
+          setError(errors[0] ?? 'Could not import avatar video')
+        }
+      } else if (inputMode === 'script') {
         // Generate speech via TTS / Procedural Voice & animate avatar
         const result = await generateAvatarVideo({
           role,
@@ -1175,6 +1285,7 @@ function AvatarSection() {
   }
 
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
+  const activeTimelineClip = timelineAudioClips.find((c) => c.clipId === selectedTimelineClipId)
 
   return (
     <div className="space-y-4 p-3">
@@ -1195,6 +1306,7 @@ function AvatarSection() {
         </div>
 
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCustomFaceUpload} />
+        <input ref={audioFileInputRef} type="file" accept="audio/*" className="hidden" onChange={handleCustomAudioUpload} />
 
         {/* Category Filters */}
         <div className="flex flex-wrap gap-1 pt-1">
@@ -1282,7 +1394,7 @@ function AvatarSection() {
         )}
       </div>
 
-      {/* ─── 2. Speech Sourcing (Script vs Audio) ─── */}
+      {/* ─── 2. Speech Sourcing (Timeline vs Script vs Audio File) ─── */}
       <div className="space-y-2.5 rounded-lg border bg-muted/10 p-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold">Speech Input</span>
@@ -1291,11 +1403,21 @@ function AvatarSection() {
               type="button"
               className={cn(
                 'rounded px-2 py-0.5 text-[10px] font-medium transition',
+                inputMode === 'timeline' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
+              )}
+              onClick={() => setInputMode('timeline')}
+            >
+              🎙️ Timeline Audio
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded px-2 py-0.5 text-[10px] font-medium transition',
                 inputMode === 'script' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
               )}
               onClick={() => setInputMode('script')}
             >
-              Script (TTS)
+              ✨ Script (TTS)
             </button>
             <button
               type="button"
@@ -1305,12 +1427,63 @@ function AvatarSection() {
               )}
               onClick={() => setInputMode('audio')}
             >
-              Audio Clip
+              📁 Audio File
             </button>
           </div>
         </div>
 
-        {inputMode === 'script' ? (
+        {/* ── MODE 1: TIMELINE AUDIO ── */}
+        {inputMode === 'timeline' && (
+          <div className="space-y-2">
+            {timelineAudioClips.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <Label className="text-[10px] text-muted-foreground">Select Clip from Timeline</Label>
+                  <span className="text-[9px] text-violet-400 font-medium">Auto-aligns on video track</span>
+                </div>
+
+                <Select value={selectedTimelineClipId} onValueChange={setSelectedTimelineClipId} disabled={busy}>
+                  <SelectTrigger className="h-8 text-xs font-medium">
+                    <SelectValue placeholder="Select a timeline audio clip..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timelineAudioClips.map((c) => (
+                      <SelectItem key={c.clipId} value={c.clipId}>
+                        {c.trackName}: {c.name} ({c.startTime.toFixed(1)}s - {(c.startTime + c.duration).toFixed(1)}s · {c.duration.toFixed(1)}s)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {activeTimelineClip && (
+                  <div className="rounded border bg-violet-500/10 p-2 text-[10px] space-y-1 text-violet-200">
+                    <div className="flex justify-between font-semibold">
+                      <span>Target: {activeTimelineClip.name}</span>
+                      <span>{activeTimelineClip.duration.toFixed(1)}s duration</span>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground leading-normal">
+                      Avatar will be generated to match the spoken speech waveform and placed automatically at{' '}
+                      <span className="text-violet-300 font-semibold">{activeTimelineClip.startTime.toFixed(1)}s</span> on the video track.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2.5 text-center space-y-1.5">
+                <p className="text-[11px] font-medium text-amber-200">No audio clips found on the timeline.</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Add an audio or video clip to your timeline, or switch to "Script (TTS)" to generate spoken voiceover with AI.
+                </p>
+                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => setInputMode('script')}>
+                  Switch to Script (TTS)
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MODE 2: SCRIPT (TTS / AI) ── */}
+        {inputMode === 'script' && (
           <div className="space-y-2">
             {/* AI Topic Prompt Bar */}
             <div className="space-y-1 rounded border border-violet-500/30 bg-violet-500/5 p-2">
@@ -1383,9 +1556,22 @@ function AvatarSection() {
               ))}
             </div>
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            <Label className="text-xs">Select Speech Audio Clip</Label>
+        )}
+
+        {/* ── MODE 3: AUDIO FILE ── */}
+        {inputMode === 'audio' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Select Audio Asset</Label>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 text-[10px] px-1 text-violet-400"
+                onClick={() => audioFileInputRef.current?.click()}
+              >
+                + Upload Audio
+              </Button>
+            </div>
             {audios.length > 0 ? (
               <Select value={audioAssetId} onValueChange={setAudioAssetId} disabled={busy}>
                 <SelectTrigger className="h-8 text-xs">
@@ -1398,9 +1584,12 @@ function AvatarSection() {
                 </SelectContent>
               </Select>
             ) : (
-              <p className="text-muted-foreground text-[10px]">
-                No audio files imported. Switch to "Script (TTS)" to auto-generate speech or import an audio file in the Audio tab.
-              </p>
+              <div className="rounded border bg-muted/20 p-2 text-center space-y-1">
+                <p className="text-muted-foreground text-[10px]">No audio files imported yet.</p>
+                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => audioFileInputRef.current?.click()}>
+                  Upload Audio Recording
+                </Button>
+              </div>
             )}
           </div>
         )}

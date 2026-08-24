@@ -15,6 +15,7 @@ export interface GenerateAvatarOptions {
   presetId?: string
   avatarImage?: Blob
   style?: LipsyncStyle
+  audioBlob?: Blob
 }
 
 export interface GenerateAvatarResult {
@@ -102,7 +103,7 @@ function synthesizeProceduralSpeech(text: string): Promise<Blob> {
 }
 
 export async function generateAvatarVideo(options: GenerateAvatarOptions): Promise<GenerateAvatarResult> {
-  const { role, topic, scriptText, durationSeconds, language, presetId, avatarImage, style } = options
+  const { role, topic, scriptText, durationSeconds, language, presetId, avatarImage, style, audioBlob: customAudioBlob } = options
 
   const cfg = useApiConfigStore.getState().config
   const avatarCfg = cfg.avatar
@@ -128,18 +129,22 @@ export async function generateAvatarVideo(options: GenerateAvatarOptions): Promi
 
   const fullText = scriptToText(script)
 
-  // 2. Synthesize audio
+  // 2. Resolve audio source (use custom audioBlob or synthesize via TTS / procedural voice)
   let audioBlob: Blob
-  const provider = getActiveTtsProvider()
-  if (provider) {
-    const ttsResult = await provider.synthesize({ text: fullText })
-    if (ttsResult?.blob) {
-      audioBlob = ttsResult.blob
+  if (customAudioBlob) {
+    audioBlob = customAudioBlob
+  } else {
+    const provider = getActiveTtsProvider()
+    if (provider) {
+      const ttsResult = await provider.synthesize({ text: fullText })
+      if (ttsResult?.blob) {
+        audioBlob = ttsResult.blob
+      } else {
+        audioBlob = await synthesizeProceduralSpeech(fullText)
+      }
     } else {
       audioBlob = await synthesizeProceduralSpeech(fullText)
     }
-  } else {
-    audioBlob = await synthesizeProceduralSpeech(fullText)
   }
 
   // 3. Resolve face image & mouth coordinates

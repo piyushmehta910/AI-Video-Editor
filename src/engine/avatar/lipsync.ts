@@ -47,6 +47,51 @@ export async function decodeAudio(file: Blob): Promise<AudioBuffer> {
 }
 
 /**
+ * Slice an audio file Blob to a specific time window [startSec, endSec] and export as WAV Blob.
+ */
+export async function sliceAudioBlob(file: Blob, startSec = 0, endSec?: number): Promise<Blob> {
+  const audioBuffer = await decodeAudio(file)
+  const sampleRate = audioBuffer.sampleRate
+  const startSample = Math.max(0, Math.floor(startSec * sampleRate))
+  const endSample = endSec != null && endSec > startSec
+    ? Math.min(audioBuffer.length, Math.ceil(endSec * sampleRate))
+    : audioBuffer.length
+  const length = Math.max(1, endSample - startSample)
+
+  const numSamples = length
+  const channels = audioBuffer.numberOfChannels
+  const wavBuffer = new ArrayBuffer(44 + numSamples * channels * 2)
+  const view = new DataView(wavBuffer)
+
+  function writeString(offset: number, str: string) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+  }
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + numSamples * channels * 2, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, channels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * channels * 2, true)
+  view.setUint16(32, channels * 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, numSamples * channels * 2, true)
+
+  let offset = 44
+  for (let i = 0; i < numSamples; i++) {
+    for (let c = 0; c < channels; c++) {
+      const s = Math.max(-1, Math.min(1, audioBuffer.getChannelData(c)[startSample + i] || 0))
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+      offset += 2
+    }
+  }
+  return new Blob([wavBuffer], { type: 'audio/wav' })
+}
+
+/**
  * Compute a per-frame mouth openness envelope from an audio buffer. Each frame
  * holds the normalized RMS of its samples, smoothed with a fast attack and a
  * slower release so the mouth opens quickly on syllables and closes naturally.
