@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Plus, Scan, Trash2, Type } from 'lucide-react'
+import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Play, Plus, Scan, Trash2, Type } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatSeconds } from '@/engine/types'
 import { analyzeAsset } from '@/api/llm/analysis'
+import { MediaSourcePreview } from '@/components/media/MediaSourcePreview'
 
 const ACCEPTED =
   '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*,.glb,.gltf,model/gltf-binary,model/gltf+json'
@@ -27,6 +28,12 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = React.useState(false)
+  const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null)
+
+  const selectedAsset = React.useMemo(
+    () => assets.find((a) => a.id === selectedAssetId) ?? null,
+    [assets, selectedAssetId],
+  )
 
   const handleFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList)
@@ -137,6 +144,17 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
             </div>
           )}
 
+          {/* Embedded Source Monitor / Media Preview */}
+          {selectedAsset && (
+            <div className="mb-2.5 shrink-0 animate-in fade-in duration-200">
+              <MediaSourcePreview
+                asset={selectedAsset}
+                onClose={() => setSelectedAssetId(null)}
+                onAddToTimeline={(a) => handleAdd(a)}
+              />
+            </div>
+          )}
+
           {assets.length === 0 && (
             <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
               <div className="bg-muted flex size-12 items-center justify-center rounded-xl">
@@ -156,8 +174,14 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
               <MediaItem
                 key={asset.id}
                 asset={asset}
+                isSelected={selectedAssetId === asset.id}
+                onSelect={() => setSelectedAssetId(asset.id)}
+                onPreview={() => setSelectedAssetId(asset.id)}
                 onAdd={() => handleAdd(asset)}
-                onDelete={() => void deleteAsset(asset.id)}
+                onDelete={() => {
+                  if (selectedAssetId === asset.id) setSelectedAssetId(null)
+                  void deleteAsset(asset.id)
+                }}
               />
             ))}
           </div>
@@ -244,10 +268,16 @@ function AnalyzeButton({ asset }: { asset: Asset }) {
 
 function MediaItem({
   asset,
+  isSelected,
+  onSelect,
+  onPreview,
   onAdd,
   onDelete,
 }: {
   asset: Asset
+  isSelected?: boolean
+  onSelect?: () => void
+  onPreview?: () => void
   onAdd: () => void
   onDelete: () => void
 }) {
@@ -255,52 +285,78 @@ function MediaItem({
   return (
     <div
       className={cn(
-        'group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card transition-all hover:border-violet-500/50 hover:shadow-md',
+        'group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border transition-all hover:shadow-md',
+        isSelected
+          ? 'border-violet-500 bg-violet-500/15 ring-2 ring-violet-500/60 shadow-sm'
+          : 'bg-card hover:border-violet-500/50',
       )}
+      onClick={onSelect || onPreview}
       onDoubleClick={onAdd}
-      title={`${asset.name}\n${asset.width ? `${asset.width}×${asset.height}` : ''}${asset.duration ? ` · ${formatSeconds(asset.duration)}` : ''} — double-click to add`}
+      title={`${asset.name}\n${asset.width ? `${asset.width}×${asset.height}` : ''}${asset.duration ? ` · ${formatSeconds(asset.duration)}` : ''} — click to preview · double-click to add`}
     >
-      {asset.thumbnailUrl ? (
-        <img src={asset.thumbnailUrl} alt={asset.name} className="aspect-video w-full object-cover" />
-      ) : (
-        <div className="bg-muted flex aspect-video w-full items-center justify-center">
-          <Type className="text-muted-foreground size-6" />
+      <div className="relative aspect-video w-full overflow-hidden">
+        {asset.thumbnailUrl ? (
+          <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="bg-muted flex h-full w-full items-center justify-center">
+            <Type className="text-muted-foreground size-6" />
+          </div>
+        )}
+        {asset.duration != null && (
+          <span className="absolute right-1 bottom-1 rounded bg-black/70 px-1 font-mono text-[9px] text-white">
+            {formatSeconds(asset.duration)}
+          </span>
+        )}
+        <div className="absolute top-1 right-1 flex gap-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button
+            variant="secondary"
+            size="icon"
+            className="size-6 bg-black/75 text-white hover:bg-violet-600 shadow"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (onPreview) onPreview()
+            }}
+            title="Preview in Source Monitor"
+          >
+            <Play className="size-3 fill-white ml-0.5" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="size-6 bg-black/75 text-white hover:bg-violet-600 shadow"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAdd()
+            }}
+            title="Add to timeline"
+          >
+            <Plus className="size-3.5" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            className={cn(
+              'size-6 shadow transition-colors',
+              confirm ? 'bg-destructive text-white' : 'bg-black/75 text-white hover:bg-destructive',
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirm) onDelete()
+              else {
+                setConfirm(true)
+                setTimeout(() => setConfirm(false), 1500)
+              }
+            }}
+            title="Delete asset"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
         </div>
-      )}
+      </div>
       <div className="flex items-center gap-1 px-1.5 py-1">
         <AssetIcon type={asset.type} />
         <span className="truncate text-[11px]">{asset.name}</span>
         {(asset.type === 'video' || asset.type === 'audio') && <AnalyzeButton asset={asset} />}
-      </div>
-      <div className="absolute top-1 right-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          variant="secondary"
-          size="icon"
-          className="size-6 bg-background/90"
-          onClick={(e) => {
-            e.stopPropagation()
-            onAdd()
-          }}
-          title="Add to timeline"
-        >
-          <Plus className="size-3.5" />
-        </Button>
-        <Button
-          variant="secondary"
-          size="icon"
-          className="size-6 bg-background/90"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (confirm) onDelete()
-            else {
-              setConfirm(true)
-              setTimeout(() => setConfirm(false), 1500)
-            }
-          }}
-          title="Delete asset"
-        >
-          <Trash2 className={cn('size-3.5', confirm && 'text-destructive')} />
-        </Button>
       </div>
     </div>
   )

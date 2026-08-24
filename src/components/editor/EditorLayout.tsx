@@ -16,6 +16,10 @@ const DEFAULT_TIMELINE_HEIGHT = 224
 const MIN_TIMELINE_HEIGHT = 80
 const MAX_TIMELINE_HEIGHT = 800
 
+const DEFAULT_LEFT_WIDTH = 270
+const MIN_LEFT_WIDTH = 200
+const MAX_LEFT_WIDTH = 480
+
 function loadNum(key: string, fallback: number): number {
   const v = Number(localStorage.getItem(key))
   return Number.isFinite(v) && v > 0 ? v : fallback
@@ -25,7 +29,7 @@ function loadNum(key: string, fallback: number): number {
  * 4-panel editor workspace (CSS grid):
  *   ┌──────────┬──────────────────────┬───────────┐
  *   │ MediaBin │    PreviewCanvas     │ Inspector │
- *   │  240px   │       flexible       │   280px   │
+ *   │  270px   │       flexible       │   280px   │
  *   ├──────────┴──────────────────────┴───────────┤
  *   │                Timeline                     │
  *   └─────────────────────────────────────────────┘
@@ -46,8 +50,31 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const [timelineHeight, setTimelineHeight] = React.useState(() =>
     loadNum('clipforge-timeline-height', DEFAULT_TIMELINE_HEIGHT),
   )
+  const [leftWidth, setLeftWidth] = React.useState(() =>
+    loadNum('clipforge-left-width', DEFAULT_LEFT_WIDTH),
+  )
 
   const openMedia = React.useCallback(() => setLeftOpen(true), [setLeftOpen])
+
+  const onLeftResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = leftWidth
+
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.max(MIN_LEFT_WIDTH, Math.min(MAX_LEFT_WIDTH, startW + (ev.clientX - startX)))
+      setLeftWidth(next)
+      localStorage.setItem('clipforge-left-width', String(next))
+    }
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }
 
   const onResizeStart = (e: React.PointerEvent) => {
     e.preventDefault()
@@ -76,9 +103,23 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
       {/* Content row: media bin | preview | inspector */}
       <div className="relative flex min-h-0 flex-1">
         {leftOpen ? (
-          <aside className="hidden w-60 shrink-0 border-r md:block" data-testid="media-bin-panel">
-            <MediaBin />
-          </aside>
+          <div
+            className="relative hidden shrink-0 md:flex"
+            style={{ width: leftWidth }}
+            data-testid="media-bin-panel"
+          >
+            <aside className="w-full h-full border-r overflow-hidden">
+              <MediaBin />
+            </aside>
+            <div
+              className="group absolute -right-1 top-0 bottom-0 z-20 w-2 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 transition"
+              onPointerDown={onLeftResizeStart}
+              title="Drag to resize Media Bin"
+              style={{ touchAction: 'none' }}
+            >
+              <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-violet-500" />
+            </div>
+          </div>
         ) : (
           <div className="hidden w-8 shrink-0 flex-col items-center border-r py-2 md:flex">
             <Button variant="ghost" size="icon" className="size-7" onClick={toggleLeft} aria-label="Show Media Bin" title="Show Media Bin">

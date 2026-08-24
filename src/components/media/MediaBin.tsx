@@ -27,6 +27,7 @@ import { applyAssetDropRules } from './afterAdd'
 import { isGenerated, generatedCategory } from './generatedAssets'
 import { ImportButton } from './ImportButton'
 import { MediaItem } from './MediaItem'
+import { MediaSourcePreview } from './MediaSourcePreview'
 
 const TABS: { value: 'media' | 'generated' | 'transitions' | 'text'; label: string }[] = [
   { value: 'media', label: 'Media' },
@@ -108,7 +109,13 @@ export function MediaBin() {
   const [dragOver, setDragOver] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [previewAsset, setPreviewAsset] = React.useState<{ asset: Asset; url: string } | null>(null)
+  const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null)
   const recordVideoRef = React.useRef<HTMLVideoElement>(null)
+
+  const selectedAsset = React.useMemo(
+    () => assets.find((a) => a.id === selectedAssetId) ?? null,
+    [assets, selectedAssetId],
+  )
 
   // Live preview of an in-progress recording.
   React.useEffect(() => {
@@ -422,6 +429,18 @@ export function MediaBin() {
 
         {(tab === 'media' || tab === 'generated') && (
           <>
+            {/* Embedded Source Monitor / Media Preview in Left Panel */}
+            {selectedAsset && (
+              <div className="mb-2.5 shrink-0 animate-in fade-in duration-200">
+                <MediaSourcePreview
+                  asset={selectedAsset}
+                  onClose={() => setSelectedAssetId(null)}
+                  onAddToTimeline={quickAdd}
+                  onPopout={(a) => void openPreview(a)}
+                />
+              </div>
+            )}
+
             {visibleAssets.length === 0 && tab === 'media' && <EmptyState onImport={() => document.querySelector<HTMLInputElement>('[data-testid="import-button"]')?.click()} />}
             {visibleAssets.length === 0 && tab === 'generated' && (
               <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
@@ -439,9 +458,14 @@ export function MediaBin() {
                     asset={asset}
                     view="grid"
                     generated={tab === 'generated' || isGenerated(asset)}
+                    isSelected={selectedAssetId === asset.id}
+                    onSelect={() => setSelectedAssetId(asset.id)}
                     onAdd={() => quickAdd(asset)}
-                    onPreview={() => void openPreview(asset)}
-                    onDelete={() => void deleteAsset(asset.id)}
+                    onPreview={() => setSelectedAssetId(asset.id)}
+                    onDelete={() => {
+                      if (selectedAssetId === asset.id) setSelectedAssetId(null)
+                      void deleteAsset(asset.id)
+                    }}
                     onDuplicate={() => void duplicateAsset(asset)}
                   />
                 ))}
@@ -454,9 +478,14 @@ export function MediaBin() {
                     asset={asset}
                     view="list"
                     generated={tab === 'generated' || isGenerated(asset)}
+                    isSelected={selectedAssetId === asset.id}
+                    onSelect={() => setSelectedAssetId(asset.id)}
                     onAdd={() => quickAdd(asset)}
-                    onPreview={() => void openPreview(asset)}
-                    onDelete={() => void deleteAsset(asset.id)}
+                    onPreview={() => setSelectedAssetId(asset.id)}
+                    onDelete={() => {
+                      if (selectedAssetId === asset.id) setSelectedAssetId(null)
+                      void deleteAsset(asset.id)
+                    }}
                     onDuplicate={() => void duplicateAsset(asset)}
                   />
                 ))}

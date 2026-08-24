@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Copy, Film, Info, Music2, Plus, Trash2 } from 'lucide-react'
+import { Copy, Film, Info, Music2, Play, Plus, Trash2 } from 'lucide-react'
 import type { Asset } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
 import { cn } from '@/lib/utils'
@@ -36,13 +36,25 @@ interface MediaItemProps {
   asset: Asset
   view: 'grid' | 'list'
   generated?: boolean
+  isSelected?: boolean
+  onSelect?: () => void
   onAdd: () => void
   onPreview: () => void
   onDelete: () => void
   onDuplicate: () => void
 }
 
-export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, onDuplicate }: MediaItemProps) {
+export function MediaItem({
+  asset,
+  view,
+  generated,
+  isSelected,
+  onSelect,
+  onAdd,
+  onPreview,
+  onDelete,
+  onDuplicate,
+}: MediaItemProps) {
   const [menu, setMenu] = React.useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [propsOpen, setPropsOpen] = React.useState(false)
@@ -96,14 +108,20 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
         draggable
         onDragStart={startDrag}
         onDragEnd={endDrag}
+        onClick={onSelect || onPreview}
         onDoubleClick={onAdd}
         onContextMenu={(e) => {
           e.preventDefault()
           setMenu({ x: e.clientX, y: e.clientY })
         }}
-        title={`${asset.name}\n${describeAsset(asset)}\n\nDrag to the timeline or double-click to add`}
+        title={`${asset.name}\n${describeAsset(asset)}\n\nClick to preview · Double-click or drag to add`}
         data-testid="media-item"
-        className="group hover:border-violet-500/50 flex cursor-grab items-center gap-2 rounded-lg border bg-card px-2 py-1.5 transition-all active:cursor-grabbing"
+        className={cn(
+          'group flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 transition-all active:cursor-grabbing',
+          isSelected
+            ? 'border-violet-500 bg-violet-500/15 ring-1 ring-violet-500/60'
+            : 'bg-card hover:border-violet-500/50 hover:bg-muted/20',
+        )}
       >
         {asset.thumbnailUrl ? (
           <img src={asset.thumbnailUrl} alt="" className="h-8 w-[52px] shrink-0 rounded object-cover" style={{ maxWidth: 52 }} width={52} height={32} />
@@ -120,6 +138,17 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
           {asset.duration ? formatSeconds(asset.duration) : '—'} · {formatBytes(asset.size)}
         </span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-violet-600 hover:text-white transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onPreview()
+            }}
+            title="Preview in Source Monitor"
+          >
+            <Play className="size-3 fill-current" />
+          </button>
           <button
             type="button"
             className="flex size-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-violet-600 hover:text-white transition-colors"
@@ -164,14 +193,20 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
       draggable
       onDragStart={startDrag}
       onDragEnd={endDrag}
+      onClick={onSelect || onPreview}
       onDoubleClick={onAdd}
       onContextMenu={(e) => {
         e.preventDefault()
         setMenu({ x: e.clientX, y: e.clientY })
       }}
-      title={`${asset.name}\n${describeAsset(asset)}\n\nDrag to the timeline or double-click to add`}
+      title={`${asset.name}\n${describeAsset(asset)}\n\nClick to preview · Double-click or drag to add`}
       data-testid="media-item"
-      className="group hover:border-violet-500/50 relative flex cursor-grab flex-col overflow-hidden rounded-lg border bg-card transition-all hover:shadow-md active:cursor-grabbing"
+      className={cn(
+        'group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border transition-all hover:shadow-md active:cursor-grabbing',
+        isSelected
+          ? 'border-violet-500 bg-violet-500/15 ring-2 ring-violet-500/60 shadow-sm'
+          : 'bg-card hover:border-violet-500/50',
+      )}
     >
       <div className="relative aspect-video w-full overflow-hidden" style={{ maxHeight: 80 }}>
         {asset.thumbnailUrl ? (
@@ -190,6 +225,17 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
           <span className="absolute top-1 left-1 rounded bg-violet-600 px-1 py-px text-[8px] font-bold tracking-wider text-white">AI</span>
         )}
         <div className="absolute top-1 right-1 flex items-center gap-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md bg-black/75 text-white shadow hover:bg-violet-600 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onPreview()
+            }}
+            title="Preview in Source Monitor"
+          >
+            <Play className="size-3 fill-current" />
+          </button>
           <button
             type="button"
             className="flex size-6 items-center justify-center rounded-md bg-black/75 text-white shadow hover:bg-violet-600 transition-colors"
