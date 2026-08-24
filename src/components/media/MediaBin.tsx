@@ -13,6 +13,7 @@ import {
   Video,
   X,
   Check,
+  Globe,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore, type MediaFilter, type MediaSort, type GeneratedSubTab } from '@/stores/editorStore'
@@ -28,11 +29,13 @@ import { isGenerated, generatedCategory, isRecording } from './generatedAssets'
 import { ImportButton } from './ImportButton'
 import { MediaItem } from './MediaItem'
 import { MediaSourcePreview } from './MediaSourcePreview'
+import { OnlineAssetSearch } from './OnlineAssetSearch'
 
-const TABS: { value: 'media' | 'generated' | 'recordings'; label: string; icon: React.ReactNode }[] = [
+const TABS: { value: 'media' | 'generated' | 'online' | 'recordings'; label: string; icon: React.ReactNode }[] = [
   { value: 'media', label: 'Media', icon: <FolderOpen className="size-3.5" /> },
-  { value: 'generated', label: 'AI Generated', icon: <Sparkles className="size-3.5" /> },
-  { value: 'recordings', label: 'Recordings', icon: <Video className="size-3.5" /> },
+  { value: 'generated', label: 'AI Gen', icon: <Sparkles className="size-3.5" /> },
+  { value: 'online', label: 'Online API', icon: <Globe className="size-3.5" /> },
+  { value: 'recordings', label: 'Record', icon: <Video className="size-3.5" /> },
 ]
 
 const FILTERS: { value: MediaFilter; label: string }[] = [
@@ -220,10 +223,10 @@ export function MediaBin() {
           </div>
         </div>
 
-        {/* Tab Switcher: Project Media | AI Generated | Recordings */}
-        <div className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/30 p-0.5">
+        {/* Tab Switcher: Project Media | AI Generated | Online API Search | Recordings */}
+        <div className="grid grid-cols-4 gap-0.5 rounded-lg border bg-muted/30 p-0.5">
           {TABS.map(({ value, label, icon }) => {
-            const count = tabCounts[value]
+            const count = tabCounts[value as keyof typeof tabCounts] ?? 0
             const active = tab === value
             return (
               <button
@@ -231,7 +234,7 @@ export function MediaBin() {
                 type="button"
                 onClick={() => setTab(value)}
                 className={cn(
-                  'flex items-center justify-center gap-1.5 rounded-md py-1 text-[11px] font-semibold transition',
+                  'flex items-center justify-center gap-1 rounded-md py-1 text-[10px] font-semibold transition',
                   active
                     ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs ring-1 ring-border/50'
                     : 'text-muted-foreground hover:text-foreground',
@@ -242,7 +245,7 @@ export function MediaBin() {
                 {count > 0 && (
                   <span
                     className={cn(
-                      'rounded-full px-1 text-[9px] font-mono',
+                      'rounded-full px-1 text-[8px] font-mono',
                       active ? 'bg-violet-500/20 text-violet-400' : 'bg-muted text-muted-foreground',
                     )}
                   >
@@ -255,8 +258,12 @@ export function MediaBin() {
         </div>
       </div>
 
-      {/* ── 2. Search, Filter Chips & Sort Controls ── */}
-      <div className="shrink-0 border-b border-border/60 bg-card/30 p-2 space-y-1.5">
+      {tab === 'online' ? (
+        <OnlineAssetSearch />
+      ) : (
+        <>
+          {/* ── 2. Search, Filter Chips & Sort Controls ── */}
+          <div className="shrink-0 border-b border-border/60 bg-card/30 p-2 space-y-1.5">
         {/* Search Bar + Grid/List View */}
         <div className="flex items-center gap-1.5">
           <div className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border bg-background px-2 text-xs">
@@ -564,6 +571,8 @@ export function MediaBin() {
             />
           </button>
         </div>
+      )}
+      </>
       )}
 
       {/* ── 5. Fullscreen Popout Preview Modal ── */}

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type MediaTab = 'media' | 'generated' | 'recordings' | 'transitions' | 'text'
+export type MediaTab = 'media' | 'generated' | 'recordings' | 'online' | 'transitions' | 'text'
 export type MediaView = 'grid' | 'list'
 export type MediaFilter = 'all' | 'video' | 'audio' | 'image' | 'model' | 'generated'
 export type MediaSort = 'dateAdded' | 'name' | 'duration' | 'type'
