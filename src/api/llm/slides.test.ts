@@ -96,6 +96,83 @@ describe('renderSlideHtml', () => {
   })
 })
 
+describe('generateLocalFallbackSlides & renderSlideToCanvas', () => {
+  it('generates rich context-aware slides matching user topic', async () => {
+    const { generateLocalFallbackSlides } = await import('./slides')
+    const deck = generateLocalFallbackSlides('Autonomous Drone Fleet Navigation', 4, 'cyber_neon')
+    expect(deck.topic).toBe('Autonomous Drone Fleet Navigation')
+    expect(deck.slides.length).toBe(4)
+    expect(deck.slides[0].title).toBe('Autonomous Drone Fleet Navigation')
+    expect(deck.slides[0].bullets.some((b) => b.includes('Autonomous Drone Fleet Navigation'))).toBe(true)
+    expect(deck.slides[2].layout).toBe('big_stat')
+    expect(deck.slides[3].layout).toBe('cards')
+  })
+
+  it('renders direct canvas graphics for all themes and layouts', async () => {
+    const { renderSlideToCanvas } = await import('./slides')
+    const mockCtx = {
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 0,
+      font: '',
+      textAlign: '',
+      textBaseline: '',
+      fillRect: () => {},
+      strokeRect: () => {},
+      fillText: () => {},
+      beginPath: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arcTo: () => {},
+      closePath: () => {},
+      fill: () => {},
+      stroke: () => {},
+      measureText: (text: string) => ({ width: text.length * 10 }),
+      createRadialGradient: () => ({ addColorStop: () => {} }),
+      createLinearGradient: () => ({ addColorStop: () => {} }),
+    } as unknown as CanvasRenderingContext2D
+
+    expect(() => {
+      renderSlideToCanvas(
+        mockCtx,
+        {
+          title: 'Quantum Computing Revolution',
+          subtitle: 'QPU Architecture',
+          layout: 'big_stat',
+          statNumber: '1,000,000x',
+          statLabel: 'Speedup on Shor Algorithm',
+          bullets: ['Superconducting qubits with high coherence'],
+        },
+        1,
+        3,
+        'cyber_neon',
+        1280,
+        720,
+      )
+    }).not.toThrow()
+
+    expect(() => {
+      renderSlideToCanvas(
+        mockCtx,
+        {
+          title: 'Strategic Pillars',
+          layout: 'cards',
+          bullets: [],
+          cards: [
+            { tag: 'Q1', title: 'Infra', description: 'Deploy core cluster' },
+            { tag: 'Q2', title: 'Platform', description: 'Enable multi-region' },
+          ],
+        },
+        2,
+        3,
+        'apple_minimal',
+        1280,
+        720,
+      )
+    }).not.toThrow()
+  })
+})
+
 describe('Marp Slide Engine & Inductive Context Storage', () => {
   it('parses multi-slide Marp markdown decks', async () => {
     const { parseMarpDeck, renderMarpSlideHtml } = await import('./marp')

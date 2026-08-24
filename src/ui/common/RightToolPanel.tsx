@@ -427,6 +427,39 @@ function SlideSection() {
     }
   }
 
+  // Add current single slide to Timeline
+  const handleAddCurrentSlideToTimeline = async () => {
+    if (!deck || !currentSlide || adding) return
+    setAdding(true)
+    setError(null)
+    try {
+      const blob = await renderSlidePng(
+        currentSlide,
+        currentSlideIdx + 1,
+        deck.slides.length,
+        deck.theme,
+        1280,
+        720,
+        deck.font,
+        deck.animation,
+      )
+      const file = new File([blob], `slide-${currentSlideIdx + 1}-${Date.now()}.png`, { type: 'image/png' })
+      const { imported } = await importFiles([file])
+      if (imported.length) {
+        const videoTrack = project.tracks.find((t) => t.type === 'video')
+        if (videoTrack) {
+          const newClip = addClip(imported[0].id, videoTrack.id, playhead ?? 0)
+          if (newClip) updateClip(newClip.id, { duration: slideDuration, sourceEnd: slideDuration, clipType: 'image' })
+        }
+        setSuccess(`Added Slide ${currentSlideIdx + 1} ("${currentSlide.title}") to the timeline!`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAdding(false)
+    }
+  }
+
   const currentSlide = deck ? deck.slides[currentSlideIdx] : null
 
   // Live HTML string for the current slide
@@ -721,15 +754,27 @@ function SlideSection() {
                 </div>
                 <Slider value={[slideDuration]} min={2} max={15} step={1} onValueChange={([v]) => setSlideDuration(v)} />
 
-                <Button
-                  size="sm"
-                  className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8 mt-1"
-                  onClick={() => void handleAddToTimeline()}
-                  disabled={adding}
-                >
-                  {adding ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Plus className="mr-2 size-3.5" />}
-                  {adding ? 'Rendering & Adding...' : `Add All ${deck.slides.length} Slides to Timeline`}
-                </Button>
+                <div className="grid grid-cols-2 gap-1.5 mt-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 text-[11px] font-medium"
+                    onClick={() => void handleAddCurrentSlideToTimeline()}
+                    disabled={adding}
+                  >
+                    <Plus className="mr-1 size-3.5" />
+                    Add Slide {currentSlideIdx + 1}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-semibold h-8"
+                    onClick={() => void handleAddToTimeline()}
+                    disabled={adding}
+                  >
+                    {adding ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Plus className="mr-1.5 size-3.5" />}
+                    {adding ? 'Adding...' : `Add All ${deck.slides.length} Slides`}
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (

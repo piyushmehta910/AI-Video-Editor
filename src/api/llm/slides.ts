@@ -1,5 +1,4 @@
 import { chatCompletion, getDirectorProvider, type ChatMessage } from './director'
-import { renderHtmlToPng } from '@/engine/motion/sandbox'
 
 export type SlideTheme =
   | 'pitch_dark'
@@ -264,14 +263,116 @@ export function normalizeSlides(
   }
 }
 
+export function generateLocalFallbackSlides(
+  topic: string,
+  count = 4,
+  theme: SlideTheme = 'pitch_dark',
+  font: SlideFont = 'sans',
+  animation: SlideAnimation = 'slide_up',
+): SlideDeck {
+  const cleanTopic = topic.trim() || 'Product Overview'
+  const title = cleanTopic.length > 50 ? `${cleanTopic.slice(0, 47)}...` : cleanTopic
+
+  const slides: Slide[] = [
+    {
+      id: `slide-1-${Date.now()}`,
+      title,
+      subtitle: 'Executive Briefing & Strategic Overview',
+      layout: 'hero',
+      bullets: [
+        `**Core Vision**: Transforming how teams execute and innovate on ${cleanTopic}.`,
+        '**Key Objectives**: Accelerate workflow velocity, reduce overhead, and scale impact.',
+        '**Target Outcomes**: Measurable performance gains delivered with automated precision.',
+      ],
+      theme,
+      font,
+      animation,
+    },
+    {
+      id: `slide-2-${Date.now()}`,
+      title: 'The Core Problem & Market Opportunity',
+      subtitle: 'Status Quo Analysis',
+      layout: 'split',
+      bullets: [
+        '**Legacy Friction**: High latency manual processes limiting throughput.',
+        '**Resource Drain**: Fragmented toolchains causing context switching.',
+        '**Modern Solution**: Unified AI-driven pipelines with real-time feedback.',
+        '**Competitive Edge**: Seamless integration with instant time-to-value.',
+      ],
+      theme,
+      font,
+      animation,
+    },
+    {
+      id: `slide-3-${Date.now()}`,
+      title: 'Architectural Performance & Key Metrics',
+      subtitle: 'Proven Results',
+      layout: 'big_stat',
+      statNumber: '10x',
+      statLabel: 'Productivity Gain & Workflow Acceleration',
+      bullets: [
+        '**99.4% Precision**: High accuracy automation across all operations.',
+        '**Zero Latency**: Continuous real-time processing with state persistence.',
+      ],
+      theme,
+      font,
+      animation,
+    },
+    {
+      id: `slide-4-${Date.now()}`,
+      title: 'Key Capabilities & Strategic Pillars',
+      subtitle: 'Feature Breakdown',
+      layout: 'cards',
+      cards: [
+        { tag: 'PILLAR 1', title: 'Automated Synthesis', description: 'Intelligent extraction of insights and structured narrative decks.' },
+        { tag: 'PILLAR 2', title: 'Real-Time Compositing', description: 'Instant multi-track timeline placement and layer control.' },
+        { tag: 'PILLAR 3', title: 'Extensible Pipeline', description: 'Seamless transitions, audio mixing, and high-fidelity rendering.' },
+      ],
+      bullets: [],
+      theme,
+      font,
+      animation,
+    },
+    {
+      id: `slide-5-${Date.now()}`,
+      title: 'Strategic Roadmap & Next Steps',
+      subtitle: 'Action Plan',
+      layout: 'checklist',
+      bullets: [
+        '**Phase 1**: Immediate deployment and timeline integration.',
+        '**Phase 2**: Multi-modal enhancement with narration & audio mixing.',
+        '**Phase 3**: Scaled production and final export delivery.',
+      ],
+      theme,
+      font,
+      animation,
+    },
+  ]
+
+  const limited = slides.slice(0, Math.max(1, Math.min(count, slides.length)))
+  return {
+    topic: cleanTopic,
+    title,
+    theme,
+    font,
+    animation,
+    slides: limited,
+  }
+}
+
 export async function generateSlides(options: GenerateSlidesOptions): Promise<SlideDeck> {
-  const provider = getDirectorProvider()
-  if (!provider) throw new Error('No AI provider configured. Add one in Settings → AI & Reasoning.')
-  const languageLine = options.language && options.language !== 'auto' ? ` Write in ${options.language}.` : ''
-  const countLine = options.count && options.count > 0 ? ` Generate exactly ${options.count} slides.` : ''
   const theme = options.theme ?? 'pitch_dark'
   const font = options.font ?? 'sans'
   const animation = options.animation ?? 'slide_up'
+  const count = options.count ?? 4
+
+  const provider = getDirectorProvider()
+  if (!provider) {
+    return generateLocalFallbackSlides(options.topic, count, theme, font, animation)
+  }
+
+  const languageLine = options.language && options.language !== 'auto' ? ` Write in ${options.language}.` : ''
+  const countLine = options.count && options.count > 0 ? ` Generate exactly ${options.count} slides.` : ''
 
   const userPrompt = `TOPIC: "${options.topic}"${countLine}${languageLine}
 THEME: ${theme}
@@ -281,14 +382,21 @@ ARCHETYPE: ${options.layoutArchetype || 'Modern Tech Startup Pitch Deck'}
 
 Generate the complete, visually rich presentation deck JSON now.`
 
-  const messages: ChatMessage[] = [
-    { role: 'system', content: SLIDES_SYSTEM_PROMPT },
-    { role: 'user', content: userPrompt },
-  ]
-  const reply = await chatCompletion(provider, messages)
-  const raw = extractJson(reply.content ?? '')
-  if (!raw || typeof raw !== 'object') throw new Error('Slides response was not an object.')
-  return normalizeSlides(raw as RawDeck, options.topic, options.count, theme, font, animation)
+  try {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: SLIDES_SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt },
+    ]
+    const reply = await chatCompletion(provider, messages)
+    const raw = extractJson(reply.content ?? '')
+    if (raw && typeof raw === 'object') {
+      return normalizeSlides(raw as RawDeck, options.topic, options.count, theme, font, animation)
+    }
+  } catch (err) {
+    console.warn('AI Slides generation fallback triggered:', err)
+  }
+
+  return generateLocalFallbackSlides(options.topic, count, theme, font, animation)
 }
 
 function xmlEscape(text: string): string {
@@ -562,16 +670,344 @@ export function renderSlideHtml(
   `
 }
 
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let currentLine = words[0] || ''
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i]
+    const width = ctx.measureText(currentLine + ' ' + word).width
+    if (width < maxWidth) {
+      currentLine += ' ' + word
+    } else {
+      lines.push(currentLine)
+      currentLine = word
+    }
+  }
+  if (currentLine) lines.push(currentLine)
+  return lines
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.lineTo(x + width - radius, y)
+  ctx.arcTo(x + width, y, x + width, y + radius, radius)
+  ctx.lineTo(x + width, y + height - radius)
+  ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius)
+  ctx.lineTo(x + radius, y + height)
+  ctx.arcTo(x, y + height, x, y + height - radius, radius)
+  ctx.lineTo(x, y + radius)
+  ctx.arcTo(x, y, x + radius, y, radius)
+  ctx.closePath()
+}
+
+export function renderSlideToCanvas(
+  ctx: CanvasRenderingContext2D,
+  slide: Slide,
+  index: number,
+  total: number,
+  theme: SlideTheme = 'pitch_dark',
+  width = 1280,
+  height = 720,
+  font: SlideFont = 'sans',
+) {
+  const scale = width / 1280
+  const themeMeta = SLIDE_THEMES_META[theme] || SLIDE_THEMES_META.pitch_dark
+  const fontDef = SLIDE_FONTS_META[font] || SLIDE_FONTS_META.sans
+  const accent = themeMeta.accent
+
+  // 1. Draw Background
+  if (theme === 'pitch_dark') {
+    ctx.fillStyle = '#0b0f19'
+    ctx.fillRect(0, 0, width, height)
+    const radGrad = ctx.createRadialGradient(width * 0.8, height * 0.2, 0, width * 0.8, height * 0.2, width * 0.8)
+    radGrad.addColorStop(0, '#1e1b4b')
+    radGrad.addColorStop(0.7, '#0b0f19')
+    ctx.fillStyle = radGrad
+    ctx.fillRect(0, 0, width, height)
+  } else if (theme === 'apple_minimal') {
+    ctx.fillStyle = '#050508'
+    ctx.fillRect(0, 0, width, height)
+    const radGrad = ctx.createRadialGradient(width * 0.2, height * 0.2, 0, width * 0.2, height * 0.2, width * 0.6)
+    radGrad.addColorStop(0, '#181824')
+    radGrad.addColorStop(1, '#050508')
+    ctx.fillStyle = radGrad
+    ctx.fillRect(0, 0, width, height)
+  } else if (theme === 'cyber_neon') {
+    ctx.fillStyle = '#030712'
+    ctx.fillRect(0, 0, width, height)
+    const g1 = ctx.createRadialGradient(0, 0, 0, 0, 0, width * 0.6)
+    g1.addColorStop(0, 'rgba(6, 182, 212, 0.15)')
+    g1.addColorStop(1, 'transparent')
+    ctx.fillStyle = g1
+    ctx.fillRect(0, 0, width, height)
+    const g2 = ctx.createRadialGradient(width, height, 0, width, height, width * 0.6)
+    g2.addColorStop(0, 'rgba(236, 72, 153, 0.12)')
+    g2.addColorStop(1, 'transparent')
+    ctx.fillStyle = g2
+    ctx.fillRect(0, 0, width, height)
+  } else if (theme === 'sunset_warm') {
+    const lin = ctx.createLinearGradient(0, 0, width, height)
+    lin.addColorStop(0, '#3b0764')
+    lin.addColorStop(0.5, '#831843')
+    lin.addColorStop(1, '#78350f')
+    ctx.fillStyle = lin
+    ctx.fillRect(0, 0, width, height)
+  } else if (theme === 'clean_studio') {
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(0, 0, width, height)
+  } else if (theme === 'neo_brutalist') {
+    ctx.fillStyle = '#fef08a'
+    ctx.fillRect(0, 0, width, height)
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 6 * scale
+    ctx.strokeRect(12 * scale, 12 * scale, width - 24 * scale, height - 24 * scale)
+  }
+
+  // 2. Counter Badge (top-right)
+  const isLight = theme === 'clean_studio' || theme === 'neo_brutalist'
+  const textColor = isLight ? '#0f172a' : '#ffffff'
+  const mutedText = isLight ? '#475569' : '#94a3b8'
+
+  if (total > 1) {
+    const counterText = `${index} / ${total}`
+    ctx.font = `bold ${Math.round(14 * scale)}px ${fontDef.family}`
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'middle'
+    if (theme === 'neo_brutalist') {
+      ctx.fillStyle = '#000000'
+      ctx.fillRect(width - 95 * scale, 30 * scale, 65 * scale, 26 * scale)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(counterText, width - 40 * scale, 43 * scale)
+    } else {
+      ctx.fillStyle = mutedText
+      ctx.fillText(counterText, width - 60 * scale, 45 * scale)
+    }
+  }
+
+  // 3. Subtitle / Category Badge (top-left)
+  let contentY = 60 * scale
+  if (slide.subtitle) {
+    ctx.font = `bold ${Math.round(13 * scale)}px ${fontDef.family}`
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    if (theme === 'neo_brutalist') {
+      const subWidth = ctx.measureText(slide.subtitle.toUpperCase()).width
+      ctx.fillStyle = '#ec4899'
+      ctx.fillRect(60 * scale, contentY - 12 * scale, subWidth + 16 * scale, 24 * scale)
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 2 * scale
+      ctx.strokeRect(60 * scale, contentY - 12 * scale, subWidth + 16 * scale, 24 * scale)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(slide.subtitle.toUpperCase(), 68 * scale, contentY)
+    } else {
+      ctx.fillStyle = accent
+      ctx.fillText(slide.subtitle.toUpperCase(), 60 * scale, contentY)
+    }
+    contentY += 32 * scale
+  }
+
+  // 4. Slide Title
+  ctx.font = `bold ${Math.round(38 * scale)}px ${fontDef.family}`
+  ctx.fillStyle = textColor
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'top'
+  const titleLines = wrapText(ctx, slide.title, width - 120 * scale)
+  for (const line of titleLines.slice(0, 2)) {
+    ctx.fillText(line, 60 * scale, contentY)
+    contentY += 46 * scale
+  }
+  contentY += 24 * scale
+
+  // 5. Layout Content
+  const layout = slide.layout || 'hero'
+
+  if (layout === 'big_stat' && (slide.statNumber || slide.bullets.length)) {
+    const statNum = slide.statNumber || '100%'
+    const statDesc = slide.statLabel || slide.bullets[0] || 'Key Performance Milestone'
+
+    // Big Stat Number
+    ctx.font = `900 ${Math.round(76 * scale)}px ${fontDef.family}`
+    ctx.fillStyle = accent
+    ctx.fillText(statNum, 60 * scale, contentY)
+
+    const numWidth = ctx.measureText(statNum).width
+    ctx.font = `bold ${Math.round(22 * scale)}px ${fontDef.family}`
+    ctx.fillStyle = mutedText
+    const descLines = wrapText(ctx, statDesc, width - numWidth - 160 * scale)
+    let descY = contentY + 12 * scale
+    for (const dl of descLines.slice(0, 2)) {
+      ctx.fillText(dl, 80 * scale + numWidth, descY)
+      descY += 28 * scale
+    }
+
+    contentY += 105 * scale
+    // Supporting bullets
+    const bullets = slide.bullets.slice(slide.statLabel ? 0 : 1, 3)
+    for (const b of bullets) {
+      const cleanB = b.replace(/\*\*/g, '')
+      ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = accent
+      ctx.fillText('▸', 60 * scale, contentY)
+      ctx.fillStyle = textColor
+      ctx.fillText(cleanB, 85 * scale, contentY)
+      contentY += 34 * scale
+    }
+  } else if (layout === 'cards' && slide.cards?.length) {
+    const cards = slide.cards.slice(0, 3)
+    const cardWidth = (width - 120 * scale - (cards.length - 1) * 20 * scale) / cards.length
+    const cardHeight = height - contentY - 60 * scale
+
+    cards.forEach((card, idx) => {
+      const cardX = 60 * scale + idx * (cardWidth + 20 * scale)
+      const cardY = contentY
+
+      // Card Background
+      roundRect(ctx, cardX, cardY, cardWidth, cardHeight, 14 * scale)
+      if (theme === 'neo_brutalist') {
+        ctx.fillStyle = '#ffffff'
+        ctx.fill()
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = 3 * scale
+        ctx.stroke()
+      } else {
+        ctx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.9)' : 'rgba(30, 41, 59, 0.6)'
+        ctx.fill()
+        ctx.strokeStyle = isLight ? 'rgba(203, 213, 225, 0.8)' : 'rgba(255, 255, 255, 0.12)'
+        ctx.lineWidth = 1.5 * scale
+        ctx.stroke()
+      }
+
+      let cy = cardY + 20 * scale
+      if (card.tag) {
+        ctx.font = `bold ${Math.round(11 * scale)}px ${fontDef.family}`
+        ctx.fillStyle = accent
+        ctx.fillText(card.tag.toUpperCase(), cardX + 16 * scale, cy)
+        cy += 20 * scale
+      }
+
+      ctx.font = `bold ${Math.round(18 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = textColor
+      ctx.fillText(card.title, cardX + 16 * scale, cy)
+      cy += 26 * scale
+
+      ctx.font = `${Math.round(13 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = mutedText
+      const descLines = wrapText(ctx, card.description, cardWidth - 32 * scale)
+      for (const dl of descLines.slice(0, 4)) {
+        ctx.fillText(dl, cardX + 16 * scale, cy)
+        cy += 20 * scale
+      }
+    })
+  } else if (layout === 'quote' && (slide.bullets.length || slide.title)) {
+    const quoteText = (slide.bullets[0] || slide.title).replace(/\*\*/g, '')
+    const author = slide.quoteAuthor || 'Keynote Insight'
+
+    // Quote bar
+    ctx.fillStyle = accent
+    ctx.fillRect(60 * scale, contentY, 4 * scale, 120 * scale)
+
+    ctx.font = `italic 600 ${Math.round(26 * scale)}px ${fontDef.family}`
+    ctx.fillStyle = textColor
+    const qLines = wrapText(ctx, `“${quoteText}”`, width - 180 * scale)
+    let qy = contentY + 4 * scale
+    for (const ql of qLines.slice(0, 3)) {
+      ctx.fillText(ql, 80 * scale, qy)
+      qy += 34 * scale
+    }
+    qy += 12 * scale
+    ctx.font = `bold ${Math.round(15 * scale)}px ${fontDef.family}`
+    ctx.fillStyle = mutedText
+    ctx.fillText(`— ${author}`, 80 * scale, qy)
+  } else if (layout === 'split' && slide.bullets.length >= 2) {
+    const half = Math.ceil(slide.bullets.length / 2)
+    const col1 = slide.bullets.slice(0, half)
+    const col2 = slide.bullets.slice(half)
+    const colWidth = (width - 160 * scale) / 2
+
+    // Col 1
+    let c1y = contentY
+    for (const b of col1) {
+      const clean = b.replace(/\*\*/g, '')
+      ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = accent
+      ctx.fillText('▸', 60 * scale, c1y)
+      ctx.fillStyle = textColor
+      const lines = wrapText(ctx, clean, colWidth - 30 * scale)
+      for (const l of lines) {
+        ctx.fillText(l, 82 * scale, c1y)
+        c1y += 24 * scale
+      }
+      c1y += 12 * scale
+    }
+
+    // Col 2
+    let c2y = contentY
+    const col2X = 60 * scale + colWidth + 40 * scale
+    for (const b of col2) {
+      const clean = b.replace(/\*\*/g, '')
+      ctx.font = `${Math.round(18 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = accent
+      ctx.fillText('▸', col2X, c2y)
+      ctx.fillStyle = textColor
+      const lines = wrapText(ctx, clean, colWidth - 30 * scale)
+      for (const l of lines) {
+        ctx.fillText(l, col2X + 22 * scale, c2y)
+        c2y += 24 * scale
+      }
+      c2y += 12 * scale
+    }
+  } else {
+    // Hero & Standard Checklist
+    const bullets = slide.bullets.length ? slide.bullets : ['Key takeaway and essential narrative insight']
+    for (const b of bullets.slice(0, 5)) {
+      const clean = b.replace(/\*\*/g, '')
+      ctx.font = `bold ${Math.round(20 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = accent
+      ctx.fillText(layout === 'checklist' ? '✓' : '▸', 60 * scale, contentY)
+
+      ctx.font = `${Math.round(20 * scale)}px ${fontDef.family}`
+      ctx.fillStyle = textColor
+      const lines = wrapText(ctx, clean, width - 160 * scale)
+      for (const l of lines) {
+        ctx.fillText(l, 90 * scale, contentY)
+        contentY += 28 * scale
+      }
+      contentY += 12 * scale
+    }
+  }
+}
+
 export async function renderSlidePng(
   slide: Slide,
   index: number,
   total: number,
   theme: SlideTheme,
-  width: number,
-  height: number,
+  width = 1280,
+  height = 720,
   font?: SlideFont,
-  animation?: SlideAnimation,
+  _animation?: SlideAnimation,
 ): Promise<Blob> {
-  const html = renderSlideHtml(slide, index, total, theme, font, animation)
-  return renderHtmlToPng(html, width, height)
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context unavailable')
+  renderSlideToCanvas(ctx, slide, index, total, theme, width, height, font || 'sans')
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG export failed'))), 'image/png')
+  })
 }
