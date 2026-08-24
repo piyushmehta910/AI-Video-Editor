@@ -255,16 +255,26 @@ export const useTimelineStore = create<TimelineState>()(
     return null
   }
 
-  const findNonCollidingTrack = (project: Project, requestedTrack: Track, start: number, duration: number): Track => {
-    const isOverlap = (tr: Track) =>
-      tr.clips.some((c) => Math.max(start, c.startTime) < Math.min(start + duration, c.startTime + c.duration) - 0.01)
+  const isTrackOverlapping = (tr: Track, start: number, duration: number, excludeClipId?: string) =>
+    tr.clips.some(
+      (c) =>
+        c.id !== excludeClipId &&
+        Math.max(start, c.startTime) < Math.min(start + duration, c.startTime + c.duration) - 0.01,
+    )
 
+  const findNonCollidingTrack = (
+    project: Project,
+    requestedTrack: Track,
+    start: number,
+    duration: number,
+    excludeClipId?: string,
+  ): Track => {
     // If requested track has no overlap, use it
-    if (!isOverlap(requestedTrack)) return requestedTrack
+    if (!isTrackOverlapping(requestedTrack, start, duration, excludeClipId)) return requestedTrack
 
     // Look for any existing track of the same type that has no overlap
     const sameTypeTracks = project.tracks.filter((t) => t.type === requestedTrack.type)
-    const freeTrack = sameTypeTracks.find((t) => !isOverlap(t))
+    const freeTrack = sameTypeTracks.find((t) => !isTrackOverlapping(t, start, duration, excludeClipId))
     if (freeTrack) return freeTrack
 
     // Otherwise, create a new separate track for this type so it never overlaps or collapses
@@ -742,7 +752,8 @@ export const useTimelineStore = create<TimelineState>()(
 
     updateClip: (clipId, patch) => {
       const found = findClip(get().project, clipId)
-      const subject = found ? `'${found.clip.name}'` : 'clip'
+      if (!found) return
+      const subject = `'${found.clip.name}'`
       beginHistory({ type: describePatch(patch).type, description: `${describePatch(patch).description} ${subject}`, clipId })
       const safePatch = { ...patch }
       if (typeof safePatch.startTime === 'number') {
@@ -752,9 +763,42 @@ export const useTimelineStore = create<TimelineState>()(
         safePatch.sourceStart = Math.max(0, safePatch.sourceStart)
       }
       mutate((p) => {
-        for (const track of p.tracks) {
-          track.clips = track.clips.map((c) => (c.id === clipId ? { ...c, ...safePatch } : c))
+        const f = findClip(p, clipId)
+        if (!f) return p
+        const { track, clip } = f
+        const updated: Clip = { ...clip, ...safePatch }
+
+        // If track changed:
+        if (safePatch.trackId && safePatch.trackId !== track.id) {
+          const dest = p.tracks.find((t) => t.id === safePatch.trackId)
+          if (dest && dest.type === track.type) {
+            track.clips = track.clips.filter((c) => c.id !== clipId)
+            const targetTrack = isTrackOverlapping(dest, updated.startTime, updated.duration, clipId)
+              ? findNonCollidingTrack(p, dest, updated.startTime, updated.duration, clipId)
+              : dest
+            updated.trackId = targetTrack.id
+            targetTrack.clips.push(updated)
+            targetTrack.clips.sort((a, b) => a.startTime - b.startTime)
+            return p
+          }
         }
+
+        // If staying on same track, check if new startTime/duration causes overlap
+        if (typeof safePatch.startTime === 'number' || typeof safePatch.duration === 'number') {
+          if (isTrackOverlapping(track, updated.startTime, updated.duration, clipId)) {
+            const targetTrack = findNonCollidingTrack(p, track, updated.startTime, updated.duration, clipId)
+            if (targetTrack.id !== track.id) {
+              track.clips = track.clips.filter((c) => c.id !== clipId)
+              updated.trackId = targetTrack.id
+              targetTrack.clips.push(updated)
+              targetTrack.clips.sort((a, b) => a.startTime - b.startTime)
+              return p
+            }
+          }
+        }
+
+        track.clips = track.clips.map((c) => (c.id === clipId ? updated : c))
+        track.clips.sort((a, b) => a.startTime - b.startTime)
         return p
       })
       commitHistory()
@@ -781,27 +825,63 @@ export const useTimelineStore = create<TimelineState>()(
 
     moveClip: (clipId, delta, targetTrackId) => {
       const found = findClip(get().project, clipId)
-      const subject = found ? `'${found.clip.name}'` : 'clip'
+      if (!found) return
+      const { track: currentTrack, clip: currentClip } = found
+      const subject = `'${currentClip.name}'`
       const target = targetTrackId ? get().project.tracks.find((t) => t.id === targetTrackId) : undefined
       beginHistory({
         type: 'move',
-        description: target ? `Moved ${subject} to ${target.name}` : `Moved ${subject}`,
+        description: target && target.id !== currentTrack.id ? `Moved ${subject} to ${target.name}` : `Moved ${subject}`,
         clipId,
       })
       mutate((p) => {
-        for (const track of p.tracks) {
-          track.clips = track.clips.map((c) => {
-            if (c.id !== clipId) return c
-            const nextStart = Math.max(0, c.startTime + delta)
-            if (targetTrackId && targetTrackId !== c.trackId) {
-              const target = p.tracks.find((t) => t.id === targetTrackId)
-              if (target && target.type === track.type) {
-                return { ...c, trackId: target.id, startTime: nextStart }
-              }
-            }
-            return { ...c, startTime: nextStart }
-          })
+        let movingClip: Clip | null = null
+        for (const tr of p.tracks) {
+          const idx = tr.clips.findIndex((c) => c.id === clipId)
+          if (idx !== -1) {
+            movingClip = tr.clips[idx]
+            tr.clips.splice(idx, 1)
+            break
+          }
         }
+        if (!movingClip) return p
+
+        let destTrack = p.tracks.find((t) => t.id === (targetTrackId || movingClip.trackId))
+        if (!destTrack || destTrack.type !== currentTrack.type) {
+          destTrack = p.tracks.find((t) => t.id === currentTrack.id) || p.tracks[0]
+        }
+
+        let nextStart = Math.max(0, movingClip.startTime + delta)
+        const duration = movingClip.duration
+
+        // Prevent overlap with existing clips on destTrack
+        const otherClips = destTrack.clips.filter((c) => c.id !== clipId).sort((a, b) => a.startTime - b.startTime)
+        const colliding = otherClips.find(
+          (c) => Math.max(nextStart, c.startTime) < Math.min(nextStart + duration, c.startTime + c.duration) - 0.01,
+        )
+
+        if (colliding) {
+          if (delta <= 0) {
+            // Moving left: snap to right edge of colliding clip
+            nextStart = Math.max(0, colliding.startTime + colliding.duration)
+          } else {
+            // Moving right: snap to left edge of colliding clip
+            nextStart = Math.max(0, colliding.startTime - duration)
+          }
+        }
+
+        // If after clamping there's still an overlap on destTrack, find or create non-colliding track
+        const stillColliding = otherClips.find(
+          (c) => Math.max(nextStart, c.startTime) < Math.min(nextStart + duration, c.startTime + c.duration) - 0.01,
+        )
+        if (stillColliding) {
+          destTrack = findNonCollidingTrack(p, destTrack, nextStart, duration, clipId)
+        }
+
+        movingClip.startTime = nextStart
+        movingClip.trackId = destTrack.id
+        destTrack.clips.push(movingClip)
+        destTrack.clips.sort((a, b) => a.startTime - b.startTime)
         return p
       })
       commitHistory()
@@ -809,23 +889,42 @@ export const useTimelineStore = create<TimelineState>()(
 
     trimClip: (clipId, edge, delta) => {
       const found = findClip(get().project, clipId)
-      const subject = found ? `'${found.clip.name}'` : 'clip'
+      if (!found) return
+      const { clip } = found
+      const subject = `'${clip.name}'`
       beginHistory({ type: 'edit', description: `Trimmed ${subject}`, clipId })
       mutate((p) => {
-        const found = findClip(p, clipId)
-        if (!found) return p
-        const { clip } = found
+        const f = findClip(p, clipId)
+        if (!f) return p
+        const { track: tr, clip: c } = f
         const frame = 1 / p.fps
+        const otherClips = tr.clips.filter((other) => other.id !== clipId).sort((a, b) => a.startTime - b.startTime)
+
         if (edge === 'start') {
-          const newStart = Math.max(0, clip.sourceStart + delta)
-          const applied = Math.min(newStart, clip.sourceEnd - frame)
-          clip.startTime = Math.max(0, clip.startTime + (applied - clip.sourceStart))
-          clip.duration = Math.max(frame, clip.duration - (applied - clip.sourceStart))
-          clip.sourceStart = applied
+          const prevClips = otherClips.filter((other) => other.startTime + other.duration <= c.startTime + 0.01)
+          const minPossibleStart = prevClips.length > 0 ? Math.max(...prevClips.map((other) => other.startTime + other.duration)) : 0
+
+          const newStart = Math.max(0, c.sourceStart + delta)
+          const applied = Math.min(newStart, c.sourceEnd - frame)
+          const deltaApplied = applied - c.sourceStart
+          let newClipStart = c.startTime + deltaApplied
+          newClipStart = Math.max(minPossibleStart, newClipStart)
+          const actualDelta = newClipStart - c.startTime
+
+          c.startTime = newClipStart
+          c.duration = Math.max(frame, c.duration - actualDelta)
+          c.sourceStart = Math.max(0, c.sourceStart + actualDelta)
         } else {
-          const newEnd = Math.min(clip.sourceEnd + delta, (clip.sourceStart + 3600))
-          clip.duration = Math.max(frame, clip.duration + (newEnd - clip.sourceEnd))
-          clip.sourceEnd = newEnd
+          const nextClips = otherClips.filter((other) => other.startTime >= c.startTime + c.duration - 0.01)
+          const maxPossibleEnd = nextClips.length > 0 ? Math.min(...nextClips.map((other) => other.startTime)) : c.startTime + 3600
+
+          const newEnd = Math.min(c.sourceEnd + delta, c.sourceStart + 3600)
+          const desiredDuration = Math.max(frame, c.duration + (newEnd - c.sourceEnd))
+          const maxDuration = Math.max(frame, maxPossibleEnd - c.startTime)
+          const clampedDuration = Math.min(desiredDuration, maxDuration)
+
+          c.duration = clampedDuration
+          c.sourceEnd = c.sourceStart + clampedDuration
         }
         return p
       })
@@ -949,24 +1048,26 @@ export const useTimelineStore = create<TimelineState>()(
       const duplicates: Clip[] = []
       mutate((p) => {
         for (const track of p.tracks) {
-          track.clips = track.clips.map((c) => {
-            if (!ids.has(c.id)) return c
+          const matching = track.clips.filter((c) => ids.has(c.id))
+          for (const c of matching) {
+            // Find a non-colliding placement: on an empty track or after c
+            const targetTrack = findNonCollidingTrack(p, track, c.startTime, c.duration)
+            const dupStartTime = targetTrack.id === track.id ? c.startTime + c.duration : c.startTime
+            const finalTrack = isTrackOverlapping(targetTrack, dupStartTime, c.duration)
+              ? findNonCollidingTrack(p, targetTrack, dupStartTime, c.duration)
+              : targetTrack
+
             const dup: Clip = {
-              ...c,
+              ...(JSON.parse(JSON.stringify(c)) as Clip),
               id: crypto.randomUUID(),
-              startTime: c.startTime + 0.5,
+              trackId: finalTrack.id,
+              startTime: dupStartTime,
               name: `${c.name} copy`,
             }
+            finalTrack.clips.push(dup)
+            finalTrack.clips.sort((a, b) => a.startTime - b.startTime)
             duplicates.push(dup)
-            return c
-          })
-        }
-        for (const dup of duplicates) {
-          const track = p.tracks.find((t) => t.id === dup.trackId)
-          if (track) track.clips.push(dup)
-        }
-        for (const track of p.tracks) {
-          track.clips.sort((a, b) => a.startTime - b.startTime)
+          }
         }
         return p
       })
@@ -1010,14 +1111,22 @@ export const useTimelineStore = create<TimelineState>()(
         for (const src of source) {
           const track = p.tracks.find((t) => t.id === src.trackId)
           if (!track || track.locked) continue
+          const pasteStart = playhead + (src.startTime - minStart)
+          const targetTrack = findNonCollidingTrack(p, track, pasteStart, src.duration)
           const paste: Clip = {
-            ...JSON.parse(JSON.stringify(src)) as Clip,
+            ...(JSON.parse(JSON.stringify(src)) as Clip),
             id: crypto.randomUUID(),
-            startTime: playhead + (src.startTime - minStart),
+            trackId: targetTrack.id,
+            startTime: pasteStart,
             name: src.name,
           }
-          track.clips.push(paste)
-          track.clips.sort((a, b) => a.startTime - b.startTime)
+          let dest = p.tracks.find((t) => t.id === targetTrack.id)
+          if (!dest) {
+            p.tracks.push(targetTrack)
+            dest = targetTrack
+          }
+          dest.clips.push(paste)
+          dest.clips.sort((a, b) => a.startTime - b.startTime)
           created.push(paste)
         }
         return p

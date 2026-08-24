@@ -294,4 +294,37 @@ describe('human-readable log', () => {
     s.setPlayhead(2.5)
     expect(useTimelineStore.getState().playhead).toBe(2.5)
   })
+
+  it('prevents overlapping clips on the same track when moving or adding', () => {
+    const s = useTimelineStore.getState()
+    const trackId = s.project.tracks[0].id
+
+    // Add clip A at [0, 4]
+    const clipA = makeClip('clip-a', trackId, 0)
+    clipA.duration = 4
+    s.addClipToTrack(clipA)
+
+    // Add clip B at [2, 6] (which overlaps [0, 4])
+    const clipB = makeClip('clip-b', trackId, 2)
+    clipB.duration = 4
+    s.addClipToTrack(clipB)
+
+    // clipB must have been routed to a non-colliding track (Video 2)
+    const allTracks = useTimelineStore.getState().project.tracks
+    const trackA = allTracks.find((t) => t.clips.some((c) => c.id === 'clip-a'))!
+    const trackB = allTracks.find((t) => t.clips.some((c) => c.id === 'clip-b'))!
+    expect(trackA.id).not.toBe(trackB.id)
+
+    // Moving a clip towards another clip on the same track clamps to prevent overlap
+    const clipC = makeClip('clip-c', trackA.id, 6)
+    clipC.duration = 2
+    s.addClipToTrack(clipC)
+
+    // Move clipC left by 4 seconds (from 6 to 2, where clipA is [0, 4])
+    s.moveClip('clip-c', -4)
+    const updatedC = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === 'clip-c')!
+    // clipC must be clamped at 4 (the end of clipA) or placed on non-colliding track without overlap
+    expect(updatedC.startTime).toBeGreaterThanOrEqual(4)
+  })
 })
+
