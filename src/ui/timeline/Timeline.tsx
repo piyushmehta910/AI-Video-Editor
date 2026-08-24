@@ -156,7 +156,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const lastFitRef = React.useRef(0)
 
   const duration = projectDuration(project.tracks)
-  const contentWidth = Math.max((duration + 5) * zoom, 0)
+  const contentWidth = duration > 0 ? Math.max((duration + 1.5) * zoom, 0) : 0
 
   const viewportRef = React.useRef<HTMLDivElement>(null)
   const playheadRef = React.useRef<HTMLDivElement>(null)
@@ -172,8 +172,10 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const movePlayheadDom = React.useCallback((time: number, z: number) => {
     const el = playheadRef.current
     if (!el) return
+    const dur = projectDuration(useTimelineStore.getState().project.tracks)
+    const clampedTime = dur > 0 ? Math.max(0, Math.min(time, dur)) : 0
     const scrollLeft = viewportRef.current?.scrollLeft ?? 0
-    el.style.transform = `translateX(${HEADER_WIDTH + time * z - scrollLeft}px)`
+    el.style.transform = `translateX(${HEADER_WIDTH + clampedTime * z - scrollLeft}px)`
   }, [])
 
   const layoutAudioBar = React.useCallback(() => {
@@ -679,8 +681,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             if (el.closest('[data-header-gutter]')) return
             if (el.closest('[data-ruler-area]')) return
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            const scrollLeft = viewportRef.current?.scrollLeft ?? 0
             const maxTime = duration > 0 ? duration : 0
-            const rawTime = (e.clientX - rect.left - HEADER_WIDTH) / zoom
+            const rawTime = (e.clientX - rect.left - HEADER_WIDTH + scrollLeft) / zoom
             const time = Math.max(0, Math.min(rawTime, maxTime))
             useTimelineStore.getState().setPlayhead(time)
             useTimelineStore.getState().select([], null)
@@ -709,8 +712,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
                   setIsScrubbingRuler(true)
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  const scrollLeft = viewportRef.current?.scrollLeft ?? 0
                   const dur = projectDuration(useTimelineStore.getState().project.tracks)
-                  const raw = (e.clientX - rect.left) / zoom
+                  const raw = (e.clientX - rect.left + scrollLeft) / zoom
                   const time = dur > 0 ? Math.max(0, Math.min(raw, dur)) : 0
                   useTimelineStore.getState().setPlayhead(time)
                 }}
@@ -718,8 +722,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
                   if (!isScrubbingRuler) return
                   e.stopPropagation()
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  const scrollLeft = viewportRef.current?.scrollLeft ?? 0
                   const dur = projectDuration(useTimelineStore.getState().project.tracks)
-                  const raw = (e.clientX - rect.left) / zoom
+                  const raw = (e.clientX - rect.left + scrollLeft) / zoom
                   const time = dur > 0 ? Math.max(0, Math.min(raw, dur)) : 0
                   useTimelineStore.getState().setPlayhead(time)
                 }}
