@@ -19,6 +19,11 @@ import {
   Loader2,
   Brain,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ArrowDownToLine,
+  Wand2,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import {
@@ -50,22 +55,71 @@ interface SlideStudioModalProps {
   onDeckChange?: (deck: SlideDeck) => void
 }
 
-const QUICK_TOPICS = [
-  'Startup Pitch Deck & Investment Highlights',
-  'Next-Gen WebGPU & AI Video Architecture',
-  'Product Launch & Feature Roadmap',
-  'Quarterly Growth & Business Performance',
-  'Educational Explainer: How Neural Networks Work',
-  'Creative Storytelling & Cinematic Production',
+const TEMPLATE_ARCHETYPES = [
+  {
+    id: 'Startup Pitch Deck',
+    title: 'Startup Pitch Deck',
+    desc: 'Hook, Problem, Solution, Traction & Team',
+    topic: 'Next-Gen AI Video Platform - Seed Pitch & Investment Deck',
+    count: 4,
+    theme: 'pitch_dark' as SlideTheme,
+    font: 'sans' as SlideFont,
+    badge: 'INVESTOR',
+  },
+  {
+    id: 'Product Launch',
+    title: 'Product Launch Keynote',
+    desc: 'Cinematic reveal, flagship features & roadmap',
+    topic: 'ClipForge 2.0 Launch: Browser-Native AI Video Revolution',
+    count: 5,
+    theme: 'apple_minimal' as SlideTheme,
+    font: 'sans' as SlideFont,
+    badge: 'KEYNOTE',
+  },
+  {
+    id: 'Technical Deep Dive',
+    title: 'Technical Architecture',
+    desc: 'WebGPU shaders, ONNX pipelines & latency benchmarks',
+    topic: 'High-Performance WebGPU Neural Video Rendering Engine',
+    count: 4,
+    theme: 'cyber_neon' as SlideTheme,
+    font: 'mono' as SlideFont,
+    badge: 'ENG DEEP DIVE',
+  },
+  {
+    id: 'Executive Report',
+    title: 'Quarterly Executive Review',
+    desc: 'Key growth metrics, financial KPIs & takeaways',
+    topic: 'Q3 Business Performance: Growth Metrics & Strategic Expansion',
+    count: 4,
+    theme: 'clean_studio' as SlideTheme,
+    font: 'serif' as SlideFont,
+    badge: 'EXECUTIVE',
+  },
+  {
+    id: 'Educational Masterclass',
+    title: 'Educational Explainer',
+    desc: 'Clear concept breakdowns, step guides & case study',
+    topic: 'Mastering AI Video Editing: From Prompt to 4K Export',
+    count: 4,
+    theme: 'sunset_warm' as SlideTheme,
+    font: 'display' as SlideFont,
+    badge: 'COURSE',
+  },
 ]
 
-const LAYOUT_OPTIONS: Array<{ id: SlideLayout; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'hero', label: 'Hero Headline', icon: Star },
-  { id: 'cards', label: 'Feature Cards', icon: LayoutGrid },
-  { id: 'big_stat', label: 'Key Stat / Metric', icon: Zap },
-  { id: 'split', label: 'Split 2-Col', icon: Columns2 },
-  { id: 'quote', label: 'Quote / Takeaway', icon: Quote },
-  { id: 'checklist', label: 'Bullet Points', icon: ListChecks },
+const LAYOUT_OPTIONS: Array<{
+  id: SlideLayout
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  desc: string
+}> = [
+  { id: 'hero', label: 'Hero Headline', icon: Star, desc: 'Bold single-message title with category chip' },
+  { id: 'cards', label: 'Feature Cards', icon: LayoutGrid, desc: '2 to 3 modular glass cards with tags' },
+  { id: 'big_stat', label: 'Big Stat Callout', icon: Zap, desc: 'Giant numeric metric with descriptive label' },
+  { id: 'split', label: 'Split 2-Column', icon: Columns2, desc: 'Balanced side-by-side comparative layout' },
+  { id: 'quote', label: 'Quote / Takeaway', icon: Quote, desc: 'Inspiring pull quote with speaker credit' },
+  { id: 'checklist', label: 'Action Checklist', icon: ListChecks, desc: 'Lead-bulleted key takeaways or steps' },
 ]
 
 export function SlideStudioModal({
@@ -78,13 +132,16 @@ export function SlideStudioModal({
   const importFiles = useTimelineStore((s) => s.importFiles)
   const addClip = useTimelineStore((s) => s.addClip)
   const updateClip = useTimelineStore((s) => s.updateClip)
+  const select = useTimelineStore((s) => s.select)
   const playhead = useTimelineStore((s) => s.playhead)
 
   // Active Deck State
   const [deck, setDeck] = React.useState<SlideDeck | null>(() => initialDeck ?? null)
   const [currentSlideIdx, setCurrentSlideIdx] = React.useState(0)
-  const [slideDuration] = React.useState(5)
-  const [activeInspectorTab, setActiveInspectorTab] = React.useState<'content' | 'layout' | 'design' | 'ai' | 'notes'>('content')
+  const [slideDuration, setSlideDuration] = React.useState(5)
+  const [activeInspectorTab, setActiveInspectorTab] = React.useState<
+    'content' | 'layout' | 'design' | 'templates' | 'notes'
+  >('content')
 
   // Generator & Inductive State
   const [topicPrompt, setTopicPrompt] = React.useState('')
@@ -97,6 +154,7 @@ export function SlideStudioModal({
   // Execution & Progress State
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isAddingTimeline, setIsAddingTimeline] = React.useState(false)
+  const [isAddingCurrent, setIsAddingCurrent] = React.useState(false)
   const [isInducing, setIsInducing] = React.useState(false)
   const [progressMsg, setProgressMsg] = React.useState('')
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
@@ -133,36 +191,43 @@ export function SlideStudioModal({
 
   if (!isOpen) return null
 
-  const currentSlide = deck && deck.slides.length > 0 ? deck.slides[currentSlideIdx] || deck.slides[0] : null
+  const currentSlide =
+    deck && deck.slides.length > 0 ? deck.slides[currentSlideIdx] || deck.slides[0] : null
 
   // Live HTML for preview
-  const currentSlideHtml = currentSlide && deck
-    ? renderSlideHtml(
-        currentSlide,
-        currentSlideIdx + 1,
-        deck.slides.length,
-        currentSlide.theme || deck.theme,
-        currentSlide.font || deck.font,
-        currentSlide.animation || deck.animation,
-      )
-    : ''
+  const currentSlideHtml =
+    currentSlide && deck
+      ? renderSlideHtml(
+          currentSlide,
+          currentSlideIdx + 1,
+          deck.slides.length,
+          currentSlide.theme || deck.theme,
+          currentSlide.font || deck.font,
+          currentSlide.animation || deck.animation,
+        )
+      : ''
 
   // ── Generation Handler ──
-  const handleGenerateDeck = async (overrideTopic?: string, overrideCount?: number) => {
+  const handleGenerateDeck = async (
+    overrideTopic?: string,
+    overrideCount?: number,
+    overrideTheme?: SlideTheme,
+    overrideFont?: SlideFont,
+  ) => {
     const finalTopic = (overrideTopic || topicPrompt).trim()
     if (!finalTopic || isGenerating) return
 
     setIsGenerating(true)
     setErrorMsg(null)
     setSuccessMsg(null)
-    setProgressMsg('AI is structuring presentation narrative and layouts...')
+    setProgressMsg('AI is architecting deck narrative, structure & typography...')
 
     try {
       const generated = await generateSlides({
         topic: finalTopic,
         count: overrideCount || slideCount,
-        theme: selectedTheme,
-        font: selectedFont,
+        theme: overrideTheme || selectedTheme,
+        font: overrideFont || selectedFont,
         animation: selectedAnimation,
         layoutArchetype: selectedArchetype,
       })
@@ -188,7 +253,6 @@ export function SlideStudioModal({
       setTopicPrompt(ctx.topicThesis)
       setSlideCount(ctx.recommendedSlideCount)
       setSuccessMsg(`Inferred thesis: "${ctx.topicThesis}" (${ctx.recommendedSlideCount} slides)`)
-      // Automatically generate
       await handleGenerateDeck(ctx.topicThesis, ctx.recommendedSlideCount)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err))
@@ -246,7 +310,69 @@ export function SlideStudioModal({
     setCurrentSlideIdx((prev) => Math.min(prev, updatedSlides.length - 1))
   }
 
-  // ── Add to Timeline ──
+  const moveSlide = (direction: 'left' | 'right') => {
+    if (!deck) return
+    const targetIdx = direction === 'left' ? currentSlideIdx - 1 : currentSlideIdx + 1
+    if (targetIdx < 0 || targetIdx >= deck.slides.length) return
+    const updatedSlides = [...deck.slides]
+    const temp = updatedSlides[currentSlideIdx]
+    updatedSlides[currentSlideIdx] = updatedSlides[targetIdx]
+    updatedSlides[targetIdx] = temp
+    setDeck({ ...deck, slides: updatedSlides })
+    setCurrentSlideIdx(targetIdx)
+  }
+
+  // ── Add Current Slide at Playhead ──
+  const handleAddCurrentSlideToTimeline = async () => {
+    if (!deck || !currentSlide || isAddingCurrent) return
+    setIsAddingCurrent(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+
+    const slideW = project.width || 1280
+    const slideH = project.height || 720
+
+    try {
+      const blob = await renderSlidePng(
+        currentSlide,
+        currentSlideIdx + 1,
+        deck.slides.length,
+        currentSlide.theme || deck.theme,
+        slideW,
+        slideH,
+        currentSlide.font || deck.font,
+        currentSlide.animation || deck.animation,
+      )
+      const file = new File([blob], `slide-${currentSlideIdx + 1}-${Date.now()}.png`, {
+        type: 'image/png',
+      })
+      const { imported } = await importFiles([file])
+      if (imported.length) {
+        const startBase = playhead ?? 0
+        const videoTrack = project.tracks.find((t) => t.type === 'video')
+        if (videoTrack) {
+          const newClip = addClip(imported[0].id, videoTrack.id, startBase)
+          if (newClip) {
+            updateClip(newClip.id, {
+              duration: slideDuration,
+              sourceEnd: slideDuration,
+              clipType: 'image',
+            })
+            select([newClip.id])
+          }
+        }
+        setSuccessMsg(
+          `Inserted Slide #${currentSlideIdx + 1} ("${currentSlide.title}") at ${startBase.toFixed(1)}s!`,
+        )
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsAddingCurrent(false)
+    }
+  }
+
+  // ── Add All Slides to Timeline ──
   const handleAddAllToTimeline = async () => {
     if (!deck || isAddingTimeline) return
     setIsAddingTimeline(true)
@@ -280,10 +406,18 @@ export function SlideStudioModal({
           const startBase = playhead ?? 0
           imported.forEach((asset, idx) => {
             const newClip = addClip(asset.id, videoTrack.id, startBase + idx * slideDuration)
-            if (newClip) updateClip(newClip.id, { duration: slideDuration, sourceEnd: slideDuration, clipType: 'image' })
+            if (newClip) {
+              updateClip(newClip.id, {
+                duration: slideDuration,
+                sourceEnd: slideDuration,
+                clipType: 'image',
+              })
+            }
           })
         }
-        setSuccessMsg(`Successfully added ${imported.length} presentation slides (${slideW}×${slideH}) to the timeline!`)
+        setSuccessMsg(
+          `Successfully staged ${imported.length} presentation slides (${slideW}×${slideH}) sequentially on the timeline!`,
+        )
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err))
@@ -293,28 +427,27 @@ export function SlideStudioModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="relative flex h-[94vh] w-[98vw] max-w-7xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-        
-        {/* ── Header Bar ── */}
-        <div className="flex items-center justify-between border-b px-4 py-2.5 bg-muted/20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="relative flex h-[94vh] w-[98vw] max-w-7xl flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xl">
+        {/* ── Top Header Toolbar ── */}
+        <div className="flex items-center justify-between border-b px-4 py-2.5 bg-muted/25 backdrop-blur">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-violet-600/20 p-2 text-violet-400">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/25">
               <Presentation className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold tracking-wide">
+                <h2 className="text-sm font-bold tracking-tight text-foreground">
                   Slide Presentation Studio
                 </h2>
                 {deck && (
-                  <span className="rounded bg-violet-500/20 px-2 py-0.5 text-[10px] font-mono text-violet-300">
+                  <span className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-mono font-semibold text-violet-300">
                     {deck.title} ({deck.slides.length} slides)
                   </span>
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground">
-                AI presentation deck generation, kinetic typography, live visual editing, and 1-click timeline staging
+                AI presentation deck generation, kinetic typography, live visual editing & 1-click timeline staging
               </p>
             </div>
           </div>
@@ -322,19 +455,57 @@ export function SlideStudioModal({
           <div className="flex items-center gap-2">
             {deck && (
               <>
-                <div className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1 text-xs">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-muted/40 px-2.5 py-1 text-xs">
+                  <Clock className="size-3 text-muted-foreground" />
                   <span className="text-[10px] text-muted-foreground">Slide Duration:</span>
-                  <span className="font-mono text-violet-400 font-bold">{slideDuration}s</span>
+                  <Select
+                    value={String(slideDuration)}
+                    onValueChange={(v) => setSlideDuration(Number(v))}
+                  >
+                    <SelectTrigger className="h-6 w-16 border-0 bg-transparent p-0 text-xs font-mono font-bold text-violet-400 focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2 sec</SelectItem>
+                      <SelectItem value="3">3 sec</SelectItem>
+                      <SelectItem value="5">5 sec</SelectItem>
+                      <SelectItem value="8">8 sec</SelectItem>
+                      <SelectItem value="10">10 sec</SelectItem>
+                      <SelectItem value="15">15 sec</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Button
                   size="sm"
-                  className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-xs"
+                  variant="outline"
+                  className="h-8 gap-1.5 border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold"
+                  onClick={() => void handleAddCurrentSlideToTimeline()}
+                  disabled={isAddingCurrent}
+                  title="Insert only the currently selected slide at the playhead"
+                >
+                  {isAddingCurrent ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ArrowDownToLine className="size-3.5" />
+                  )}
+                  <span>Drop Slide #{currentSlideIdx + 1}</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-violet-600/30"
                   onClick={() => void handleAddAllToTimeline()}
                   disabled={isAddingTimeline}
                 >
-                  {isAddingTimeline ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-                  {isAddingTimeline ? 'Staging Slides...' : `Add All ${deck.slides.length} Slides to Timeline`}
+                  {isAddingTimeline ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="size-3.5" />
+                  )}
+                  <span>
+                    {isAddingTimeline ? 'Staging...' : `Add All ${deck.slides.length} Slides to Timeline`}
+                  </span>
                 </Button>
               </>
             )}
@@ -342,7 +513,7 @@ export function SlideStudioModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
               title="Close Presentation Studio"
             >
               <X className="size-5" />
@@ -350,12 +521,10 @@ export function SlideStudioModal({
           </div>
         </div>
 
-        {/* ── Main Workspace ── */}
+        {/* ── Main Studio Workspace ── */}
         <div className="flex flex-1 overflow-hidden">
-          
           {/* ── Left/Center: Live 16:9 Canvas + Filmstrip Carousel ── */}
-          <div className="flex flex-1 flex-col border-r bg-zinc-950/60 overflow-hidden">
-            
+          <div className="flex flex-1 flex-col border-r bg-zinc-950/70 overflow-hidden">
             {/* Viewport Control Strip */}
             <div className="flex items-center justify-between border-b bg-card/40 px-4 py-2">
               <div className="flex items-center gap-2">
@@ -374,7 +543,7 @@ export function SlideStudioModal({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-xs gap-1"
+                  className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
                   onClick={() => setPreviewKey((k) => k + 1)}
                   title="Replay slide entry animation"
                 >
@@ -396,7 +565,7 @@ export function SlideStudioModal({
             </div>
 
             {/* ── High-Resolution Interactive Presentation Stage ── */}
-            <div className="flex-1 flex items-center justify-center p-6 bg-black/50 overflow-hidden">
+            <div className="flex-1 flex items-center justify-center p-6 bg-black/60 overflow-hidden relative">
               {deck && currentSlide ? (
                 <div
                   className="relative w-full max-w-4xl max-h-full rounded-xl border border-border/80 overflow-hidden shadow-2xl bg-black transition-all"
@@ -412,25 +581,27 @@ export function SlideStudioModal({
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-3 p-8 text-center max-w-md">
-                  <div className="rounded-2xl bg-violet-600/20 p-4 text-violet-400">
-                    <Presentation className="size-10" />
+                  <div className="flex size-16 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
+                    <Presentation className="size-8" />
                   </div>
                   <h3 className="text-base font-bold text-foreground">No Presentation Loaded</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Type a topic on the right or pick a quick preset to generate a cinematic presentation deck with AI.
+                    Pick a template from the right panel or type any prompt to generate a cinematic presentation deck with AI.
                   </p>
                   <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                    {QUICK_TOPICS.slice(0, 3).map((topic) => (
+                    {TEMPLATE_ARCHETYPES.slice(0, 3).map((tmpl) => (
                       <button
-                        key={topic}
+                        key={tmpl.id}
                         type="button"
-                        className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[10px] text-violet-300 hover:bg-violet-500/20 transition"
+                        className="rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold text-violet-300 hover:bg-violet-500/25 transition"
                         onClick={() => {
-                          setTopicPrompt(topic)
-                          void handleGenerateDeck(topic)
+                          setTopicPrompt(tmpl.topic)
+                          setSelectedTheme(tmpl.theme)
+                          setSelectedFont(tmpl.font)
+                          void handleGenerateDeck(tmpl.topic, tmpl.count, tmpl.theme, tmpl.font)
                         }}
                       >
-                        {topic.split(' ')[0]} {topic.split(' ')[1]}
+                        {tmpl.title}
                       </button>
                     ))}
                   </div>
@@ -443,14 +614,37 @@ export function SlideStudioModal({
               <div className="border-t bg-card/60 p-3 space-y-2 shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-foreground">Deck Slides ({deck.slides.length})</span>
-                    <span className="text-[10px] text-muted-foreground">Click to edit · Reorder or customize</span>
+                    <span className="text-[11px] font-bold text-foreground">Deck Filmstrip ({deck.slides.length} slides)</span>
+                    <span className="text-[10px] text-muted-foreground">Click to edit · Reorder or stage</span>
                   </div>
 
                   <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] gap-1"
+                      onClick={() => moveSlide('left')}
+                      disabled={currentSlideIdx === 0}
+                      title="Move slide earlier"
+                    >
+                      <ChevronLeft className="size-3" />
+                      <span>Move Left</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] gap-1"
+                      onClick={() => moveSlide('right')}
+                      disabled={currentSlideIdx === deck.slides.length - 1}
+                      title="Move slide later"
+                    >
+                      <span>Move Right</span>
+                      <ChevronRight className="size-3" />
+                    </Button>
+                    <div className="h-4 w-px bg-border/80 mx-1" />
                     <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={handleAddSlide}>
                       <Plus className="size-3" />
-                      <span>Add Blank Slide</span>
+                      <span>Add Slide</span>
                     </Button>
                     <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={handleDuplicateSlide}>
                       <Copy className="size-3" />
@@ -488,7 +682,7 @@ export function SlideStudioModal({
                         )}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="rounded bg-black/60 px-1 font-mono text-[9px] font-bold text-white">
+                          <span className="rounded bg-black/70 px-1 font-mono text-[9px] font-bold text-white">
                             #{idx + 1}
                           </span>
                           <span className="rounded bg-violet-500/30 px-1 text-[8px] font-bold text-violet-200 uppercase">
@@ -512,16 +706,15 @@ export function SlideStudioModal({
           </div>
 
           {/* ── Right: Tabbed Inspector & AI Generator Studio ── */}
-          <div className="flex w-[460px] flex-col overflow-hidden bg-card">
-            
+          <div className="flex w-[480px] flex-col overflow-hidden bg-card">
             {/* Inspector Tab Switcher */}
             <div className="flex border-b bg-muted/30 p-1 gap-1">
               {[
                 { id: 'content' as const, label: 'Content', icon: FileText },
                 { id: 'layout' as const, label: 'Layouts', icon: LayoutGrid },
-                { id: 'design' as const, label: 'Themes & Fonts', icon: Palette },
-                { id: 'ai' as const, label: 'AI Generator', icon: Sparkles },
-                { id: 'notes' as const, label: 'Notes', icon: Brain },
+                { id: 'design' as const, label: 'Themes & Style', icon: Palette },
+                { id: 'templates' as const, label: 'Templates & AI', icon: Sparkles },
+                { id: 'notes' as const, label: 'Teleprompter', icon: Brain },
               ].map(({ id, label, icon: TabIcon }) => (
                 <button
                   key={id}
@@ -529,7 +722,7 @@ export function SlideStudioModal({
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-center text-[10px] font-bold transition',
                     activeInspectorTab === id
-                      ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs border border-border/80'
+                      ? 'bg-card text-violet-600 dark:text-violet-300 shadow-xs border border-border/80'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                   onClick={() => setActiveInspectorTab(id)}
@@ -542,17 +735,29 @@ export function SlideStudioModal({
 
             {/* Inspector Tab Content Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              
               {/* ═══════════ TAB 1: EDIT SLIDE CONTENT ═══════════ */}
               {activeInspectorTab === 'content' && (
                 <div className="space-y-3.5">
                   {currentSlide ? (
                     <>
                       <div className="flex items-center justify-between border-b pb-2">
-                        <span className="text-xs font-bold text-foreground">Slide #{currentSlideIdx + 1} Content</span>
-                        <span className="rounded bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-300 uppercase">
-                          {currentSlide.layout || 'Hero'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-foreground">
+                            Slide #{currentSlideIdx + 1} Content
+                          </span>
+                          <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-violet-300">
+                            {currentSlide.layout || 'Hero'}
+                          </span>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] text-violet-400"
+                          onClick={() => setPreviewKey((k) => k + 1)}
+                        >
+                          <RotateCcw className="size-2.5 mr-1" /> Replay
+                        </Button>
                       </div>
 
                       {/* Headline */}
@@ -579,7 +784,7 @@ export function SlideStudioModal({
 
                       {/* Layout-Specific Customization */}
                       {currentSlide.layout === 'big_stat' && (
-                        <div className="grid grid-cols-2 gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/5 p-3">
+                        <div className="grid grid-cols-2 gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/5 p-3">
                           <div className="space-y-1">
                             <Label className="text-xs font-bold text-cyan-300">Big Number / Metric</Label>
                             <Input
@@ -602,7 +807,7 @@ export function SlideStudioModal({
                       )}
 
                       {currentSlide.layout === 'quote' && (
-                        <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                        <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
                           <Label className="text-xs font-bold text-amber-300">Quote Attribution / Speaker</Label>
                           <Input
                             value={currentSlide.quoteAuthor || 'Steve Jobs'}
@@ -614,7 +819,7 @@ export function SlideStudioModal({
                       )}
 
                       {currentSlide.layout === 'cards' && (
-                        <div className="space-y-2.5 rounded-lg border border-violet-500/40 bg-violet-500/5 p-3">
+                        <div className="space-y-2.5 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
                           <div className="flex items-center justify-between">
                             <Label className="text-xs font-bold text-violet-300">
                               Feature Cards ({(currentSlide.cards || []).length}/3)
@@ -732,21 +937,23 @@ export function SlideStudioModal({
               {activeInspectorTab === 'layout' && (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold">Change Slide Layout</Label>
-                    <p className="text-[10px] text-muted-foreground">Select an archetype for the current slide.</p>
+                    <Label className="text-xs font-bold">Slide Layout Archetype</Label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Switch how Slide #{currentSlideIdx + 1} structures headline, cards, stats and proof points.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {LAYOUT_OPTIONS.map(({ id, label, icon: Icon }) => {
+                    {LAYOUT_OPTIONS.map(({ id, label, icon: Icon, desc }) => {
                       const isSelected = (currentSlide?.layout || 'hero') === id
                       return (
                         <button
                           key={id}
                           type="button"
                           className={cn(
-                            'flex flex-col items-start rounded-lg border p-3 text-left transition',
+                            'flex flex-col items-start rounded-xl border p-3 text-left transition',
                             isSelected
-                              ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-1 ring-violet-500'
+                              ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-2 ring-violet-500/50 shadow-sm'
                               : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-violet-500/40 hover:text-foreground',
                           )}
                           onClick={() => updateCurrentSlide({ layout: id })}
@@ -755,13 +962,8 @@ export function SlideStudioModal({
                             <Icon className="size-4 text-violet-400" />
                             <span className="text-xs font-bold">{label}</span>
                           </div>
-                          <span className="text-[9px] text-muted-foreground mt-1 line-clamp-1">
-                            {id === 'hero' && 'Bold headline with subtitle emphasis'}
-                            {id === 'cards' && '3 modular glass feature cards'}
-                            {id === 'big_stat' && 'Giant metric callout with label'}
-                            {id === 'split' && 'Two-column balanced layout'}
-                            {id === 'quote' && 'Large quotation with attribution'}
-                            {id === 'checklist' && 'Structured bullet checklist'}
+                          <span className="text-[9px] text-muted-foreground mt-1 leading-snug">
+                            {desc}
                           </span>
                         </button>
                       )
@@ -770,12 +972,16 @@ export function SlideStudioModal({
                 </div>
               )}
 
-              {/* ═══════════ TAB 3: VISUAL THEMES & FONTS ═══════════ */}
+              {/* ═══════════ TAB 3: VISUAL THEMES & STYLE ═══════════ */}
               {activeInspectorTab === 'design' && (
                 <div className="space-y-4">
                   {/* Theme Palette Selection */}
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold">Visual Themes</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold">Visual Themes</Label>
+                      <span className="text-[10px] text-muted-foreground">Deck-wide palette</span>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2">
                       {Object.entries(SLIDE_THEMES_META).map(([key, t]) => {
                         const isSelected = (deck?.theme || selectedTheme) === key
@@ -784,9 +990,9 @@ export function SlideStudioModal({
                             key={key}
                             type="button"
                             className={cn(
-                              'flex flex-col rounded-lg border p-2.5 text-left transition',
+                              'flex flex-col rounded-xl border p-2.5 text-left transition',
                               isSelected
-                                ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-1 ring-violet-500'
+                                ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-2 ring-violet-500/50 shadow-sm'
                                 : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-violet-500/40 hover:text-foreground',
                             )}
                             onClick={() => {
@@ -798,11 +1004,11 @@ export function SlideStudioModal({
                             <div className="flex items-center justify-between w-full">
                               <span className="text-xs font-bold">{t.name}</span>
                               <div
-                                className="size-3 rounded-full border shadow-xs"
+                                className="size-3.5 rounded-full border shadow-xs"
                                 style={{ backgroundColor: t.accent }}
                               />
                             </div>
-                            <span className="text-[9px] text-muted-foreground mt-0.5 line-clamp-2">
+                            <span className="text-[9px] text-muted-foreground mt-0.5 leading-tight">
                               {t.description}
                             </span>
                           </button>
@@ -826,7 +1032,12 @@ export function SlideStudioModal({
                         <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {Object.entries(SLIDE_FONTS_META).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                            <SelectItem key={k} value={k}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span>{v.name}</span>
+                                <span className="text-[9px] text-muted-foreground font-mono">({v.sample})</span>
+                              </div>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -854,89 +1065,121 @@ export function SlideStudioModal({
                 </div>
               )}
 
-              {/* ═══════════ TAB 4: AI GENERATOR & INDUCTIVE COPILOT ═══════════ */}
-              {activeInspectorTab === 'ai' && (
-                <div className="space-y-3.5">
+              {/* ═══════════ TAB 4: TEMPLATES & AI GENERATOR ═══════════ */}
+              {activeInspectorTab === 'templates' && (
+                <div className="space-y-4">
+                  {/* Template Archetype Cards */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">Generate New Presentation Deck</Label>
-                    <Input
-                      placeholder="e.g. Next-Gen AI Video Editor Architecture & Capabilities"
-                      value={topicPrompt}
-                      onChange={(e) => setTopicPrompt(e.target.value)}
-                      className="h-8 text-xs bg-muted/20"
-                      disabled={isGenerating || isInducing}
-                    />
-                  </div>
-
-                  {/* Quick Preset Topics */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground font-semibold">Quick Topic Ideas:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {QUICK_TOPICS.map((topic) => (
-                        <button
-                          key={topic}
-                          type="button"
-                          className="rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground transition"
-                          onClick={() => setTopicPrompt(topic)}
+                    <Label className="text-xs font-bold">Presentation Archetypes</Label>
+                    <div className="space-y-1.5">
+                      {TEMPLATE_ARCHETYPES.map((tmpl) => (
+                        <div
+                          key={tmpl.id}
+                          className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 p-2.5 hover:border-violet-500/50 hover:bg-muted/30 transition"
                         >
-                          {topic}
-                        </button>
+                          <div className="min-w-0 flex-1 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-foreground">{tmpl.title}</span>
+                              <span className="rounded bg-violet-500/20 px-1.5 py-0.2 text-[8px] font-mono font-bold text-violet-300">
+                                {tmpl.badge}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground truncate">{tmpl.desc}</p>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs bg-violet-600 hover:bg-violet-500 text-white shrink-0"
+                            onClick={() => {
+                              setTopicPrompt(tmpl.topic)
+                              setSelectedTheme(tmpl.theme)
+                              setSelectedFont(tmpl.font)
+                              void handleGenerateDeck(tmpl.topic, tmpl.count, tmpl.theme, tmpl.font)
+                            }}
+                            disabled={isGenerating || isInducing}
+                          >
+                            <Wand2 className="size-3 mr-1" />
+                            Build
+                          </Button>
+                        </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Custom Topic Generator */}
+                  <div className="space-y-3 pt-2 border-t">
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Slide Count</Label>
-                      <Select value={String(slideCount)} onValueChange={(v) => setSlideCount(Number(v))}>
-                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="3">3 Slides (Quick Pitch)</SelectItem>
-                          <SelectItem value="4">4 Slides (Balanced)</SelectItem>
-                          <SelectItem value="5">5 Slides (Executive)</SelectItem>
-                          <SelectItem value="6">6 Slides (Comprehensive)</SelectItem>
-                          <SelectItem value="8">8 Slides (Deep Dive)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs font-bold">Custom Topic Prompt</Label>
+                      <Input
+                        placeholder="e.g. Next-Gen WebGPU & AI Video Architecture"
+                        value={topicPrompt}
+                        onChange={(e) => setTopicPrompt(e.target.value)}
+                        className="h-8 text-xs bg-muted/20"
+                        disabled={isGenerating || isInducing}
+                      />
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Presentation Archetype</Label>
-                      <Select value={selectedArchetype} onValueChange={setSelectedArchetype}>
-                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Startup Pitch Deck">Startup Pitch Deck</SelectItem>
-                          <SelectItem value="Executive Keynote">Executive Keynote</SelectItem>
-                          <SelectItem value="Product Launch">Product Launch</SelectItem>
-                          <SelectItem value="Technical Deep Dive">Technical Deep Dive</SelectItem>
-                          <SelectItem value="Creative Storytelling">Creative Storytelling</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Slide Count</Label>
+                        <Select value={String(slideCount)} onValueChange={(v) => setSlideCount(Number(v))}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="3">3 Slides (Quick Pitch)</SelectItem>
+                            <SelectItem value="4">4 Slides (Balanced)</SelectItem>
+                            <SelectItem value="5">5 Slides (Executive)</SelectItem>
+                            <SelectItem value="6">6 Slides (Comprehensive)</SelectItem>
+                            <SelectItem value="8">8 Slides (Deep Dive)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Deck Archetype</Label>
+                        <Select value={selectedArchetype} onValueChange={setSelectedArchetype}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Startup Pitch Deck">Startup Pitch Deck</SelectItem>
+                            <SelectItem value="Executive Keynote">Executive Keynote</SelectItem>
+                            <SelectItem value="Product Launch">Product Launch</SelectItem>
+                            <SelectItem value="Technical Deep Dive">Technical Deep Dive</SelectItem>
+                            <SelectItem value="Creative Storytelling">Creative Storytelling</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8"
-                      onClick={() => void handleGenerateDeck()}
-                      disabled={isGenerating || isInducing || !topicPrompt.trim()}
-                    >
-                      {isGenerating ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Sparkles className="mr-1.5 size-3.5" />}
-                      {isGenerating ? progressMsg || 'Generating...' : `Generate ${slideCount} Slides`}
-                    </Button>
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8"
+                        onClick={() => void handleGenerateDeck()}
+                        disabled={isGenerating || isInducing || !topicPrompt.trim()}
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="mr-1.5 size-3.5" />
+                        )}
+                        {isGenerating ? progressMsg || 'Generating...' : `Generate ${slideCount} Slides`}
+                      </Button>
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold h-8"
-                      onClick={() => void handleInductiveContext()}
-                      disabled={isGenerating || isInducing}
-                      title="Auto-detect thesis and structure from current timeline clips"
-                    >
-                      {isInducing ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Brain className="mr-1.5 size-3.5" />}
-                      <span>Induce from Timeline</span>
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold h-8"
+                        onClick={() => void handleInductiveContext()}
+                        disabled={isGenerating || isInducing}
+                        title="Auto-detect thesis and structure from current timeline clips"
+                      >
+                        {isInducing ? (
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        ) : (
+                          <Brain className="mr-1.5 size-3.5" />
+                        )}
+                        <span>Timeline Copilot</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -953,7 +1196,9 @@ export function SlideStudioModal({
 
                   <Textarea
                     value={currentSlide?.notes || ''}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateCurrentSlide({ notes: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      updateCurrentSlide({ notes: e.target.value })
+                    }
                     rows={6}
                     className="text-xs leading-relaxed bg-muted/20"
                     placeholder="Enter spoken script notes for this slide (voiceover, presenter timing, key talking points)..."

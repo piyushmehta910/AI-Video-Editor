@@ -626,6 +626,29 @@ function SlideSection() {
                 />
               </div>
 
+              {/* ── Slide Thumbnail Filmstrip ── */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                {deck.slides.map((s, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setCurrentSlideIdx(idx)}
+                    className={cn(
+                      'flex min-w-[70px] flex-col items-start rounded border px-1.5 py-1 text-left transition shrink-0',
+                      currentSlideIdx === idx
+                        ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-1 ring-violet-500 font-bold shadow-xs'
+                        : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-mono text-[9px] font-bold">#{idx + 1}</span>
+                      <span className="text-[7px] uppercase opacity-70 font-semibold">{s.layout || 'Hero'}</span>
+                    </div>
+                    <span className="text-[8px] truncate max-w-[65px] mt-0.5">{s.title}</span>
+                  </button>
+                ))}
+              </div>
+
               {/* ── Slide Content & Layout Inspector ── */}
               <div className="space-y-2.5 rounded-lg border bg-card p-2.5 shadow-xs">
                 <div className="flex items-center justify-between border-b pb-1.5">
@@ -877,6 +900,35 @@ function SlideSection() {
       {/* ═══════════ TAB 2: AI DECK GENERATOR ═══════════ */}
       {tab === 'generator' && (
         <div className="space-y-2.5">
+          {/* 1-Click Archetype Templates */}
+          <div className="space-y-1">
+            <span className="text-[10px] text-muted-foreground font-semibold">Instant Deck Archetypes:</span>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { title: 'Startup Pitch', topic: 'Next-Gen AI Platform Seed Pitch & Investment Deck', theme: 'pitch_dark', count: 4 },
+                { title: 'Product Launch', topic: 'Product Launch Keynote: Features & Roadmap', theme: 'apple_minimal', count: 5 },
+                { title: 'Tech Deep Dive', topic: 'WebGPU Shaders & Neural Pipeline Architecture', theme: 'cyber_neon', count: 4 },
+                { title: 'Executive Report', topic: 'Quarterly Growth Metrics & Strategic Review', theme: 'clean_studio', count: 4 },
+              ].map((tmpl) => (
+                <button
+                  key={tmpl.title}
+                  type="button"
+                  className="flex items-center justify-between rounded border border-border/60 bg-muted/25 px-2 py-1 text-[10px] text-left text-muted-foreground hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-foreground transition"
+                  onClick={() => {
+                    setTopic(tmpl.topic)
+                    setTheme(tmpl.theme as SlideTheme)
+                    setCount(tmpl.count)
+                  }}
+                >
+                  <span className="font-semibold text-[10px] truncate">{tmpl.title}</span>
+                  <span className="rounded bg-violet-500/20 px-1 text-[8px] font-mono text-violet-300">
+                    {tmpl.count}s
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Presentation Topic</Label>
             <Input
@@ -887,7 +939,7 @@ function SlideSection() {
               disabled={busy}
             />
             {/* Quick Topic Chips */}
-            <div className="flex flex-wrap gap-1 pt-1">
+            <div className="flex flex-wrap gap-1 pt-0.5">
               {[
                 'Startup Pitch',
                 'Tech Architecture',
