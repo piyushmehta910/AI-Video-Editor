@@ -2778,7 +2778,7 @@ function ThreeDSection() {
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
 
-  const [panelTab, setPanelTab] = React.useState<'camera' | 'search' | 'lighting' | 'render'>('camera')
+  const [panelTab, setPanelTab] = React.useState<'search' | 'camera' | 'lighting' | 'render'>('search')
   const [isStudioOpen, setIsStudioOpen] = React.useState(false)
   const [selectedPresetId, setSelectedPresetId] = React.useState<string>('cyber-cube')
   const [selectedAssetId, setSelectedAssetId] = React.useState<string>('')
@@ -2977,13 +2977,25 @@ function ThreeDSection() {
               {usePreset ? selectedPresetId : selectedAsset?.name || '3D Model'}
             </span>
           </div>
-          <button
-            type="button"
-            className="text-[10px] text-violet-400 hover:underline font-semibold"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            + Upload .GLB
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="text-[10px] text-violet-400 hover:underline font-semibold flex items-center gap-1"
+              onClick={() => setPanelTab('search')}
+              title="Search online 3D models"
+            >
+              <Search className="size-2.5" />
+              Search 3D
+            </button>
+            <span className="text-border">|</span>
+            <button
+              type="button"
+              className="text-[10px] text-muted-foreground hover:text-foreground font-semibold"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              + Upload .GLB
+            </button>
+          </div>
         </div>
 
         <input ref={fileInputRef} type="file" accept=".glb,.gltf" className="hidden" onChange={handleCustomGlbUpload} />
@@ -3038,11 +3050,11 @@ function ThreeDSection() {
         )}
       </div>
 
-      {/* ── 2. Organized Sub-Tabs ── */}
+      {/* ── 2. Organized Sub-Tabs (3D Search is on top / first) ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'camera' as const, label: 'Camera', icon: Camera },
           { id: 'search' as const, label: '3D Search', icon: Search },
+          { id: 'camera' as const, label: 'Camera', icon: Camera },
           { id: 'lighting' as const, label: 'Lighting', icon: Sun },
           { id: 'render' as const, label: 'Render', icon: Play },
         ].map(({ id, label, icon: TabIcon }) => (
@@ -3060,6 +3072,93 @@ function ThreeDSection() {
           </button>
         ))}
       </div>
+
+      {/* TAB: SEARCH ONLINE 3D LIBRARY (ON TOP) */}
+      {panelTab === 'search' && (
+        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold">Online 3D Library</span>
+            <Select value={source} onValueChange={(v) => { setSource(v as 'polyhaven' | 'sketchfab'); setResults([]) }}>
+              <SelectTrigger className="h-6 w-28 text-[10px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="polyhaven">Poly Haven (CC0)</SelectItem>
+                <SelectItem value="sketchfab">Sketchfab</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-1.5">
+            <Input
+              placeholder="Search models (e.g. drone, car, robot)..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void search() }}
+              className="h-7 text-xs"
+            />
+            <Button size="sm" className="h-7 px-2" onClick={() => void search()} disabled={searching}>
+              {searching ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
+            </Button>
+          </div>
+
+          {/* Quick Search Tag Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+            <span className="text-[9px] text-muted-foreground shrink-0 font-medium">Quick:</span>
+            {['drone', 'robot', 'car', 'statue', 'chair', 'sword', 'trophy'].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="rounded bg-muted/40 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-violet-500/20 hover:text-violet-300 transition shrink-0"
+                onClick={() => {
+                  setQuery(tag)
+                  setSearching(true)
+                  setError(null)
+                  void (async () => {
+                    try {
+                      if (source === 'sketchfab') {
+                        const models = await searchSketchfabModels(tag, { maxResults: 12 })
+                        setResults(models.map((m) => ({ ...m, source: 'sketchfab' as const })))
+                      } else {
+                        const models = await searchModels(tag, { maxResults: 12 })
+                        setResults(models.map((m) => ({ ...m, source: 'polyhaven' as const })))
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : String(err))
+                    } finally {
+                      setSearching(false)
+                    }
+                  })()
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
+          {results.length > 0 && (
+            <div className="grid max-h-48 grid-cols-2 gap-1 overflow-y-auto pt-1">
+              {results.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="group relative flex flex-col overflow-hidden rounded border bg-card p-1.5 text-left transition hover:border-violet-500"
+                  onClick={() => void downloadAndImport(m)}
+                  disabled={downloading === m.id}
+                >
+                  <div className="flex items-center gap-1">
+                    <Box className="size-3 text-violet-400 shrink-0" />
+                    <span className="truncate text-[10px] font-medium">{m.name}</span>
+                  </div>
+                  {downloading === m.id && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/60">
+                      <Loader2 className="size-3.5 animate-spin text-white" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* TAB: CAMERA TRAJECTORIES */}
       {panelTab === 'camera' && (
@@ -3110,59 +3209,6 @@ function ThreeDSection() {
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* TAB: SEARCH ONLINE 3D LIBRARY */}
-      {panelTab === 'search' && (
-        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold">Online 3D Library</span>
-            <Select value={source} onValueChange={(v) => { setSource(v as 'polyhaven' | 'sketchfab'); setResults([]) }}>
-              <SelectTrigger className="h-6 w-28 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="polyhaven">Poly Haven (CC0)</SelectItem>
-                <SelectItem value="sketchfab">Sketchfab</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex gap-1.5">
-            <Input
-              placeholder="Search models (e.g. drone, car)..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void search() }}
-              className="h-7 text-xs"
-            />
-            <Button size="sm" className="h-7 px-2" onClick={() => void search()} disabled={searching}>
-              {searching ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
-            </Button>
-          </div>
-
-          {results.length > 0 && (
-            <div className="grid max-h-48 grid-cols-2 gap-1 overflow-y-auto pt-1">
-              {results.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  className="group relative flex flex-col overflow-hidden rounded border bg-card p-1.5 text-left transition hover:border-violet-500"
-                  onClick={() => void downloadAndImport(m)}
-                  disabled={downloading === m.id}
-                >
-                  <div className="flex items-center gap-1">
-                    <Box className="size-3 text-violet-400 shrink-0" />
-                    <span className="truncate text-[10px] font-medium">{m.name}</span>
-                  </div>
-                  {downloading === m.id && (
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/60">
-                      <Loader2 className="size-3.5 animate-spin text-white" />
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

@@ -56,8 +56,8 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
 
-  // Navigation tab
-  const [activeTab, setActiveTab] = React.useState<StudioTab>('camera')
+  // Navigation tab (3D Search is on top by default)
+  const [activeTab, setActiveTab] = React.useState<StudioTab>('library')
 
   // 3D Models in project
   const modelAssets = React.useMemo(() => assets.filter((a) => a.type === 'model'), [assets])
@@ -383,6 +383,17 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
 
             {/* Quick Model Selector Strip */}
             <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-md border border-violet-500/50 bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-300 hover:bg-violet-500/30 transition shrink-0"
+                onClick={() => setActiveTab('library')}
+                title="Search and import free 3D models"
+              >
+                <Search className="size-2.5" />
+                <span>Search 3D Models</span>
+              </button>
+
+              <div className="h-4 w-px bg-border/60 shrink-0 mx-0.5" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase shrink-0">Stage Model:</span>
               {BUILTIN_3D_PRESETS.map((preset) => {
                 const isSelected = usePreset && selectedPresetId === preset.id
@@ -434,11 +445,11 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
 
           {/* ── RIGHT: Tabbed Inspector & Studio Controls ── */}
           <div className="flex w-[420px] flex-col overflow-hidden bg-card/60">
-            {/* Inspector Navigation Tabs */}
+            {/* Inspector Navigation Tabs: 3D Search is on top / first */}
             <div className="flex border-b bg-muted/30 p-1 gap-1">
               {[
-                { id: 'camera' as const, label: 'Camera & Angles', icon: Camera },
                 { id: 'library' as const, label: '3D Search', icon: Search },
+                { id: 'camera' as const, label: 'Camera & Angles', icon: Camera },
                 { id: 'lighting' as const, label: 'Lighting', icon: Sun },
                 { id: 'render' as const, label: 'Capture & Render', icon: Play },
               ].map(({ id, label, icon: TabIcon }) => (
@@ -622,6 +633,41 @@ export function ThreeDStudioModal({ isOpen, onClose, initialAssetId }: ThreeDStu
                       >
                         {isSearching ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
                       </Button>
+                    </div>
+
+                    {/* Quick Suggestions */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                      <span className="text-[9px] text-muted-foreground shrink-0 font-medium">Quick:</span>
+                      {['drone', 'robot', 'car', 'statue', 'chair', 'sword', 'camera', 'trophy'].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          className="rounded bg-muted/40 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-violet-500/20 hover:text-violet-300 transition shrink-0"
+                          onClick={() => {
+                            setSearchQuery(tag)
+                            // Search immediately
+                            setIsSearching(true)
+                            setError(null)
+                            void (async () => {
+                              try {
+                                if (searchSource === 'sketchfab') {
+                                  const models = await searchSketchfabModels(tag, { maxResults: 12 })
+                                  setSearchResults(models.map((m) => ({ ...m, source: 'sketchfab' as const })))
+                                } else {
+                                  const models = await searchModels(tag, { maxResults: 12 })
+                                  setSearchResults(models.map((m) => ({ ...m, source: 'polyhaven' as const })))
+                                }
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : String(err))
+                              } finally {
+                                setIsSearching(false)
+                              }
+                            })()
+                          }}
+                        >
+                          {tag}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
