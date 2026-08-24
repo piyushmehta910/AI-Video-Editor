@@ -1,6 +1,7 @@
 import { useTimelineStore } from '@/stores/timelineStore'
-import { getStoredScenes, getStoredTranscript } from '@/api/llm/understanding'
+import { getStoredScenes } from '@/api/llm/understanding'
 import type { StoryScene } from '@/ai/quality/checker'
+import { aiContextManager } from '@/ai/context/AIContextManager'
 
 /**
  * Trim a transcript to roughly `maxChars`, cutting at a sentence/word boundary
@@ -40,71 +41,38 @@ export async function collectTimelineScenes(): Promise<StoryScene[]> {
 }
 
 /**
- * Build a compressed, scene-level understanding of the whole project. When
- * scenes exist they replace the raw transcript (they already carry the gist
- * plus keywords); otherwise a truncated transcript is used. Keeps the context
- * window small while preserving the meaning the AI needs to edit confidently.
+ * Build a comprehensive, multimodal understanding of the whole project
+ * backed by IndexedDB knowledge caching (Timeline Layout, Audio Transcripts,
+ * Frame-by-Frame OCR Text, Scene Understanding & Health Diagnostics).
  */
 export async function buildDirectorContext(): Promise<string> {
-  const { project, assets } = useTimelineStore.getState()
-  const lines: string[] = []
+  try {
+    const comp = await aiContextManager.getComprehensiveContext()
 
-  lines.push(`PROJECT SETTINGS: Resolution ${project.width}x${project.height} (${project.aspectRatio}), FPS: ${project.fps}`)
+    const sections: string[] = [
+      'TIMELINE & MULTIMODAL VIDEO UNDERSTANDING (IndexedDB Knowledge Graph):',
+      comp.timelineManifest,
+      '\nSPOKEN AUDIO TRANSCRIPTS & DIALOGUE:\n' + comp.speechTranscriptsSummary,
+      '\nFRAME-BY-FRAME ON-SCREEN VISUAL TEXT (OCR):\n' + comp.ocrOnScreenTextSummary,
+      '\nVISUAL SCENES & ATMOSPHERE:\n' + comp.scenesVisualSummary,
+    ]
 
-  for (const track of project.tracks) {
-    if (!track.clips.length) continue
-    lines.push(`\nTRACK [${track.type.toUpperCase()}] "${track.name}" (${track.clips.length} clips):`)
-
-    for (const clip of track.clips) {
-      const asset = assets.find((a) => a.id === clip.assetId)
-      const range = `${clip.startTime.toFixed(1)}s–${(clip.startTime + clip.duration).toFixed(1)}s`
-      const props: string[] = []
-      if (clip.speed !== 1) props.push(`speed: ${clip.speed.toFixed(2)}x`)
-      if (clip.volume !== 1) props.push(`volume: ${Math.round(clip.volume * 100)}%`)
-      if (clip.muted) props.push('muted')
-      if (clip.position && (clip.position.x !== 0 || clip.position.y !== 0)) {
-        props.push(`pos: (${clip.position.x}, ${clip.position.y})`)
-      }
-      if (clip.scale && (clip.scale.x !== 1 || clip.scale.y !== 1)) {
-        props.push(`scale: (${clip.scale.x.toFixed(2)}, ${clip.scale.y.toFixed(2)})`)
-      }
-      const propStr = props.length ? ` [${props.join(', ')}]` : ''
-
-      if (clip.text) {
-        lines.push(`  - Text/Caption "${clip.text.text.slice(0, 30)}" (${range})${propStr}`)
-        continue
-      }
-
-      if (!asset || asset.type === 'image') {
-        lines.push(`  - Clip "${clip.name}" (${range})${propStr}`)
-        continue
-      }
-
-      const [transcript, scenes] = await Promise.all([
-        getStoredTranscript(asset.id).catch(() => undefined),
-        getStoredScenes(asset.id).catch(() => undefined),
-      ])
-
-      if (scenes && scenes.scenes.length) {
-        lines.push(`  - Clip "${clip.name}" (${range})${propStr}:`)
-        for (const sc of scenes.scenes) {
-          const kw = sc.keywords.length ? ` keywords: ${sc.keywords.join(', ')}` : ''
-          lines.push(
-            `    - Scene ${sc.id} [${sc.start.toFixed(1)}s–${sc.end.toFixed(1)}s] (importance ${sc.importance.toFixed(2)}): "${sc.summary}"${kw}`,
-          )
-        }
-      } else if (transcript) {
-        lines.push(`  - Clip "${clip.name}" (${range})${propStr}: "${compressTranscript(transcript.text)}"`)
-      } else {
-        lines.push(`  - Clip "${clip.name}" (${range})${propStr}: (not analyzed yet)`)
-      }
+    if (comp.healthReport.recommendations.length > 0) {
+      sections.push(
+        '\nTIMELINE EDITING HEALTH & DIAGNOSTICS:\n' +
+          comp.healthReport.recommendations.map((r) => `  * ${r}`).join('\n'),
+      )
     }
-  }
 
-  const text = lines.join('\n')
-  return (
-    'TIMELINE & VIDEO UNDERSTANDING (from local project analysis — trust it):\n' +
-    text +
-    '\n\nUse this complete project layout to make precise editing, placement, speed, volume, and styling decisions.'
-  )
+    sections.push(
+      '\n' + comp.editingKnowledge +
+      '\n\nUse this complete project layout and multimodal knowledge to make precise, professional editing decisions.',
+    )
+
+    return sections.join('\n')
+  } catch (err) {
+    console.warn('[buildDirectorContext] IndexedDB query failed, fallback to basic manifest:', err)
+    const { project } = useTimelineStore.getState()
+    return `PROJECT TIMELINE: "${project.name}" (${project.width}x${project.height}, ${project.tracks.length} tracks).`
+  }
 }

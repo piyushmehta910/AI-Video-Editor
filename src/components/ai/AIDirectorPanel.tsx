@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Clapperboard, Film, FileText, RefreshCw, Settings2, X } from 'lucide-react'
+import { Clapperboard, Film, RefreshCw, Settings2, X, Eye, Mic } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -7,6 +7,7 @@ import { useEditorStore } from '@/stores/editorStore'
 import { useAIStore, type AiDirectorMode } from '@/stores/aiStore'
 import { projectDuration } from '@/engine/types'
 import { useAIDirector } from '@/hooks/useAIDirector'
+import { aiContextManager } from '@/ai/context/AIContextManager'
 import { ChatInterface } from './ChatInterface'
 import { SuggestionCard } from './SuggestionCard'
 
@@ -23,44 +24,62 @@ const MODES: Array<{ id: AiDirectorMode; label: string; hint: string }> = [
 function ContextSummary() {
   const project = useTimelineStore((s) => s.project)
   const transcripts = useTimelineStore((s) => s.transcripts)
+  const ocr = useTimelineStore((s) => s.ocr)
+  const scenes = useTimelineStore((s) => s.scenes)
   const analyzing = useAIStore((s) => s.analyzing)
+  const [isIndexing, setIsIndexing] = React.useState(false)
 
   const clipCount = project.tracks.reduce((n, t) => n + t.clips.length, 0)
-  const transcriptText = React.useMemo(() => {
-    for (const t of Object.values(transcripts)) {
-      const text = typeof t === 'string' ? t : (t as { text?: string }).text
-      if (text && text.trim()) return text.trim()
+  const transcriptCount = Object.keys(transcripts).length
+  const ocrRegionCount = Object.values(ocr).reduce((sum, o) => sum + (o?.regions?.length || 0), 0)
+  const sceneCount = Object.values(scenes).reduce((sum, s) => sum + (s?.scenes?.length || 0), 0)
+
+  const handleReindex = async () => {
+    if (isIndexing) return
+    setIsIndexing(true)
+    try {
+      await aiContextManager.analyzeAllProjectAssets({ force: true })
+    } finally {
+      setIsIndexing(false)
     }
-    return ''
-  }, [transcripts])
+  }
 
   return (
-    <div className="border-b border-neutral-800 px-3 py-2" data-testid="ai-context-summary">
-      <div className="flex items-center gap-3 text-[10px] text-neutral-400">
-        <span className="flex items-center gap-1">
-          <Film className="size-3" />
-          {projectDuration(project.tracks).toFixed(1)}s · {clipCount} clip{clipCount !== 1 ? 's' : ''} ·{' '}
-          {project.tracks.filter((t) => t.clips.length > 0).length} active track
-          {project.tracks.filter((t) => t.clips.length > 0).length !== 1 ? 's' : ''}
+    <div className="border-b border-border/80 bg-muted/10 px-3 py-2" data-testid="ai-context-summary">
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1 font-medium text-foreground">
+          <Film className="size-3 text-violet-400" />
+          {projectDuration(project.tracks).toFixed(1)}s · {clipCount} clip{clipCount !== 1 ? 's' : ''}
         </span>
-        <span className={`ml-auto flex items-center gap-1 ${analyzing ? 'text-violet-300' : 'text-neutral-600'}`}>
-          {analyzing ? (
-            <>
-              <RefreshCw className="size-3 animate-spin" />
-              Analyzing…
-            </>
-          ) : (
-            'Idle'
-          )}
-        </span>
+        <button
+          type="button"
+          onClick={() => void handleReindex()}
+          disabled={isIndexing || analyzing}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-300 hover:bg-violet-500/10 transition"
+          title="Re-run Whisper speech transcription and frame-by-frame OCR analysis"
+        >
+          <RefreshCw className={isIndexing || analyzing ? 'size-2.5 animate-spin' : 'size-2.5'} />
+          {isIndexing || analyzing ? 'Indexing…' : 'IndexedDB Active'}
+        </button>
       </div>
-      {transcriptText && (
-        <p className="mt-1 flex items-start gap-1 truncate text-[10px] italic leading-relaxed text-neutral-500" title={transcriptText}>
-          <FileText className="mt-px size-3 shrink-0" />
-          {transcriptText.slice(0, 200)}
-          {transcriptText.length > 200 ? '…' : ''}
-        </p>
-      )}
+
+      {/* Multimodal Knowledge Badges */}
+      <div className="flex items-center gap-1.5 pt-1.5 flex-wrap">
+        <span className="inline-flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-mono text-violet-700 dark:text-violet-300 border border-violet-500/20">
+          <Mic className="size-2.5" />
+          {transcriptCount > 0 ? `${transcriptCount} Speech Tracks` : 'Auto ASR'}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-mono text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+          <Eye className="size-2.5" />
+          {ocrRegionCount > 0 ? `${ocrRegionCount} OCR Texts` : 'Frame OCR'}
+        </span>
+        {sceneCount > 0 && (
+          <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-mono text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+            <Film className="size-2.5" />
+            {sceneCount} Scenes
+          </span>
+        )}
+      </div>
     </div>
   )
 }
