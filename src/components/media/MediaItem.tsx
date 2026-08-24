@@ -119,6 +119,38 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
         <span className="shrink-0 font-mono text-[10px] text-neutral-500">
           {asset.duration ? formatSeconds(asset.duration) : '—'} · {formatBytes(asset.size)}
         </span>
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-violet-600 hover:text-white transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAdd()
+            }}
+            title="Add to timeline"
+          >
+            <Plus className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn(
+              'flex size-6 items-center justify-center rounded-md transition-colors',
+              confirmDelete ? 'bg-destructive text-white' : 'bg-muted text-muted-foreground hover:bg-destructive hover:text-white',
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirmDelete) {
+                onDelete()
+              } else {
+                setConfirmDelete(true)
+                setTimeout(() => setConfirmDelete(false), 2000)
+              }
+            }}
+            title={confirmDelete ? 'Click again to confirm delete' : 'Delete asset'}
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
         {menu && (
           <ContextMenu x={menu.x} y={menu.y}>{menuRows}</ContextMenu>
         )}
@@ -131,7 +163,7 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
     <div
       draggable
       onDragStart={startDrag}
-        onDragEnd={endDrag}
+      onDragEnd={endDrag}
       onDoubleClick={onAdd}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -157,13 +189,38 @@ export function MediaItem({ asset, view, generated, onAdd, onPreview, onDelete, 
         {generated && (
           <span className="absolute top-1 left-1 rounded bg-violet-600 px-1 py-px text-[8px] font-bold tracking-wider text-white">AI</span>
         )}
-        <button
-          className="absolute inset-0 flex items-center justify-center gap-1 bg-black/60 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={onAdd}
-          title="Add to timeline (or drag to a track)"
-        >
-          <Plus className="size-4" /> Add · drag to timeline
-        </button>
+        <div className="absolute top-1 right-1 flex items-center gap-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md bg-black/75 text-white shadow hover:bg-violet-600 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAdd()
+            }}
+            title="Add to timeline"
+          >
+            <Plus className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn(
+              'flex size-6 items-center justify-center rounded-md shadow transition-colors',
+              confirmDelete ? 'bg-destructive text-white' : 'bg-black/75 text-white hover:bg-destructive',
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirmDelete) {
+                onDelete()
+              } else {
+                setConfirmDelete(true)
+                setTimeout(() => setConfirmDelete(false), 2000)
+              }
+            }}
+            title={confirmDelete ? 'Click again to confirm delete' : 'Delete asset'}
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-1 px-1.5 py-1">
         <span className="truncate text-[11px]" title={asset.name}>
