@@ -92,7 +92,7 @@ export function TopToolbar() {
   }
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur">
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/80 bg-background/80 px-3 backdrop-blur-xl">
       {/* Home navigation & brand badge */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -100,35 +100,35 @@ export function TopToolbar() {
             asChild
             variant="ghost"
             size="sm"
-            className="h-8 gap-1.5 px-2 text-xs font-medium hover:bg-muted"
+            className="h-8 gap-1.5 px-2.5 text-xs font-semibold hover:bg-muted/80 rounded-lg"
           >
             <Link to="/" title="Home">
-              <div className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold">
+              <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex size-5 items-center justify-center rounded-md text-[10px] font-black shadow-xs">
                 CF
               </div>
-              <Home className="size-3.5" />
-              <span className="hidden sm:inline">Home</span>
+              <Home className="size-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline text-foreground">ClipForge</span>
             </Link>
           </Button>
         </TooltipTrigger>
         <TooltipContent>Back to Home</TooltipContent>
       </Tooltip>
 
-      <div className="bg-border mx-0.5 h-4 w-px" />
+      <div className="bg-border/80 mx-0.5 h-4 w-px" />
 
-      {/* Media bin hamburger */}
+      {/* Media bin toggle */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className={cn('h-8 w-8 shrink-0 p-0', leftOpen && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30')}
+            className={cn('h-8 w-8 shrink-0 p-0 rounded-lg transition', leftOpen && 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold')}
             onClick={toggleLeft}
           >
             <PanelLeft className="size-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Toggle media bin</TooltipContent>
+        <TooltipContent>Toggle Media Library</TooltipContent>
       </Tooltip>
 
       {/* Project name (editable) */}
@@ -145,7 +145,7 @@ export function TopToolbar() {
               setEditingName(false)
             }
           }}
-          className="h-7 w-40 rounded-md border bg-muted/40 px-2 text-sm font-semibold outline-none"
+          className="h-7 w-44 rounded-lg border border-violet-500/50 bg-muted/60 px-2.5 text-xs font-bold outline-none ring-2 ring-violet-500/30"
         />
       ) : (
         <button
@@ -155,7 +155,7 @@ export function TopToolbar() {
             setEditingName(true)
           }}
           title="Rename project"
-          className="group flex shrink-0 items-center gap-1 text-sm font-semibold"
+          className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-foreground hover:bg-muted/60 transition"
         >
           <span className="max-w-48 truncate">{project.name}</span>
           <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
@@ -175,25 +175,27 @@ export function TopToolbar() {
             }
           }}
         >
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs hover:bg-muted">
+          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 text-xs font-semibold hover:bg-muted rounded-md">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[10050]">
             {ASPECT_RATIOS.map((r) => (
               <SelectItem key={r} value={r}>{r}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
         <Select value={String(project.fps)} onValueChange={(v) => setProjectSettings({ fps: Number(v) })}>
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 font-mono text-xs hover:bg-muted">
+          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 font-mono text-xs hover:bg-muted rounded-md">
             <SelectValue /> <span className="text-muted-foreground">fps</span>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[10050]">
             {FPS_OPTIONS.map((f) => (
-              <SelectItem key={f} value={String(f)}>{f}</SelectItem>
+              <SelectItem key={f} value={String(f)}>{f} fps</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
         <Select
           value={`${project.width}x${project.height}`}
           onValueChange={(v) => {
@@ -209,10 +211,10 @@ export function TopToolbar() {
             setProjectSettings({ width: w, height: h, aspectRatio: bestLabel })
           }}
         >
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 font-mono text-xs hover:bg-muted">
+          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 font-mono text-xs hover:bg-muted rounded-md">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[10050]">
             {RESOLUTIONS.map((r) => (
               <SelectItem key={r.label} value={`${r.w}x${r.h}`}>
                 {r.label}
@@ -222,18 +224,15 @@ export function TopToolbar() {
         </Select>
       </div>
 
-      <div className="ml-auto flex items-center gap-0.5">
-        <ToolButton label="History" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
+      <div className="ml-auto flex items-center gap-1.5">
+        <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
         </ToolButton>
         <ToolButton label={saving ? 'Saving…' : 'Save project'} onClick={() => void save()} disabled={saving}>
-          <Save className={cn('size-4', saving && 'animate-pulse')} />
-        </ToolButton>
-        <ToolButton label="Export video" onClick={() => setExportOpen(true)} testId="export-button">
-          <Download className="size-4" />
+          <Save className={cn('size-4', saving && 'animate-pulse text-violet-500')} />
         </ToolButton>
 
-        <div className="bg-border mx-1 h-4 w-px" />
+        <div className="bg-border/80 mx-0.5 h-4 w-px" />
 
         {/* Small Settings icon */}
         <Tooltip>
@@ -242,7 +241,7 @@ export function TopToolbar() {
               asChild
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 rounded-lg"
             >
               <Link to="/settings" title="Settings">
                 <Settings className="size-4" />
@@ -253,6 +252,17 @@ export function TopToolbar() {
         </Tooltip>
 
         <ThemeToggle />
+
+        {/* Primary Export Button */}
+        <Button
+          onClick={() => setExportOpen(true)}
+          size="sm"
+          className="h-8 gap-1.5 px-3.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-violet-500/20 text-xs rounded-lg transition-all active:scale-95 shrink-0"
+          data-testid="export-button"
+        >
+          <Download className="size-3.5" />
+          <span>Export</span>
+        </Button>
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}

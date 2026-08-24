@@ -130,22 +130,22 @@ export function Hero() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button size="lg" asChild>
+            <Button size="lg" asChild className="gap-2 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-violet-500/25 text-sm h-11 px-6 rounded-xl transition-all active:scale-95">
               <Link to="/editor">
-                <Wand2 />
-                Open the Editor
+                <Wand2 className="size-4" />
+                Open Studio Editor
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
+            <Button size="lg" variant="outline" asChild className="gap-2 text-sm h-11 px-5 rounded-xl border-border/80 hover:bg-muted font-semibold shadow-xs">
               <Link to="/settings">
-                <Settings />
-                Configure APIs
+                <Settings className="size-4" />
+                Configure AI & Keys
               </Link>
             </Button>
           </div>
 
-          <p className="text-muted-foreground text-xs">
-            No account · No install · Works offline for core editing
+          <p className="text-muted-foreground text-xs font-medium">
+            No account required · Zero server uploads · 100% in-browser WebGPU engine
           </p>
         </div>
 

@@ -1,3 +1,5 @@
+import { ArrowLeft } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useApiConfigStore } from '@/api/config/store'
 import { ConnectionOverview } from '@/components/settings/ConnectionOverview'
 import { NvidiaNimCard } from '@/components/settings/cards/NvidiaNimCard'
@@ -15,6 +17,7 @@ import { MusicCard } from '@/components/settings/cards/MusicCard'
 import { EngineCard } from '@/components/settings/cards/EngineCard'
 import { PreferencesCard } from '@/components/settings/cards/PreferencesCard'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -46,18 +49,32 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Configure external API providers. All keys are stored locally.
-        </p>
-        {error && (
-          <p className="mt-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            Storage error: {error}
+    <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/80">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground">Settings & Integrations</h1>
+            <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400">
+              Local Storage
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
+            Configure external AI providers, voice synthesis, and stock media APIs. All keys are encrypted & stored strictly on your local device.
           </p>
-        )}
+        </div>
+        <Button asChild variant="outline" size="sm" className="gap-1.5 font-semibold shrink-0 shadow-xs">
+          <Link to="/">
+            <ArrowLeft className="size-3.5" />
+            Back to Editor
+          </Link>
+        </Button>
       </div>
+
+      {error && (
+        <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive font-medium">
+          Storage error: {error}
+        </p>
+      )}
 
       <div className="flex flex-col gap-8">
         <section className="flex flex-col gap-3">

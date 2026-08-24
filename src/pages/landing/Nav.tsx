@@ -58,12 +58,12 @@ export function Nav() {
 
         <div className="ml-auto hidden items-center gap-2 sm:flex">
           <ThemeToggle />
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" size="sm" asChild className="rounded-lg">
             <Link to="/settings">Settings</Link>
           </Button>
-          <Button asChild>
+          <Button size="sm" asChild className="gap-1.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-violet-500/20 rounded-lg text-xs px-3.5">
             <Link to="/editor">
-              <Clapperboard />
+              <Clapperboard className="size-3.5" />
               Open Editor
             </Link>
           </Button>
