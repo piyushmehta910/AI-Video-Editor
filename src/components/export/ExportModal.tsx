@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useExportQueueStore, runExportJob } from '@/stores/exportQueueStore'
 import { projectDuration } from '@/engine/types'
@@ -58,9 +59,9 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
       data-testid="export-modal"
       onClick={onClose}
     >
@@ -101,52 +102,59 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
                     : 'cursor-not-allowed border-neutral-800 bg-neutral-900 text-neutral-600'
               }`}
             >
-              {format.extension.toUpperCase()}
+              {format.label}
+              {!available && ' (N/A)'}
             </button>
           ))}
         </div>
 
-        {/* Resolution + FPS */}
-        <div className="mb-4 grid grid-cols-2 gap-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">Resolution</label>
-            <select
-              value={resolutionId}
-              onChange={(e) => setResolutionId(e.target.value)}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm"
+        {/* Resolution */}
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">Resolution</label>
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {RESOLUTIONS.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setResolutionId(r.id)}
+              className={`rounded-lg border px-3 py-2 text-sm transition ${
+                resolutionId === r.id
+                  ? 'border-blue-500 bg-blue-500/15 text-white'
+                  : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600'
+              }`}
             >
-              {RESOLUTIONS.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">Frame rate</label>
-            <select
-              value={fps}
-              onChange={(e) => setFps(Number(e.target.value))}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm"
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        {/* FPS */}
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">Framerate</label>
+        <div className="mb-4 flex gap-2">
+          {FPS_OPTIONS.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFps(f)}
+              className={`flex-1 rounded-lg border py-1.5 text-sm transition ${
+                fps === f
+                  ? 'border-blue-500 bg-blue-500/15 text-white'
+                  : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600'
+              }`}
             >
-              {FPS_OPTIONS.map((f) => (
-                <option key={f} value={f}>
-                  {f} fps
-                </option>
-              ))}
-            </select>
-          </div>
+              {f} fps
+            </button>
+          ))}
         </div>
 
         {/* Quality */}
         <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">Quality</label>
-        <div className="mb-4 flex rounded-lg border border-neutral-700 p-1">
+        <div className="mb-4 flex gap-2">
           {QUALITY_LABELS.map((q) => (
             <button
               key={q.id}
               onClick={() => setQuality(q.id)}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm transition ${
-                quality === q.id ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
+              className={`flex-1 rounded-lg border py-1.5 text-sm transition ${
+                quality === q.id
+                  ? 'border-blue-500 bg-blue-500/15 text-white'
+                  : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600'
               }`}
             >
               {q.label}
@@ -155,8 +163,9 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
         </div>
 
         {/* Filename */}
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">File name</label>
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">Filename</label>
         <input
+          type="text"
           value={filename}
           onChange={(e) => setFilename(e.target.value)}
           spellCheck={false}
@@ -183,6 +192,7 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
           {duration <= 0 ? 'Timeline is empty' : `Start export${activeJobs > 0 ? ` (queue: ${activeJobs})` : ''}`}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

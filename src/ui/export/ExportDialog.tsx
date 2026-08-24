@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import {
   X,
   Loader2,
@@ -190,10 +191,10 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const percent = total > 0 ? Math.min(100, Math.round((progress / total) * 100)) : 0
   const finalFilename = `${customName.trim() || 'clipforge-export'}.${format}`
 
-  return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-xs" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog Container */}
       <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-border/80 bg-card shadow-2xl overflow-hidden z-10">
@@ -287,7 +288,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="z-[250]">
+                <SelectContent className="z-[10050]">
                   {resolutions.map((r) => (
                     <SelectItem key={r.label} value={r.label}>
                       <div className="flex flex-col text-left">
@@ -307,7 +308,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="z-[250]">
+                <SelectContent className="z-[10050]">
                   <SelectItem value="24">24 fps (Cinematic Film)</SelectItem>
                   <SelectItem value="25">25 fps (PAL Standard)</SelectItem>
                   <SelectItem value="30">30 fps (Standard Web/Vlog)</SelectItem>
@@ -331,7 +332,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="z-[250]">
+                <SelectContent className="z-[10050]">
                   <SelectItem value="mp4">MP4 Video (.mp4)</SelectItem>
                   <SelectItem value="webm">WebM Video (.webm)</SelectItem>
                 </SelectContent>
@@ -353,7 +354,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="z-[250]">
+                <SelectContent className="z-[10050]">
                   {format === 'mp4' ? (
                     <SelectItem value="h264">H.264 / AVC (Recommended)</SelectItem>
                   ) : (
@@ -379,7 +380,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 <SelectTrigger className="w-full h-9 justify-between">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="z-[250]">
+                <SelectContent className="z-[10050]">
                   {Object.entries(QUALITY_PRESETS).map(([key, q]) => (
                     <SelectItem key={key} value={key}>
                       <div className="flex items-center justify-between w-full gap-4">
@@ -491,6 +492,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
