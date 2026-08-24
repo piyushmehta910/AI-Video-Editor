@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Bot, Film, FileText, RefreshCw, Settings2, X } from 'lucide-react'
+import { Clapperboard, Film, FileText, RefreshCw, Settings2, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -106,7 +106,7 @@ export function AIDirectorPanel({ initialPrompt }: { initialPrompt?: string }) {
     >
       {/* Header */}
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-neutral-800 px-3">
-        <Bot className="size-4 text-violet-400" />
+        <Clapperboard className="size-4 text-violet-400" />
         <h2 className="text-xs font-semibold tracking-wide text-neutral-200">AI Director</h2>
         <Link
           to="/settings"

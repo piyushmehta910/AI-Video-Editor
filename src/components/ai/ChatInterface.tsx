@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Bot, Check, ListChecks, Send, Sparkles, User, X } from 'lucide-react'
+import { Check, Clapperboard, ListChecks, Send, Sparkles, User, X } from 'lucide-react'
 import { useAIStore } from '@/stores/aiStore'
 import type { AiDirectorApi } from '@/hooks/useAIDirector'
 import { ActionPreview } from './ActionPreview'
@@ -18,10 +18,10 @@ function MessageBubble({ role, text }: { role: 'user' | 'ai'; text: string }) {
       <div className={`flex max-w-[85%] items-start gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
         <div
           className={`flex size-6 shrink-0 items-center justify-center rounded-full ${
-            isUser ? 'bg-[#1e3a5f] text-blue-300' : 'bg-neutral-800 text-neutral-400'
+            isUser ? 'bg-[#1e3a5f] text-blue-300' : 'bg-violet-950/60 text-violet-400 border border-violet-800/40'
           }`}
         >
-          {isUser ? <User className="size-3" /> : <Bot className="size-3" />}
+          {isUser ? <User className="size-3" /> : <Clapperboard className="size-3 text-violet-400" />}
         </div>
         <div
           className={`whitespace-pre-wrap rounded-xl px-3 py-2 text-xs leading-relaxed ${
@@ -195,7 +195,7 @@ export function ChatInterface({ director }: { director: AiDirectorApi }) {
 
         {busy && (
           <div className="flex items-center gap-2 pl-1" aria-live="polite" data-testid="ai-busy-indicator">
-            <Bot className="size-4 shrink-0 animate-pulse text-neutral-400" />
+            <Clapperboard className="size-4 shrink-0 animate-pulse text-violet-400" />
             <div className="flex gap-1">
               <span className="size-1.5 animate-bounce rounded-full bg-neutral-500" />
               <span className="size-1.5 animate-bounce rounded-full bg-neutral-500 [animation-delay:0.1s]" />

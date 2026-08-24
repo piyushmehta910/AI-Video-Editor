@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Bot, Check, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
+import { Check, Clapperboard, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -949,10 +949,10 @@ export function AIDirector({
           title="Drag AI Director anywhere or click to open"
           aria-label="AI Director"
         >
-          <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-500 text-white shadow-2xl shadow-violet-600/40 ring-2 ring-violet-400/40 hover:scale-105 transition-transform">
-            <Bot className="size-7" />
-            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-violet-400">
-              <Sparkles className="size-2 text-violet-950" />
+          <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-purple-600 to-indigo-600 text-white shadow-2xl shadow-violet-600/40 ring-2 ring-violet-400/40 hover:scale-105 transition-transform">
+            <Clapperboard className="size-7 text-white" />
+            <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-amber-400 shadow-md ring-1 ring-amber-200">
+              <Sparkles className="size-2.5 text-amber-950 fill-amber-950" />
             </span>
             {busy && (
               <span className="absolute -bottom-1 -right-1 size-3.5 animate-ping rounded-full bg-emerald-400" />
@@ -974,8 +974,8 @@ export function AIDirector({
           onPointerUp={handlePointerUp}
           title="Drag to move AI Director"
         >
-          <div className="flex size-6 items-center justify-center rounded-full bg-violet-600 text-white">
-            <Bot className="size-3.5" />
+          <div className="flex size-6 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white">
+            <Clapperboard className="size-3.5" />
           </div>
           <span className="text-xs font-semibold text-foreground">AI Director</span>
           {busy && <span className="size-2 animate-ping rounded-full bg-violet-400" />}
@@ -1030,7 +1030,7 @@ export function AIDirector({
               <GripHorizontal className="size-4 opacity-75" />
             </div>
             <div className="flex size-7 items-center justify-center rounded-lg bg-violet-600/15 text-violet-600 dark:text-violet-400">
-              <Bot className="size-4" />
+              <Clapperboard className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -1213,7 +1213,7 @@ export function AIDirector({
             {plan && plan.status === 'pending' && (
               <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400">
-                  <Bot className="size-3.5" />
+                  <Clapperboard className="size-3.5" />
                   Proposed plan — nothing has been changed yet
                 </div>
                 <p className="text-sm font-medium">{plan.plan.goal}</p>
@@ -1274,10 +1274,10 @@ export function AIDirector({
               <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div
                   className={`flex size-7 shrink-0 items-center justify-center rounded-full ${
-                    m.role === 'user' ? 'bg-violet-600 text-white' : 'bg-muted text-muted-foreground'
+                    m.role === 'user' ? 'bg-violet-600 text-white' : 'bg-violet-600/15 text-violet-600 dark:text-violet-400'
                   }`}
                 >
-                  {m.role === 'user' ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+                  {m.role === 'user' ? <User className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                 </div>
                 <div className={`max-w-[80%] space-y-1.5 ${m.role === 'user' ? 'text-right' : ''}`}>
                   <div
@@ -1346,8 +1346,8 @@ export function AIDirector({
 
             {busy && (
               <div className="flex gap-2" aria-live="polite" aria-atomic="true" aria-label="AI Director status">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden="true">
-                  <Bot className="size-3.5" />
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-violet-600/15 text-violet-600 dark:text-violet-400" aria-hidden="true">
+                  <Clapperboard className="size-3.5" />
                 </div>
                 <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2" role="status">
                   <div className="flex gap-1">
@@ -1418,7 +1418,7 @@ export function AIDirector({
             <div className="border-t border-violet-500/30 bg-violet-500/5" aria-live="polite" aria-atomic="true" aria-label="AI Director proposals">
               <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400">
-                  <Bot className="size-3.5" />
+                  <Clapperboard className="size-3.5" />
                   {pendingCount > 0 ? `${pendingCount} proposed change${pendingCount > 1 ? 's' : ''} awaiting review` : 'No pending changes'}
                 </span>
                 <div className="ml-auto flex items-center gap-1">
@@ -1458,7 +1458,7 @@ export function AIDirector({
                     ) : p.status === 'failed' || p.status === 'discarded' ? (
                       <X className="size-3.5 shrink-0 text-destructive" />
                     ) : (
-                      <Bot className="size-3.5 shrink-0 text-violet-500" />
+                      <Clapperboard className="size-3.5 shrink-0 text-violet-500" />
                     )}
                     <span className="min-w-0 flex-1 truncate" title={p.label}>
                       {p.label}
