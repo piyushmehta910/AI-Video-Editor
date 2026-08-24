@@ -1,6 +1,9 @@
 import { useTimelineStore } from '@/stores/timelineStore'
 import { applyTool } from '@/api/llm/tools'
 import { aiContextManager } from '@/ai/context/AIContextManager'
+import { contextUnderstandingEngine } from '@/ai/context/ContextUnderstandingEngine'
+import { resourceAllocator } from '@/ai/allocator/ResourceAllocator'
+import { colorDesignEngine } from '@/engine/design/ColorDesignEngine'
 import { SUBAGENT_REGISTRY } from './subagentsRegistry'
 import type { SubagentRole, SubagentTask, AutonomousVideoPlan, SubagentExecutionResult } from './types'
 
@@ -58,7 +61,8 @@ export class SubagentOrchestrator {
 
   /**
    * 1. Formulate Autonomous Video Creation Plan
-   * Decomposes user goal into specialized subagent tasks using timeline context.
+   * Decomposes user goal into specialized subagent tasks using timeline context,
+   * prompt understanding, and multi-provider resource allocation.
    */
   public async formulateAutonomousPlan(options: {
     goal: string
@@ -68,20 +72,24 @@ export class SubagentOrchestrator {
     topic?: string
   }): Promise<AutonomousVideoPlan> {
     const context = await aiContextManager.getComprehensiveContext()
-    const targetDuration = options.targetDurationSeconds || (context.duration > 0 ? Math.round(context.duration) : 30)
-    const aspect = options.aspectRatio || '9:16'
-    const style = options.style || 'energetic'
+    const userPrefs = await contextUnderstandingEngine.getUserPreferences()
+    const analysis = contextUnderstandingEngine.analyzePrompt(options.goal, userPrefs)
+    const palette = colorDesignEngine.selectPalette(analysis.suggestedColorMood)
+
+    const targetDuration = options.targetDurationSeconds || analysis.estimatedDurationSeconds || (context.duration > 0 ? Math.round(context.duration) : 30)
+    const aspect = options.aspectRatio || analysis.visualStrategy.recommendedAspect || '9:16'
+    const style = options.style || (analysis.desiredTone === 'dramatic' ? 'cinematic' : analysis.desiredTone === 'educational' ? 'educational' : 'energetic')
     const topic = options.topic || options.goal
 
     const planId = crypto.randomUUID()
     const tasks: SubagentTask[] = []
 
-    // 1. Aspect Ratio Configuration (if differs)
+    // 1. Aspect Ratio Configuration
     tasks.push({
       id: crypto.randomUUID(),
       role: 'timeline_editor',
       title: `Set Project Aspect Ratio to ${aspect}`,
-      description: `Configures canvas viewport to ${aspect} for ${style} video delivery.`,
+      description: `Configures canvas viewport to ${aspect} (${analysis.videoType} format, ${style} aesthetic, ${palette.name} palette).`,
       tool: 'set_project_ratio',
       arguments: { aspect },
       status: 'pending',
@@ -91,8 +99,8 @@ export class SubagentOrchestrator {
     tasks.push({
       id: crypto.randomUUID(),
       role: 'script_architect',
-      title: 'Generate Viral Script & Storyboard',
-      description: `Drafts high-retention hook, 3 core body points, and CTA about "${topic}".`,
+      title: `Draft ${analysis.videoType} Script & Storyboard`,
+      description: `Drafts targeted narrative for ${analysis.targetAudience} audience with hook, 3 key points, and CTA about "${topic}".`,
       tool: 'generate_script',
       arguments: {
         topic,
@@ -117,12 +125,15 @@ export class SubagentOrchestrator {
       status: 'pending',
     })
 
+    const bestStockProvider = resourceAllocator.selectBestProvider('stock_images') || 'unsplash'
+    const best3DProvider = resourceAllocator.selectBestProvider('models_3d') || 'sketchfab'
+
     // 4. Asset Subagent: Curate 3D Model / B-Roll Visuals
     tasks.push({
       id: crypto.randomUUID(),
       role: 'asset_curator',
-      title: 'Discover 3D Model Asset',
-      description: `Searches and downloads high-quality 3D asset matching topic context.`,
+      title: 'Discover 3D Model / Visual Assets',
+      description: `Searches and downloads high-quality assets matching topic context via ${best3DProvider} and ${bestStockProvider}.`,
       tool: 'add_3d_model',
       arguments: {
         query: topic.split(' ')[0] || 'robot',

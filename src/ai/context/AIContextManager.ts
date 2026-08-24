@@ -15,6 +15,15 @@ import {
 } from '@/api/llm/understanding'
 import { detectOnScreenText } from '@/engine/analysis/ocr'
 import { generateScenes } from '@/engine/analysis/scenes'
+import {
+  createWordTimelineFromTranscript,
+  type WordTimelineMasterClock,
+} from '@/engine/captions/WordTimeline'
+import {
+  contextUnderstandingEngine,
+  type UserPreferenceProfile,
+  type PromptClassificationResult,
+} from '@/ai/context/ContextUnderstandingEngine'
 
 export interface TemporalMoment {
   time: number
@@ -117,6 +126,20 @@ export class AIContextManager {
 
   public async cacheAssetScenes(scenes: StoredScenes): Promise<void> {
     await storeScenes(scenes)
+  }
+
+  public async getWordTimelineForAsset(assetId: string): Promise<WordTimelineMasterClock | null> {
+    const transcript = await this.getAssetTranscript(assetId)
+    if (!transcript) return null
+    return createWordTimelineFromTranscript(transcript)
+  }
+
+  public async getUserPreferences(): Promise<UserPreferenceProfile> {
+    return contextUnderstandingEngine.getUserPreferences()
+  }
+
+  public classifyPrompt(prompt: string): PromptClassificationResult {
+    return contextUnderstandingEngine.analyzePrompt(prompt)
   }
 
   // ──────────────────────────────────────────────────────────────────────────
