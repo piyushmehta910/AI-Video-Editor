@@ -4739,6 +4739,8 @@ function DesignSection() {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
 
     let isMounted = true
     let animateFn: ((ctx: CanvasRenderingContext2D, t: number, w: number, h: number) => void) | null = null
@@ -4859,8 +4861,14 @@ function DesignSection() {
         if (!videoTrack) throw new Error('No video track available on the timeline')
         const clip = addClip(imported[0].id, videoTrack.id, playhead ?? 0)
         if (clip) {
-          updateClip(clip.id, { duration, sourceEnd: duration, clipType: 'animation' })
-          setSuccess(`Rendered ${duration}s HD motion graphic (${w}x${h}) and added to timeline!`)
+          updateClip(clip.id, {
+            duration,
+            sourceEnd: duration,
+            clipType: 'animation',
+            position: { x: 0, y: 0 },
+            scale: { x: 1, y: 1 },
+          })
+          setSuccess(`Rendered ${duration}s HD motion graphic (${w}x${h}) centered on timeline!`)
         }
       } else {
         setError(errors[0] ?? 'Could not import motion graphic video')
@@ -4880,25 +4888,32 @@ function DesignSection() {
   return (
     <div className="flex h-full flex-col gap-3.5 p-3">
       {/* ── Live Canvas Viewport ── */}
-      <div className="space-y-1.5 rounded-lg border bg-black/60 p-2">
+      <div className="space-y-1.5 rounded-xl border border-violet-500/20 bg-black/60 p-2.5 shadow-lg">
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span className="font-semibold text-foreground flex items-center gap-1.5">
+          <span className="font-bold text-foreground flex items-center gap-1.5">
             <Sparkles className="size-3.5 text-violet-400" />
-            Live Motion Graphic Stage ({stageW}×{stageH})
+            Motion Graphic Stage ({stageW}×{stageH})
           </span>
-          <span className="font-mono">{(currentTime * duration).toFixed(2)}s / {duration}s</span>
+          <span className="font-mono font-semibold text-violet-400">{(currentTime * duration).toFixed(2)}s / {duration}s</span>
         </div>
 
         <div
-          className="relative flex w-full max-h-72 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-zinc-950 mx-auto"
-          style={{ aspectRatio: `${stageW} / ${stageH}` }}
+          className="relative flex w-full max-h-72 items-center justify-center overflow-hidden rounded-xl border border-violet-500/30 bg-zinc-950 mx-auto shadow-2xl"
+          style={{
+            aspectRatio: `${stageW} / ${stageH}`,
+            backgroundImage: transparent ? 'radial-gradient(rgba(255,255,255,0.08) 1px, transparent 0)' : undefined,
+            backgroundSize: '16px 16px',
+          }}
         >
           <canvas
             ref={previewCanvasRef}
             width={stageW}
             height={stageH}
-            className="size-full object-contain"
+            className="size-full object-contain mx-auto block"
           />
+          <div className="absolute top-2 right-2 rounded-md bg-black/70 px-2 py-0.5 text-[9px] font-mono text-violet-300 backdrop-blur border border-violet-500/30">
+            {stageW >= 3840 ? '4K Ultra HD' : stageW >= 1920 ? '1080p Full HD' : 'HD Ready'}
+          </div>
         </div>
 
         {/* Playback Scrubber Bar */}
