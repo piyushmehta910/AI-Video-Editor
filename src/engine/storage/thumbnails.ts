@@ -53,6 +53,7 @@ export async function probeMedia(_blob: Blob, type: 'video' | 'image' | 'audio' 
     if (type === 'video' || type === 'audio') {
       const media = document.createElement(type === 'video' ? 'video' : 'audio')
       media.preload = 'metadata'
+      media.muted = true
       media.src = url
       await new Promise<void>((resolve) => {
         media.onloadedmetadata = () => resolve()

@@ -47,9 +47,8 @@ class ByteWriter {
   }
   // EBML variable-length integer (element size / track number)
   vint(value: number) {
-    // Smallest length with enough value bits: max value for len L is 2^(7L-1)-1.
-    for (const len of [1, 2, 3, 4, 8]) {
-      if (value <= Math.pow(2, len * 7 - 1) - 1) {
+    for (const len of [1, 2, 3, 4]) {
+      if (value < Math.pow(2, len * 7) - 1) {
         this.vintFixed(value, len)
         return
       }
@@ -59,7 +58,7 @@ class ByteWriter {
   private vintFixed(value: number, len: number) {
     const marker = 0x80 >> (len - 1)
     for (let i = len - 1; i >= 0; i--) {
-      let byte = (value >> (i * 8)) & 0xff
+      let byte = Math.floor(value / Math.pow(2, i * 8)) & 0xff
       if (i === len - 1) byte |= marker
       this.buf.push(byte)
     }
@@ -79,11 +78,11 @@ class ByteWriter {
     // EBML element IDs are variable-length; the byte count is implicit in the
     // first byte's leading marker bits, so map the known IDs explicitly.
     const len =
-      id === 0x1a45dfa3 || id === 0x18538067 || id === 0x1f43b675 || id === 0x1549a966 || id === 0x1654ae6b
+      id === 0x1a45dfa3 || id === 0x18538067 || id === 0x1f43b675 || id === 0x1549a966 || id === 0x1654ae6b || id === 0x1c53bb6b
         ? 4
         : id === 0x2ad7b1
           ? 3
-          : id === 0x4282 || id === 0x4287 || id === 0x4285 || id === 0x4489 || id === 0x4d80 || id === 0x5741
+          : id === 0x4282 || id === 0x4287 || id === 0x4285 || id === 0x4489 || id === 0x4d80 || id === 0x5741 || id === 0x56aa || id === 0x56bb
             ? 2
             : 1
     for (let i = len - 1; i >= 0; i--) this.buf.push((id >>> (i * 8)) & 0xff)
@@ -124,30 +123,18 @@ export class WebMMuxer {
     this.entries.push({ ...chunk, kind: 'audio' })
   }
 
-  private buildClusters(): ByteWriter {
-    const segment = new ByteWriter()
-    let currentCluster: { timestamp: number; data: ByteWriter } | null = null
-
-    const sorted = [...this.entries].sort((a, b) => a.timestamp - b.timestamp || (a.kind === 'video' ? -1 : 1))
-    for (const entry of sorted) {
-      // Start a new cluster on each video keyframe (or when the current one is
-      // empty and we only have audio so far).
-      if (!currentCluster || (entry.kind === 'video' && entry.isKey)) {
-        if (currentCluster) this.flushCluster(segment, currentCluster)
-        currentCluster = { timestamp: entry.timestamp, data: new ByteWriter() }
-      }
-      if (!currentCluster) continue
-
-      const timecode = Math.round((entry.timestamp - currentCluster.timestamp) * (TIMESTAMP_SCALE / TIMESTAMP_SCALE))
-      const block = new ByteWriter()
-      block.vint(entry.kind === 'video' ? 1 : 2)
-      block.u16(timecode)
-      block.u8(entry.kind === 'video' ? (entry.isKey ? 0x80 : 0x00) : 0x00)
-      block.push(entry.data)
-      currentCluster.data.elementRaw(0xa3, block.toUint8Array())
+  private cuesElement(cuePoints: Array<{ timeMs: number; clusterOffset: number }>): ByteWriter {
+    const cues = new ByteWriter()
+    for (const cp of cuePoints) {
+      const point = new ByteWriter()
+      point.element(0xb3, uintWriter(cp.timeMs)) // CueTime
+      const trackPos = new ByteWriter()
+      trackPos.element(0xf7, uintWriter(1)) // CueTrack
+      trackPos.element(0xf1, uintWriter(cp.clusterOffset)) // CueClusterPosition
+      point.element(0xb7, trackPos)
+      cues.element(0xbb, point)
     }
-    if (currentCluster) this.flushCluster(segment, currentCluster)
-    return segment
+    return cues
   }
 
   private flushCluster(segment: ByteWriter, currentCluster: { timestamp: number; data: ByteWriter }) {
@@ -161,13 +148,46 @@ export class WebMMuxer {
   }
 
   finalize(): Blob {
-    const segmentClusters = this.buildClusters()
-
-    // Segment children: Info, Tracks, Clusters
+    const cuePoints: Array<{ timeMs: number; clusterOffset: number }> = []
     const segment = new ByteWriter()
-    segment.element(0x1549a966, this.infoElement())
-    segment.element(0x1654ae6b, this.tracksElement())
+    const info = this.infoElement()
+    const tracks = this.tracksElement()
+
+    const headPrefix = new ByteWriter()
+    headPrefix.element(0x1549a966, info)
+    headPrefix.element(0x1654ae6b, tracks)
+    const headerOffset = headPrefix.toUint8Array().length
+
+    const segmentClusters = new ByteWriter()
+    let currentCluster: { timestamp: number; data: ByteWriter } | null = null
+
+    const sorted = [...this.entries].sort((a, b) => a.timestamp - b.timestamp || (a.kind === 'video' ? -1 : 1))
+    for (const entry of sorted) {
+      if (!currentCluster || (entry.kind === 'video' && entry.isKey)) {
+        if (currentCluster) this.flushCluster(segmentClusters, currentCluster)
+        const clusterOffset = headerOffset + segmentClusters.toUint8Array().length
+        currentCluster = { timestamp: entry.timestamp, data: new ByteWriter() }
+        cuePoints.push({ timeMs: Math.max(0, Math.round(entry.timestamp)), clusterOffset })
+      }
+      if (!currentCluster) continue
+
+      const timecode = Math.round(entry.timestamp - currentCluster.timestamp)
+      const block = new ByteWriter()
+      block.vint(entry.kind === 'video' ? 1 : 2)
+      block.u16(timecode)
+      block.u8(entry.kind === 'video' ? (entry.isKey ? 0x80 : 0x00) : 0x00)
+      block.push(entry.data)
+      currentCluster.data.elementRaw(0xa3, block.toUint8Array())
+    }
+    if (currentCluster) this.flushCluster(segmentClusters, currentCluster)
+
+    // Segment children: Info, Tracks, Clusters, Cues
+    segment.element(0x1549a966, info)
+    segment.element(0x1654ae6b, tracks)
     segment.push(segmentClusters.toUint8Array())
+    if (cuePoints.length > 0) {
+      segment.element(0x1c53bb6b, this.cuesElement(cuePoints))
+    }
 
     // EBML header
     const ebml = new ByteWriter()

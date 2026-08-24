@@ -124,6 +124,7 @@ React.useEffect(() => {
       if (existing) return existing.element as HTMLVideoElement
       const el = document.createElement('video')
       el.preload = 'auto'
+      el.muted = true
       el.crossOrigin = 'anonymous'
       el.playsInline = true
       // Short sources (sticker/GIF clips, stretched clips) loop natively while
@@ -131,6 +132,9 @@ React.useEffect(() => {
       el.loop = true
       el.addEventListener('loadedmetadata', requestPaint)
       el.addEventListener('loadeddata', requestPaint)
+      el.addEventListener('canplay', requestPaint)
+      el.addEventListener('seeked', requestPaint)
+      el.addEventListener('playing', requestPaint)
       void getProxyUrl(asset).then((url) => {
         el.src = url
       })
