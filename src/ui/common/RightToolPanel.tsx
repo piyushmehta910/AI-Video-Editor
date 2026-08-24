@@ -4806,6 +4806,27 @@ function ScriptSection() {
             className="h-8 text-xs bg-card"
             disabled={busy}
           />
+          {/* Quick Instant Topic Pills */}
+          <div className="flex flex-wrap gap-1 pt-1">
+            {[
+              { label: '5 AI Secrets', topic: '5 secret AI video tools that feel illegal to use in 2026', style: 'viral_hook' as CreatorStyleId },
+              { label: 'WebGPU Engine', topic: 'Why WebGPU neural shaders are replacing legacy video editors', style: 'tech_reviewer' as CreatorStyleId },
+              { label: 'High-Converting UGC', topic: 'Stop editing videos manually — here is the 10x AI workflow', style: 'storyteller' as CreatorStyleId },
+              { label: 'Startup Pitch', topic: 'ClipForge: The Next-Generation Browser-Native AI Video Platform', style: 'educator' as CreatorStyleId },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                className="rounded border border-border/60 bg-card px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-foreground transition"
+                onClick={() => {
+                  setTopic(p.topic)
+                  setCreatorStyle(p.style)
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
