@@ -410,6 +410,126 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <rect x="244" y="244" width="24" height="14" fill="#ca8a04"/>
     </svg>`,
   },
+  {
+    id: 'sophia-creative',
+    name: 'Sophia · Design Lead',
+    role: 'presenter',
+    tagline: 'Articulate creative director with designer spectacles',
+    mouth: { x: 0.5, y: 0.73, width: 0.21, maxOpen: 0.12 },
+    style: 'realistic',
+    previewGradient: 'from-rose-600 to-amber-950',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <radialGradient id="bg_sophia" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#4c0519"/>
+          <stop offset="100%" stop-color="#140207"/>
+        </radialGradient>
+        <linearGradient id="skin_sophia" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#fde68a" stop-opacity="0.3"/>
+          <stop offset="0%" stop-color="#ffedd5"/>
+          <stop offset="100%" stop-color="#fbcfe8"/>
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" fill="url(#bg_sophia)"/>
+      <path d="M125 512 C125 400, 195 370, 256 370 C317 370, 387 400, 387 512 Z" fill="#e11d48"/>
+      <ellipse cx="256" cy="240" rx="88" ry="108" fill="url(#skin_sophia)"/>
+      <path d="M160 180 C160 100, 352 100, 352 180 C352 280, 340 310, 340 310 C315 230, 290 140, 256 140 C222 140, 197 230, 172 310 Z" fill="#881337"/>
+      <!-- Stylish Hex Glasses -->
+      <polygon points="195,210 240,210 248,235 230,248 200,248 190,235" fill="none" stroke="#fb7185" stroke-width="3"/>
+      <polygon points="264,210 309,210 319,235 301,248 271,248 261,235" fill="none" stroke="#fb7185" stroke-width="3"/>
+      <line x1="240" y1="222" x2="264" y2="222" stroke="#fb7185" stroke-width="3"/>
+      <ellipse cx="218" cy="225" rx="9" ry="9" fill="#4c0519"/>
+      <ellipse cx="290" cy="225" rx="9" ry="9" fill="#4c0519"/>
+      <circle cx="221" cy="222" r="3" fill="#ffffff"/>
+      <circle cx="293" cy="222" r="3" fill="#ffffff"/>
+      <path d="M256 242 Q252 260 248 266 Q256 268 264 266" stroke="#f43f5e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    id: 'liam-dev',
+    name: 'Liam · AI Engineer',
+    role: 'presenter',
+    tagline: 'Technical educator with neural network hoodie',
+    mouth: { x: 0.5, y: 0.74, width: 0.2, maxOpen: 0.11 },
+    style: 'realistic',
+    previewGradient: 'from-blue-600 to-indigo-950',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <radialGradient id="bg_liam" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#1e1b4b"/>
+          <stop offset="100%" stop-color="#090514"/>
+        </radialGradient>
+      </defs>
+      <rect width="512" height="512" fill="url(#bg_liam)"/>
+      <path d="M125 512 C125 390, 195 360, 256 360 C317 360, 387 390, 387 512 Z" fill="#2563eb"/>
+      <ellipse cx="256" cy="245" rx="88" ry="105" fill="#fed7aa"/>
+      <path d="M165 190 C165 125, 210 105, 256 105 C302 105, 347 125, 347 190 Z" fill="#1e293b"/>
+      <ellipse cx="218" cy="225" rx="10" ry="10" fill="#0f172a"/>
+      <ellipse cx="294" cy="225" rx="10" ry="10" fill="#0f172a"/>
+      <circle cx="221" cy="222" r="3" fill="#ffffff"/>
+      <circle cx="297" cy="222" r="3" fill="#ffffff"/>
+      <path d="M202 205 Q218 198 234 205" stroke="#1e293b" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M278 205 Q294 198 310 205" stroke="#1e293b" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M256 245 Q252 264 248 270 Q256 273 264 270" stroke="#ea580c" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    id: 'amara-global',
+    name: 'Amara · Global Anchor',
+    role: 'narrator',
+    tagline: 'Refined broadcast presenter with studio lighting',
+    mouth: { x: 0.5, y: 0.72, width: 0.22, maxOpen: 0.12 },
+    style: 'realistic',
+    previewGradient: 'from-teal-600 to-slate-950',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <radialGradient id="bg_amara" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#134e4a"/>
+          <stop offset="100%" stop-color="#021f1d"/>
+        </radialGradient>
+        <linearGradient id="skin_amara" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#a16207"/>
+          <stop offset="100%" stop-color="#713f12"/>
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" fill="url(#bg_amara)"/>
+      <path d="M125 512 C125 400, 195 370, 256 370 C317 370, 387 400, 387 512 Z" fill="#0d9488"/>
+      <ellipse cx="256" cy="240" rx="90" ry="110" fill="url(#skin_amara)"/>
+      <path d="M160 175 C160 100, 352 100, 352 175 C352 270, 335 300, 335 300 C310 230, 290 140, 256 140 C222 140, 202 230, 177 300 Z" fill="#171717"/>
+      <ellipse cx="218" cy="225" rx="11" ry="10" fill="#1c1917"/>
+      <ellipse cx="294" cy="225" rx="11" ry="10" fill="#1c1917"/>
+      <circle cx="221" cy="222" r="3.5" fill="#ffffff"/>
+      <circle cx="297" cy="222" r="3.5" fill="#ffffff"/>
+      <path d="M202 205 Q218 198 234 205" stroke="#171717" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M278 205 Q294 198 310 205" stroke="#171717" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M256 242 Q252 262 248 268 Q256 270 264 268" stroke="#451a03" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    id: 'astral-nebula',
+    name: 'Astral · Synthwave AI',
+    role: 'intro',
+    tagline: 'Vibrant neon synthwave presenter with neon spectrum',
+    mouth: { x: 0.5, y: 0.74, width: 0.24, maxOpen: 0.14 },
+    style: 'robotic',
+    previewGradient: 'from-violet-600 via-fuchsia-600 to-cyan-600',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <radialGradient id="bg_astral" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#2e1065"/>
+          <stop offset="100%" stop-color="#0f0728"/>
+        </radialGradient>
+      </defs>
+      <rect width="512" height="512" fill="url(#bg_astral)"/>
+      <path d="M125 512 C125 390, 195 360, 256 360 C317 360, 387 390, 387 512 Z" fill="#4c1d95" stroke="#06b6d4" stroke-width="3"/>
+      <polygon points="256,130 330,190 330,290 256,340 182,290 182,190" fill="#1e1b4b" stroke="#ec4899" stroke-width="4"/>
+      <line x1="205" y1="220" x2="245" y2="220" stroke="#06b6d4" stroke-width="6" stroke-linecap="round"/>
+      <line x1="267" y1="220" x2="307" y2="220" stroke="#06b6d4" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="225" cy="220" r="4" fill="#ffffff"/>
+      <circle cx="287" cy="220" r="4" fill="#ffffff"/>
+      <path d="M256 248 Q252 265 248 272 Q256 274 264 272" stroke="#a855f7" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>`,
+  },
 ]
 
 /**
