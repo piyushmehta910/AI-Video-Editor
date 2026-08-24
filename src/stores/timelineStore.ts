@@ -255,6 +255,33 @@ export const useTimelineStore = create<TimelineState>()(
     return null
   }
 
+  const findNonCollidingTrack = (project: Project, requestedTrack: Track, start: number, duration: number): Track => {
+    const isOverlap = (tr: Track) =>
+      tr.clips.some((c) => Math.max(start, c.startTime) < Math.min(start + duration, c.startTime + c.duration) - 0.01)
+
+    // If requested track has no overlap, use it
+    if (!isOverlap(requestedTrack)) return requestedTrack
+
+    // Look for any existing track of the same type that has no overlap
+    const sameTypeTracks = project.tracks.filter((t) => t.type === requestedTrack.type)
+    const freeTrack = sameTypeTracks.find((t) => !isOverlap(t))
+    if (freeTrack) return freeTrack
+
+    // Otherwise, create a new separate track for this type so it never overlaps or collapses
+    const newTrack: Track = {
+      id: crypto.randomUUID(),
+      type: requestedTrack.type,
+      name: `${requestedTrack.name.replace(/\s*\d+$/, '')} ${sameTypeTracks.length + 1}`,
+      index: project.tracks.length,
+      locked: false,
+      muted: false,
+      hidden: false,
+      clips: [],
+    }
+    project.tracks.push(newTrack)
+    return newTrack
+  }
+
   return {
     project: newProject(),
     assets: [],
@@ -581,6 +608,8 @@ export const useTimelineStore = create<TimelineState>()(
 
       const duration = asset.type === 'image' || asset.type === 'model' ? 4 : Math.min(asset.duration || 5, 30)
       const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
+      const targetTrack = findNonCollidingTrack(project, track, start, duration)
+
       const clipType: MediaClipType =
         asset.type === 'video' ? 'video'
         : asset.type === 'image' ? 'image'
@@ -589,7 +618,7 @@ export const useTimelineStore = create<TimelineState>()(
       const clip: Clip = {
         id: crypto.randomUUID(),
         assetId: asset.id,
-        trackId: track.id,
+        trackId: targetTrack.id,
         startTime: start,
         duration,
         sourceStart: 0,
@@ -609,14 +638,18 @@ export const useTimelineStore = create<TimelineState>()(
         thumbnailUrl: asset.thumbnailUrl,
         modelRig: asset.type === 'model' ? { ...defaultCameraRig(), radiusStart: (asset.modelRadius ?? 2.4) * 2.5, radiusEnd: (asset.modelRadius ?? 2.4) * 2.5 } : undefined,
       }
-      get().begin({ type: 'add', description: `Added '${asset.name}' to ${track.name}`, clipId: clip.id })
+      get().begin({ type: 'add', description: `Added '${asset.name}' to ${targetTrack.name}`, clipId: clip.id })
       mutate((p) => {
-        const t = p.tracks.find((tr) => tr.id === track.id)!
+        let t = p.tracks.find((tr) => tr.id === targetTrack.id)
+        if (!t) {
+          p.tracks.push(targetTrack)
+          t = targetTrack
+        }
         t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
         return p
       })
       commitHistory()
-      get().select([clip.id], track.id)
+      get().select([clip.id], targetTrack.id)
       return clip
     },
 
@@ -626,15 +659,18 @@ export const useTimelineStore = create<TimelineState>()(
       if (!track) return undefined
 
       const start = startTime ?? Math.max(0, Math.floor(playhead * 10) / 10)
+      const duration = 4
+      const targetTrack = findNonCollidingTrack(project, track, start, duration)
+
       const clip: Clip = {
         id: crypto.randomUUID(),
         assetId: '',
-        trackId: track.id,
+        trackId: targetTrack.id,
         startTime: start,
-        duration: 4,
+        duration,
         sourceStart: 0,
         textType: 'title',
-        sourceEnd: 4,
+        sourceEnd: duration,
         speed: 1,
         name: text.slice(0, 30) || 'Text',
         position: { x: 0, y: 0 },
@@ -667,24 +703,39 @@ export const useTimelineStore = create<TimelineState>()(
       }
       get().begin({ type: 'add', description: `Added text '${clip.name}'`, clipId: clip.id })
       mutate((p) => {
-        const t = p.tracks.find((tr) => tr.id === track.id)!
+        let t = p.tracks.find((tr) => tr.id === targetTrack.id)
+        if (!t) {
+          p.tracks.push(targetTrack)
+          t = targetTrack
+        }
         t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
         return p
       })
       commitHistory()
-      get().select([clip.id], track.id)
+      get().select([clip.id], targetTrack.id)
       return clip
     },
 
     addClipToTrack: (clip) => {
       get().begin({ type: 'add', description: `Added '${clip.name}'`, clipId: clip.id })
       mutate((p) => {
-        const t = p.tracks.find((tr) => tr.id === clip.trackId)
-        if (!t) return p
-        t.clips = [...t.clips, clip].sort((a, b) => a.startTime - b.startTime)
+        let t = p.tracks.find((tr) => tr.id === clip.trackId)
+        if (!t) {
+          t = p.tracks[0]
+          clip.trackId = t.id
+        }
+        const targetTrack = findNonCollidingTrack(p, t, clip.startTime, clip.duration)
+        clip.trackId = targetTrack.id
+        let dest = p.tracks.find((tr) => tr.id === targetTrack.id)
+        if (!dest) {
+          p.tracks.push(targetTrack)
+          dest = targetTrack
+        }
+        dest.clips = [...dest.clips, clip].sort((a, b) => a.startTime - b.startTime)
         return p
       })
       commitHistory()
+      get().select([clip.id], clip.trackId)
     },
 
     updateClip: (clipId, patch) => {

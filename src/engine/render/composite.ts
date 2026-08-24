@@ -472,17 +472,25 @@ export async function compositeFrame(
   if (grain > 0) drawGrainOverlay(ctx, w, h, grain)
 
   // Text overlays (drawn above clip media, below vignette).
-  for (const { clip } of video) {
-    if (!clip.text) continue
+  const textLayers = video.filter(({ clip }) => !!clip.text)
+  for (let idx = 0; idx < textLayers.length; idx++) {
+    const { clip } = textLayers[idx]
     const clipLocalTime = time - clip.startTime
     const currentOpacity = interpolatePropertyKeyframe(clip.keyframes, 'opacity', clipLocalTime, clip.opacity)
     const currentPosX = interpolatePropertyKeyframe(clip.keyframes, 'position.x', clipLocalTime, clip.position.x)
-    const currentPosY = interpolatePropertyKeyframe(clip.keyframes, 'position.y', clipLocalTime, clip.position.y)
+    let currentPosY = interpolatePropertyKeyframe(clip.keyframes, 'position.y', clipLocalTime, clip.position.y)
     const currentScaleX = interpolatePropertyKeyframe(clip.keyframes, 'scale.x', clipLocalTime, clip.scale.x)
     const currentScaleY = interpolatePropertyKeyframe(clip.keyframes, 'scale.y', clipLocalTime, clip.scale.y)
     const currentRotation = interpolatePropertyKeyframe(clip.keyframes, 'rotation', clipLocalTime, clip.rotation)
 
-    const t = clip.text
+    const t = clip.text!
+    // When 2 or more text overlays are active simultaneously without custom manual offsets,
+    // distribute them vertically so they never collapse or collide on top of each other
+    if (textLayers.length > 1 && Math.abs(currentPosY) < 15) {
+      const spacing = Math.max(50, t.fontSize * 1.35 + 24)
+      currentPosY = (idx - (textLayers.length - 1) / 2) * spacing
+    }
+
     const anim = textAnimationAt(t.animation ?? 'none', t.animationDuration, time, clip.startTime, clip.duration)
     ctx.save()
     ctx.globalAlpha = currentOpacity * transitionAlpha(clip.startTime, clip.duration, time, clip.transitions.in, clip.transitions.out) * anim.alpha
