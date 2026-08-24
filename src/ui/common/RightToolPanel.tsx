@@ -39,6 +39,8 @@ import {
   Layers,
   Copy,
   Flame,
+  Mic,
+  Square,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -53,6 +55,8 @@ import {
   calculateScriptMetrics,
 } from '@/api/llm/scripts'
 import { useScriptStore } from '@/stores/scriptStore'
+import { ScriptStudioModal } from '@/ui/script/ScriptStudioModal'
+import { useVoiceoverRecorder } from '@/hooks/useVoiceoverRecorder'
 import {
   generateSlides,
   renderSlideHtml,
@@ -4269,16 +4273,54 @@ function ScriptSection() {
   const [customTone, setCustomTone] = React.useState('high_energy')
   const [language, setLanguage] = React.useState('auto')
   const [busy, setBusy] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<'storyboard' | 'teleprompter' | 'hook'>('storyboard')
+  const [activeTab, setActiveTab] = React.useState<'storyboard' | 'editor' | 'teleprompter' | 'hook'>('storyboard')
   const [teleprompterZoom, setTeleprompterZoom] = React.useState(14)
   const [copied, setCopied] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
+  const [isStudioOpen, setIsStudioOpen] = React.useState(false)
+  const [isSynthesizingTts, setIsSynthesizingTts] = React.useState(false)
 
   const script = useScriptStore((s) => s.script)
   const setScript = useScriptStore((s) => s.setScript)
+  const updateScript = useScriptStore((s) => s.updateScript)
+  const updateScene = useScriptStore((s) => s.updateScene)
+  const addScene = useScriptStore((s) => s.addScene)
+  const removeScene = useScriptStore((s) => s.removeScene)
+  const reorderScenes = useScriptStore((s) => s.reorderScenes)
+
+  const importFiles = useTimelineStore((s) => s.importFiles)
+  const addClip = useTimelineStore((s) => s.addClip)
   const addTextClip = useTimelineStore((s) => s.addTextClip)
+  const updateClip = useTimelineStore((s) => s.updateClip)
   const project = useTimelineStore((s) => s.project)
+  const playhead = useTimelineStore((s) => s.playhead)
+
+  // Voiceover Recording Integration
+  const handleVoiceoverDone = React.useCallback(
+    async (file: File, durationSec: number) => {
+      try {
+        const { imported, errors } = await importFiles([file])
+        if (imported.length) {
+          const audioTrack = project.tracks.find((t) => t.type === 'audio') || project.tracks.find((t) => t.type === 'video')
+          if (audioTrack) {
+            const clip = addClip(imported[0].id, audioTrack.id, playhead ?? 0)
+            if (clip) {
+              updateClip(clip.id, { duration: durationSec, sourceEnd: durationSec, clipType: 'audio' })
+              setSuccess(`Recorded ${durationSec.toFixed(1)}s voiceover directly to audio track at ${(playhead ?? 0).toFixed(1)}s!`)
+            }
+          }
+        } else {
+          setError(errors[0] ?? 'Could not import voiceover')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Voiceover save failed')
+      }
+    },
+    [importFiles, project.tracks, addClip, playhead, updateClip],
+  )
+
+  const recorder = useVoiceoverRecorder(handleVoiceoverDone)
 
   const handleGenerate = async () => {
     if (!topic.trim() || busy) return
@@ -4330,7 +4372,7 @@ function ScriptSection() {
       return
     }
 
-    let time = 0
+    let time = playhead ?? 0
     if (script.hook) {
       addTextClip(script.hook, targetTrack.id, time)
       time += 4
@@ -4346,6 +4388,54 @@ function ScriptSection() {
       addTextClip(script.cta, targetTrack.id, time)
     }
     setSuccess('Added script scenes as text overlays to the timeline!')
+  }
+
+  const handleSynthesizeTts = async () => {
+    if (!script) return
+    setIsSynthesizingTts(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const { getActiveTtsProvider } = await import('@/api/tts')
+      const provider = getActiveTtsProvider()
+      const fullText = [script.hook, ...script.scenes.map((s) => s.text), script.cta].filter(Boolean).join(' ')
+
+      let audioBlob: Blob
+      if (provider) {
+        const ttsResult = await provider.synthesize({ text: fullText })
+        if (ttsResult?.blob) {
+          audioBlob = ttsResult.blob
+        } else {
+          const { generateAvatarVideo } = await import('@/api/llm/avatarGenerator')
+          const res = await generateAvatarVideo({ role: 'presenter', topic: script.title, scriptText: fullText })
+          audioBlob = res.videoBlob
+        }
+      } else {
+        const { generateAvatarVideo } = await import('@/api/llm/avatarGenerator')
+        const res = await generateAvatarVideo({ role: 'presenter', topic: script.title, scriptText: fullText })
+        audioBlob = res.videoBlob
+      }
+
+      const file = new File([audioBlob], `script-voiceover-${Date.now()}.wav`, { type: 'audio/wav' })
+      const { imported, errors } = await importFiles([file])
+      if (imported.length) {
+        const audioTrack = project.tracks.find((t) => t.type === 'audio') || project.tracks.find((t) => t.type === 'video')
+        if (audioTrack) {
+          const clip = addClip(imported[0].id, audioTrack.id, playhead ?? 0)
+          if (clip) {
+            const metrics = calculateScriptMetrics(script)
+            updateClip(clip.id, { duration: metrics.estimatedSeconds, sourceEnd: metrics.estimatedSeconds, clipType: 'audio' })
+            setSuccess(`Synthesized ~${metrics.estimatedSeconds}s audio voiceover to timeline!`)
+          }
+        }
+      } else {
+        setError(errors[0] ?? 'Could not import synthesized audio')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'TTS synthesis failed')
+    } finally {
+      setIsSynthesizingTts(false)
+    }
   }
 
   const metrics = script ? calculateScriptMetrics(script) : null
@@ -4489,25 +4579,65 @@ function ScriptSection() {
       {error && <SectionNotice kind="error" text={error} />}
       {success && <SectionNotice kind="ok" text={success} />}
 
-      {/* ── 3. Rich Script Studio Viewer ── */}
+      {/* ── 3. Panel Recording HUD (When active) ── */}
+      {recorder.isRecording && (
+        <div className="rounded-lg border border-red-500/50 bg-red-950/40 p-2.5 space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-red-200">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-red-500 animate-ping" />
+              Recording Voiceover...
+            </span>
+            <span className="font-mono text-sm font-bold text-white">{recorder.duration.toFixed(1)}s</span>
+          </div>
+
+          {/* VU Meter */}
+          <div className="h-1.5 w-full rounded-full bg-black/60 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 transition-all duration-75"
+              style={{ width: `${recorder.audioLevel}%` }}
+            />
+          </div>
+
+          <div className="flex gap-1.5 pt-1">
+            <Button size="sm" variant="ghost" className="h-7 flex-1 text-xs text-red-300 hover:text-white" onClick={recorder.cancelRecording}>
+              Cancel
+            </Button>
+            <Button size="sm" className="h-7 flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs" onClick={recorder.stopRecording}>
+              <Square className="size-3 mr-1 fill-current" /> Finish & Add
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 4. Rich Script Studio Viewer & Editor ── */}
       {script && (
         <div className="space-y-2.5 rounded-lg border bg-card p-3 shadow-xs">
           {/* Header & Metrics */}
           <div className="flex items-center justify-between border-b pb-2">
             <div className="space-y-0.5">
-              <p className="text-xs font-bold text-foreground truncate max-w-[190px]">{script.title}</p>
+              <p className="text-xs font-bold text-foreground truncate max-w-[170px]">{script.title}</p>
               {metrics && (
-                <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-mono">
-                  <span>{metrics.totalWords} words</span>
+                <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-mono">
+                  <span>{metrics.totalWords}w</span>
                   <span>·</span>
-                  <span>~{metrics.estimatedSeconds}s audio</span>
+                  <span>~{metrics.estimatedSeconds}s</span>
                   <span>·</span>
-                  <span>{metrics.wpm} wpm</span>
+                  <span className="text-violet-400 font-semibold">{metrics.wpm} wpm</span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] gap-1 px-2 border-violet-500/40 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 font-bold"
+                onClick={() => setIsStudioOpen(true)}
+                title="Open Big Screen Teleprompter & Studio Editor"
+              >
+                <Maximize2 className="size-3" />
+                Big Screen
+              </Button>
               <Button
                 size="icon"
                 variant="ghost"
@@ -4529,6 +4659,34 @@ function ScriptSection() {
             </div>
           </div>
 
+          {/* Quick Studio Tools Bar */}
+          <div className="flex items-center gap-1.5">
+            {recorder.isRecording ? (
+              <Button size="sm" variant="destructive" className="h-7 flex-1 text-xs gap-1 font-bold animate-pulse" onClick={recorder.stopRecording}>
+                <Square className="size-3 fill-current" /> Stop ({recorder.duration.toFixed(1)}s)
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="h-7 flex-1 text-xs gap-1 bg-red-600 hover:bg-red-500 text-white font-semibold shadow-xs"
+                onClick={() => void recorder.startRecording()}
+              >
+                <Mic className="size-3" /> Record Audio
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 border-violet-500/30 text-violet-300 hover:bg-violet-500/10"
+              onClick={() => void handleSynthesizeTts()}
+              disabled={isSynthesizingTts}
+            >
+              {isSynthesizingTts ? <Loader2 className="size-3 animate-spin" /> : <Volume2 className="size-3" />}
+              TTS
+            </Button>
+          </div>
+
           {/* Viewer Tabs */}
           <div className="flex rounded-md border bg-muted/40 p-0.5 text-[10px]">
             <button
@@ -4539,7 +4697,17 @@ function ScriptSection() {
               )}
               onClick={() => setActiveTab('storyboard')}
             >
-              📑 Visual Storyboard
+              📑 Storyboard
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'flex-1 rounded py-1 font-medium transition text-center',
+                activeTab === 'editor' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setActiveTab('editor')}
+            >
+              ✏️ Edit Script
             </button>
             <button
               type="button"
@@ -4549,7 +4717,7 @@ function ScriptSection() {
               )}
               onClick={() => setActiveTab('teleprompter')}
             >
-              📜 Teleprompter
+              📜 Prompter
             </button>
             <button
               type="button"
@@ -4559,11 +4727,11 @@ function ScriptSection() {
               )}
               onClick={() => setActiveTab('hook')}
             >
-              🎣 Hook Breakdown
+              🎣 Hook
             </button>
           </div>
 
-          {/* ── Storyboard View ── */}
+          {/* ── 1. Storyboard View ── */}
           {activeTab === 'storyboard' && (
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {/* Hook */}
@@ -4621,7 +4789,90 @@ function ScriptSection() {
             </div>
           )}
 
-          {/* ── Teleprompter View ── */}
+          {/* ── 2. In-Panel Scene Editor ── */}
+          {activeTab === 'editor' && (
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {/* Hook Edit */}
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 space-y-1.5">
+                <span className="text-[10px] font-bold text-amber-400">🎣 Opening Hook (0-4s)</span>
+                <textarea
+                  value={script.hook}
+                  onChange={(e) => updateScript({ hook: e.target.value })}
+                  placeholder="Spoken hook..."
+                  className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+
+              {/* Scenes Edit List */}
+              {script.scenes.map((sc, i) => (
+                <div key={i} className="rounded-md border bg-muted/20 p-2 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-violet-400">Scene {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-5 text-muted-foreground hover:text-foreground"
+                        onClick={() => reorderScenes(i, Math.max(0, i - 1))}
+                        disabled={i === 0}
+                      >
+                        <ChevronLeft className="size-3 rotate-90" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-5 text-red-400 hover:text-red-300"
+                        onClick={() => removeScene(i)}
+                        disabled={script.scenes.length <= 1}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <Input
+                    value={sc.title}
+                    onChange={(e) => updateScene(i, { title: e.target.value })}
+                    placeholder="Scene Title"
+                    className="h-6 text-[10px] bg-background"
+                  />
+                  <textarea
+                    value={sc.text}
+                    onChange={(e) => updateScene(i, { text: e.target.value })}
+                    placeholder="Spoken text for this scene..."
+                    className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-violet-500 resize-none"
+                  />
+                  <Input
+                    value={sc.visualCue || ''}
+                    onChange={(e) => updateScene(i, { visualCue: e.target.value })}
+                    placeholder="B-Roll visual cue..."
+                    className="h-6 text-[10px] bg-background italic"
+                  />
+                </div>
+              ))}
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-7 text-xs border-dashed border-violet-500/40 text-violet-300 hover:bg-violet-500/10"
+                onClick={() => addScene()}
+              >
+                <Plus className="size-3 mr-1" /> Add Scene Beat
+              </Button>
+
+              {/* CTA Edit */}
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2 space-y-1.5">
+                <span className="text-[10px] font-bold text-emerald-400">🚀 Outro / CTA</span>
+                <textarea
+                  value={script.cta}
+                  onChange={(e) => updateScript({ cta: e.target.value })}
+                  placeholder="Closing CTA..."
+                  className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-emerald-500 resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── 3. Teleprompter View ── */}
           {activeTab === 'teleprompter' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
@@ -4649,7 +4900,7 @@ function ScriptSection() {
             </div>
           )}
 
-          {/* ── Hook Breakdown View ── */}
+          {/* ── 4. Hook Breakdown View ── */}
           {activeTab === 'hook' && (
             <div className="space-y-2 text-xs">
               <div className="rounded-md border p-2.5 space-y-1.5 bg-muted/20">
@@ -4678,6 +4929,12 @@ function ScriptSection() {
           </div>
         </div>
       )}
+
+      {/* ── 5. Full Screen Big Teleprompter & Studio Modal ── */}
+      <ScriptStudioModal
+        open={isStudioOpen}
+        onClose={() => setIsStudioOpen(false)}
+      />
     </div>
   )
 }
