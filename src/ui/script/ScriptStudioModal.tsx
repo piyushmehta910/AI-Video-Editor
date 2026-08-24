@@ -569,12 +569,12 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
 
         {/* ══════════ 2. STUDIO SCENE EDITOR VIEW ══════════ */}
         {mode === 'editor' && (
-          <div className="h-full overflow-y-auto p-6 flex justify-center bg-zinc-950/40">
+          <div className="h-full overflow-y-auto p-6 flex justify-center bg-muted/30">
             <div className={cn('w-full space-y-6 pb-20', containerMaxWidth)}>
               {/* Script Header Details */}
               <div className="rounded-xl border bg-card p-4 space-y-3 shadow-md">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-violet-400">Script Metadata</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">Script Metadata</span>
                   <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-500 text-white font-semibold" onClick={() => addScene()}>
                     <Plus className="size-3.5 mr-1" /> Add New Beat / Scene
                   </Button>
@@ -601,12 +601,12 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
               </div>
 
               {/* Hook Section */}
-              <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 space-y-2.5 shadow-sm">
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                     🎣 Opening Hook (First 0-4 Seconds)
                   </span>
-                  <span className="text-[10px] text-amber-300 font-mono">Max Retention Zone</span>
+                  <span className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-semibold">Max Retention Zone</span>
                 </div>
                 <textarea
                   value={script.hook}
@@ -635,7 +635,7 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
                   <div key={idx} className="rounded-xl border bg-card p-4 space-y-3 shadow-sm hover:border-violet-500/50 transition">
                     <div className="flex items-center justify-between border-b pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded bg-violet-600/20 text-violet-400 text-xs font-bold">
+                        <span className="flex size-5 items-center justify-center rounded bg-violet-600/20 text-violet-600 dark:text-violet-400 text-xs font-bold">
                           {idx + 1}
                         </span>
                         <Input
@@ -727,12 +727,12 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
               </div>
 
               {/* Outro CTA Section */}
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-4 space-y-2.5 shadow-sm">
+              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
                     🚀 Outro & Call to Action (CTA)
                   </span>
-                  <span className="text-[10px] text-emerald-300 font-mono">Closing Conversion</span>
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-mono font-semibold">Closing Conversion</span>
                 </div>
                 <textarea
                   value={script.cta}
@@ -756,28 +756,28 @@ export function ScriptStudioModal({ open, onClose }: ScriptStudioModalProps) {
 
         {/* ══════════ 3. HOOK RETENTION ANALYZER ══════════ */}
         {mode === 'hook' && (
-          <div className="h-full overflow-y-auto p-6 flex justify-center bg-zinc-950/40">
+          <div className="h-full overflow-y-auto p-6 flex justify-center bg-muted/30">
             <div className={cn('w-full space-y-4', containerMaxWidth)}>
               <div className="rounded-xl border bg-card p-5 space-y-4">
                 <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Sparkles className="size-4 text-amber-400" />
+                  <Sparkles className="size-4 text-amber-500" />
                   Hook Pacing & Retention Architecture
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   According to viral short-form retention curves, 70% of viewers decide whether to watch within the first 3.5 seconds.
-                  Your current script uses the <span className="text-violet-400 font-semibold">{script.creatorStyle}</span> pacing model.
+                  Your current script uses the <span className="text-violet-600 dark:text-violet-400 font-semibold">{script.creatorStyle}</span> pacing model.
                 </p>
 
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
-                  <div className="flex justify-between text-xs font-bold text-amber-300">
+                  <div className="flex justify-between text-xs font-bold text-amber-700 dark:text-amber-300">
                     <span>Opening Hook Spoken Text:</span>
                     <span>~{Math.max(2, Math.round(script.hook.split(/\s+/).length * 0.38))}s read</span>
                   </div>
-                  <p className="text-sm font-semibold text-white font-mono bg-black/40 p-3 rounded border border-amber-500/20">
-                    "{script.hook}"
+                  <p className="text-sm font-semibold text-foreground font-mono bg-background/80 p-3 rounded border border-amber-500/30">
+                    &ldquo;{script.hook}&rdquo;
                   </p>
                   {script.hookVisual && (
-                    <p className="text-xs text-amber-200/80 italic">
+                    <p className="text-xs text-amber-700/90 dark:text-amber-200/80 italic">
                       Visual: {script.hookVisual}
                     </p>
                   )}

@@ -502,7 +502,7 @@ function SlideSection() {
             type="button"
             className={cn(
               'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
-              tab === id ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              tab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setTab(id)}
           >
@@ -519,7 +519,7 @@ function SlideSection() {
               {/* Slide Navigation Header */}
               <div className="flex items-center justify-between rounded-md border bg-muted/20 px-2.5 py-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Presentation className="size-3.5 text-violet-400" />
+                  <Presentation className="size-3.5 text-violet-600 dark:text-violet-400" />
                   <span className="text-xs font-bold truncate max-w-[140px]">{deck.title}</span>
                 </div>
 
@@ -533,7 +533,7 @@ function SlideSection() {
                   >
                     ◀
                   </Button>
-                  <span className="font-mono text-[10px] text-violet-300 font-bold px-1">
+                  <span className="font-mono text-[10px] text-violet-700 dark:text-violet-300 font-bold px-1">
                     {currentSlideIdx + 1} / {deck.slides.length}
                   </span>
                   <Button
@@ -565,7 +565,7 @@ function SlideSection() {
               <div className="space-y-2.5 rounded-lg border bg-card p-2.5 shadow-xs">
                 <div className="flex items-center justify-between border-b pb-1.5">
                   <span className="text-xs font-bold text-foreground">Edit Slide Content</span>
-                  <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300 uppercase">
+                  <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 dark:text-violet-300 uppercase">
                     {currentSlide.layout || 'Hero'}
                   </span>
                 </div>
@@ -588,7 +588,7 @@ function SlideSection() {
                         className={cn(
                           'rounded border py-1 text-[10px] font-medium transition',
                           (currentSlide.layout || 'hero') === l.id
-                            ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                            ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
                             : 'border-border/60 bg-muted/20 text-muted-foreground hover:text-foreground',
                         )}
                         onClick={() => updateCurrentSlide({ layout: l.id })}
@@ -763,10 +763,10 @@ function SlideSection() {
               </div>
 
               {/* Timeline Export Bar */}
-              <div className="space-y-1.5 rounded-lg border bg-violet-950/20 border-violet-500/30 p-2.5">
+              <div className="space-y-1.5 rounded-lg border bg-violet-500/10 border-violet-500/30 p-2.5">
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-muted-foreground">Duration per slide</span>
-                  <span className="font-mono text-violet-300 font-bold">{slideDuration}s ({deck.slides.length * slideDuration}s total)</span>
+                  <span className="font-mono text-violet-700 dark:text-violet-300 font-bold">{slideDuration}s ({deck.slides.length * slideDuration}s total)</span>
                 </div>
                 <Slider value={[slideDuration]} min={2} max={15} step={1} onValueChange={([v]) => setSlideDuration(v)} />
 
@@ -903,8 +903,8 @@ function SlideSection() {
       {/* ═══════════ TAB 3: INDUCTIVE AI CONTEXT ═══════════ */}
       {tab === 'inductive' && (
         <div className="space-y-3">
-          <div className="rounded-lg border bg-violet-950/20 p-2.5 border-violet-500/30 space-y-2">
-            <div className="flex items-center gap-1.5 text-violet-300 font-semibold text-xs">
+          <div className="rounded-lg border bg-violet-500/10 p-2.5 border-violet-500/30 space-y-2">
+            <div className="flex items-center gap-1.5 text-violet-700 dark:text-violet-300 font-semibold text-xs">
               <Sparkles className="size-3.5" />
               <span>Inductive Context Reasoning</span>
             </div>
@@ -946,7 +946,7 @@ function SlideSection() {
                   <ul className="space-y-1 text-[10px]">
                     {inductiveContext.narrativePillars.map((p, i) => (
                       <li key={i} className="flex items-start gap-1">
-                        <span className="text-violet-400 font-bold">•</span>
+                        <span className="text-violet-600 dark:text-violet-400 font-bold">•</span>
                         <span><strong>{p.pillar}:</strong> {p.evidence}</span>
                       </li>
                     ))}
@@ -985,7 +985,7 @@ function SlideSection() {
               >
                 <div className="flex items-center justify-between w-full">
                   <span className="truncate text-xs font-semibold">{d.title}</span>
-                  <span className="rounded bg-violet-500/20 px-1 text-[9px] text-violet-300 uppercase">{d.theme}</span>
+                  <span className="rounded bg-violet-500/20 px-1 text-[9px] text-violet-700 dark:text-violet-300 uppercase">{d.theme}</span>
                 </div>
                 <span className="text-[9px] text-muted-foreground">{new Date(d.timestamp).toLocaleTimeString()} · {d.slideCount} slides</span>
               </button>
@@ -1385,7 +1385,7 @@ function AvatarSection() {
         {/* Selected Preset Details Badge */}
         {selectedPresetId && !imageAssetId && (
           <div className="rounded border bg-violet-500/10 px-2 py-1 flex items-center justify-between text-[10px]">
-            <span className="font-medium text-violet-300">
+            <span className="font-medium text-violet-700 dark:text-violet-300">
               {AVATAR_FACE_PRESETS.find((p) => p.id === selectedPresetId)?.name}
             </span>
             <span className="text-[9px] text-muted-foreground">
@@ -1456,7 +1456,7 @@ function AvatarSection() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-[10px]">
                   <Label className="text-[10px] text-muted-foreground">Select Clip from Timeline</Label>
-                  <span className="text-[9px] text-violet-400 font-medium">Auto-aligns on video track</span>
+                  <span className="text-[9px] text-violet-600 dark:text-violet-400 font-medium">Auto-aligns on video track</span>
                 </div>
 
                 <Select value={selectedTimelineClipId} onValueChange={setSelectedTimelineClipId} disabled={busy}>
@@ -1473,21 +1473,21 @@ function AvatarSection() {
                 </Select>
 
                 {activeTimelineClip && (
-                  <div className="rounded border bg-violet-500/10 p-2 text-[10px] space-y-1 text-violet-200">
+                  <div className="rounded border bg-violet-500/10 p-2 text-[10px] space-y-1 text-foreground">
                     <div className="flex justify-between font-semibold">
                       <span>Target: {activeTimelineClip.name}</span>
                       <span>{activeTimelineClip.duration.toFixed(1)}s duration</span>
                     </div>
                     <p className="text-[9px] text-muted-foreground leading-normal">
                       Avatar will be generated to match the spoken speech waveform and placed automatically at{' '}
-                      <span className="text-violet-300 font-semibold">{activeTimelineClip.startTime.toFixed(1)}s</span> on the video track.
+                      <span className="text-violet-700 dark:text-violet-300 font-semibold">{activeTimelineClip.startTime.toFixed(1)}s</span> on the video track.
                     </p>
                   </div>
                 )}
               </div>
             ) : (
               <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2.5 text-center space-y-1.5">
-                <p className="text-[11px] font-medium text-amber-200">No audio clips found on the timeline.</p>
+                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">No audio clips found on the timeline.</p>
                 <p className="text-[10px] text-muted-foreground">
                   Add an audio or video clip to your timeline, or switch to "Script (TTS)" to generate spoken voiceover with AI.
                 </p>
@@ -1504,7 +1504,7 @@ function AvatarSection() {
           <div className="space-y-2">
             {/* AI Topic Prompt Bar */}
             <div className="space-y-1 rounded border border-violet-500/30 bg-violet-500/5 p-2">
-              <span className="text-[10px] font-semibold text-violet-400">✨ Generate Script with AI</span>
+              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">✨ Generate Script with AI</span>
               <div className="flex items-center gap-1.5 pt-0.5">
                 <input
                   type="text"
@@ -1512,17 +1512,17 @@ function AvatarSection() {
                   onChange={(e) => setTopicPrompt(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') void handleGenerateScriptWithAi() }}
                   placeholder="Enter topic e.g. 'Top 3 AI video tools'..."
-                  className="h-7 flex-1 min-w-0 rounded border bg-card px-2 text-xs outline-none focus:border-violet-500"
+                  className="h-7 flex-1 min-w-0 rounded border bg-card px-2 text-xs outline-none focus:border-violet-500 text-foreground"
                   disabled={busy || isGeneratingScript}
                 />
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2 text-[11px] font-medium border-violet-500/50 hover:bg-violet-500/20 text-violet-300"
+                  className="h-7 px-2 text-[11px] font-medium border-violet-500/50 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300"
                   onClick={() => void handleGenerateScriptWithAi()}
                   disabled={busy || isGeneratingScript}
                 >
-                  {isGeneratingScript ? <Loader2 className="size-3 animate-spin mr-1" /> : <Sparkles className="size-3 mr-1 text-violet-400" />}
+                  {isGeneratingScript ? <Loader2 className="size-3 animate-spin mr-1" /> : <Sparkles className="size-3 mr-1 text-violet-600 dark:text-violet-400" />}
                   Generate
                 </Button>
               </div>
@@ -2532,7 +2532,7 @@ function CaptionsSection() {
             type="button"
             className={cn(
               'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
-              tab === id ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              tab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setTab(id)}
           >
@@ -2543,8 +2543,8 @@ function CaptionsSection() {
 
       {tab === 'auto' && (
         <div className="space-y-3">
-          <div className="rounded-lg border bg-violet-950/20 p-2.5 border-violet-500/30 space-y-2">
-            <div className="flex items-center gap-1.5 text-violet-300 font-semibold text-xs">
+          <div className="rounded-lg border bg-violet-500/10 p-2.5 border-violet-500/30 space-y-2">
+            <div className="flex items-center gap-1.5 text-violet-700 dark:text-violet-300 font-semibold text-xs">
               <Sparkles className="size-3.5" />
               <span>AI Speech-to-Text Auto Captions</span>
             </div>
@@ -2556,8 +2556,8 @@ function CaptionsSection() {
               <Label className="text-[10px]">Caption Style Preset</Label>
               <div className="grid grid-cols-2 gap-1.5">
                 {[
-                  { id: 'karaoke' as const, label: 'Yellow Karaoke', bg: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
-                  { id: 'modern' as const, label: 'Modern Dark Pill', bg: 'border-slate-500/40 bg-slate-500/10 text-slate-200' },
+                  { id: 'karaoke' as const, label: 'Yellow Karaoke', bg: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+                  { id: 'modern' as const, label: 'Modern Dark Pill', bg: 'border-slate-500/40 bg-slate-500/10 text-slate-800 dark:text-slate-200' },
                   { id: 'cinematic' as const, label: 'Cinematic Subtitles', bg: 'border-white/40 bg-white/5 text-white' },
                   { id: 'cyber' as const, label: 'Neon Cyber Blue', bg: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' },
                 ].map((st) => (
@@ -2951,7 +2951,7 @@ function ThreeDSection() {
                 className={cn(
                   'truncate rounded-md border p-1 text-center text-[10px] font-medium transition',
                   isSelected
-                    ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                    ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
                     : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => {
@@ -2995,7 +2995,7 @@ function ThreeDSection() {
             type="button"
             className={cn(
               'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
-              panelTab === id ? 'bg-card text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              panelTab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setPanelTab(id)}
           >
@@ -3009,7 +3009,7 @@ function ThreeDSection() {
         <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold">Camera Trajectory</span>
-            <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300 uppercase">
+            <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 dark:text-violet-300 uppercase">
               {flightMode}
             </span>
           </div>
@@ -3022,7 +3022,7 @@ function ThreeDSection() {
                 className={cn(
                   'flex items-center gap-1.5 rounded p-1.5 text-[10px] font-medium transition text-left',
                   selectedPresetPathId === preset.id
-                    ? 'border border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                    ? 'border border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
                     : 'border border-border/60 bg-card text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => applyTrajectoryPreset(preset)}
@@ -3041,7 +3041,7 @@ function ThreeDSection() {
                 className={cn(
                   'rounded border py-1 text-[9px] font-medium transition text-center',
                   selectedPresetPathId === preset.id
-                    ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold'
+                    ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
                     : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => applyTrajectoryPreset(preset)}
@@ -4056,7 +4056,7 @@ function DesignSection() {
             className={cn(
               'flex-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
               motionSubTab === id
-                ? 'bg-card text-violet-300 shadow-xs'
+                ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setMotionSubTab(id)}
@@ -4115,12 +4115,12 @@ function DesignSection() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Duration</Label>
-              <div className="flex items-center justify-between text-[10px]">
-                <Slider value={[duration]} min={2} max={15} step={1} onValueChange={([v]) => setDuration(v)} className="w-20" />
-                <span className="font-mono">{duration}s</span>
+            <div className="space-y-1 pt-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>Duration</span>
+                <span className="font-mono text-violet-700 dark:text-violet-300 font-bold">{duration}s</span>
               </div>
+              <Slider value={[duration]} min={2} max={15} step={1} onValueChange={([v]) => setDuration(v)} />
             </div>
           </div>
 
@@ -4158,7 +4158,7 @@ function DesignSection() {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-xs font-semibold">{preset.name}</span>
-                <span className="rounded bg-violet-500/20 px-1.5 py-0.2 text-[9px] font-medium text-violet-300">
+                <span className="rounded bg-violet-500/20 px-1.5 py-0.2 text-[9px] font-medium text-violet-700 dark:text-violet-300">
                   {preset.category}
                 </span>
               </div>
@@ -4631,7 +4631,7 @@ function ScriptSection() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[10px] gap-1 px-2 border-violet-500/40 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 font-bold"
+                className="h-7 text-[10px] gap-1 px-2 border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 font-bold"
                 onClick={() => setIsStudioOpen(true)}
                 title="Open Big Screen Teleprompter & Studio Editor"
               >
@@ -4645,7 +4645,7 @@ function ScriptSection() {
                 onClick={() => handleCopy(formatTeleprompter(script))}
                 title="Copy Full Script"
               >
-                {copied ? <CheckCircle2 className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+                {copied ? <CheckCircle2 className="size-3.5 text-emerald-500 dark:text-emerald-400" /> : <Copy className="size-3.5" />}
               </Button>
               <Button
                 size="icon"
@@ -4678,7 +4678,7 @@ function ScriptSection() {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs gap-1 border-violet-500/30 text-violet-300 hover:bg-violet-500/10"
+              className="h-7 text-xs gap-1 border-violet-500/30 text-violet-600 dark:text-violet-300 hover:bg-violet-500/10"
               onClick={() => void handleSynthesizeTts()}
               disabled={isSynthesizingTts}
             >
@@ -4737,9 +4737,9 @@ function ScriptSection() {
               {/* Hook */}
               {script.hook && (
                 <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 space-y-1">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-400">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-700 dark:text-amber-400">
                     <span className="flex items-center gap-1">🎣 0:00 → 0:04 · HOOK</span>
-                    <span className="text-[9px] font-normal uppercase bg-amber-500/20 px-1 rounded">High Retention</span>
+                    <span className="text-[9px] font-semibold uppercase bg-amber-500/20 px-1 rounded text-amber-800 dark:text-amber-300">High Retention</span>
                   </div>
                   <p className="text-xs text-foreground font-medium leading-snug">{script.hook}</p>
                   {script.hookVisual && (
@@ -4753,7 +4753,7 @@ function ScriptSection() {
               {/* Scenes */}
               {script.scenes.map((sc, i) => (
                 <div key={i} className="rounded-md border bg-muted/20 p-2 space-y-1">
-                  <div className="flex items-center justify-between text-[10px] font-semibold text-violet-400">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-violet-600 dark:text-violet-400">
                     <span>🎬 Scene {i + 1}: {sc.title || `Beat ${i + 1}`}</span>
                     <span className="font-mono text-muted-foreground text-[9px]">{sc.durationSeconds.toFixed(1)}s</span>
                   </div>
@@ -4765,7 +4765,7 @@ function ScriptSection() {
                     </div>
                   )}
                   {sc.onScreenText && (
-                    <div className="inline-block rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                    <div className="inline-block rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 dark:text-violet-300">
                       TEXT: "{sc.onScreenText}"
                     </div>
                   )}
@@ -4775,7 +4775,7 @@ function ScriptSection() {
               {/* CTA */}
               {script.cta && (
                 <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2 space-y-1">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-emerald-400">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
                     <span className="flex items-center gap-1">🚀 OUTRO / CALL TO ACTION</span>
                   </div>
                   <p className="text-xs text-foreground font-medium">{script.cta}</p>
@@ -4794,12 +4794,12 @@ function ScriptSection() {
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {/* Hook Edit */}
               <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 space-y-1.5">
-                <span className="text-[10px] font-bold text-amber-400">🎣 Opening Hook (0-4s)</span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">🎣 Opening Hook (0-4s)</span>
                 <textarea
                   value={script.hook}
                   onChange={(e) => updateScript({ hook: e.target.value })}
                   placeholder="Spoken hook..."
-                  className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-amber-500 resize-none"
+                  className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-amber-500 resize-none text-foreground"
                 />
               </div>
 
@@ -4807,7 +4807,7 @@ function ScriptSection() {
               {script.scenes.map((sc, i) => (
                 <div key={i} className="rounded-md border bg-muted/20 p-2 space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-violet-400">Scene {i + 1}</span>
+                    <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">Scene {i + 1}</span>
                     <div className="flex items-center gap-1">
                       <Button
                         size="icon"
@@ -4821,7 +4821,7 @@ function ScriptSection() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-5 text-red-400 hover:text-red-300"
+                        className="size-5 text-red-500 hover:text-red-400"
                         onClick={() => removeScene(i)}
                         disabled={script.scenes.length <= 1}
                       >
@@ -4833,19 +4833,19 @@ function ScriptSection() {
                     value={sc.title}
                     onChange={(e) => updateScene(i, { title: e.target.value })}
                     placeholder="Scene Title"
-                    className="h-6 text-[10px] bg-background"
+                    className="h-6 text-[10px] bg-background text-foreground"
                   />
                   <textarea
                     value={sc.text}
                     onChange={(e) => updateScene(i, { text: e.target.value })}
                     placeholder="Spoken text for this scene..."
-                    className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-violet-500 resize-none"
+                    className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-violet-500 resize-none text-foreground"
                   />
                   <Input
                     value={sc.visualCue || ''}
                     onChange={(e) => updateScene(i, { visualCue: e.target.value })}
                     placeholder="B-Roll visual cue..."
-                    className="h-6 text-[10px] bg-background italic"
+                    className="h-6 text-[10px] bg-background text-foreground italic"
                   />
                 </div>
               ))}
@@ -4853,20 +4853,20 @@ function ScriptSection() {
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full h-7 text-xs border-dashed border-violet-500/40 text-violet-300 hover:bg-violet-500/10"
+                className="w-full h-7 text-xs border-dashed border-violet-500/40 text-violet-700 dark:text-violet-300 hover:bg-violet-500/10"
                 onClick={() => addScene()}
               >
                 <Plus className="size-3 mr-1" /> Add Scene Beat
               </Button>
 
               {/* CTA Edit */}
-              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2 space-y-1.5">
-                <span className="text-[10px] font-bold text-emerald-400">🚀 Outro / CTA</span>
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 space-y-1.5">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">🚀 Outro / CTA</span>
                 <textarea
                   value={script.cta}
                   onChange={(e) => updateScript({ cta: e.target.value })}
                   placeholder="Closing CTA..."
-                  className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-emerald-500 resize-none"
+                  className="w-full h-14 rounded border bg-background p-1.5 text-[11px] outline-none focus:border-emerald-500 resize-none text-foreground"
                 />
               </div>
             </div>
@@ -4888,14 +4888,14 @@ function ScriptSection() {
                 </div>
               </div>
               <div
-                className="max-h-64 overflow-y-auto rounded-md border bg-black/40 p-3 leading-relaxed text-foreground font-sans space-y-3 select-text"
+                className="max-h-64 overflow-y-auto rounded-md border bg-muted/40 p-3 leading-relaxed text-foreground font-sans space-y-3 select-text"
                 style={{ fontSize: `${teleprompterZoom}px` }}
               >
-                {script.hook && <p className="font-bold text-amber-300">{script.hook}</p>}
+                {script.hook && <p className="font-bold text-amber-700 dark:text-amber-300">{script.hook}</p>}
                 {script.scenes.map((sc, i) => (
                   <p key={i}>{sc.text}</p>
                 ))}
-                {script.cta && <p className="font-semibold text-emerald-300">{script.cta}</p>}
+                {script.cta && <p className="font-semibold text-emerald-700 dark:text-emerald-300">{script.cta}</p>}
               </div>
             </div>
           )}
@@ -4906,10 +4906,10 @@ function ScriptSection() {
               <div className="rounded-md border p-2.5 space-y-1.5 bg-muted/20">
                 <p className="font-semibold text-foreground text-xs">First 4 Seconds Analysis</p>
                 <p className="text-[11px] text-muted-foreground">
-                  The opening hook sets the visual and spoken promise. In <span className="text-violet-400 font-semibold">{script.creatorStyle || 'Creator'}</span> style, retention is maximized by immediate tension.
+                  The opening hook sets the visual and spoken promise. In <span className="text-violet-600 dark:text-violet-400 font-semibold">{script.creatorStyle || 'Creator'}</span> style, retention is maximized by immediate tension.
                 </p>
-                <div className="rounded bg-background p-2 font-mono text-[11px] text-amber-300 border border-amber-500/30">
-                  "{script.hook}"
+                <div className="rounded bg-background p-2 font-mono text-[11px] text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                  &ldquo;{script.hook}&rdquo;
                 </div>
               </div>
             </div>

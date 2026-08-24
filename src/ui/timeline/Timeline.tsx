@@ -106,22 +106,22 @@ function computeTicks(duration: number, zoom: number): { step: number; labelEver
 const TYPE_META: Record<Track['type'], { label: string; badge: string; gradient: string }> = {
   video: {
     label: 'Video',
-    badge: 'bg-blue-500/20 text-blue-500',
+    badge: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
     gradient: 'from-blue-500/25 to-blue-500/5',
   },
   audio: {
     label: 'Audio',
-    badge: 'bg-green-500/20 text-green-500',
-    gradient: 'from-green-500/25 to-green-500/5',
+    badge: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400',
+    gradient: 'from-emerald-500/25 to-emerald-500/5',
   },
   text: {
     label: 'Text',
-    badge: 'bg-yellow-500/20 text-yellow-500',
-    gradient: 'from-yellow-500/25 to-yellow-500/5',
+    badge: 'bg-amber-500/20 text-amber-800 dark:text-amber-300',
+    gradient: 'from-amber-500/25 to-amber-500/5',
   },
   fx: {
     label: 'FX',
-    badge: 'bg-purple-500/20 text-purple-500',
+    badge: 'bg-purple-500/20 text-purple-700 dark:text-purple-300',
     gradient: 'from-purple-500/25 to-purple-500/5',
   },
 }

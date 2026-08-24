@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
 import { ExportDialog } from '@/ui/export/ExportDialog'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import {
   Select,
   SelectContent,
@@ -156,6 +157,7 @@ export function ProjectHeader() {
       </Select>
 
       <div className="ml-auto flex items-center gap-1">
+        <ThemeToggle />
         <Button
           variant="ghost"
           size="sm"
