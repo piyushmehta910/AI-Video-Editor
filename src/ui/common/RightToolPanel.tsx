@@ -955,6 +955,8 @@ function AvatarSection() {
   const [imageAssetId, setImageAssetId] = React.useState('')
   const [audioAssetId, setAudioAssetId] = React.useState('')
   const [scriptText, setScriptText] = React.useState('Welcome back! Today we are exploring the latest AI video production tools.')
+  const [topicPrompt, setTopicPrompt] = React.useState('')
+  const [isGeneratingScript, setIsGeneratingScript] = React.useState(false)
   const [role, setRole] = React.useState<AvatarRole>('presenter')
   const [style, setStyle] = React.useState<LipsyncStyle>('realistic')
   const [resolution, setResolution] = React.useState(avatarConfig.resolution || '768x768')
@@ -1000,6 +1002,28 @@ function AvatarSection() {
     if (imported.length) {
       setImageAssetId(imported[0].id)
       setSelectedPresetId('')
+    }
+  }
+
+  const handleGenerateScriptWithAi = async () => {
+    const topic = (topicPrompt.trim() || scriptText.trim() || 'Exciting AI Video Editing Innovations')
+    setIsGeneratingScript(true)
+    setError(null)
+    try {
+      const script = await generateScript({
+        topic: `Presenter avatar speech: ${topic}`,
+        durationSeconds: 15,
+        creatorStyle: 'off',
+      })
+      const fullText = [script.hook, ...script.scenes.map((s) => s.text), script.cta].filter(Boolean).join(' ')
+      if (fullText.trim()) {
+        setScriptText(fullText.trim())
+        setSuccess('AI generated a presenter script! Ready to produce avatar.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate script with AI')
+    } finally {
+      setIsGeneratingScript(false)
     }
   }
 
@@ -1243,18 +1267,49 @@ function AvatarSection() {
 
         {inputMode === 'script' ? (
           <div className="space-y-2">
+            {/* AI Topic Prompt Bar */}
+            <div className="space-y-1 rounded border border-violet-500/30 bg-violet-500/5 p-2">
+              <span className="text-[10px] font-semibold text-violet-400">✨ Generate Script with AI</span>
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <input
+                  type="text"
+                  value={topicPrompt}
+                  onChange={(e) => setTopicPrompt(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleGenerateScriptWithAi() }}
+                  placeholder="Enter topic e.g. 'Top 3 AI video tools'..."
+                  className="h-7 flex-1 min-w-0 rounded border bg-card px-2 text-xs outline-none focus:border-violet-500"
+                  disabled={busy || isGeneratingScript}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px] font-medium border-violet-500/50 hover:bg-violet-500/20 text-violet-300"
+                  onClick={() => void handleGenerateScriptWithAi()}
+                  disabled={busy || isGeneratingScript}
+                >
+                  {isGeneratingScript ? <Loader2 className="size-3 animate-spin mr-1" /> : <Sparkles className="size-3 mr-1 text-violet-400" />}
+                  Generate
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground">Avatar Speech Script:</span>
-                <Select value={role} onValueChange={(r) => setRole(r as AvatarRole)}>
-                  <SelectTrigger className="h-5 w-24 text-[10px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="presenter">Presenter</SelectItem>
-                    <SelectItem value="intro">Intro Hook</SelectItem>
-                    <SelectItem value="outro">Outro CTA</SelectItem>
-                    <SelectItem value="narrator">Narrator</SelectItem>
-                  </SelectContent>
-                </Select>
+                <span className="text-muted-foreground">Spoken Script:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[9px] text-muted-foreground">
+                    ~{Math.max(2, Math.round(scriptText.trim().split(/\s+/).filter(Boolean).length * 0.38))}s · {scriptText.trim().split(/\s+/).filter(Boolean).length} words
+                  </span>
+                  <Select value={role} onValueChange={(r) => setRole(r as AvatarRole)}>
+                    <SelectTrigger className="h-5 w-24 text-[10px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="presenter">Presenter</SelectItem>
+                      <SelectItem value="intro">Intro Hook</SelectItem>
+                      <SelectItem value="outro">Outro CTA</SelectItem>
+                      <SelectItem value="narrator">Narrator</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <textarea
                 value={scriptText}
