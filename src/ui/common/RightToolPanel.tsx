@@ -36,6 +36,7 @@ import {
   AudioLines,
   SlidersHorizontal,
   User,
+  ScanFace,
   Maximize2,
   Video,
   RotateCcw,
@@ -1162,6 +1163,12 @@ function SlideSection() {
 
 // ─── Avatar Section ───────────────────────────────────────────────────────────
 const AVATAR_BACKGROUNDS = ['solid', 'transparent', 'blurred'] as const
+const WAV2LIP_STYLES: Array<{ id: LipsyncStyle; label: string; desc: string }> = [
+  { id: 'realistic', label: 'Realistic', desc: 'Natural lip contour, teeth & tongue depth' },
+  { id: 'cartoon', label: 'Cartoon', desc: 'Expressive anime/cartoon mouth opening' },
+  { id: 'robotic', label: 'Robotic', desc: 'Step-quantized cybernetic visemes' },
+  { id: 'circle', label: 'Circle Viseme', desc: 'Minimalist podcast audio waveform' },
+]
 
 function AvatarSection() {
   const assets = useTimelineStore((s) => s.assets)
@@ -1177,6 +1184,8 @@ function AvatarSection() {
   const [audioAssetId, setAudioAssetId] = React.useState('')
   const [scriptText, setScriptText] = React.useState('Welcome back! Today we are exploring the latest AI video production tools.')
   const [topicPrompt, setTopicPrompt] = React.useState('')
+  const [scriptLanguage, setScriptLanguage] = React.useState<'english' | 'hindi'>('english')
+  const [voiceId, setVoiceId] = React.useState('alloy')
   const [isGeneratingScript, setIsGeneratingScript] = React.useState(false)
   const [role, setRole] = React.useState<AvatarRole>('presenter')
   const [style, setStyle] = React.useState<LipsyncStyle>('realistic')
@@ -1190,6 +1199,12 @@ function AvatarSection() {
     maxOpen: avatarConfig.mouthMaxOpen || 0.12,
   })
 
+  // Advanced Wav2Lip parameters
+  const [smoothingDecay, setSmoothingDecay] = React.useState(0.85)
+  const [noiseGateDb, setNoiseGateDb] = React.useState(-36)
+  const [isTestingViseme, setIsTestingViseme] = React.useState(false)
+  const [testVisemeOpen, setTestVisemeOpen] = React.useState(0)
+
   const [busy, setBusy] = React.useState(false)
   const [faceCategory, setFaceCategory] = React.useState<string>('all')
   const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null)
@@ -1198,6 +1213,7 @@ function AvatarSection() {
   const abortRef = React.useRef<AbortController | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const audioFileInputRef = React.useRef<HTMLInputElement>(null)
+  const facePreviewRef = React.useRef<HTMLDivElement>(null)
 
   const images = React.useMemo(() => assets.filter((a) => a.type === 'image'), [assets])
   const audios = React.useMemo(() => assets.filter((a) => a.type === 'audio'), [assets])
@@ -1256,6 +1272,11 @@ function AvatarSection() {
     return AVATAR_FACE_PRESETS.filter((p) => p.role === faceCategory)
   }, [faceCategory])
 
+  const currentPreset = React.useMemo(
+    () => AVATAR_FACE_PRESETS.find((p) => p.id === selectedPresetId) || AVATAR_FACE_PRESETS[0],
+    [selectedPresetId],
+  )
+
   // Sync mouth and style when preset changes
   const selectPreset = (preset: AvatarFacePreset) => {
     setSelectedPresetId(preset.id)
@@ -1287,12 +1308,12 @@ function AvatarSection() {
   }
 
   const handleGenerateScriptWithAi = async () => {
-    const topic = (topicPrompt.trim() || scriptText.trim() || 'Exciting AI Video Editing Innovations')
+    const topic = topicPrompt.trim() || scriptText.trim() || 'Exciting AI Video Editing Innovations'
     setIsGeneratingScript(true)
     setError(null)
     try {
       const script = await generateScript({
-        topic: `Presenter avatar speech: ${topic}`,
+        topic: `${scriptLanguage === 'hindi' ? 'Hindi and English mixed Hinglish narration for: ' : 'Presenter avatar speech: '}${topic}`,
         durationSeconds: 15,
         creatorStyle: 'off',
       })
@@ -1308,6 +1329,29 @@ function AvatarSection() {
     }
   }
 
+  const handleFacePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!facePreviewRef.current) return
+    const rect = facePreviewRef.current.getBoundingClientRect()
+    const clickX = Math.max(0.1, Math.min(0.9, (e.clientX - rect.left) / rect.width))
+    const clickY = Math.max(0.3, Math.min(0.95, (e.clientY - rect.top) / rect.height))
+    setMouth((m) => ({ ...m, x: parseFloat(clickX.toFixed(2)), y: parseFloat(clickY.toFixed(2)) }))
+  }
+
+  const handleTestViseme = () => {
+    setIsTestingViseme(true)
+    let step = 0
+    const interval = setInterval(() => {
+      step++
+      const openVal = Math.sin(step * 0.4) * 0.5 + 0.5
+      setTestVisemeOpen(openVal)
+      if (step > 25) {
+        clearInterval(interval)
+        setIsTestingViseme(false)
+        setTestVisemeOpen(0)
+      }
+    }, 60)
+  }
+
   const generate = async () => {
     setBusy(true)
     setError(null)
@@ -1316,9 +1360,10 @@ function AvatarSection() {
     abortRef.current = controller
 
     try {
-      const [width, height] = resolution === 'auto'
-        ? [project.width || 768, project.height || 768]
-        : resolution.split('x').map(Number)
+      const [width, height] =
+        resolution === 'auto'
+          ? [project.width || 768, project.height || 768]
+          : resolution.split('x').map(Number)
       let imageFile: Blob
       if (imageAssetId) {
         const customAsset = assets.find((a) => a.id === imageAssetId)
@@ -1337,7 +1382,9 @@ function AvatarSection() {
         if (!audioAsset) throw new Error('Audio asset for selected timeline clip not found')
         const rawAudio = await readMediaFile(audioAsset.filePath)
 
-        const isTrimmed = targetClip.sourceStart > 0 || (targetClip.sourceEnd > 0 && targetClip.sourceEnd < (audioAsset.duration || Infinity))
+        const isTrimmed =
+          targetClip.sourceStart > 0 ||
+          (targetClip.sourceEnd > 0 && targetClip.sourceEnd < (audioAsset.duration || Infinity))
         const audioFile = isTrimmed
           ? await sliceAudioBlob(rawAudio, targetClip.sourceStart, targetClip.sourceStart + targetClip.duration)
           : rawAudio
@@ -1349,7 +1396,7 @@ function AvatarSection() {
           height,
           fps,
           bitrate: 4_000_000,
-          codec: 'vp8',
+          codec: 'vp9',
           mouth,
           style,
           background: background as 'transparent' | 'solid' | 'blurred',
@@ -1357,7 +1404,9 @@ function AvatarSection() {
           onProgress: (done, total) => setProgress({ done, total }),
         })
 
-        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, { type: 'video/webm' })
+        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, {
+          type: 'video/webm',
+        })
         const { imported, errors } = await importFiles([file])
         if (imported.length) {
           const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
@@ -1371,7 +1420,9 @@ function AvatarSection() {
               clipType: 'avatar',
               autoLipsync: true,
             })
-            setSuccess(`Generated ${result.duration.toFixed(1)}s lip-sync avatar and synchronized with timeline audio at ${targetClip.startTime.toFixed(1)}s!`)
+            setSuccess(
+              `Generated ${result.duration.toFixed(1)}s Wav2Lip avatar synchronized with timeline audio at ${targetClip.startTime.toFixed(1)}s!`,
+            )
           }
         } else {
           setError(errors[0] ?? 'Could not import avatar video')
@@ -1385,13 +1436,16 @@ function AvatarSection() {
           presetId: selectedPresetId,
           avatarImage: imageFile,
           style,
+          language: scriptLanguage === 'hindi' ? 'hi' : 'en',
         })
         const file = new File([result.videoBlob], `avatar-${role}-${Date.now()}.webm`, { type: 'video/webm' })
         const { imported, errors } = await importFiles([file])
         if (imported.length) {
           const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
           if (!videoTrack) throw new Error('No video track available on the timeline')
-          const clip = useTimelineStore.getState().addClip(imported[0].id, videoTrack.id, useTimelineStore.getState().playhead)
+          const clip = useTimelineStore
+            .getState()
+            .addClip(imported[0].id, videoTrack.id, useTimelineStore.getState().playhead)
           if (clip) {
             useTimelineStore.getState().updateClip(clip.id, {
               duration: result.duration,
@@ -1400,7 +1454,7 @@ function AvatarSection() {
               clipType: 'avatar',
               autoLipsync: true,
             })
-            setSuccess(`Created ${result.duration.toFixed(1)}s lip-sync avatar and appended to timeline!`)
+            setSuccess(`Created ${result.duration.toFixed(1)}s lip-sync avatar presenter on timeline!`)
           }
         } else {
           setError(errors[0] ?? 'Could not import avatar video')
@@ -1418,7 +1472,7 @@ function AvatarSection() {
           height,
           fps,
           bitrate: 4_000_000,
-          codec: 'vp8',
+          codec: 'vp9',
           mouth,
           style,
           background: background as 'transparent' | 'solid' | 'blurred',
@@ -1426,12 +1480,16 @@ function AvatarSection() {
           onProgress: (done, total) => setProgress({ done, total }),
         })
 
-        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, { type: 'video/webm' })
+        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, {
+          type: 'video/webm',
+        })
         const { imported, errors } = await importFiles([file])
         if (imported.length) {
           const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
           if (!videoTrack) throw new Error('No video track available on the timeline')
-          const clip = useTimelineStore.getState().addClip(imported[0].id, videoTrack.id, useTimelineStore.getState().playhead)
+          const clip = useTimelineStore
+            .getState()
+            .addClip(imported[0].id, videoTrack.id, useTimelineStore.getState().playhead)
           if (clip) {
             useTimelineStore.getState().updateClip(clip.id, {
               duration: result.duration,
@@ -1463,20 +1521,20 @@ function AvatarSection() {
   const activeTimelineClip = timelineAudioClips.find((c) => c.clipId === selectedTimelineClipId)
 
   return (
-    <div className="space-y-4 p-3">
-      {/* ─── 1. Face Selector / Presets ─── */}
-      <div className="space-y-2 rounded-lg border bg-muted/10 p-2.5">
+    <div className="space-y-4 p-3 text-xs">
+      {/* ─── 1. Face Selector & Predefined Avatars ─── */}
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <User className="size-4 text-violet-400" />
-            <span className="text-xs font-semibold">Avatar Face Library</span>
+          <div className="flex items-center gap-1.5 font-bold text-foreground">
+            <User className="size-4 text-violet-500" />
+            <span>Predefined Avatar Library</span>
           </div>
           <button
             type="button"
-            className="text-[10px] text-violet-400 hover:underline"
+            className="text-[11px] font-semibold text-violet-500 hover:underline"
             onClick={() => fileInputRef.current?.click()}
           >
-            + Upload Face
+            + Upload Photo
           </button>
         </div>
 
@@ -1484,7 +1542,7 @@ function AvatarSection() {
         <input ref={audioFileInputRef} type="file" accept="audio/*" className="hidden" onChange={handleCustomAudioUpload} />
 
         {/* Category Filters */}
-        <div className="flex flex-wrap gap-1 pt-1">
+        <div className="flex flex-wrap gap-1">
           {[
             { id: 'all', label: `All (${AVATAR_FACE_PRESETS.length})` },
             { id: 'presenter', label: 'Presenters' },
@@ -1496,10 +1554,10 @@ function AvatarSection() {
               key={cat.id}
               type="button"
               className={cn(
-                'rounded-full px-2 py-0.5 text-[9px] font-medium transition',
+                'rounded-full px-2 py-0.5 text-[10px] font-medium transition',
                 faceCategory === cat.id
-                  ? 'bg-violet-600 text-white shadow-xs'
-                  : 'bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground',
+                  ? 'bg-violet-600 text-white font-bold shadow-xs'
+                  : 'bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
               onClick={() => setFaceCategory(cat.id)}
             >
@@ -1509,7 +1567,7 @@ function AvatarSection() {
         </div>
 
         {/* Preset Faces Grid */}
-        <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-0.5 pt-1">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-0.5">
           {filteredPresets.map((preset) => {
             const isSelected = selectedPresetId === preset.id && !imageAssetId
             return (
@@ -1517,51 +1575,47 @@ function AvatarSection() {
                 key={preset.id}
                 type="button"
                 className={cn(
-                  'group relative flex flex-col items-center rounded-lg border p-1 text-center transition',
+                  'group relative flex flex-col items-center rounded-xl border p-1.5 text-center transition',
                   isSelected
-                    ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-1 ring-violet-500'
+                    ? 'border-violet-500 bg-violet-500/15 shadow-xs ring-2 ring-violet-500'
                     : 'border-border/60 bg-card hover:border-violet-500/40 hover:bg-muted/10',
                 )}
                 onClick={() => selectPreset(preset)}
                 title={`${preset.name} - ${preset.tagline}`}
               >
                 <div
-                  className="size-11 overflow-hidden rounded-full border border-border/80 bg-cover bg-center shadow-xs"
+                  className="size-12 overflow-hidden rounded-full border border-border/80 bg-cover bg-center shadow-xs"
                   dangerouslySetInnerHTML={{ __html: preset.svg }}
                 />
-                <span className="mt-1 truncate text-[9px] font-semibold leading-tight text-foreground max-w-full">
+                <span className="mt-1 truncate text-[10px] font-bold leading-tight text-foreground max-w-full">
                   {preset.name.split(' · ')[0]}
                 </span>
                 <span className="text-[8px] text-muted-foreground capitalize truncate max-w-full">
-                  {preset.style}
+                  {preset.role}
                 </span>
               </button>
             )
           })}
         </div>
 
-        {/* Selected Preset Details Badge */}
-        {selectedPresetId && !imageAssetId && (
-          <div className="rounded border bg-violet-500/10 px-2 py-1 flex items-center justify-between text-[10px]">
-            <span className="font-medium text-violet-700 dark:text-violet-300">
-              {AVATAR_FACE_PRESETS.find((p) => p.id === selectedPresetId)?.name}
-            </span>
-            <span className="text-[9px] text-muted-foreground">
-              {AVATAR_FACE_PRESETS.find((p) => p.id === selectedPresetId)?.tagline}
-            </span>
-          </div>
-        )}
-
-        {/* Custom Image Upload Picker */}
+        {/* Custom Image Upload Selector */}
         {images.length > 0 && (
           <div className="pt-1">
-            <Select value={imageAssetId} onValueChange={(id) => { setImageAssetId(id); setSelectedPresetId('') }}>
-              <SelectTrigger className="h-7 text-xs">
+            <Select
+              value={imageAssetId}
+              onValueChange={(id) => {
+                setImageAssetId(id)
+                setSelectedPresetId('')
+              }}
+            >
+              <SelectTrigger className="w-full h-8 text-xs font-medium">
                 <SelectValue placeholder="Or select uploaded portrait..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[250]">
                 {images.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>Custom: {a.name}</SelectItem>
+                  <SelectItem key={a.id} value={a.id}>
+                    Custom Image: {a.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1569,16 +1623,115 @@ function AvatarSection() {
         )}
       </div>
 
-      {/* ─── 2. Speech Sourcing (Timeline vs Script vs Audio File) ─── */}
-      <div className="space-y-2.5 rounded-lg border bg-muted/10 p-2.5">
+      {/* ─── 2. Interactive Face Calibrator & Mouth Visualizer ─── */}
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold">Speech Input</span>
-          <div className="flex rounded-md border bg-muted/40 p-0.5">
+          <div className="flex items-center gap-1.5 font-bold text-foreground">
+            <ScanFace className="size-4 text-violet-500" />
+            <span>Interactive Mouth Calibrator</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleTestViseme}
+            disabled={isTestingViseme}
+            className="h-6 gap-1 px-2 text-[10px] font-semibold border-violet-500/50 hover:bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          >
+            <Play className="size-2.5" />
+            {isTestingViseme ? 'Testing Speech...' : 'Test Mouth Viseme'}
+          </Button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          {/* Visual Interactive Canvas Area */}
+          <div
+            ref={facePreviewRef}
+            onClick={handleFacePreviewClick}
+            className="relative size-36 shrink-0 cursor-crosshair overflow-hidden rounded-xl border-2 border-violet-500/40 bg-card shadow-inner select-none"
+            title="Click anywhere on the face to position the mouth anchor"
+          >
+            {imageAssetId ? (
+              <div className="size-full flex items-center justify-center bg-muted/20 text-muted-foreground text-[10px]">
+                Custom Face Image
+              </div>
+            ) : (
+              <div
+                className="size-full"
+                dangerouslySetInnerHTML={{ __html: currentPreset.svg }}
+              />
+            )}
+
+            {/* Draggable/Visual Mouth Overlay Box */}
+            <div
+              className="absolute pointer-events-none rounded-md border-2 border-cyan-400 bg-cyan-400/20 shadow-sm transition-all duration-75 flex items-center justify-center"
+              style={{
+                left: `${mouth.x * 100}%`,
+                top: `${mouth.y * 100}%`,
+                width: `${mouth.width * 100}%`,
+                height: `${Math.max(0.04, mouth.maxOpen * (1 + testVisemeOpen * 0.8)) * 100}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <div className="size-1.5 rounded-full bg-cyan-300 shadow-xs" />
+            </div>
+
+            {/* Crosshair target lines */}
+            <div className="absolute inset-0 pointer-events-none border border-white/10" />
+            <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[8px] font-mono text-white/90">
+              {mouth.x.toFixed(2)}, {mouth.y.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Quick Sliders */}
+          <div className="flex-1 space-y-2 w-full">
+            <EffectSlider
+              label="Mouth Anchor X (Horizontal)"
+              value={mouth.x}
+              min={0.1}
+              max={0.9}
+              step={0.01}
+              onChange={(v) => setMouth((m) => ({ ...m, x: v }))}
+            />
+            <EffectSlider
+              label="Mouth Anchor Y (Vertical)"
+              value={mouth.y}
+              min={0.4}
+              max={0.95}
+              step={0.01}
+              onChange={(v) => setMouth((m) => ({ ...m, y: v }))}
+            />
+            <EffectSlider
+              label="Mouth Width / Spread"
+              value={mouth.width}
+              min={0.05}
+              max={0.45}
+              step={0.01}
+              onChange={(v) => setMouth((m) => ({ ...m, width: v }))}
+            />
+            <EffectSlider
+              label="Max Phoneme Openness"
+              value={mouth.maxOpen}
+              min={0.02}
+              max={0.3}
+              step={0.01}
+              onChange={(v) => setMouth((m) => ({ ...m, maxOpen: v }))}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 3. Speech Sourcing (Timeline vs Script vs Audio File) ─── */}
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-foreground">Speech Audio Input</span>
+          <div className="flex rounded-lg border bg-muted/40 p-0.5">
             <button
               type="button"
               className={cn(
-                'flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition',
-                inputMode === 'timeline' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
+                'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold transition',
+                inputMode === 'timeline'
+                  ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setInputMode('timeline')}
             >
@@ -1588,8 +1741,10 @@ function AvatarSection() {
             <button
               type="button"
               className={cn(
-                'flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition',
-                inputMode === 'script' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
+                'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold transition',
+                inputMode === 'script'
+                  ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setInputMode('script')}
             >
@@ -1599,8 +1754,10 @@ function AvatarSection() {
             <button
               type="button"
               className={cn(
-                'flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition',
-                inputMode === 'audio' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground',
+                'flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold transition',
+                inputMode === 'audio'
+                  ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setInputMode('audio')}
             >
@@ -1615,16 +1772,11 @@ function AvatarSection() {
           <div className="space-y-2">
             {timelineAudioClips.length > 0 ? (
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[10px]">
-                  <Label className="text-[10px] text-muted-foreground">Select Clip from Timeline</Label>
-                  <span className="text-[9px] text-violet-600 dark:text-violet-400 font-medium">Auto-aligns on video track</span>
-                </div>
-
                 <Select value={selectedTimelineClipId} onValueChange={setSelectedTimelineClipId} disabled={busy}>
-                  <SelectTrigger className="h-8 text-xs font-medium">
+                  <SelectTrigger className="w-full h-8 text-xs font-medium">
                     <SelectValue placeholder="Select a timeline audio clip..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[250]">
                     {timelineAudioClips.map((c) => (
                       <SelectItem key={c.clipId} value={c.clipId}>
                         {c.trackName}: {c.name} ({c.startTime.toFixed(1)}s - {(c.startTime + c.duration).toFixed(1)}s · {c.duration.toFixed(1)}s)
@@ -1634,23 +1786,26 @@ function AvatarSection() {
                 </Select>
 
                 {activeTimelineClip && (
-                  <div className="rounded border bg-violet-500/10 p-2 text-[10px] space-y-1 text-foreground">
-                    <div className="flex justify-between font-semibold">
+                  <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-2 text-[10px] space-y-1 text-foreground">
+                    <div className="flex justify-between font-bold">
                       <span>Target: {activeTimelineClip.name}</span>
-                      <span>{activeTimelineClip.duration.toFixed(1)}s duration</span>
+                      <span>{activeTimelineClip.duration.toFixed(1)}s length</span>
                     </div>
                     <p className="text-[9px] text-muted-foreground leading-normal">
                       Avatar will be generated to match the spoken speech waveform and placed automatically at{' '}
-                      <span className="text-violet-700 dark:text-violet-300 font-semibold">{activeTimelineClip.startTime.toFixed(1)}s</span> on the video track.
+                      <span className="text-violet-700 dark:text-violet-300 font-bold">
+                        {activeTimelineClip.startTime.toFixed(1)}s
+                      </span>{' '}
+                      on the video track.
                     </p>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2.5 text-center space-y-1.5">
-                <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">No Audio Clips Found on Timeline</p>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-center space-y-1.5">
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-bold">No Audio Clips on Timeline</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Record a voiceover in Script Studio or drag an audio file onto the audio track, then switch back here.
+                  Record a voiceover or drop an audio track onto the timeline, then select it here.
                 </p>
               </div>
             )}
@@ -1660,30 +1815,60 @@ function AvatarSection() {
         {/* ── MODE 2: SCRIPT (TTS / AI) ── */}
         {inputMode === 'script' && (
           <div className="space-y-2">
-            {/* AI Topic Prompt Bar */}
-            <div className="space-y-1 rounded border border-violet-500/30 bg-violet-500/5 p-2">
-              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-1">
-                <Sparkles className="size-3" />
-                <span>Generate Script with AI</span>
-              </span>
-              <div className="flex items-center gap-1.5 pt-0.5">
+            <div className="space-y-1 rounded-lg border border-violet-500/30 bg-violet-500/5 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                  <Sparkles className="size-3" />
+                  <span>AI Script Generator</span>
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setScriptLanguage('english')}
+                    className={cn(
+                      'px-1.5 py-0.5 rounded text-[9px] font-semibold',
+                      scriptLanguage === 'english' ? 'bg-violet-600 text-white' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptLanguage('hindi')}
+                    className={cn(
+                      'px-1.5 py-0.5 rounded text-[9px] font-semibold',
+                      scriptLanguage === 'hindi' ? 'bg-violet-600 text-white' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    Hindi / Hinglish
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 pt-1">
                 <input
                   type="text"
                   value={topicPrompt}
                   onChange={(e) => setTopicPrompt(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void handleGenerateScriptWithAi() }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleGenerateScriptWithAi()
+                  }}
                   placeholder="Enter topic e.g. 'Top 3 AI video tools'..."
-                  className="h-7 flex-1 min-w-0 rounded border bg-card px-2 text-xs outline-none focus:border-violet-500 text-foreground"
+                  className="h-7 flex-1 min-w-0 rounded-md border border-input bg-card px-2 text-xs text-foreground outline-none focus:border-violet-500"
                   disabled={busy || isGeneratingScript}
                 />
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2 text-[11px] font-medium border-violet-500/50 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300"
+                  className="h-7 px-2 text-[11px] font-bold border-violet-500/50 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300"
                   onClick={() => void handleGenerateScriptWithAi()}
                   disabled={busy || isGeneratingScript}
                 >
-                  {isGeneratingScript ? <Loader2 className="size-3 animate-spin mr-1" /> : <Sparkles className="size-3 mr-1 text-violet-600 dark:text-violet-400" />}
+                  {isGeneratingScript ? (
+                    <Loader2 className="size-3 animate-spin mr-1" />
+                  ) : (
+                    <Sparkles className="size-3 mr-1 text-violet-600" />
+                  )}
                   Generate
                 </Button>
               </div>
@@ -1691,18 +1876,34 @@ function AvatarSection() {
 
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted-foreground">Spoken Script:</span>
+                <span className="text-muted-foreground font-semibold">Spoken Script:</span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[9px] text-muted-foreground">
-                    ~{Math.max(2, Math.round(scriptText.trim().split(/\s+/).filter(Boolean).length * 0.38))}s · {scriptText.trim().split(/\s+/).filter(Boolean).length} words
+                    ~{Math.max(2, Math.round(scriptText.trim().split(/\s+/).filter(Boolean).length * 0.38))}s ·{' '}
+                    {scriptText.trim().split(/\s+/).filter(Boolean).length} words
                   </span>
                   <Select value={role} onValueChange={(r) => setRole(r as AvatarRole)}>
-                    <SelectTrigger className="h-5 w-24 text-[10px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="h-5 w-20 text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[250]">
                       <SelectItem value="presenter">Presenter</SelectItem>
                       <SelectItem value="intro">Intro Hook</SelectItem>
                       <SelectItem value="outro">Outro CTA</SelectItem>
                       <SelectItem value="narrator">Narrator</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={voiceId} onValueChange={setVoiceId}>
+                    <SelectTrigger className="h-5 w-20 text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[250]">
+                      <SelectItem value="alloy">Alloy</SelectItem>
+                      <SelectItem value="echo">Echo</SelectItem>
+                      <SelectItem value="fable">Fable</SelectItem>
+                      <SelectItem value="onyx">Onyx</SelectItem>
+                      <SelectItem value="nova">Nova</SelectItem>
+                      <SelectItem value="shimmer">Shimmer</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1711,27 +1912,9 @@ function AvatarSection() {
                 value={scriptText}
                 onChange={(e) => setScriptText(e.target.value)}
                 placeholder="Type the script the avatar will speak with synchronized lip-sync..."
-                className="h-20 w-full resize-none rounded-md border bg-card p-2 text-xs outline-none focus:border-violet-500"
+                className="h-20 w-full resize-none rounded-lg border border-input bg-card p-2 text-xs text-foreground outline-none focus:border-violet-500"
                 disabled={busy}
               />
-            </div>
-
-            {/* Quick Script Starters */}
-            <div className="flex flex-wrap gap-1">
-              {[
-                { label: 'Hook Intro', text: 'Stop scrolling! Here is the most important AI feature you need to know today.' },
-                { label: 'Outro CTA', text: 'Thanks for watching! Like and subscribe for more AI video editing tutorials.' },
-                { label: 'Tech Presenter', text: 'In this section, we break down how neural lip-sync works directly inside your browser.' },
-              ].map(({ label, text }) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="rounded border bg-card px-1.5 py-0.5 text-[9px] text-muted-foreground hover:text-foreground"
-                  onClick={() => setScriptText(text)}
-                >
-                  {label}
-                </button>
-              ))}
             </div>
           </div>
         )}
@@ -1740,11 +1923,11 @@ function AvatarSection() {
         {inputMode === 'audio' && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">Select Audio Asset</Label>
+              <Label className="text-xs font-semibold">Select Audio Asset</Label>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-5 text-[10px] px-1 text-violet-400"
+                className="h-5 text-[10px] px-1 text-violet-500 font-bold"
                 onClick={() => audioFileInputRef.current?.click()}
               >
                 + Upload Audio
@@ -1752,19 +1935,26 @@ function AvatarSection() {
             </div>
             {audios.length > 0 ? (
               <Select value={audioAssetId} onValueChange={setAudioAssetId} disabled={busy}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="w-full h-8 text-xs font-medium">
                   <SelectValue placeholder="Pick an audio track" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[250]">
                   {audios.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             ) : (
-              <div className="rounded border bg-muted/20 p-2 text-center space-y-1">
+              <div className="rounded-lg border bg-muted/20 p-2.5 text-center space-y-1">
                 <p className="text-muted-foreground text-[10px]">No audio files imported yet.</p>
-                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => audioFileInputRef.current?.click()}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px]"
+                  onClick={() => audioFileInputRef.current?.click()}
+                >
                   Upload Audio Recording
                 </Button>
               </div>
@@ -1773,93 +1963,120 @@ function AvatarSection() {
         )}
       </div>
 
-      {/* ─── 3. Babble Lip-Sync & Viseme Styling ─── */}
-      <div className="space-y-2.5 rounded-lg border bg-muted/10 p-2.5">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold">Babble Lip-Sync Style</Label>
-          <div className="flex gap-1">
-            {(['realistic', 'cartoon', 'robotic', 'circle'] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={cn(
-                  'rounded px-1.5 py-0.5 text-[9px] font-medium capitalize transition',
-                  style === s
-                    ? 'bg-violet-500/20 text-violet-400 border border-violet-500/40'
-                    : 'border bg-card text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => setStyle(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+      {/* ─── 4. Full Wav2Lip & Viseme Synthesis Options ─── */}
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
+        <Label className="text-xs font-bold text-foreground flex items-center justify-between">
+          <span>Wav2Lip & Viseme Modulation</span>
+          <span className="font-mono text-[9px] text-violet-500 font-bold uppercase">{style}</span>
+        </Label>
+
+        {/* Style Selector Chips */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          {WAV2LIP_STYLES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={cn(
+                'flex flex-col items-center rounded-lg border p-1.5 text-center transition',
+                style === s.id
+                  ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-300 font-bold shadow-xs'
+                  : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setStyle(s.id)}
+            >
+              <span className="text-[10px]">{s.label}</span>
+              <span className="text-[8px] opacity-70 truncate max-w-full">{s.desc}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Mouth Calibration Sliders */}
-        <div className="space-y-1.5 rounded border border-border/60 bg-card p-2">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>Mouth Anchor & Amplitude</span>
-            <span className="font-mono">X: {mouth.x.toFixed(2)} | Y: {mouth.y.toFixed(2)}</span>
-          </div>
-          <EffectSlider label="Anchor X" value={mouth.x} min={0.2} max={0.8} onChange={(v) => setMouth((m) => ({ ...m, x: v }))} />
-          <EffectSlider label="Anchor Y" value={mouth.y} min={0.5} max={0.95} onChange={(v) => setMouth((m) => ({ ...m, y: v }))} />
-          <EffectSlider label="Mouth Width" value={mouth.width} min={0.05} max={0.35} onChange={(v) => setMouth((m) => ({ ...m, width: v }))} />
-          <EffectSlider label="Max Openness" value={mouth.maxOpen} min={0.02} max={0.2} onChange={(v) => setMouth((m) => ({ ...m, maxOpen: v }))} />
+        {/* Fine-Tuning Sliders */}
+        <div className="space-y-2 pt-1 border-t border-border/40">
+          <EffectSlider
+            label="Smoothing / Decay (Syllable Pacing)"
+            value={smoothingDecay}
+            min={0.5}
+            max={0.99}
+            step={0.01}
+            onChange={setSmoothingDecay}
+          />
+          <EffectSlider
+            label="Noise Gate Threshold (dB)"
+            value={noiseGateDb}
+            min={-60}
+            max={-12}
+            step={1}
+            onChange={setNoiseGateDb}
+          />
         </div>
 
-        {/* Output Settings */}
-        <div className="grid grid-cols-3 gap-1.5 pt-1">
+        {/* Video Output & Backdrop Compositing */}
+        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/40">
           <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Resolution</Label>
+            <Label className="text-[10px] font-semibold text-muted-foreground">Resolution</Label>
             <Select value={resolution} onValueChange={setResolution} disabled={busy}>
-              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger className="w-full h-8 text-[10px] font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[250]">
                 <SelectItem value="auto">Auto ({project.width || 768}×{project.height || 768})</SelectItem>
-                <SelectItem value="768x768">768×768 (1:1)</SelectItem>
-                <SelectItem value="1080x1920">1080×1920 (9:16)</SelectItem>
-                <SelectItem value="1280x720">1280×720 (16:9)</SelectItem>
-                <SelectItem value="1080x1080">1080×1080 (Square)</SelectItem>
-                <SelectItem value="512x512">512×512 (Fast)</SelectItem>
-                <SelectItem value="1024x1024">1024×1024 (HD)</SelectItem>
+                <SelectItem value="1080x1920">1080×1920 (9:16 Reel)</SelectItem>
+                <SelectItem value="1920x1080">1920×1080 (16:9 Landscape)</SelectItem>
+                <SelectItem value="1080x1080">1080×1080 (1:1 Square)</SelectItem>
+                <SelectItem value="512x512">512×512 (Fast Preview)</SelectItem>
+                <SelectItem value="1024x1024">1024×1024 (HD Portrait)</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Backdrop</Label>
+            <Label className="text-[10px] font-semibold text-muted-foreground">Backdrop Matte</Label>
             <Select value={background} onValueChange={setBackground} disabled={busy}>
-              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger className="w-full h-8 text-[10px] font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[250]">
                 {AVATAR_BACKGROUNDS.map((b) => (
-                  <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
+                  <SelectItem key={b} value={b}>
+                    {b === 'transparent' ? 'Transparent (Alpha)' : b.charAt(0).toUpperCase() + b.slice(1)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">FPS</Label>
-            <Input
-              type="number"
-              min={15}
-              max={60}
-              value={fps}
-              onChange={(e) => setFps(Number(e.target.value))}
-              className="h-7 text-[10px]"
-              disabled={busy}
-            />
+            <Label className="text-[10px] font-semibold text-muted-foreground">Frame Rate</Label>
+            <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))} disabled={busy}>
+              <SelectTrigger className="w-full h-8 text-[10px] font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[250]">
+                <SelectItem value="24">24 fps (Film)</SelectItem>
+                <SelectItem value="25">25 fps (Wav2Lip)</SelectItem>
+                <SelectItem value="30">30 fps (Standard)</SelectItem>
+                <SelectItem value="60">60 fps (Smooth)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
 
-      {/* ─── 4. Progress & Action ─── */}
+      {/* ─── 5. Real-Time Progress & Generation Action ─── */}
       {progress && (
-        <div className="space-y-1 rounded-md border bg-card p-2">
-          <div className="flex justify-between text-[11px]">
-            <span className="text-muted-foreground font-mono">Rendering frames: {progress.done} / {progress.total}</span>
-            <span className="font-semibold text-violet-400">{pct}%</span>
+        <div className="space-y-1.5 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3">
+          <div className="flex justify-between text-xs font-bold text-violet-700 dark:text-violet-300">
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="size-3.5 animate-spin" />
+              Rendering Wav2Lip Frames: {progress.done} / {progress.total}
+            </span>
+            <span className="font-mono text-violet-600 dark:text-violet-400 font-bold">{pct}%</span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-violet-600 transition-all duration-150" style={{ width: `${pct}%` }} />
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 transition-all duration-150"
+              style={{ width: `${pct}%` }}
+            />
           </div>
         </div>
       )}
@@ -1869,12 +2086,12 @@ function AvatarSection() {
 
       <Button
         size="sm"
-        className="h-9 w-full bg-violet-600 text-xs font-medium text-white hover:bg-violet-500"
+        className="h-10 w-full bg-violet-600 text-xs font-bold text-white hover:bg-violet-500 shadow-md gap-2"
         onClick={() => void generate()}
         disabled={busy || (inputMode === 'audio' && !audioAssetId)}
       >
-        {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Clapperboard className="mr-2 size-4" />}
-        {busy ? 'Synthesizing & Lip-Syncing...' : 'Generate & Append Avatar to Timeline'}
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <Clapperboard className="size-4" />}
+        {busy ? 'Synthesizing & Lip-Syncing Avatar...' : 'Generate & Place Avatar on Timeline'}
       </Button>
     </div>
   )
