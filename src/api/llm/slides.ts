@@ -1,4 +1,5 @@
 import { chatCompletion, getDirectorProvider, type ChatMessage } from './director'
+import { firecrawlSearch, firecrawlScrape, isFirecrawlConfigured, type WebSearchResult } from '@/api/research/firecrawl'
 
 export type SlideTheme =
   | 'pitch_dark'
@@ -43,6 +44,7 @@ export interface SlideDeck {
   font: SlideFont
   animation: SlideAnimation
   slides: Slide[]
+  sources?: WebSearchResult[]
 }
 
 export interface GenerateSlidesOptions {
@@ -55,6 +57,10 @@ export interface GenerateSlidesOptions {
   layoutArchetype?: string
   provider?: string
   model?: string
+  useWebResearch?: boolean
+  researchData?: WebSearchResult[]
+  sourceUrl?: string
+  onResearchProgress?: (msg: string) => void
 }
 
 export const SLIDE_THEMES_META: Record<
@@ -368,19 +374,53 @@ export async function generateSlides(options: GenerateSlidesOptions): Promise<Sl
   const animation = options.animation ?? 'slide_up'
   const count = options.count ?? 4
 
+  let researchResults: WebSearchResult[] = options.researchData ?? []
+
+  // Perform real-time Firecrawl search or scrape if enabled
+  if (options.useWebResearch || options.sourceUrl) {
+    try {
+      if (options.sourceUrl && isFirecrawlConfigured()) {
+        options.onResearchProgress?.(`Scraping webpage ${options.sourceUrl} via Firecrawl...`)
+        const scraped = await firecrawlScrape(options.sourceUrl)
+        if (scraped) researchResults = [scraped, ...researchResults]
+      } else if (options.useWebResearch && isFirecrawlConfigured() && researchResults.length === 0) {
+        options.onResearchProgress?.(`Searching real-time facts on "${options.topic}" via Firecrawl...`)
+        const searchHits = await firecrawlSearch(options.topic, 5)
+        if (searchHits.length > 0) {
+          researchResults = searchHits
+        }
+      }
+    } catch (err) {
+      console.warn('Firecrawl web research error (proceeding with generation):', err)
+    }
+  }
+
   const provider = getDirectorProvider({ provider: options.provider, model: options.model })
   if (!provider) {
-    return generateLocalFallbackSlides(options.topic, count, theme, font, animation)
+    const fallback = generateLocalFallbackSlides(options.topic, count, theme, font, animation)
+    fallback.sources = researchResults.length > 0 ? researchResults : undefined
+    return fallback
   }
 
   const languageLine = options.language && options.language !== 'auto' ? ` Write in ${options.language}.` : ''
   const countLine = options.count && options.count > 0 ? ` Generate exactly ${options.count} slides.` : ''
 
+  let researchPromptBlock = ''
+  if (researchResults.length > 0) {
+    const findings = researchResults
+      .map(
+        (r, i) =>
+          `[Source ${i + 1}]: ${r.title} (${r.url})\nSummary: ${r.description || ''}\n${(r.markdown || '').slice(0, 600)}`,
+      )
+      .join('\n---\n')
+    researchPromptBlock = `\n\nREAL-TIME GROUNDED WEB RESEARCH (via Firecrawl):\n${findings}\n\nCRITICAL INSTRUCTION: Ground the presentation slides in these authentic facts, real-world metrics, recent breakthroughs, and authoritative data points. In the speaker notes or subtitle, cite relevant sources where appropriate.`
+  }
+
   const userPrompt = `TOPIC: "${options.topic}"${countLine}${languageLine}
 THEME: ${theme}
 FONT: ${font}
 ANIMATION: ${animation}
-ARCHETYPE: ${options.layoutArchetype || 'Modern Tech Startup Pitch Deck'}
+ARCHETYPE: ${options.layoutArchetype || 'Modern Tech Startup Pitch Deck'}${researchPromptBlock}
 
 Generate the complete, visually rich presentation deck JSON now.`
 
@@ -392,13 +432,21 @@ Generate the complete, visually rich presentation deck JSON now.`
     const reply = await chatCompletion(provider, messages)
     const raw = extractJson(reply.content ?? '')
     if (raw && typeof raw === 'object') {
-      return normalizeSlides(raw as RawDeck, options.topic, options.count, theme, font, animation)
+      const normalized = normalizeSlides(raw as RawDeck, options.topic, options.count, theme, font, animation)
+      if (researchResults.length > 0) {
+        normalized.sources = researchResults
+      }
+      return normalized
     }
   } catch (err) {
     console.warn('AI Slides generation fallback triggered:', err)
   }
 
-  return generateLocalFallbackSlides(options.topic, count, theme, font, animation)
+  const fallback = generateLocalFallbackSlides(options.topic, count, theme, font, animation)
+  if (researchResults.length > 0) {
+    fallback.sources = researchResults
+  }
+  return fallback
 }
 
 function xmlEscape(text: string): string {

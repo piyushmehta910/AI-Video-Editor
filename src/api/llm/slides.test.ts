@@ -219,4 +219,24 @@ describe('Marp Slide Engine & Inductive Context Storage', () => {
     const saved = getSavedSlideDecks()
     expect(saved.some((d) => d.id === deck.id)).toBe(true)
   })
+
+  it('attaches web research sources to generated slide deck', async () => {
+    const { generateSlides } = await import('./slides')
+    const sources = [
+      {
+        title: 'DeepSeek-V3 Technical Report',
+        url: 'https://arxiv.org/abs/2412.19437',
+        description: 'Multi-head Latent Attention and DeepSeekMoE architecture.',
+      },
+    ]
+
+    const deck = await generateSlides({
+      topic: 'DeepSeek V3 Architecture',
+      count: 3,
+      researchData: sources,
+    })
+
+    expect(deck.slides.length).toBeGreaterThan(0)
+    expect(deck.sources).toEqual(sources)
+  })
 })

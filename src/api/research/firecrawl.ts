@@ -39,10 +39,15 @@ async function postJson<T>(url: string, apiKey: string, body: unknown, timeoutMs
   }
 }
 
+export function isFirecrawlConfigured(): boolean {
+  const cfg = useApiConfigStore.getState().config.firecrawl
+  return Boolean(cfg?.apiKey && cfg.apiKey.trim().length > 0)
+}
+
 function getCfg() {
   const cfg = useApiConfigStore.getState().config.firecrawl
-  const apiKey = cfg.apiKey
-  if (!cfg.enabled || !apiKey) throw new Error('Firecrawl is not enabled or missing an API key (Settings → Web Research).')
+  const apiKey = cfg.apiKey?.trim()
+  if (!apiKey) throw new Error('Firecrawl API key is not configured. Please add your API key in Settings → Web Research.')
   return { cfg, apiKey }
 }
 

@@ -24,8 +24,16 @@ import {
   Clock,
   ArrowDownToLine,
   Wand2,
+  Globe,
+  Search,
+  ExternalLink,
+  Link2,
+  Cpu,
+  FileSearch,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useApiConfigStore } from '@/api/config/store'
 import {
   type SlideDeck,
   type Slide,
@@ -41,11 +49,19 @@ import {
   renderSlidePng,
 } from '@/api/llm/slides'
 import { generateInductiveSlideContext } from '@/api/llm/slideContext'
+import {
+  isFirecrawlConfigured,
+  firecrawlSearch,
+  firecrawlScrape,
+  type WebSearchResult,
+} from '@/api/research/firecrawl'
+import { ALL_LLM_MODELS } from '@/api/llm/models'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 interface SlideStudioModalProps {
@@ -140,8 +156,26 @@ export function SlideStudioModal({
   const [currentSlideIdx, setCurrentSlideIdx] = React.useState(0)
   const [slideDuration, setSlideDuration] = React.useState(5)
   const [activeInspectorTab, setActiveInspectorTab] = React.useState<
-    'content' | 'layout' | 'design' | 'templates' | 'notes'
+    'content' | 'layout' | 'design' | 'research' | 'templates' | 'notes'
   >('content')
+
+  // Real-Time Web Research State
+  const apiConfig = useApiConfigStore((s) => s.config)
+  const firecrawlAvailable = isFirecrawlConfigured()
+  const [useWebResearch, setUseWebResearch] = React.useState(firecrawlAvailable)
+  const [researchQuery, setResearchQuery] = React.useState('')
+  const [scrapeUrl, setScrapeUrl] = React.useState('')
+  const [isSearchingWeb, setIsSearchingWeb] = React.useState(false)
+  const [researchResults, setResearchResults] = React.useState<WebSearchResult[]>([])
+  const [selectedResearchIndices, setSelectedResearchIndices] = React.useState<number[]>([])
+
+  // AI Model Selection
+  const [selectedModel, setSelectedModel] = React.useState<string>(() => {
+    const pref = apiConfig.preferences.preferredAiProvider || 'nvidia-nim'
+    if (pref === 'nvidia-nim' || pref === 'nvidiaNim') return apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct'
+    if (pref === 'opencode-zen' || pref === 'opencodeZen') return apiConfig.opencodeZen.model || 'deepseek-v4-flash-free'
+    return apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free'
+  })
 
   // Generator & Inductive State
   const [topicPrompt, setTopicPrompt] = React.useState('')
@@ -170,6 +204,10 @@ export function SlideStudioModal({
       setSelectedTheme(initialDeck.theme)
       setSelectedFont(initialDeck.font)
       setSelectedAnimation(initialDeck.animation)
+      if (initialDeck.sources?.length) {
+        setResearchResults(initialDeck.sources)
+        setSelectedResearchIndices(initialDeck.sources.map((_, i) => i))
+      }
     }
   }, [initialDeck])
 
@@ -208,6 +246,65 @@ export function SlideStudioModal({
         )
       : ''
 
+  // ── Real-Time Web Search Handlers ──
+  const handlePerformWebSearch = async (queryToSearch?: string) => {
+    const q = (queryToSearch || researchQuery || topicPrompt).trim()
+    if (!q) {
+      setErrorMsg('Please enter a research topic or query')
+      return
+    }
+    if (!firecrawlAvailable) {
+      setErrorMsg('Firecrawl API key is not configured. Go to Settings → Web Research.')
+      return
+    }
+
+    setIsSearchingWeb(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    setProgressMsg(`Searching real-time web facts for "${q}" via Firecrawl...`)
+    try {
+      const hits = await firecrawlSearch(q, 5)
+      setResearchResults(hits)
+      setSelectedResearchIndices(hits.map((_, i) => i))
+      setSuccessMsg(`Found ${hits.length} live web sources via Firecrawl!`)
+      if (!topicPrompt) setTopicPrompt(q)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsSearchingWeb(false)
+      setProgressMsg('')
+    }
+  }
+
+  const handlePerformScrapeUrl = async () => {
+    const url = scrapeUrl.trim()
+    if (!url) {
+      setErrorMsg('Please enter a valid website URL to scrape')
+      return
+    }
+    if (!firecrawlAvailable) {
+      setErrorMsg('Firecrawl API key is not configured. Go to Settings → Web Research.')
+      return
+    }
+
+    setIsSearchingWeb(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    setProgressMsg(`Extracting markdown content from ${url} via Firecrawl...`)
+    try {
+      const hit = await firecrawlScrape(url)
+      setResearchResults((prev) => [hit, ...prev])
+      setSelectedResearchIndices((prev) => [0, ...prev.map((i) => i + 1)])
+      setSuccessMsg(`Extracted page: "${hit.title}" via Firecrawl!`)
+      if (!topicPrompt) setTopicPrompt(hit.title)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsSearchingWeb(false)
+      setProgressMsg('')
+    }
+  }
+
   // ── Generation Handler ──
   const handleGenerateDeck = async (
     overrideTopic?: string,
@@ -221,9 +318,17 @@ export function SlideStudioModal({
     setIsGenerating(true)
     setErrorMsg(null)
     setSuccessMsg(null)
-    setProgressMsg('AI is architecting deck narrative, structure & typography...')
+    setProgressMsg(
+      useWebResearch && firecrawlAvailable
+        ? 'Firecrawl is researching live facts & AI is architecting slides...'
+        : 'AI is architecting deck narrative, structure & typography...',
+    )
 
     try {
+      const activeSources = researchResults.filter((_, idx) =>
+        selectedResearchIndices.includes(idx),
+      )
+
       const generated = await generateSlides({
         topic: finalTopic,
         count: overrideCount || slideCount,
@@ -231,9 +336,18 @@ export function SlideStudioModal({
         font: overrideFont || selectedFont,
         animation: selectedAnimation,
         layoutArchetype: selectedArchetype,
+        model: selectedModel,
+        useWebResearch: useWebResearch,
+        researchData: activeSources.length > 0 ? activeSources : undefined,
+        sourceUrl: scrapeUrl.trim() || undefined,
+        onResearchProgress: (msg) => setProgressMsg(msg),
       })
 
       setDeck(generated)
+      if (generated.sources?.length) {
+        setResearchResults(generated.sources)
+        setSelectedResearchIndices(generated.sources.map((_, i) => i))
+      }
       setCurrentSlideIdx(0)
       setSuccessMsg(`Generated ${generated.slides.length}-slide deck for "${generated.title}"!`)
     } catch (err) {
@@ -751,19 +865,20 @@ export function SlideStudioModal({
           {/* ── Right: Tabbed Inspector & AI Generator Studio ── */}
           <div className="flex w-[480px] flex-col overflow-hidden bg-card">
             {/* Inspector Tab Switcher */}
-            <div className="flex border-b bg-muted/30 p-1 gap-1">
+            <div className="flex border-b bg-muted/30 p-1 gap-1 overflow-x-auto">
               {[
                 { id: 'content' as const, label: 'Content', icon: FileText },
                 { id: 'layout' as const, label: 'Layouts', icon: LayoutGrid },
-                { id: 'design' as const, label: 'Themes & Style', icon: Palette },
+                { id: 'design' as const, label: 'Themes', icon: Palette },
+                { id: 'research' as const, label: 'Web Research', icon: Globe },
                 { id: 'templates' as const, label: 'Templates & AI', icon: Sparkles },
-                { id: 'notes' as const, label: 'Teleprompter', icon: Brain },
+                { id: 'notes' as const, label: 'Notes', icon: Brain },
               ].map(({ id, label, icon: TabIcon }) => (
                 <button
                   key={id}
                   type="button"
                   className={cn(
-                    'flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-center text-[10px] font-bold transition',
+                    'flex-1 min-w-[70px] flex items-center justify-center gap-1 rounded-md py-1.5 text-center text-[10px] font-bold transition',
                     activeInspectorTab === id
                       ? 'bg-card text-violet-600 dark:text-violet-300 shadow-xs border border-border/80'
                       : 'text-muted-foreground hover:text-foreground',
@@ -803,174 +918,198 @@ export function SlideStudioModal({
                         </Button>
                       </div>
 
-                      {/* Headline */}
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold">Slide Headline</Label>
-                        <Input
-                          value={currentSlide.title}
-                          onChange={(e) => updateCurrentSlide({ title: e.target.value })}
-                          className="h-8 text-xs bg-muted/20 font-bold"
-                          placeholder="e.g. Revolutionizing Video with AI"
-                        />
-                      </div>
-
-                      {/* Subtitle / Category */}
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold">Category / Subtitle</Label>
-                        <Input
-                          value={currentSlide.subtitle || ''}
-                          onChange={(e) => updateCurrentSlide({ subtitle: e.target.value })}
-                          className="h-8 text-xs bg-muted/20"
-                          placeholder="e.g. EXECUTIVE SUMMARY"
-                        />
-                      </div>
-
-                      {/* Layout-Specific Customization */}
-                      {currentSlide.layout === 'big_stat' && (
-                        <div className="grid grid-cols-2 gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/5 p-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs font-bold text-cyan-300">Big Number / Metric</Label>
-                            <Input
-                              value={currentSlide.statNumber || '+140%'}
-                              onChange={(e) => updateCurrentSlide({ statNumber: e.target.value })}
-                              className="h-8 text-xs font-bold text-cyan-400 bg-black/40"
-                              placeholder="+140%"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs font-bold text-cyan-300">Metric Description</Label>
-                            <Input
-                              value={currentSlide.statLabel || 'Performance Increase'}
-                              onChange={(e) => updateCurrentSlide({ statLabel: e.target.value })}
-                              className="h-8 text-xs bg-black/40"
-                              placeholder="Year-over-Year Growth"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {currentSlide.layout === 'quote' && (
-                        <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
-                          <Label className="text-xs font-bold text-amber-300">Quote Attribution / Speaker</Label>
+                      {/* Title & Subtitle */}
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Headline / Title</Label>
                           <Input
-                            value={currentSlide.quoteAuthor || 'Steve Jobs'}
-                            onChange={(e) => updateCurrentSlide({ quoteAuthor: e.target.value })}
-                            className="h-8 text-xs bg-black/40"
-                            placeholder="Speaker Name, Title"
+                            value={currentSlide.title}
+                            onChange={(e) => updateCurrentSlide({ title: e.target.value })}
+                            className="text-xs bg-muted/20 font-semibold"
+                            placeholder="Enter slide headline..."
                           />
                         </div>
-                      )}
 
-                      {currentSlide.layout === 'cards' && (
-                        <div className="space-y-2.5 rounded-xl border border-violet-500/40 bg-violet-500/5 p-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-bold text-violet-300">
-                              Feature Cards ({(currentSlide.cards || []).length}/3)
-                            </Label>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 text-[10px] text-violet-300 font-semibold"
-                              onClick={() => {
-                                const cards = [
-                                  ...(currentSlide.cards || []),
-                                  { title: 'New Concept', description: 'Describe feature benefit', tag: 'NEW' },
-                                ]
-                                updateCurrentSlide({ cards, layout: 'cards' })
-                              }}
-                            >
-                              + Add Card
-                            </Button>
-                          </div>
-
-                          {(currentSlide.cards || []).map((card, cIdx) => (
-                            <div key={cIdx} className="space-y-1.5 rounded-md border bg-black/40 p-2">
-                              <div className="flex gap-1.5">
-                                <Input
-                                  value={card.tag || ''}
-                                  placeholder="TAG"
-                                  onChange={(e) => {
-                                    const cards = [...(currentSlide.cards || [])]
-                                    cards[cIdx] = { ...cards[cIdx], tag: e.target.value }
-                                    updateCurrentSlide({ cards })
-                                  }}
-                                  className="h-7 text-[10px] w-20 uppercase font-bold text-violet-400"
-                                />
-                                <Input
-                                  value={card.title}
-                                  placeholder="Card Title"
-                                  onChange={(e) => {
-                                    const cards = [...(currentSlide.cards || [])]
-                                    cards[cIdx] = { ...cards[cIdx], title: e.target.value }
-                                    updateCurrentSlide({ cards })
-                                  }}
-                                  className="h-7 text-xs font-bold flex-1"
-                                />
-                              </div>
-                              <Input
-                                value={card.description}
-                                placeholder="Description text"
-                                onChange={(e) => {
-                                  const cards = [...(currentSlide.cards || [])]
-                                  cards[cIdx] = { ...cards[cIdx], description: e.target.value }
-                                  updateCurrentSlide({ cards })
-                                }}
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                          ))}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Subtitle / Category Tag</Label>
+                          <Input
+                            value={currentSlide.subtitle || ''}
+                            onChange={(e) => updateCurrentSlide({ subtitle: e.target.value })}
+                            className="text-xs bg-muted/20"
+                            placeholder="e.g. KEY METRIC or MARKET ANALYSIS"
+                          />
                         </div>
-                      )}
+                      </div>
 
-                      {/* Bullets List */}
-                      <div className="space-y-2">
+                      {/* Bullets */}
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs font-semibold">Bullet Points</Label>
+                          <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Bullet Points (Bold Keywords: **word**)</Label>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-6 text-[10px] text-violet-400 font-semibold"
-                            onClick={() => {
-                              const bullets = [...currentSlide.bullets, 'New supporting insight']
-                              updateCurrentSlide({ bullets })
-                            }}
+                            className="h-5 text-[10px] px-1 text-violet-400"
+                            onClick={() =>
+                              updateCurrentSlide({
+                                bullets: [...currentSlide.bullets, 'New bullet point insight'],
+                              })
+                            }
                           >
-                            + Add Bullet
+                            <Plus className="size-2.5 mr-0.5" /> Add Bullet
                           </Button>
                         </div>
 
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        <div className="space-y-1.5">
                           {currentSlide.bullets.map((bullet, bIdx) => (
                             <div key={bIdx} className="flex items-center gap-1.5">
+                              <span className="font-mono text-[9px] text-muted-foreground w-3 text-right shrink-0">
+                                {bIdx + 1}.
+                              </span>
                               <Input
                                 value={bullet}
                                 onChange={(e) => {
-                                  const bullets = [...currentSlide.bullets]
-                                  bullets[bIdx] = e.target.value
-                                  updateCurrentSlide({ bullets })
+                                  const updated = [...currentSlide.bullets]
+                                  updated[bIdx] = e.target.value
+                                  updateCurrentSlide({ bullets: updated })
                                 }}
-                                className="h-8 text-xs flex-1 bg-muted/20"
+                                className="text-xs bg-muted/20 flex-1"
                               />
                               <Button
-                                size="icon"
+                                size="sm"
                                 variant="ghost"
-                                className="size-7 text-muted-foreground hover:text-destructive shrink-0"
+                                className="size-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
                                 onClick={() => {
-                                  const bullets = currentSlide.bullets.filter((_, i) => i !== bIdx)
-                                  updateCurrentSlide({ bullets })
+                                  const updated = currentSlide.bullets.filter((_, i) => i !== bIdx)
+                                  updateCurrentSlide({ bullets: updated })
                                 }}
                               >
-                                <X className="size-3.5" />
+                                <X className="size-3" />
                               </Button>
                             </div>
                           ))}
                         </div>
                       </div>
+
+                      {/* Big Stat Layout Inputs */}
+                      {currentSlide.layout === 'big_stat' && (
+                        <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/80 bg-muted/20 p-2.5">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase font-bold">Stat Number / Metric</Label>
+                            <Input
+                              value={currentSlide.statNumber || ''}
+                              onChange={(e) => updateCurrentSlide({ statNumber: e.target.value })}
+                              placeholder="e.g. +140% or 10x"
+                              className="text-xs font-mono font-bold text-violet-400 bg-background"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase font-bold">Stat Description</Label>
+                            <Input
+                              value={currentSlide.statLabel || ''}
+                              onChange={(e) => updateCurrentSlide({ statLabel: e.target.value })}
+                              placeholder="e.g. YoY Growth & Throughput"
+                              className="text-xs bg-background"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quote Layout Inputs */}
+                      {currentSlide.layout === 'quote' && (
+                        <div className="space-y-1 rounded-xl border border-border/80 bg-muted/20 p-2.5">
+                          <Label className="text-[10px] text-muted-foreground uppercase font-bold">Quote Author / Citation</Label>
+                          <Input
+                            value={currentSlide.quoteAuthor || ''}
+                            onChange={(e) => updateCurrentSlide({ quoteAuthor: e.target.value })}
+                            placeholder="e.g. Satya Nadella — CEO, Microsoft"
+                            className="text-xs bg-background"
+                          />
+                        </div>
+                      )}
+
+                      {/* Feature Cards Layout Inputs */}
+                      {currentSlide.layout === 'cards' && (
+                        <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-2.5">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] text-muted-foreground uppercase font-bold">Modular Cards</Label>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 text-[10px] text-violet-400"
+                              onClick={() => {
+                                const currentCards = currentSlide.cards || []
+                                updateCurrentSlide({
+                                  cards: [
+                                    ...currentCards,
+                                    {
+                                      tag: `STEP ${currentCards.length + 1}`,
+                                      title: 'New Feature Card',
+                                      description: 'Explain capability breakdown here.',
+                                    },
+                                  ],
+                                })
+                              }}
+                            >
+                              <Plus className="size-2.5 mr-0.5" /> Add Card
+                            </Button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {(currentSlide.cards || []).map((card, cIdx) => (
+                              <div key={cIdx} className="space-y-1.5 rounded-lg border bg-background/80 p-2 text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <Input
+                                    value={card.tag || ''}
+                                    onChange={(e) => {
+                                      const cards = [...(currentSlide.cards || [])]
+                                      cards[cIdx] = { ...cards[cIdx], tag: e.target.value }
+                                      updateCurrentSlide({ cards })
+                                    }}
+                                    placeholder="TAG"
+                                    className="h-6 w-20 text-[10px] font-mono uppercase bg-muted/30"
+                                  />
+                                  <Input
+                                    value={card.title}
+                                    onChange={(e) => {
+                                      const cards = [...(currentSlide.cards || [])]
+                                      cards[cIdx] = { ...cards[cIdx], title: e.target.value }
+                                      updateCurrentSlide({ cards })
+                                    }}
+                                    placeholder="Card Title"
+                                    className="h-6 flex-1 text-xs font-bold bg-muted/30"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="size-6 p-0 text-muted-foreground hover:text-destructive"
+                                    onClick={() => {
+                                      const cards = (currentSlide.cards || []).filter((_, i) => i !== cIdx)
+                                      updateCurrentSlide({ cards })
+                                    }}
+                                  >
+                                    <X className="size-3" />
+                                  </Button>
+                                </div>
+                                <Textarea
+                                  value={card.description}
+                                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                                    const cards = [...(currentSlide.cards || [])]
+                                    cards[cIdx] = { ...cards[cIdx], description: e.target.value }
+                                    updateCurrentSlide({ cards })
+                                  }}
+                                  placeholder="Card description..."
+                                  rows={2}
+                                  className="text-xs bg-muted/30"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
-                    <div className="text-center py-10 space-y-2">
-                      <Presentation className="size-8 text-muted-foreground mx-auto opacity-50" />
-                      <p className="text-xs text-muted-foreground">No slide selected. Generate a deck to start editing.</p>
+                    <div className="py-8 text-center text-xs text-muted-foreground">
+                      No presentation loaded. Select a template in Templates tab.
                     </div>
                   )}
                 </div>
@@ -982,32 +1121,31 @@ export function SlideStudioModal({
                   <div className="space-y-1">
                     <Label className="text-xs font-bold">Slide Layout Archetype</Label>
                     <p className="text-[10px] text-muted-foreground">
-                      Switch how Slide #{currentSlideIdx + 1} structures headline, cards, stats and proof points.
+                      Change the structural template of Slide #{currentSlideIdx + 1}.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {LAYOUT_OPTIONS.map(({ id, label, icon: Icon, desc }) => {
-                      const isSelected = (currentSlide?.layout || 'hero') === id
+                    {LAYOUT_OPTIONS.map((layout) => {
+                      const LayoutIcon = layout.icon
+                      const isCurrent = currentSlide?.layout === layout.id
                       return (
                         <button
-                          key={id}
+                          key={layout.id}
                           type="button"
+                          onClick={() => updateCurrentSlide({ layout: layout.id })}
                           className={cn(
-                            'flex flex-col items-start rounded-xl border p-3 text-left transition',
-                            isSelected
-                              ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-2 ring-violet-500/50 shadow-sm'
-                              : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-violet-500/40 hover:text-foreground',
+                            'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+                            isCurrent
+                              ? 'border-violet-500 bg-violet-500/15 ring-2 ring-violet-500/50 shadow-xs'
+                              : 'border-border/70 bg-muted/20 hover:border-violet-500/40 hover:bg-muted/40',
                           )}
-                          onClick={() => updateCurrentSlide({ layout: id })}
                         >
-                          <div className="flex items-center gap-2">
-                            <Icon className="size-4 text-violet-400" />
-                            <span className="text-xs font-bold">{label}</span>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <LayoutIcon className={cn('size-4', isCurrent ? 'text-violet-400' : 'text-muted-foreground')} />
+                            <span className="text-xs font-bold text-foreground">{layout.label}</span>
                           </div>
-                          <span className="text-[9px] text-muted-foreground mt-1 leading-snug">
-                            {desc}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground leading-tight">{layout.desc}</span>
                         </button>
                       )
                     })}
@@ -1015,44 +1153,44 @@ export function SlideStudioModal({
                 </div>
               )}
 
-              {/* ═══════════ TAB 3: VISUAL THEMES & STYLE ═══════════ */}
+              {/* ═══════════ TAB 3: THEMES & TYPOGRAPHY ═══════════ */}
               {activeInspectorTab === 'design' && (
                 <div className="space-y-4">
-                  {/* Theme Palette Selection */}
+                  {/* Theme Presets */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold">Visual Themes</Label>
-                      <span className="text-[10px] text-muted-foreground">Deck-wide palette</span>
-                    </div>
-
+                    <Label className="text-xs font-bold">Deck Color Theme</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(SLIDE_THEMES_META).map(([key, t]) => {
-                        const isSelected = (deck?.theme || selectedTheme) === key
+                      {(Object.keys(SLIDE_THEMES_META) as SlideTheme[]).map((thm) => {
+                        const meta = SLIDE_THEMES_META[thm]
+                        const isSelected = (currentSlide?.theme || deck?.theme) === thm
                         return (
                           <button
-                            key={key}
+                            key={thm}
                             type="button"
-                            className={cn(
-                              'flex flex-col rounded-xl border p-2.5 text-left transition',
-                              isSelected
-                                ? 'border-violet-500 bg-violet-500/20 text-violet-300 ring-2 ring-violet-500/50 shadow-sm'
-                                : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-violet-500/40 hover:text-foreground',
-                            )}
                             onClick={() => {
-                              setSelectedTheme(key as SlideTheme)
-                              if (deck) setDeck({ ...deck, theme: key as SlideTheme })
-                              setPreviewKey((k) => k + 1)
+                              setSelectedTheme(thm)
+                              if (deck) {
+                                setDeck({ ...deck, theme: thm })
+                                const updated = deck.slides.map((s) => ({ ...s, theme: thm }))
+                                setDeck({ ...deck, theme: thm, slides: updated })
+                              }
                             }}
+                            className={cn(
+                              'flex flex-col items-start p-2.5 rounded-xl border text-left transition-all',
+                              isSelected
+                                ? 'border-violet-500 bg-violet-500/15 ring-2 ring-violet-500/50 shadow-xs'
+                                : 'border-border/70 bg-muted/20 hover:border-violet-500/40',
+                            )}
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-xs font-bold">{t.name}</span>
-                              <div
-                                className="size-3.5 rounded-full border shadow-xs"
-                                style={{ backgroundColor: t.accent }}
+                            <div className="flex items-center gap-2 w-full mb-1">
+                              <span
+                                className="size-3.5 rounded-full border shrink-0"
+                                style={{ backgroundColor: meta.accent }}
                               />
+                              <span className="text-xs font-bold text-foreground truncate">{meta.name}</span>
                             </div>
-                            <span className="text-[9px] text-muted-foreground mt-0.5 leading-tight">
-                              {t.description}
+                            <span className="text-[10px] text-muted-foreground leading-tight line-clamp-2">
+                              {meta.description}
                             </span>
                           </button>
                         )
@@ -1060,57 +1198,271 @@ export function SlideStudioModal({
                     </div>
                   </div>
 
-                  {/* Typography & Animations */}
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold">Typography</Label>
-                      <Select
-                        value={deck?.font || selectedFont}
-                        onValueChange={(v) => {
-                          setSelectedFont(v as SlideFont)
-                          if (deck) setDeck({ ...deck, font: v as SlideFont })
-                          setPreviewKey((k) => k + 1)
-                        }}
-                      >
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(SLIDE_FONTS_META).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>
-                              <div className="flex items-center justify-between gap-2">
-                                <span>{v.name}</span>
-                                <span className="text-[9px] text-muted-foreground font-mono">({v.sample})</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  {/* Typography Font */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label className="text-xs font-bold">Typography System</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(Object.keys(SLIDE_FONTS_META) as SlideFont[]).map((fnt) => {
+                        const meta = SLIDE_FONTS_META[fnt]
+                        const isSelected = (currentSlide?.font || deck?.font) === fnt
+                        return (
+                          <button
+                            key={fnt}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFont(fnt)
+                              if (deck) {
+                                setDeck({ ...deck, font: fnt })
+                                const updated = deck.slides.map((s) => ({ ...s, font: fnt }))
+                                setDeck({ ...deck, font: fnt, slides: updated })
+                              }
+                            }}
+                            className={cn(
+                              'flex flex-col items-start p-2.5 rounded-xl border text-left transition-all',
+                              isSelected
+                                ? 'border-violet-500 bg-violet-500/15 ring-2 ring-violet-500/50 shadow-xs'
+                                : 'border-border/70 bg-muted/20 hover:border-violet-500/40',
+                            )}
+                          >
+                            <span className="text-xs font-bold text-foreground">{meta.name}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono mt-0.5">{meta.sample}</span>
+                          </button>
+                        )
+                      })}
                     </div>
+                  </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold">Entrance Animation</Label>
-                      <Select
-                        value={deck?.animation || selectedAnimation}
-                        onValueChange={(v) => {
-                          setSelectedAnimation(v as SlideAnimation)
-                          if (deck) setDeck({ ...deck, animation: v as SlideAnimation })
+                  {/* Motion Animation Preset */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label className="text-xs font-bold">Entrance Motion</Label>
+                    <Select
+                      value={selectedAnimation}
+                      onValueChange={(v) => {
+                        setSelectedAnimation(v as SlideAnimation)
+                        if (deck) {
+                          const updated = deck.slides.map((s) => ({ ...s, animation: v as SlideAnimation }))
+                          setDeck({ ...deck, animation: v as SlideAnimation, slides: updated })
                           setPreviewKey((k) => k + 1)
-                        }}
-                      >
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(SLIDE_ANIMATIONS_META).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-muted/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SLIDE_ANIMATIONS_META).map(([key, val]) => (
+                          <SelectItem key={key} value={key}>
+                            {val.name} — {val.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}
 
-              {/* ═══════════ TAB 4: TEMPLATES & AI GENERATOR ═══════════ */}
+              {/* ═══════════ TAB 4: REAL-TIME WEB RESEARCH & FIRECRAWL ═══════════ */}
+              {activeInspectorTab === 'research' && (
+                <div className="space-y-4">
+                  {/* Status Banner */}
+                  <div className="flex items-center justify-between rounded-xl border border-border/80 bg-muted/30 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <Globe className="size-4 text-violet-400" />
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold">Firecrawl Live Web Grounding</span>
+                          {firecrawlAvailable ? (
+                            <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 text-[8px] font-mono font-bold text-emerald-400">
+                              ACTIVE
+                            </span>
+                          ) : (
+                            <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 text-[8px] font-mono font-bold text-amber-400">
+                              API KEY NEEDED
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Searches live web facts, statistics & company docs to ground presentation slides in verified data.
+                        </p>
+                      </div>
+                    </div>
+
+                    {!firecrawlAvailable && (
+                      <Link to="/settings" className="shrink-0 text-[10px] font-bold text-violet-400 hover:underline">
+                        Setup
+                      </Link>
+                    )}
+                  </div>
+
+                  {/* 1. Real-Time Query Search */}
+                  <div className="space-y-2 rounded-xl border border-border/80 bg-card/40 p-3">
+                    <Label className="text-xs font-bold flex items-center gap-1.5">
+                      <Search className="size-3.5 text-violet-400" />
+                      Search Live Web via Firecrawl
+                    </Label>
+                    <div className="flex gap-1.5">
+                      <Input
+                        placeholder="e.g. DeepSeek V3 architecture benchmarks 2026..."
+                        value={researchQuery}
+                        onChange={(e) => setResearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handlePerformWebSearch()
+                        }}
+                        className="h-8 text-xs bg-muted/20"
+                        disabled={isSearchingWeb}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 bg-violet-600 hover:bg-violet-500 text-white text-xs shrink-0"
+                        onClick={() => void handlePerformWebSearch()}
+                        disabled={isSearchingWeb || !researchQuery.trim()}
+                      >
+                        {isSearchingWeb ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+                        <span className="ml-1">Search</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 2. Web URL Scraper */}
+                  <div className="space-y-2 rounded-xl border border-border/80 bg-card/40 p-3">
+                    <Label className="text-xs font-bold flex items-center gap-1.5">
+                      <Link2 className="size-3.5 text-violet-400" />
+                      Extract & Build from Webpage URL
+                    </Label>
+                    <div className="flex gap-1.5">
+                      <Input
+                        placeholder="https://company.com/announcement or blog post..."
+                        value={scrapeUrl}
+                        onChange={(e) => setScrapeUrl(e.target.value)}
+                        className="h-8 text-xs bg-muted/20"
+                        disabled={isSearchingWeb}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs shrink-0"
+                        onClick={() => void handlePerformScrapeUrl()}
+                        disabled={isSearchingWeb || !scrapeUrl.trim()}
+                      >
+                        {isSearchingWeb ? <Loader2 className="size-3.5 animate-spin" /> : <FileSearch className="size-3.5" />}
+                        <span className="ml-1">Scrape URL</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Research Findings List */}
+                  {researchResults.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <CheckCircle2 className="size-3.5 text-emerald-400" />
+                          Grounded Sources ({researchResults.length})
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">Select sources to ground deck</span>
+                      </div>
+
+                      <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
+                        {researchResults.map((src, i) => {
+                          const isSelected = selectedResearchIndices.includes(i)
+                          return (
+                            <div
+                              key={i}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedResearchIndices(selectedResearchIndices.filter((idx) => idx !== i))
+                                } else {
+                                  setSelectedResearchIndices([...selectedResearchIndices, i])
+                                }
+                              }}
+                              className={cn(
+                                'cursor-pointer rounded-xl border p-2.5 text-xs transition space-y-1',
+                                isSelected
+                                  ? 'border-violet-500/70 bg-violet-500/15'
+                                  : 'border-border/60 bg-muted/20 hover:bg-muted/40',
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-1.5">
+                                <span className="font-bold text-foreground text-[11px] line-clamp-1 flex-1">
+                                  {src.title}
+                                </span>
+                                {src.url && (
+                                  <a
+                                    href={src.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-muted-foreground hover:text-violet-400 shrink-0"
+                                    title="Open source link"
+                                  >
+                                    <ExternalLink className="size-3" />
+                                  </a>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground line-clamp-2">
+                                {src.description || (src.markdown ? src.markdown.slice(0, 150) : 'Extracted web content')}
+                              </p>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <Button
+                        size="sm"
+                        className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8 mt-2"
+                        onClick={() => void handleGenerateDeck()}
+                        disabled={isGenerating || isSearchingWeb || (!topicPrompt.trim() && !scrapeUrl.trim())}
+                      >
+                        <Wand2 className="size-3.5 mr-1.5" />
+                        Generate Presentation Deck with these Sources
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ═══════════ TAB 5: TEMPLATES & AI GENERATOR ═══════════ */}
               {activeInspectorTab === 'templates' && (
                 <div className="space-y-4">
+                  {/* Model & Research Engine Controls */}
+                  <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Cpu className="size-3 text-violet-400" />
+                        AI Model Engine
+                      </Label>
+                      <Link to="/settings" className="text-[9px] text-violet-400 hover:underline">
+                        API Settings
+                      </Link>
+                    </div>
+
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-[#0f0f1a] px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                    >
+                      {ALL_LLM_MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.provider}) {m.isFree ? '— [FREE]' : ''}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Firecrawl Real-Time Web Research Toggle */}
+                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                      <div className="flex items-center gap-1.5">
+                        <Globe className="size-3.5 text-violet-400" />
+                        <span className="text-xs font-semibold">Real-Time Web Research (Firecrawl)</span>
+                      </div>
+                      <Switch
+                        checked={useWebResearch}
+                        onCheckedChange={setUseWebResearch}
+                        className="scale-75"
+                        disabled={!firecrawlAvailable}
+                        title={firecrawlAvailable ? 'Ground slides in live web facts' : 'Add Firecrawl API Key in Settings'}
+                      />
+                    </div>
+                  </div>
+
                   {/* Template Archetype Cards */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">Presentation Archetypes</Label>
@@ -1227,7 +1579,7 @@ export function SlideStudioModal({
                 </div>
               )}
 
-              {/* ═══════════ TAB 5: SPEAKER NOTES & TELEPROMPTER ═══════════ */}
+              {/* ═══════════ TAB 6: SPEAKER NOTES & TELEPROMPTER ═══════════ */}
               {activeInspectorTab === 'notes' && (
                 <div className="space-y-3">
                   <div className="space-y-1">
@@ -1246,6 +1598,29 @@ export function SlideStudioModal({
                     className="text-xs leading-relaxed bg-muted/20"
                     placeholder="Enter spoken script notes for this slide (voiceover, presenter timing, key talking points)..."
                   />
+
+                  {deck?.sources && deck.sources.length > 0 && (
+                    <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                        <Globe className="size-3 text-violet-400" />
+                        Verified Grounded Sources
+                      </span>
+                      <div className="space-y-1">
+                        {deck.sources.map((src, idx) => (
+                          <a
+                            key={idx}
+                            href={src.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-violet-400 hover:underline flex items-center gap-1 truncate"
+                          >
+                            <ExternalLink className="size-2.5 shrink-0" />
+                            <span className="truncate">{src.title || src.url}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
