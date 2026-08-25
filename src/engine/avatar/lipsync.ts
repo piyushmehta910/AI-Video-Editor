@@ -139,12 +139,6 @@ export function computeMouthEnvelope(buffer: AudioBuffer, fps: number): Float32A
   return out
 }
 
-function ellipse(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number) {
-  ctx.beginPath()
-  ctx.ellipse(cx, cy, Math.max(0.5, rx), Math.max(0.5, ry), 0, 0, Math.PI * 2)
-  ctx.fill()
-}
-
 function coverDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, h: number) {
   const iw = img.naturalWidth || img.width || 1
   const ih = img.naturalHeight || img.height || 1
@@ -244,11 +238,12 @@ function drawMouth(
       ctx.ellipse(x, y + openPx * 0.1, mw * 0.48, openPx * 0.75, 0, 0, Math.PI * 2)
       ctx.stroke()
     } else {
-      ctx.strokeStyle = '#1e1b4b'
-      ctx.lineWidth = 2.5
+      // Resting cartoon smile
+      ctx.strokeStyle = '#831843'
+      ctx.lineWidth = 2.2
       ctx.beginPath()
       ctx.moveTo(x - mw * 0.35, y)
-      ctx.quadraticCurveTo(x, y + 2, x + mw * 0.35, y)
+      ctx.quadraticCurveTo(x, y + 3, x + mw * 0.35, y)
       ctx.stroke()
     }
     return
@@ -256,25 +251,52 @@ function drawMouth(
 
   // Realistic default mouth
   if (openPx > 0.8) {
-    ctx.fillStyle = '#4a161b'
-    ellipse(ctx, x, y, mw * 0.55, Math.min(openPx * 0.85, maxOpenPx * 0.9))
+    // Inner mouth cavity
+    ctx.fillStyle = '#2e080d'
+    ctx.beginPath()
+    ctx.ellipse(x, y, mw * 0.52, Math.min(openPx * 0.85, maxOpenPx * 0.9), 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Upper teeth
+    if (openPx > 2) {
+      ctx.fillStyle = '#f8fafc'
+      ctx.beginPath()
+      ctx.ellipse(x, y - openPx * 0.35, mw * 0.36, Math.min(3.5, openPx * 0.25), 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Tongue
     if (openPx > 3) {
-      ctx.fillStyle = '#f5f5f4'
-      ellipse(ctx, x, y - openPx * 0.35, mw * 0.35, Math.min(2.5, openPx * 0.2))
+      ctx.fillStyle = '#e11d48'
+      ctx.beginPath()
+      ctx.ellipse(x, y + openPx * 0.45, mw * 0.32, Math.min(4, openPx * 0.3), 0, 0, Math.PI * 2)
+      ctx.fill()
     }
   }
 
-  // Upper and lower lips
-  ctx.fillStyle = '#b56a6e'
-  ellipse(ctx, x, y - openPx * 0.22, mw * 0.5, Math.max(lip * 0.45, lip - openPx * 0.4))
-  ellipse(ctx, x, y + openPx * 0.3, mw * 0.5, Math.max(lip * 0.4, lip * 0.7 + openPx * 0.5))
+  // Upper and lower lips with realistic coloring
+  const lipColor = '#c05663'
+  const lipShadow = '#881337'
 
-  if (openPx < lip) {
-    ctx.strokeStyle = 'rgba(60,20,25,0.45)'
-    ctx.lineWidth = 1
+  // Upper lip
+  ctx.fillStyle = lipColor
+  ctx.beginPath()
+  ctx.ellipse(x, y - openPx * 0.25 - 1, mw * 0.48, Math.max(lip * 0.55, lip * 0.8 - openPx * 0.3), 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Lower lip
+  ctx.fillStyle = lipColor
+  ctx.beginPath()
+  ctx.ellipse(x, y + openPx * 0.3 + 1, mw * 0.46, Math.max(lip * 0.5, lip * 0.9 + openPx * 0.35), 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Lip parting / smile line
+  if (openPx < 2.5) {
+    ctx.strokeStyle = lipShadow
+    ctx.lineWidth = 1.6
     ctx.beginPath()
-    ctx.moveTo(x - mw * 0.42, y)
-    ctx.quadraticCurveTo(x, y + 2, x + mw * 0.42, y)
+    ctx.moveTo(x - mw * 0.45, y)
+    ctx.quadraticCurveTo(x, y + 2.5, x + mw * 0.45, y)
     ctx.stroke()
   }
 }

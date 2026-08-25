@@ -87,6 +87,13 @@ export const BUILTIN_3D_PRESETS: ModelPreset[] = [
     description: 'Futuristic quadcopter drone with 4 rotor arms and camera gimbal',
     color: '#10b981',
   },
+  {
+    id: 'ai-presenter-bot',
+    name: 'AI Presenter Bot',
+    category: 'Characters / Presenters',
+    description: 'Futuristic 3D host avatar with metallic torso, expressive visor eyes, and defined mouth lips',
+    color: '#8b5cf6',
+  },
 ]
 
 export function buildPresetScene(presetId: string): THREE.Group {
@@ -454,6 +461,77 @@ export function buildPresetScene(presetId: string): THREE.Group {
         rotor.position.set(px, py, pz)
         group.add(rotor)
       }
+      break
+    }
+
+    case 'ai-presenter-bot': {
+      // 3D Host / Presenter Bot with metallic torso, head, visor eyes, and defined mouth lips
+      // Torso / Suit
+      const torsoGeo = new THREE.CylinderGeometry(0.7, 0.9, 1.4, 32)
+      const torsoMat = new THREE.MeshStandardMaterial({
+        color: 0x1e1b4b,
+        metalness: 0.8,
+        roughness: 0.2,
+      })
+      const torso = new THREE.Mesh(torsoGeo, torsoMat)
+      torso.position.y = -0.7
+      group.add(torso)
+
+      // Neck
+      const neckGeo = new THREE.CylinderGeometry(0.3, 0.35, 0.3, 24)
+      const neckMat = new THREE.MeshStandardMaterial({ color: 0x312e81, metalness: 0.9, roughness: 0.2 })
+      const neck = new THREE.Mesh(neckGeo, neckMat)
+      neck.position.y = 0.1
+      group.add(neck)
+
+      // Head
+      const headGeo = new THREE.SphereGeometry(0.65, 32, 32)
+      const headMat = new THREE.MeshStandardMaterial({
+        color: 0x6366f1,
+        metalness: 0.5,
+        roughness: 0.3,
+      })
+      const head = new THREE.Mesh(headGeo, headMat)
+      head.position.y = 0.8
+      group.add(head)
+
+      // Visor / Eyes
+      const visorGeo = new THREE.BoxGeometry(0.75, 0.22, 0.3)
+      const visorMat = new THREE.MeshStandardMaterial({
+        color: 0x06b6d4,
+        emissive: 0x06b6d4,
+        emissiveIntensity: 0.8,
+        metalness: 0.1,
+        roughness: 0.1,
+      })
+      const visor = new THREE.Mesh(visorGeo, visorMat)
+      visor.position.set(0, 0.9, 0.52)
+      group.add(visor)
+
+      // Defined Mouth / Speaker Lips
+      const mouthGeo = new THREE.BoxGeometry(0.4, 0.1, 0.15)
+      const mouthMat = new THREE.MeshStandardMaterial({
+        color: 0xf43f5e,
+        emissive: 0xf43f5e,
+        emissiveIntensity: 0.6,
+        metalness: 0.3,
+        roughness: 0.2,
+      })
+      const mouth = new THREE.Mesh(mouthGeo, mouthMat)
+      mouth.position.set(0, 0.62, 0.58)
+      group.add(mouth)
+
+      // Upper & Lower Lip Accents
+      const upperLipGeo = new THREE.BoxGeometry(0.36, 0.03, 0.16)
+      const lowerLipGeo = new THREE.BoxGeometry(0.34, 0.035, 0.16)
+      const lipMat = new THREE.MeshStandardMaterial({ color: 0xbe123c, metalness: 0.4, roughness: 0.3 })
+      const upperLip = new THREE.Mesh(upperLipGeo, lipMat)
+      upperLip.position.set(0, 0.68, 0.58)
+      group.add(upperLip)
+
+      const lowerLip = new THREE.Mesh(lowerLipGeo, lipMat)
+      lowerLip.position.set(0, 0.56, 0.58)
+      group.add(lowerLip)
       break
     }
   }

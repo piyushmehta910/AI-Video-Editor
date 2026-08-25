@@ -17,7 +17,7 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
     name: 'Sarah · Studio Host',
     role: 'presenter',
     tagline: 'Professional presentation & tutorial host',
-    mouth: { x: 0.5, y: 0.72, width: 0.22, maxOpen: 0.12 },
+    mouth: { x: 0.5, y: 0.582, width: 0.16, maxOpen: 0.08 },
     style: 'realistic',
     previewGradient: 'from-violet-600 to-indigo-800',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
@@ -38,6 +38,10 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
           <stop offset="0%" stop-color="#4f46e5"/>
           <stop offset="100%" stop-color="#312e81"/>
         </linearGradient>
+        <linearGradient id="lip_sarah" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#d9777f"/>
+          <stop offset="100%" stop-color="#b54854"/>
+        </linearGradient>
       </defs>
       <rect width="512" height="512" fill="url(#bg_sarah)"/>
       <path d="M128 512 C128 400, 200 370, 256 370 C312 370, 384 400, 384 512 Z" fill="url(#suit_sarah)"/>
@@ -52,6 +56,10 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <path d="M205 205 Q220 198 235 205" stroke="#2b1b17" stroke-width="4" fill="none" stroke-linecap="round"/>
       <path d="M277 205 Q292 198 307 205" stroke="#2b1b17" stroke-width="4" fill="none" stroke-linecap="round"/>
       <path d="M256 240 Q253 260 248 268 Q256 270 264 268" stroke="#d99b70" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Natural Defined Mouth & Lips -->
+      <path d="M236 295 C244 291, 252 294, 256 295 C260 294, 268 291, 276 295 C270 298, 262 299, 256 299 C250 299, 242 298, 236 295 Z" fill="url(#lip_sarah)"/>
+      <path d="M238 297 C244 306, 268 306, 274 297 C268 304, 244 304, 238 297 Z" fill="#b54854"/>
+      <path d="M236 295 Q256 299 276 295" stroke="#701a24" stroke-width="1.8" fill="none" stroke-linecap="round"/>
       <path d="M165 170 C165 120, 210 100, 256 100 C302 100, 347 120, 347 170 C347 210, 335 280, 335 280 C310 230, 290 160, 256 160 C222 160, 202 230, 177 280 Z" fill="url(#hair_sarah)"/>
     </svg>`,
   },
@@ -60,7 +68,7 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
     name: 'Marcus · News Anchor',
     role: 'narrator',
     tagline: 'Authoritative documentary & broadcast presenter',
-    mouth: { x: 0.5, y: 0.71, width: 0.21, maxOpen: 0.12 },
+    mouth: { x: 0.5, y: 0.586, width: 0.16, maxOpen: 0.08 },
     style: 'realistic',
     previewGradient: 'from-amber-700 to-stone-900',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
@@ -87,6 +95,10 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <path d="M202 205 Q218 198 234 205" stroke="#18181b" stroke-width="4" fill="none" stroke-linecap="round"/>
       <path d="M278 205 Q294 198 310 205" stroke="#18181b" stroke-width="4" fill="none" stroke-linecap="round"/>
       <path d="M256 242 Q251 262 246 270 Q256 273 266 270" stroke="#3d2410" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Natural Defined Mouth & Lips -->
+      <path d="M235 298 C243 295, 252 297, 256 298 C260 297, 269 295, 277 298 C271 301, 262 302, 256 302 C250 302, 241 301, 235 298 Z" fill="#6c3b24"/>
+      <path d="M237 300 C244 307, 268 307, 275 300 C269 306, 243 306, 237 300 Z" fill="#4d2715"/>
+      <path d="M235 298 Q256 302 277 298" stroke="#2d1408" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg>`,
   },
   {
@@ -94,7 +106,7 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
     name: 'Alex · Tech Reviewer',
     role: 'intro',
     tagline: 'High-energy tech reviewer with modern style',
-    mouth: { x: 0.5, y: 0.74, width: 0.2, maxOpen: 0.11 },
+    mouth: { x: 0.5, y: 0.594, width: 0.15, maxOpen: 0.08 },
     style: 'cartoon',
     previewGradient: 'from-cyan-600 to-blue-900',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
@@ -124,6 +136,10 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <circle cx="226" cy="224" r="2.5" fill="#ffffff"/>
       <circle cx="292" cy="224" r="2.5" fill="#ffffff"/>
       <path d="M256 248 Q252 265 248 274 Q256 276 264 274" stroke="#d97706" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Natural Defined Mouth & Confident Smirk -->
+      <path d="M238 302 C245 299, 253 301, 256 302 C260 301, 268 299, 275 302 C269 305, 262 306, 256 306 C250 306, 243 305, 238 302 Z" fill="#e07a5f"/>
+      <path d="M239 304 C245 311, 269 311, 274 304 C269 310, 244 310, 239 304 Z" fill="#c85a40"/>
+      <path d="M237 302 Q256 307 276 302" stroke="#7c2d12" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg>`,
   },
   {
@@ -131,7 +147,7 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
     name: 'Elena · Keynote Host',
     role: 'presenter',
     tagline: 'Sleek corporate keynote speaker with platinum styling',
-    mouth: { x: 0.5, y: 0.72, width: 0.22, maxOpen: 0.12 },
+    mouth: { x: 0.5, y: 0.570, width: 0.16, maxOpen: 0.08 },
     style: 'realistic',
     previewGradient: 'from-slate-600 to-sky-950',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
@@ -157,6 +173,10 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <path d="M202 200 Q218 194 234 200" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round"/>
       <path d="M278 200 Q294 194 310 200" stroke="#475569" stroke-width="3.5" fill="none" stroke-linecap="round"/>
       <path d="M256 235 Q252 255 248 262 Q256 265 264 262" stroke="#f472b6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <!-- Elegant Defined Rose Lips -->
+      <path d="M236 290 C244 286, 252 288, 256 290 C260 288, 268 286, 276 290 C270 294, 262 295, 256 295 C250 295, 242 294, 236 290 Z" fill="#e11d48"/>
+      <path d="M238 292 C244 300, 268 300, 274 292 C268 299, 244 299, 238 292 Z" fill="#be123c"/>
+      <path d="M236 290 Q256 294 276 290" stroke="#881337" stroke-width="1.8" fill="none" stroke-linecap="round"/>
     </svg>`,
   },
   {
@@ -164,7 +184,7 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
     name: 'David · Podcast Host',
     role: 'narrator',
     tagline: 'Warm conversational podcaster with studio headphones',
-    mouth: { x: 0.5, y: 0.74, width: 0.22, maxOpen: 0.13 },
+    mouth: { x: 0.5, y: 0.582, width: 0.15, maxOpen: 0.08 },
     style: 'realistic',
     previewGradient: 'from-amber-600 to-stone-900',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
@@ -191,6 +211,10 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <circle cx="223" cy="222" r="3" fill="#ffffff"/>
       <circle cx="295" cy="222" r="3" fill="#ffffff"/>
       <path d="M256 245 Q252 265 248 272 Q256 275 264 272" stroke="#ea580c" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Natural Defined Mouth & Beard Smile -->
+      <path d="M238 296 C245 293, 252 295, 256 296 C260 295, 267 293, 274 296 C268 299, 262 300, 256 300 C250 300, 244 299, 238 296 Z" fill="#b45309"/>
+      <path d="M240 298 C246 304, 266 304, 272 298 C266 303, 246 303, 240 298 Z" fill="#92400e"/>
+      <path d="M238 296 Q256 300 274 296" stroke="#451a03" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg>`,
   },
   {
@@ -198,7 +222,7 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
     name: 'Hikari · Anime Presenter',
     role: 'outro',
     tagline: 'Expressive anime aesthetic with dynamic chibi lip-sync',
-    mouth: { x: 0.5, y: 0.76, width: 0.25, maxOpen: 0.15 },
+    mouth: { x: 0.5, y: 0.578, width: 0.15, maxOpen: 0.09 },
     style: 'cartoon',
     previewGradient: 'from-pink-600 to-purple-950',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
@@ -222,7 +246,80 @@ export const AVATAR_FACE_PRESETS: AvatarFacePreset[] = [
       <circle cx="294" cy="216" r="6" fill="#ffffff"/>
       <ellipse cx="195" cy="260" rx="12" ry="7" fill="#fbcfe8"/>
       <ellipse cx="317" cy="260" rx="12" ry="7" fill="#fbcfe8"/>
+      <!-- Cute Expressive Anime Smile with Teeth & Tongue -->
+      <path d="M242 293 Q256 308 270 293 Q256 297 242 293 Z" fill="#9d174d"/>
+      <path d="M245 294 Q256 297 267 294 Q256 295 245 294 Z" fill="#ffffff"/>
+      <ellipse cx="256" cy="301" rx="6" ry="3.5" fill="#f472b6"/>
+      <path d="M240 292 Q256 308 272 292" stroke="#831843" stroke-width="2.2" fill="none" stroke-linecap="round"/>
       <path d="M155 160 C155 110, 200 90, 256 90 C312 90, 357 110, 357 160 C357 200, 340 270, 340 270 C315 210, 290 140, 256 140 C222 140, 197 210, 172 270 Z" fill="url(#hair_anime)"/>
+    </svg>`,
+  },
+  {
+    id: 'liam-mentor',
+    name: 'Liam · Tech Educator',
+    role: 'presenter',
+    tagline: 'Clear, charismatic educator & course instructor',
+    mouth: { x: 0.5, y: 0.584, width: 0.16, maxOpen: 0.08 },
+    style: 'realistic',
+    previewGradient: 'from-emerald-700 to-teal-950',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+      <defs>
+        <radialGradient id="bg_liam" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#064e3b"/>
+          <stop offset="100%" stop-color="#022c22"/>
+        </radialGradient>
+        <linearGradient id="skin_liam" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#fde68a"/>
+          <stop offset="100%" stop-color="#f59e0b"/>
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" fill="url(#bg_liam)"/>
+      <path d="M125 512 C125 395, 195 365, 256 365 C317 365, 387 395, 387 512 Z" fill="#0f766e"/>
+      <ellipse cx="256" cy="240" rx="90" ry="108" fill="url(#skin_liam)"/>
+      <path d="M168 185 C168 120, 210 100, 256 100 C302 100, 344 120, 344 185 Z" fill="#1e293b"/>
+      <ellipse cx="220" cy="225" rx="10" ry="10" fill="#0f172a"/>
+      <ellipse cx="292" cy="225" rx="10" ry="10" fill="#0f172a"/>
+      <circle cx="223" cy="222" r="3" fill="#ffffff"/>
+      <circle cx="295" cy="222" r="3" fill="#ffffff"/>
+      <path d="M256 244 Q252 264 248 270 Q256 272 264 270" stroke="#d97706" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Defined Smile & Lips -->
+      <path d="M236 296 C244 293, 252 295, 256 296 C260 295, 268 293, 276 296 C270 299, 262 300, 256 300 C250 300, 242 299, 236 296 Z" fill="#d97706"/>
+      <path d="M238 298 C244 305, 268 305, 274 298 C268 304, 244 304, 238 298 Z" fill="#b45309"/>
+      <path d="M236 296 Q256 300 276 296" stroke="#78350f" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
+    id: 'maya-creator',
+    name: 'Maya · Lifestyle Creator',
+    role: 'intro',
+    tagline: 'Vibrant, friendly lifestyle vlog & brand presenter',
+    mouth: { x: 0.5, y: 0.580, width: 0.16, maxOpen: 0.08 },
+    style: 'realistic',
+    previewGradient: 'from-fuchsia-600 to-rose-950',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+      <defs>
+        <radialGradient id="bg_maya" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#701a75"/>
+          <stop offset="100%" stop-color="#2e0854"/>
+        </radialGradient>
+        <linearGradient id="skin_maya" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#fed7aa"/>
+          <stop offset="100%" stop-color="#fba068"/>
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" fill="url(#bg_maya)"/>
+      <path d="M125 512 C125 395, 195 365, 256 365 C317 365, 387 395, 387 512 Z" fill="#c026d3"/>
+      <ellipse cx="256" cy="240" rx="90" ry="108" fill="url(#skin_maya)"/>
+      <path d="M160 170 C160 90, 352 90, 352 170 C352 280, 330 280, 330 280 C310 210, 290 140, 256 140 C222 140, 202 210, 182 280 Z" fill="#18181b"/>
+      <ellipse cx="220" cy="225" rx="11" ry="10" fill="#18181b"/>
+      <ellipse cx="292" cy="225" rx="11" ry="10" fill="#18181b"/>
+      <circle cx="224" cy="222" r="3.5" fill="#ffffff"/>
+      <circle cx="296" cy="222" r="3.5" fill="#ffffff"/>
+      <path d="M256 242 Q252 260 248 268 Q256 270 264 268" stroke="#d97706" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Vibrant Glossy Smile & Lips -->
+      <path d="M236 294 C244 290, 252 293, 256 294 C260 293, 268 290, 276 294 C270 298, 262 299, 256 299 C250 299, 242 298, 236 294 Z" fill="#f43f5e"/>
+      <path d="M238 296 C244 306, 268 306, 274 296 C268 304, 244 304, 238 296 Z" fill="#e11d48"/>
+      <path d="M236 294 Q256 298 276 294" stroke="#9f1239" stroke-width="1.8" fill="none" stroke-linecap="round"/>
     </svg>`,
   },
 ]

@@ -6,16 +6,17 @@ describe('Avatar Face Presets', () => {
     expect(AVATAR_FACE_PRESETS.length).toBeGreaterThanOrEqual(6)
   })
 
-  it('all presets have valid mouth coordinates and SVG content', () => {
+  it('all presets have valid mouth coordinates, SVG content, and defined mouth elements', () => {
     for (const preset of AVATAR_FACE_PRESETS) {
       expect(preset.id).toBeTruthy()
       expect(preset.name).toBeTruthy()
       expect(preset.svg).toContain('<svg')
       expect(preset.svg).toContain('</svg>')
+      expect(preset.svg).toMatch(/Mouth|Lip|Smile/i)
       expect(preset.mouth.x).toBeGreaterThan(0)
       expect(preset.mouth.x).toBeLessThan(1)
       expect(preset.mouth.y).toBeGreaterThan(0.5)
-      expect(preset.mouth.y).toBeLessThan(1)
+      expect(preset.mouth.y).toBeLessThan(0.7)
       expect(preset.mouth.width).toBeGreaterThan(0.1)
       expect(preset.mouth.maxOpen).toBeGreaterThan(0.05)
     }
