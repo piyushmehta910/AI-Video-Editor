@@ -7345,8 +7345,8 @@ const ELEVEN_MODELS = [
 ]
 
 const MAGPIE_MODELS = [
-  { id: 'magpie-tts-zeroshot', name: 'Magpie Zero-Shot (Voice Cloning & Presets)' },
-  { id: 'magpie-tts-multilingual', name: 'Magpie Multilingual (Expressive Speech)' },
+  { id: 'magpie-tts-zeroshot', name: 'NVIDIA NIM: magpie-tts-zeroshot (Zero-Shot Cloning & 20+ Presets)' },
+  { id: 'magpie-tts-multilingual', name: 'NVIDIA NIM: magpie-tts-multilingual (Expressive Multilingual)' },
 ]
 
 // ─── Voiceover / TTS Studio ──────────────────────────────────────────────────
@@ -7446,7 +7446,7 @@ function VoiceoverSection() {
                   : 'border-border bg-card text-muted-foreground hover:border-violet-400/40 hover:text-foreground',
               )}
             >
-              {p === 'magpie' ? 'NVIDIA Magpie' : p === 'elevenlabs' ? 'ElevenLabs' : 'NVIDIA NIM'}
+              {p === 'magpie' ? 'NVIDIA Magpie (NIM)' : p === 'elevenlabs' ? 'ElevenLabs' : 'NVIDIA FastConformer'}
             </button>
           ))}
         </div>

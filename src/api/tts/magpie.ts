@@ -1,4 +1,5 @@
 import { useApiConfigStore } from '@/api/config/store'
+import { defaultNvidiaNimConfig, defaultNvidiaTtsConfig } from '@/api/config/types'
 import { needsProxy, proxyFetch } from '@/api/proxy'
 import type { TtsProvider } from './types'
 
@@ -33,11 +34,11 @@ export const MAGPIE_VOICE_PRESETS: { id: string; label: string; style: string }[
 ]
 
 function nvidiaTtsConfig() {
-  return useApiConfigStore.getState().config.nvidiaTts
+  return useApiConfigStore.getState().config?.nvidiaTts ?? defaultNvidiaTtsConfig
 }
 
 function nvidiaNimConfig() {
-  return useApiConfigStore.getState().config.nvidiaNim
+  return useApiConfigStore.getState().config?.nvidiaNim ?? defaultNvidiaNimConfig
 }
 
 /**

@@ -5,14 +5,14 @@ import { magpieTtsProvider, MAGPIE_TTS_PROVIDER_ID } from './magpie'
 import type { TtsProvider } from './types'
 
 export type { TtsProvider } from './types'
-export { MAGPIE_VOICE_PRESETS, NVIDIA_MAGPIE_MODEL } from './magpie'
+export { MAGPIE_VOICE_PRESETS, NVIDIA_MAGPIE_MODEL, MAGPIE_TTS_PROVIDER_ID } from './magpie'
 
-const ALL_PROVIDERS: TtsProvider[] = [elevenLabsProvider, nvidiaTtsProvider, magpieTtsProvider]
+const ALL_PROVIDERS: TtsProvider[] = [magpieTtsProvider, elevenLabsProvider, nvidiaTtsProvider]
 
 export const TTS_PROVIDER_IDS: Record<string, string> = {
+  [MAGPIE_TTS_PROVIDER_ID]: 'NVIDIA Magpie-TTS-zeroshot',
+  [NVIDIA_TTS_PROVIDER_ID]: 'NVIDIA NIM FastConformer',
   [ELEVENLABS_PROVIDER_ID]: 'ElevenLabs',
-  [NVIDIA_TTS_PROVIDER_ID]: 'NVIDIA NIM TTS',
-  [MAGPIE_TTS_PROVIDER_ID]: 'Magpie-TTS-zeroshot (NVIDIA)',
 }
 
 /** Every provider that has enough config to synthesize speech. */
