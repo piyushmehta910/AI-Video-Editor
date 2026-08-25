@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Download, Home, Pencil, Settings } from 'lucide-react'
+import { Download, Home, Pencil, Settings, FilePlus, AlertTriangle } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
@@ -38,7 +38,9 @@ export function ProjectHeader() {
   const project = useTimelineStore((s) => s.project)
   const renameProject = useTimelineStore((s) => s.renameProject)
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
+  const resetProject = useTimelineStore((s) => s.resetProject)
   const [exportOpen, setExportOpen] = React.useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = React.useState(false)
   const [editingName, setEditingName] = React.useState(false)
   const [nameDraft, setNameDraft] = React.useState(project.name)
 
@@ -93,6 +95,18 @@ export function ProjectHeader() {
           <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
         </button>
       )}
+
+      {/* New Project / Reset Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
+        onClick={() => setResetConfirmOpen(true)}
+        title="Reset project to clean canvas"
+      >
+        <FilePlus className="size-3.5 text-primary" />
+        <span className="hidden lg:inline">New Project</span>
+      </Button>
 
       {/* Aspect Ratio */}
       <Select
@@ -188,6 +202,51 @@ export function ProjectHeader() {
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
+
+      {/* Reset / New Project Confirmation Modal */}
+      {resetConfirmOpen && (
+        <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive shrink-0 mt-0.5">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-foreground">Reset to New Project?</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  This will clear all video tracks, clips, overlays, and edits from the timeline and start a clean, empty canvas.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs text-muted-foreground">
+              Current project name: <span className="font-semibold text-foreground font-mono">{project.name}</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setResetConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  resetProject()
+                  setNameDraft('Untitled Project')
+                  setResetConfirmOpen(false)
+                }}
+              >
+                <FilePlus className="size-3.5 mr-1.5" />
+                Reset to New Project
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
