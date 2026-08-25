@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import {
   FilePlus,
   Monitor,
@@ -160,7 +161,7 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
       style={{ zIndex: 99999 }}
       className="fixed inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto"
@@ -400,7 +401,8 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { FolderOpen, Film, X, Clock } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Project } from '@/engine/types'
@@ -41,7 +42,7 @@ export function OpenProjectDialog({ open, onClose }: OpenProjectDialogProps) {
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
       style={{ zIndex: 99999 }}
       className="fixed inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto"
@@ -111,6 +112,8 @@ export function OpenProjectDialog({ open, onClose }: OpenProjectDialogProps) {
           Cancel
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
+

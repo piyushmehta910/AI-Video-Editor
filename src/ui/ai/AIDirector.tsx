@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import {
   AlertCircle,
   Check,
@@ -2405,30 +2406,41 @@ export function AIDirector({
         </div>
       )}
 
-      {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Confirm destructive action">
-          <div className="w-full max-w-sm rounded-xl border bg-background p-4 shadow-lg">
-            <h3 className="text-sm font-semibold">Apply {confirmAction.toolName}?</h3>
-            <p className="text-muted-foreground mt-1 text-xs">This tool destructively modifies the timeline. You can undo it afterwards with Ctrl+Z.</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmAction(null)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  const action = confirmAction
-                  setConfirmAction(null)
-                  void action.onConfirm()
-                }}
-              >
-                Apply
-              </Button>
+      {confirmAction &&
+        createPortal(
+          <div
+            style={{ zIndex: 99999 }}
+            className="fixed inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm destructive action"
+          >
+            <div className="w-full max-w-sm rounded-2xl border border-border/80 bg-card p-5 shadow-2xl space-y-3">
+              <h3 className="text-sm font-bold text-foreground">Apply {confirmAction.toolName}?</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                This tool destructively modifies the timeline. You can undo it afterwards with <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono text-[10px]">Ctrl+Z</kbd>.
+              </p>
+              <div className="mt-4 flex justify-end gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setConfirmAction(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold"
+                  onClick={() => {
+                    const action = confirmAction
+                    setConfirmAction(null)
+                    void action.onConfirm()
+                  }}
+                >
+                  Apply
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
