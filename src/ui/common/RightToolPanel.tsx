@@ -5437,8 +5437,8 @@ function ScriptSection() {
         <div className="flex flex-wrap gap-1">
           {[
             { id: 'all', label: `All (${Object.keys(CREATOR_STYLES).length})` },
-            { id: 'english', label: 'English Stars 🇬🇧' },
-            { id: 'hindi', label: 'Hindi & Indian Top 🇮🇳' },
+            { id: 'english', label: 'English Stars' },
+            { id: 'hindi', label: 'Hindi & Indian Top' },
             { id: 'tech', label: 'Tech & AI' },
             { id: 'business', label: 'Business & Finance' },
             { id: 'education', label: 'Education & Science' },
@@ -5574,10 +5574,10 @@ function ScriptSection() {
           </div>
           <div className="grid grid-cols-4 gap-1">
             {[
-              { id: 'auto', label: 'English 🇬🇧' },
-              { id: 'Hindi', label: 'Hindi 🇮🇳' },
-              { id: 'Hinglish', label: 'Hinglish 🇮🇳' },
-              { id: 'Spanish', label: 'Spanish 🇪🇸' },
+              { id: 'auto', label: 'English (EN)' },
+              { id: 'Hindi', label: 'Hindi (HI)' },
+              { id: 'Hinglish', label: 'Hinglish (IN)' },
+              { id: 'Spanish', label: 'Spanish (ES)' },
             ].map((l) => (
               <button
                 key={l.id}

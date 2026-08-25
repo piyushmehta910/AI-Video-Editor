@@ -7,6 +7,7 @@ import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { loadMediaElement, seekTo } from './exportVideo'
 import type { ExportOptions, ExportResult } from './exportVideo'
 import { createEncoderGuard, waitForDrain, yieldToBrowser } from './encoderGuard'
+import { setExportActive } from './exportSession'
 import {
   BufferTarget,
   EncodedAudioPacketSource,
@@ -83,6 +84,9 @@ async function encodeAudioAac(
       })
       encoder.encode(data)
       data.close()
+      if (offset > 0 && offset % (CHUNK_FRAMES * 8) === 0) {
+        await yieldToBrowser(false)
+      }
     }
     await encoder.flush()
   } finally {
@@ -102,11 +106,16 @@ export async function exportMp4(
     throw new Error('WebCodecs VideoEncoder is not supported in this browser')
   }
 
+  setExportActive(true)
+
   const canvas = document.createElement('canvas')
   canvas.width = opts.width
   canvas.height = opts.height
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D context unavailable')
+  if (!ctx) {
+    setExportActive(false)
+    throw new Error('Canvas 2D context unavailable')
+  }
 
   const output = new Output({
     format: new Mp4OutputFormat(),
@@ -234,13 +243,16 @@ export async function exportMp4(
       frame.close()
 
       opts.onProgress(i + 1, total)
-      // Yield every frame so UI events, GC and encoder callbacks keep running.
-      await yieldToBrowser()
+      // Cooperative CPU pacing: every 12 frames take a 4ms breather to let GC,
+      // browser compositor, and OS cooling breathe; otherwise yield macrotask.
+      const needBreather = i > 0 && i % 12 === 0
+      await yieldToBrowser(needBreather)
     }
 
     await Promise.race([encoder.flush(), guard.failure])
     if (audioEncoder && mixedAudio) await encodeAudioAac(audioEncoder, mixedAudio, opts.signal)
   } finally {
+    setExportActive(false)
     if (encoder.state !== 'closed') encoder.close()
     if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close()
     for (const el of mediaElements.values()) {

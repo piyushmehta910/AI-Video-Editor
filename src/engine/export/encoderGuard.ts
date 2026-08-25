@@ -17,27 +17,55 @@ interface DrainableEncoder {
 }
 
 /** Resolves once the encoder queue has drained below `maxQueued`. */
-export function waitForDrain(encoder: DrainableEncoder, maxQueued: number): Promise<void> {
+export function waitForDrain(encoder: DrainableEncoder, maxQueued: number, timeoutMs = 8000): Promise<void> {
   if (encoder.encodeQueueSize < maxQueued) return Promise.resolve()
   return new Promise((resolve) => {
+    let timer: number | null = null
+    let pollInterval: number | null = null
+    let settled = false
+
+    const cleanup = () => {
+      if (settled) return
+      settled = true
+      encoder.removeEventListener('dequeue', onDequeue)
+      if (timer !== null) window.clearTimeout(timer)
+      if (pollInterval !== null) window.clearInterval(pollInterval)
+    }
+
     const onDequeue = () => {
       if (encoder.encodeQueueSize < maxQueued) {
-        encoder.removeEventListener('dequeue', onDequeue)
+        cleanup()
         resolve()
       }
     }
+
     encoder.addEventListener('dequeue', onDequeue)
+
+    // Polling fallback in case dequeue event was dropped or delayed by the browser engine
+    pollInterval = window.setInterval(() => {
+      if (encoder.encodeQueueSize < maxQueued) {
+        cleanup()
+        resolve()
+      }
+    }, 12)
+
+    // Safety timeout prevents indefinite hang
+    timer = window.setTimeout(() => {
+      cleanup()
+      resolve()
+    }, timeoutMs)
   })
 }
 
 /**
  * Yield to the browser event loop so UI events, GC and encoder callbacks can
- * run between frames. Prefers `scheduler.yield` (post-task priority) and
- * falls back to a macrotask.
+ * run between frames. When `needBreather` is true, yields a brief macrotask delay (4ms)
+ * to prevent thermal throttling, GC pressure, and 100% CPU lockup.
  */
-export function yieldToBrowser(): Promise<void> {
-  const sched = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler
-  if (typeof sched?.yield === 'function') return sched.yield()
+export function yieldToBrowser(needBreather = false): Promise<void> {
+  if (needBreather) {
+    return new Promise((resolve) => setTimeout(resolve, 4))
+  }
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 

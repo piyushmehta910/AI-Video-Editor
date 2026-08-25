@@ -204,7 +204,8 @@ export function ScriptStudioModal({ open, onClose, initialLayout }: ScriptStudio
     setNotice(null)
     try {
       const { getActiveTtsProvider } = await import('@/api/tts')
-      const provider = getActiveTtsProvider()
+      const { magpieTtsProvider } = await import('@/api/tts/magpie')
+      const provider = magpieTtsProvider.isConfigured() ? magpieTtsProvider : getActiveTtsProvider()
       const fullText = [script.hook, ...script.scenes.map((s) => s.text), script.cta].filter(Boolean).join(' ')
 
       let audioBlob: Blob
@@ -231,7 +232,7 @@ export function ScriptStudioModal({ open, onClose, initialLayout }: ScriptStudio
           const clip = addClip(imported[0].id, audioTrack.id, playhead ?? 0)
           if (clip) {
             updateClip(clip.id, { duration: metrics.estimatedSeconds, sourceEnd: metrics.estimatedSeconds, clipType: 'audio' })
-            setNotice({ kind: 'ok', text: `Added ~${metrics.estimatedSeconds}s synthesized voiceover to timeline!` })
+            setNotice({ kind: 'ok', text: `Added ~${metrics.estimatedSeconds}s ${provider ? provider.name : 'AI'} voiceover to timeline!` })
           }
         }
       } else {

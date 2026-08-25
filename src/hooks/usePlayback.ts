@@ -383,10 +383,9 @@ React.useEffect(() => {
       raf = requestAnimationFrame(loop)
       const state = storeRef.current
       let time = state.playhead
-      if (isPlaying && isExportActive()) {
-        // An export render is running — pause the preview so the compositor,
-        // decoders and encoder don't compete for CPU/GPU.
-        setIsPlaying(false)
+      if (isExportActive()) {
+        if (isPlaying) setIsPlaying(false)
+        return
       }
       if (isPlaying) {
         const duration = state.duration()

@@ -7,6 +7,7 @@ import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { WebMMuxer } from './webm-muxer'
 import { createEncoderGuard, waitForDrain, yieldToBrowser } from './encoderGuard'
+import { setExportActive } from './exportSession'
 
 export interface ExportOptions {
   width: number
@@ -155,11 +156,16 @@ export async function exportProject(
     throw new Error('WebCodecs VideoEncoder is not supported in this browser')
   }
 
+  setExportActive(true)
+
   const canvas = document.createElement('canvas')
   canvas.width = opts.width
   canvas.height = opts.height
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D context unavailable')
+  if (!ctx) {
+    setExportActive(false)
+    throw new Error('Canvas 2D context unavailable')
+  }
 
   const muxer = new WebMMuxer({ width: opts.width, height: opts.height, duration: projectDuration(project.tracks), codec: opts.codec })
 
@@ -187,7 +193,10 @@ export async function exportProject(
     encoderConfig.bitrate = undefined
     encoderConfig.framerate = undefined
     const retry = await VideoEncoder.isConfigSupported(encoderConfig)
-    if (!retry.supported) throw new Error(`Encoder config not supported: ${opts.codec}`)
+    if (!retry.supported) {
+      setExportActive(false)
+      throw new Error(`Encoder config not supported: ${opts.codec}`)
+    }
   }
   encoder.configure(encoderConfig)
 
@@ -222,8 +231,7 @@ export async function exportProject(
     for (let i = 0; i < total; i++) {
       if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
       // Backpressure: wait until the hardware encoder has caught up before
-      // compositing more frames. Without this the queue grows unboundedly
-      // (each queued 4K frame ≈ 33 MB) and exhausts memory.
+      // compositing more frames.
       await waitForDrain(encoder, 4)
       if (guard.failed) throw guard.error ?? new Error('Video encoder failed')
       const time = Math.min((i / opts.fps), duration - 1 / opts.fps)
@@ -270,14 +278,16 @@ export async function exportProject(
       frame.close()
 
       opts.onProgress(i + 1, total)
-      // Yield to the event loop every frame so UI events, GC and encoder
-      // callbacks keep running — prevents the page from freezing at 100% CPU.
-      await yieldToBrowser()
+      // Cooperative CPU pacing: every 12 frames take a 4ms breather to let GC,
+      // browser compositor, and OS cooling breathe; otherwise yield macrotask.
+      const needBreather = i > 0 && i % 12 === 0
+      await yieldToBrowser(needBreather)
     }
 
     await Promise.race([encoder.flush(), guard.failure])
     if (mixedAudio) await encodeAudio(muxer, mixedAudio, opts.signal, guard)
   } finally {
+    setExportActive(false)
     if (encoder.state !== 'closed') encoder.close()
     for (const el of mediaElements.values()) {
       try {

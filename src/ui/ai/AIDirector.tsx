@@ -485,10 +485,10 @@ export function AIDirector({
 
   // ── Minimized pill dedicated drag handlers ──────────────────────────────────
   const handleMinimizedPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 && e.pointerType === 'mouse') return
     const target = e.target as HTMLElement
     // Allow button clicks through without starting drag
-    if (target.closest('button')) return
+    if (target.closest('button') || target.closest('a')) return
     minimizedDragRef.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
@@ -496,34 +496,47 @@ export function AIDirector({
       startY: position.y,
       hasMoved: false,
     }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    e.preventDefault()
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
   }
 
   const handleMinimizedPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!minimizedDragRef.current) return
     const dx = e.clientX - minimizedDragRef.current.mouseX
     const dy = e.clientY - minimizedDragRef.current.mouseY
-    if (!minimizedDragRef.current.hasMoved && Math.hypot(dx, dy) > 4) {
+    if (!minimizedDragRef.current.hasMoved && Math.hypot(dx, dy) > 3) {
       minimizedDragRef.current.hasMoved = true
     }
     if (minimizedDragRef.current.hasMoved) {
-      const maxX = Math.max(10, window.innerWidth - 200)
-      const maxY = Math.max(10, window.innerHeight - 50)
-      setPosition({
-        x: Math.min(Math.max(10, minimizedDragRef.current.startX + dx), maxX),
-        y: Math.min(Math.max(10, minimizedDragRef.current.startY + dy), maxY),
-      })
+      const pillW = (e.currentTarget as HTMLElement).offsetWidth || 210
+      const pillH = (e.currentTarget as HTMLElement).offsetHeight || 38
+      const maxX = Math.max(5, window.innerWidth - pillW - 5)
+      const maxY = Math.max(5, window.innerHeight - pillH - 5)
+      const nextX = Math.min(Math.max(5, minimizedDragRef.current.startX + dx), maxX)
+      const nextY = Math.min(Math.max(5, minimizedDragRef.current.startY + dy), maxY)
+      setPosition({ x: nextX, y: nextY })
     }
   }
 
   const handleMinimizedPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!minimizedDragRef.current) return
     const hasMoved = minimizedDragRef.current.hasMoved
+    const finalPos = { ...position }
     minimizedDragRef.current = null
-    try { ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
     if (hasMoved) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(position)) } catch { /* ignore */ }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(finalPos))
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -1041,6 +1054,7 @@ export function AIDirector({
           onPointerDown={handleMinimizedPointerDown}
           onPointerMove={handleMinimizedPointerMove}
           onPointerUp={handleMinimizedPointerUp}
+          onPointerCancel={handleMinimizedPointerUp}
           title="Drag to move — click Expand to restore"
         >
           <div className="flex size-5 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xs flex-shrink-0">
