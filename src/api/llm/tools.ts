@@ -268,6 +268,35 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
+      name: 'describe_image_with_vision',
+      description: 'Analyze an imported image or frame using NVIDIA Nemotron Omni Reasoning (nemotron-3-nano-omni-30b-a3b-reasoning) to extract visual subjects, mood, setting, lighting, and camera framing. Read-only.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The image or video asset name to inspect.' },
+          prompt: { type: 'string', description: 'Custom vision prompt or focus question (optional).' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'extract_image_text',
+      description: 'Extract all on-screen text, subtitles, logos, and title graphics from an image asset using NVIDIA Nemotron Vision OCR. Read-only.',
+      parameters: {
+        type: 'object',
+        properties: {
+          assetName: { type: 'string', description: 'The image asset name.' },
+        },
+        required: ['assetName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'generate_captions',
       description: 'Transcribe the audio of a clip locally (Whisper) and add a captions text overlay clip that matches the spoken content. Runs on approval.',
       parameters: {
@@ -1017,6 +1046,8 @@ const NON_MUTATING_TOOLS = new Set<string>([
   'analyze_video',
   'render_preview',
   'web_research',
+  'describe_image_with_vision',
+  'extract_image_text',
 ])
 
 /** Friendly aliases so the model can use either naming style. */
@@ -1333,6 +1364,16 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       const taskTitle = String(args.taskTitle ?? '')
       if (!role || !taskTitle) return null
       return `Dispatch [${role}]: ${taskTitle}`
+    }
+    case 'describe_image_with_vision': {
+      const assetName = String(args.assetName ?? '')
+      if (!assetName.trim()) return null
+      return `Analyze "${assetName}" with NVIDIA Nemotron Vision`
+    }
+    case 'extract_image_text': {
+      const assetName = String(args.assetName ?? '')
+      if (!assetName.trim()) return null
+      return `Extract text from "${assetName}" with NVIDIA Nemotron OCR`
     }
     default:
       return null
@@ -2255,6 +2296,35 @@ export async function applyTool(
         }
       } catch (err) {
         return { ok: false, message: `Subagent dispatch failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'describe_image_with_vision': {
+      const assetName = String(args.assetName ?? '')
+      const asset = findAsset(assetName)
+      if (!asset) return { ok: false, message: `Asset "${assetName}" not found.` }
+      try {
+        const { readMediaFile } = await import('@/engine/storage/opfs')
+        const { analyzeImageWithNvidiaVision } = await import('@/api/llm/vision')
+        const file = await readMediaFile(asset.filePath)
+        const customPrompt = args.prompt ? String(args.prompt) : undefined
+        const result = await analyzeImageWithNvidiaVision(file, { prompt: customPrompt })
+        return { ok: true, message: `Nemotron Vision Analysis for "${asset.name}":\n\n${result.text}` }
+      } catch (err) {
+        return { ok: false, message: `Nemotron Vision failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'extract_image_text': {
+      const assetName = String(args.assetName ?? '')
+      const asset = findAsset(assetName)
+      if (!asset) return { ok: false, message: `Asset "${assetName}" not found.` }
+      try {
+        const { readMediaFile } = await import('@/engine/storage/opfs')
+        const { extractOcrWithNemotron } = await import('@/api/llm/vision')
+        const file = await readMediaFile(asset.filePath)
+        const text = await extractOcrWithNemotron(file)
+        return { ok: true, message: `Nemotron OCR for "${asset.name}":\n\n${text}` }
+      } catch (err) {
+        return { ok: false, message: `Nemotron OCR failed: ${err instanceof Error ? err.message : String(err)}` }
       }
     }
     default:

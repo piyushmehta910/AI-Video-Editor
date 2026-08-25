@@ -6034,15 +6034,37 @@ function ScriptSection() {
 
 // ─── Images Section ───────────────────────────────────────────────────────────
 function ImagesSection() {
+  const [activeTab, setActiveTab] = React.useState<'stock' | 'vision'>('stock')
   const importFiles = useTimelineStore((s) => s.importFiles)
   const project = useTimelineStore((s) => s.project)
+  const assets = useTimelineStore((s) => s.assets)
   const config = useApiConfigStore((s) => s.config)
+
+  // Stock search state
   const [query, setQuery] = React.useState('')
   const [results, setResults] = React.useState<Array<{ id: string; url: string; thumb: string; alt: string }>>([])
   const [searching, setSearching] = React.useState(false)
   const [importingId, setImportingId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
+
+  // Vision state
+  const [selectedAssetId, setSelectedAssetId] = React.useState<string>('')
+  const [visionModel, setVisionModel] = React.useState('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning')
+  const [visionMode, setVisionMode] = React.useState<'scene' | 'ocr' | 'caption' | 'custom'>('scene')
+  const [customPrompt, setCustomPrompt] = React.useState('')
+  const [visionBusy, setVisionBusy] = React.useState(false)
+  const [visionResult, setVisionResult] = React.useState<string | null>(null)
+  const [visionError, setVisionError] = React.useState<string | null>(null)
+  const [copied, setCopied] = React.useState(false)
+
+  const imageAssets = React.useMemo(() => assets.filter((a) => a.type === 'image'), [assets])
+
+  React.useEffect(() => {
+    if (imageAssets.length > 0 && !selectedAssetId) {
+      setSelectedAssetId(imageAssets[0].id)
+    }
+  }, [imageAssets, selectedAssetId])
 
   const orientation = React.useMemo(() => {
     if (project.aspectRatio === '9:16' || project.width < project.height) return 'portrait'
@@ -6100,42 +6122,263 @@ function ImagesSection() {
     }
   }
 
+  const runVisionAnalysis = async () => {
+    const targetAsset = assets.find((a) => a.id === selectedAssetId)
+    if (!targetAsset) {
+      setVisionError('Please select an image asset to analyze.')
+      return
+    }
+    setVisionBusy(true)
+    setVisionError(null)
+    setVisionResult(null)
+    try {
+      const { readMediaFile } = await import('@/engine/storage/opfs')
+      const { analyzeImageWithNvidiaVision, extractOcrWithNemotron, generateSceneCaptionWithNemotron } = await import('@/api/llm/vision')
+      const file = await readMediaFile(targetAsset.filePath)
+
+      let resText = ''
+      if (visionMode === 'ocr') {
+        resText = await extractOcrWithNemotron(file, visionModel)
+      } else if (visionMode === 'caption') {
+        resText = await generateSceneCaptionWithNemotron(file, visionModel)
+      } else if (visionMode === 'custom' && customPrompt.trim()) {
+        const out = await analyzeImageWithNvidiaVision(file, { prompt: customPrompt.trim(), model: visionModel })
+        resText = out.text
+      } else {
+        const out = await analyzeImageWithNvidiaVision(file, { model: visionModel })
+        resText = out.text
+      }
+
+      setVisionResult(resText)
+    } catch (err) {
+      setVisionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setVisionBusy(false)
+    }
+  }
+
+  const addVisionTextToTimeline = () => {
+    if (!visionResult) return
+    const store = useTimelineStore.getState()
+    const textTrack = store.project.tracks.find((t) => t.type === 'text')
+    const trackId = textTrack?.id ?? store.project.tracks[0]?.id
+    if (!trackId) return
+    const snippet = visionResult.slice(0, 100)
+    store.addTextClip(snippet, trackId, store.playhead)
+    setSuccess('Added text overlay to timeline!')
+  }
+
+  const copyVisionText = () => {
+    if (!visionResult) return
+    navigator.clipboard.writeText(visionResult)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="space-y-3 p-3">
-      <div className="flex gap-1.5">
-        <Input placeholder="Search stock images..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void search() }} className="h-8 text-xs" />
-        <Button size="sm" className="h-8 px-2" onClick={() => void search()} disabled={searching || !query.trim()}>
-          {searching ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-        </Button>
+      {/* Tab switcher */}
+      <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/40 p-0.5">
+        <button
+          type="button"
+          onClick={() => setActiveTab('stock')}
+          className={cn(
+            'flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all',
+            activeTab === 'stock' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <Search className="size-3.5" />
+          <span>Stock Search</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('vision')}
+          className={cn(
+            'flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all',
+            activeTab === 'vision' ? 'bg-card text-violet-600 dark:text-violet-400 font-bold shadow-xs' : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <Sparkles className="size-3.5" />
+          <span>Nemotron Vision</span>
+        </button>
       </div>
 
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground px-0.5">
-        <span>Format matching canvas</span>
-        <span className="font-semibold text-violet-400 capitalize">{orientation} ({project.aspectRatio || '16:9'})</span>
-      </div>
+      {activeTab === 'stock' && (
+        <div className="space-y-3">
+          <div className="flex gap-1.5">
+            <Input placeholder="Search stock images..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void search() }} className="h-8 text-xs" />
+            <Button size="sm" className="h-8 px-2" onClick={() => void search()} disabled={searching || !query.trim()}>
+              {searching ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+            </Button>
+          </div>
 
-      {error && <SectionNotice kind="error" text={error} />}
-      {success && <SectionNotice kind="ok" text={success} />}
-      {results.length > 0 && (
-        <div className="grid max-h-64 grid-cols-2 gap-1.5 overflow-y-auto">
-          {results.map((r) => (
-            <button key={r.id} type="button" className="group relative overflow-hidden rounded border bg-muted" onClick={() => void importImage(r)} disabled={importingId === r.id}>
-              <img
-                src={r.thumb}
-                alt={r.alt}
-                style={{ aspectRatio: `${project.width || 16} / ${project.height || 9}` }}
-                className="w-full object-cover"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                {importingId === r.id ? <Loader2 className="size-4 animate-spin text-white" /> : <Download className="size-4 text-white" />}
-              </div>
-            </button>
-          ))}
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground px-0.5">
+            <span>Format matching canvas</span>
+            <span className="font-semibold text-violet-400 capitalize">{orientation} ({project.aspectRatio || '16:9'})</span>
+          </div>
+
+          {error && <SectionNotice kind="error" text={error} />}
+          {success && <SectionNotice kind="ok" text={success} />}
+          {results.length > 0 && (
+            <div className="grid max-h-64 grid-cols-2 gap-1.5 overflow-y-auto">
+              {results.map((r) => (
+                <button key={r.id} type="button" className="group relative overflow-hidden rounded border bg-muted" onClick={() => void importImage(r)} disabled={importingId === r.id}>
+                  <img
+                    src={r.thumb}
+                    alt={r.alt}
+                    style={{ aspectRatio: `${project.width || 16} / ${project.height || 9}` }}
+                    className="w-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                    {importingId === r.id ? <Loader2 className="size-4 animate-spin text-white" /> : <Download className="size-4 text-white" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {results.length === 0 && !searching && (
+            <EmptyHint text="Configure stock image providers in Settings (Unsplash, Pexels, Pixabay) to search images." icon={Image} />
+          )}
         </div>
       )}
-      {results.length === 0 && !searching && (
-        <EmptyHint text="Configure stock image providers in Settings (Unsplash, Pexels, Pixabay) to search images." icon={Image} />
+
+      {activeTab === 'vision' && (
+        <div className="space-y-3">
+          {/* Target Image Selector */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-foreground">Select Image Asset</Label>
+            {imageAssets.length > 0 ? (
+              <select
+                value={selectedAssetId}
+                onChange={(e) => setSelectedAssetId(e.target.value)}
+                className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-400"
+              >
+                {imageAssets.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+                No image assets in project. Import an image from the Media tab or Stock search.
+              </div>
+            )}
+          </div>
+
+          {/* Vision Model Selector */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">Vision Model</Label>
+              <span className="text-[10px] text-emerald-500 font-semibold">NVIDIA NIM</span>
+            </div>
+            <select
+              value={visionModel}
+              onChange={(e) => setVisionModel(e.target.value)}
+              className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-400"
+            >
+              <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning">
+                Nemotron-3-Nano Omni 30B Reasoning (Recommended)
+              </option>
+              <option value="meta/llama-3.2-11b-vision-instruct">
+                Llama 3.2 11B Vision
+              </option>
+              <option value="meta/llama-3.2-90b-vision-instruct">
+                Llama 3.2 90B Vision
+              </option>
+            </select>
+          </div>
+
+          {/* Analysis Mode Selector */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">Analysis Mode</Label>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { id: 'scene', label: 'Scene Analysis' },
+                { id: 'ocr', label: 'Extract OCR Text' },
+                { id: 'caption', label: '1-Line Caption' },
+                { id: 'custom', label: 'Custom Prompt' },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setVisionMode(m.id as any)}
+                  className={cn(
+                    'rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-all',
+                    visionMode === m.id
+                      ? 'border-violet-500/60 bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
+                      : 'border-border bg-card text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {visionMode === 'custom' && (
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Custom Vision Prompt</Label>
+              <Input
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="e.g. Describe the color harmony and subject action..."
+                className="h-8 text-xs bg-card"
+              />
+            </div>
+          )}
+
+          {visionError && <SectionNotice kind="error" text={visionError} />}
+          {success && <SectionNotice kind="ok" text={success} />}
+
+          {/* Action button */}
+          <Button
+            type="button"
+            size="sm"
+            className="w-full h-8 text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white shadow-xs"
+            disabled={visionBusy || !selectedAssetId}
+            onClick={() => void runVisionAnalysis()}
+          >
+            {visionBusy ? (
+              <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Reasoning with Nemotron...</>
+            ) : (
+              <><Sparkles className="size-3.5 mr-1.5" />Analyze with Nemotron</>
+            )}
+          </Button>
+
+          {/* Vision Result */}
+          {visionResult && (
+            <div className="space-y-2 rounded-xl border border-violet-500/30 bg-violet-500/10 p-2.5 backdrop-blur-md">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">
+                  Nemotron Reasoning Result
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={copyVisionText}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/10 transition"
+                  >
+                    <Copy className="size-3" />
+                    <span>{copied ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                {visionResult}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full h-7 text-[11px] font-semibold border-violet-500/30 hover:bg-violet-500/20"
+                onClick={addVisionTextToTimeline}
+              >
+                <Plus className="size-3 mr-1" />
+                Add as Text Overlay
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
