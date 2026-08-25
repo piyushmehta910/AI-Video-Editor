@@ -126,18 +126,16 @@ export class SubagentOrchestrator {
     })
 
     const bestStockProvider = resourceAllocator.selectBestProvider('stock_images') || 'unsplash'
-    const best3DProvider = resourceAllocator.selectBestProvider('models_3d') || 'sketchfab'
 
-    // 4. Asset Subagent: Curate 3D Model / B-Roll Visuals
+    // 4. Asset Subagent: Curate B-Roll & Visual Assets
     tasks.push({
       id: crypto.randomUUID(),
       role: 'asset_curator',
-      title: 'Discover 3D Model / Visual Assets',
-      description: `Searches and downloads high-quality assets matching topic context via ${best3DProvider} and ${bestStockProvider}.`,
-      tool: 'add_3d_model',
+      title: 'Discover Visual & Media Assets',
+      description: `Searches and downloads high-quality stock visuals matching topic context via ${bestStockProvider}.`,
+      tool: 'search_stock_image',
       arguments: {
-        query: topic.split(' ')[0] || 'robot',
-        provider: 'polyhaven',
+        query: topic.split(' ')[0] || 'nature',
       },
       status: 'pending',
     })

@@ -23,7 +23,6 @@ import { AvatarCard } from '@/components/settings/cards/AvatarCard'
 import { VoiceProviderPicker } from '@/components/settings/cards/VoiceProviderPicker'
 import { StockImagesCard } from '@/components/settings/cards/StockImagesCard'
 import { GiphyCard } from '@/components/settings/cards/GiphyCard'
-import { SketchfabCard } from '@/components/settings/cards/SketchfabCard'
 import { FirecrawlCard } from '@/components/settings/cards/FirecrawlCard'
 import { MusicCard } from '@/components/settings/cards/MusicCard'
 import { EngineCard } from '@/components/settings/cards/EngineCard'
@@ -82,7 +81,6 @@ export function SettingsPage() {
     Boolean(config.firecrawl.apiKey?.trim()),
     Boolean(config.stockImages.pexels.apiKey?.trim() || config.stockImages.unsplash.accessKey?.trim() || config.stockImages.pixabay.apiKey?.trim()),
     Boolean(config.giphy.apiKey?.trim()),
-    Boolean(config.sketchfab?.apiKey?.trim()),
   ].filter(Boolean).length
 
   const search = searchQuery.toLowerCase().trim()
@@ -260,15 +258,14 @@ export function SettingsPage() {
         )}
 
         {/* 5. Stock Media & Creative Assets */}
-        {(activeTab === 'all' || activeTab === 'media') && (match('stock') || match('pexels') || match('unsplash') || match('pixabay') || match('giphy') || match('sketchfab') || match('music')) && (
+        {(activeTab === 'all' || activeTab === 'media') && (match('stock') || match('pexels') || match('unsplash') || match('pixabay') || match('giphy') || match('music')) && (
           <section className="flex flex-col gap-3">
-            <SectionLabel icon={ImageIcon} description="Integrations for free stock imagery, animated stickers, 3D models, and background music">
+            <SectionLabel icon={ImageIcon} description="Integrations for free stock imagery, animated stickers, and background music">
               Stock Media & Creative Assets
             </SectionLabel>
             <div className="flex flex-col gap-3">
               {(match('stock') || match('pexels') || match('unsplash') || match('pixabay')) && <StockImagesCard />}
               {(match('giphy') || match('gif') || match('sticker')) && <GiphyCard />}
-              {(match('sketchfab') || match('3d') || match('model')) && <SketchfabCard />}
               {(match('music') || match('deezer') || match('audio')) && <MusicCard />}
             </div>
           </section>

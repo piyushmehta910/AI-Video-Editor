@@ -60,7 +60,6 @@ You can invoke and execute any action corresponding to the ClipForge middle tool
 ### 6. GENERATIVE AI STUDIOS & OVERLAY ASSETS
 - **AI Slide Presentation Studio (\`generate_slides\`)**: Generate 16:9 keynote slide decks with themes (\`tech_dark\`, \`startup_pitch\`, \`minimal_light\`, \`cyberpunk\`, \`academic\`).
 - **AI Talking Head & Lip Sync Studio (\`generate_avatar_intro\` / \`generate_avatar_outro\` / \`generate_avatar_presenter\`)**: Create neural-lip-synced talking head video clips.
-- **3D Assets & Spatial Models (\`add_3d_model\`, \`set_3d_camera\`, \`animate_3d_model\`)**: Import 3D GLB models from Poly Haven / Sketchfab with orbit/cinematic camera animations.
 - **Stock Imagery & B-Roll (\`search_stock_image\`)**: Search and insert high-res photography from Unsplash, Pexels, and Pixabay.
 - **Motion Graphics Generator (\`generate_motion_graphics\`)**: Render animated HTML5/Canvas overlays and kinetic typography.
 - **Background Removal (\`remove_background\`)**: AI WebGPU segmentation to isolate subjects from background.

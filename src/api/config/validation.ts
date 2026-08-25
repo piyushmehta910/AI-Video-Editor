@@ -267,20 +267,3 @@ export async function testGiphy(apiKey: string, timeoutMs: number, rating = 'g')
   if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
   return doRequest(label, `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(apiKey)}&q=test&limit=1&rating=${encodeURIComponent(rating)}`, {}, timeoutMs)
 }
-
-export async function testSketchfab(apiKey: string, timeoutMs: number): Promise<TestResult> {
-  const label = 'Sketchfab'
-  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API token to test`, latencyMs: 0 }
-  return doRequest(
-    label,
-    'https://api.sketchfab.com/v3/me',
-    { headers: { Authorization: `Token ${apiKey}` } },
-    timeoutMs,
-  )
-}
-
-export async function testPolyHaven(timeoutMs: number): Promise<TestResult> {
-  return doRequest('Poly Haven (CC0)', 'https://api.polyhaven.com/assets?t=models', {
-    headers: { Accept: 'application/json' },
-  }, timeoutMs)
-}

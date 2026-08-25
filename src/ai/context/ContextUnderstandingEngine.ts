@@ -48,7 +48,6 @@ export interface PromptClassificationResult {
   desiredTone: DesiredTone
   estimatedDurationSeconds: number
   visualStrategy: {
-    use3D: boolean
     useAvatars: boolean
     useSlides: boolean
     useKineticCaptions: boolean
@@ -227,7 +226,6 @@ export class ContextUnderstandingEngine {
     }
 
     // 5. Visual Strategy & Required APIs
-    const use3D = text.includes('3d') || text.includes('model') || targetAudience === 'tech_enthusiasts'
     const useAvatars = text.includes('avatar') || text.includes('presenter') || text.includes('wawa') || videoType === 'educational'
     const useSlides = videoType === 'presentation' || text.includes('slide') || text.includes('bullet')
     const defaultAspect = userPrefs?.preferredAspectRatio === '16:9' ? '16:9' : '9:16'
@@ -238,7 +236,6 @@ export class ContextUnderstandingEngine {
 
     const requiredApis: string[] = ['opencode_zen']
     if (useAvatars) requiredApis.push('nvidia_nim', 'elevenlabs')
-    if (use3D) requiredApis.push('sketchfab')
     if (text.includes('research') || text.includes('facts')) requiredApis.push('firecrawl')
     requiredApis.push('unsplash', 'pexels')
 
@@ -253,7 +250,6 @@ export class ContextUnderstandingEngine {
       desiredTone,
       estimatedDurationSeconds,
       visualStrategy: {
-        use3D,
         useAvatars,
         useSlides,
         useKineticCaptions: true,

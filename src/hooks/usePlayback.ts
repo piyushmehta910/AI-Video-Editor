@@ -341,9 +341,11 @@ React.useEffect(() => {
         ref.clipId = active.clip.id
             const el = ref.element as HTMLVideoElement
             const srcTime = (time - active.clip.startTime) * active.clip.speed + active.clip.sourceStart
-            // Adjust playbackRate for non-1x speeds when playing
+            // Adjust playbackRate for non-1x speeds when playing. Negative rates
+            // reverse playback (J shuttle / reverse control); HTMLMediaElement
+            // supports negative playbackRate natively.
             if (playing && speedRef.current !== 1) {
-              el.playbackRate = Math.min(4, Math.max(0.25, Math.abs(speedRef.current)));
+              el.playbackRate = Math.max(-4, Math.min(4, speedRef.current));
             }
             const freeRun = playing && active.clip.speed === 1 && speedRef.current === 1
             if (freeRun) {

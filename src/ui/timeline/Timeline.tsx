@@ -1,7 +1,6 @@
 import * as React from 'react'
 import {
   ArrowLeftRight,
-  Box,
   Captions,
   ChevronDown,
   ChevronRight,
@@ -538,9 +537,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <ToolbarButton label="AI Avatar Presenter Studio" onClick={() => onOpenTool?.('avatar')}>
           <Clapperboard className="size-4 text-violet-400" />
-        </ToolbarButton>
-        <ToolbarButton label="3D Assets & Models Studio" onClick={() => onOpenTool?.('3d')}>
-          <Box className="size-4 text-amber-400" />
         </ToolbarButton>
         <ToolbarButton label="Visual Effects Studio" onClick={() => onOpenTool?.('effects')}>
           <Sparkles className="size-4 text-pink-400" />

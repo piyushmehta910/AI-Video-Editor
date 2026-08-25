@@ -11,10 +11,8 @@ import {
   testPixabay,
   testDeezer,
   testMusicBrainz,
-  testPolyHaven,
   testFirecrawl,
   testGiphy,
-  testSketchfab,
 } from '@/api/config/validation'
 import type { TestResult } from '@/api/config/validation'
 import { Card, CardContent } from '@/components/ui/card'
@@ -77,9 +75,6 @@ export function ConnectionOverview() {
   const giphyRating = config.giphy.rating ?? 'g'
   const giphyTimeoutMs = config.giphy.timeoutMs ?? 30000
 
-  const sfApiKey = config.sketchfab?.apiKey ?? ''
-  const sfTimeoutMs = config.sketchfab?.timeoutMs ?? 30000
-
   const items: OverviewItem[] = React.useMemo(() => [
     {
       id: 'openrouter',
@@ -127,11 +122,6 @@ export function ConnectionOverview() {
       run: () => testMusicBrainz(mbBaseUrl, mbUserAgent, mbTimeoutMs),
     },
     {
-      id: 'polyhaven',
-      label: 'Poly Haven',
-      run: () => testPolyHaven(15000),
-    },
-    {
       id: 'firecrawl',
       label: 'Firecrawl',
       run: () => testFirecrawl(fcApiKey, fcEndpoint, fcTimeoutMs),
@@ -140,11 +130,6 @@ export function ConnectionOverview() {
       id: 'giphy',
       label: 'Giphy',
       run: () => testGiphy(giphyApiKey, giphyTimeoutMs, giphyRating),
-    },
-    {
-      id: 'sketchfab',
-      label: 'Sketchfab',
-      run: () => testSketchfab(sfApiKey, sfTimeoutMs),
     },
   ], [
     openRouterApiKey,
@@ -178,9 +163,6 @@ export function ConnectionOverview() {
     giphyApiKey,
     giphyTimeoutMs,
     giphyRating,
-    sfApiKey,
-    sfTimeoutMs,
-    config,
   ])
 
   const testAll = async () => {

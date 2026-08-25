@@ -1,6 +1,6 @@
 import { useTimelineStore } from '@/stores/timelineStore'
-import { aspectToSize, CAMERA_MODES, clampRig, defaultCameraRig } from '@/engine/types'
-import type { Asset, CameraMode, Clip, TextAnimation } from '@/engine/types'
+import { aspectToSize } from '@/engine/types'
+import type { Asset, Clip, TextAnimation } from '@/engine/types'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
 import { transcribeAsset, getStoredTranscript, type StoredTranscript } from '@/api/llm/understanding'
@@ -21,8 +21,6 @@ import { generateMarpSlides, type MarpTheme } from '@/api/llm/marp'
 import type { AvatarRole } from '@/api/llm/avatarGenerator'
 import { checkTimeline } from '@/ai/quality/checker'
 import { collectTimelineScenes } from '@/api/llm/context'
-import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
-import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
 import { firecrawlSearch, firecrawlScrape } from '@/api/research/firecrawl'
 import { analyzeProject } from '@/api/llm/analysis'
 import { exportProject } from '@/engine/export/exportVideo'
@@ -332,74 +330,6 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
         type: 'object',
         properties: {
           assetName: { type: 'string', description: 'The clip name to duplicate.' },
-        },
-        required: ['assetName'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'add_3d_model',
-      description: 'Search Poly Haven (free CC0) or Sketchfab (needs API token) for a 3D model, download the best match as GLB, import it as a 3D model asset and add it to the timeline with a camera animation. Runs on approval.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'What to search for, e.g. "wooden armchair" or "skull".' },
-          source: { type: 'string', enum: ['polyhaven', 'sketchfab'], description: 'Model library to search (default polyhaven).' },
-          durationSeconds: { type: 'number', description: 'Clip duration in seconds (default 4).' },
-          mode: {
-            type: 'string',
-            enum: [...CAMERA_MODES],
-            description: 'Camera animation: turntable (spin around), orbit, dolly (zoom in), or static.',
-          },
-        },
-        required: ['query'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'animate_3d_model',
-      description: 'Full 3D animation shot: search Poly Haven/Sketchfab for a model, download it, render a camera-animated video (turntable/orbit/dolly/static) with three.js + WebCodecs, and add the finished video clip to the timeline. Use when the user wants a rendered 3D animation. Runs on approval.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'What model to search for, e.g. "vintage camera".' },
-          source: { type: 'string', enum: ['polyhaven', 'sketchfab'], description: 'Model library to search (default polyhaven).' },
-          durationSeconds: { type: 'number', description: 'Animation length in seconds (default 5).' },
-          mode: {
-            type: 'string',
-            enum: [...CAMERA_MODES],
-            description: 'Camera move: turntable (spin around), orbit, dolly (zoom in), or static.',
-          },
-          resolution: { type: 'string', enum: ['720p', '1080p'], description: 'Render resolution (default 720p).' },
-        },
-        required: ['query'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'set_3d_camera',
-      description: 'Set the camera animation rig for a 3D model clip on the timeline. Only applies to clips whose asset is a 3D model. Staged for user review.',
-      parameters: {
-        type: 'object',
-        properties: {
-          assetName: { type: 'string', description: 'The clip name to edit.' },
-          mode: {
-            type: 'string',
-            enum: [...CAMERA_MODES],
-            description: 'Camera animation mode.',
-          },
-          azimuthStart: { type: 'number', description: 'Starting angle around the model in degrees.' },
-          azimuthEnd: { type: 'number', description: 'Ending angle in degrees (360 = full spin).' },
-          elevation: { type: 'number', description: 'Camera height angle in degrees (default 20).' },
-          radius: { type: 'number', description: 'Camera distance from the model in world units (default ~6).' },
-          fov: { type: 'number', description: 'Field of view in degrees (default 40).' },
-          pan: { type: 'number', description: 'How much of the sweep plays across the clip (0.05–1, default 1).' },
         },
         required: ['assetName'],
       },
@@ -1013,9 +943,6 @@ const STAGED_TOOLS = new Set<string>([
   'add_caption',
   'generate_voiceover',
   'duplicate_clip',
-  'add_3d_model',
-  'animate_3d_model',
-  'set_3d_camera',
   'generate_script',
   'rewrite_script',
   'shorten_script',
@@ -1317,24 +1244,6 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       const clip = findClip(String(args.assetName ?? ''))
       if (!clip) return null
       return `Duplicate "${clip.name}"`
-    }
-    case 'add_3d_model': {
-      const query = String(args.query ?? '')
-      if (!query.trim()) return null
-      return `Search 3D models for "${query}" and add the best match to the timeline`
-    }
-    case 'set_3d_camera': {
-      const clip = findClip(String(args.assetName ?? ''))
-      if (!clip || !clip.modelRig) return null
-      const parts: string[] = []
-      if (args.mode != null) parts.push(`mode ${String(args.mode)}`)
-      if (args.azimuthStart != null) parts.push(`azimuth ${Number(args.azimuthStart)}°→${args.azimuthEnd != null ? `${Number(args.azimuthEnd)}°` : 'end'}`)
-      if (args.elevation != null) parts.push(`elevation ${Number(args.elevation)}°`)
-      if (args.radius != null) parts.push(`radius ${Number(args.radius)}`)
-      if (args.fov != null) parts.push(`fov ${Number(args.fov)}°`)
-      return parts.length
-        ? `Set 3D camera on "${clip.name}": ${parts.join(', ')}`
-        : `Reset 3D camera on "${clip.name}"`
     }
     case 'apply_filter': {
       const clip = findClip(String(args.assetName ?? ''))
@@ -1751,123 +1660,6 @@ export async function applyTool(
       const clip = findClip(String(args.assetName ?? ''))
       if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
       s.duplicateClips([clip.id])
-      return { ok: true, message: desc }
-    }
-    case 'add_3d_model': {
-      const query = String(args.query ?? '')
-      const source = String(args.source ?? 'polyhaven')
-      let file: File
-      let modelName: string = query
-      try {
-        if (source === 'sketchfab') {
-          const results = await searchSketchfabModels(query, { maxResults: 5 })
-          if (!results.length) return { ok: false, message: `No downloadable Sketchfab models found for "${query}".` }
-          file = await downloadSketchfabGlb(results[0].id)
-          modelName = results[0].name
-        } else {
-          const results = await searchModels(query, { maxResults: 5 })
-          if (!results.length) return { ok: false, message: `No 3D models found for "${query}".` }
-          file = await downloadModelAsGlb(results[0].id)
-          modelName = results[0].name
-        }
-        const imported = await s.importFiles([file])
-        const asset = imported.imported[0]
-        if (!asset) return { ok: false, message: 'Downloaded model could not be imported.' }
-        const dur = Math.max(1, Number(args.durationSeconds) || 4)
-        const clip = s.addAssetToTimeline(asset.id)
-        if (!clip) return { ok: false, message: 'No video track available for the 3D model.' }
-        s.updateClip(clip.id, { duration: dur, sourceEnd: dur })
-        return { ok: true, message: `${desc} (added "${asset.name}" from ${source})` }
-      } catch (err) {
-        return { ok: false, message: `3D model download failed for "${modelName ?? query}": ${err instanceof Error ? err.message : String(err)}` }
-      }
-    }
-    case 'animate_3d_model': {
-      const query = String(args.query ?? args.preset ?? 'cyber-cube')
-      if (!query.trim()) return { ok: false, message: 'No query or preset provided for the 3D animation.' }
-      const source = String(args.source ?? 'polyhaven')
-      const dur = Math.max(1, Number(args.durationSeconds) || 5)
-      const is1080 = String(args.resolution ?? '720p') === '1080p'
-      const width = is1080 ? 1920 : 1280
-      const height = is1080 ? 1080 : 720
-      let modelName = query
-      try {
-        let file: File
-        const matchedPreset = ['cyber-cube', 'studio-camera', 'gold-trophy', 'diamond-gem', 'retro-mic', 'drone-quad'].find(
-          (p) => p === query || p.includes(query.toLowerCase()) || query.toLowerCase().includes(p.split('-')[0]),
-        )
-
-        if (matchedPreset) {
-          const { exportPresetToGlb } = await import('@/engine/three/presets')
-          const glbBlob = await exportPresetToGlb(matchedPreset)
-          file = new File([glbBlob], `${matchedPreset}-${Date.now()}.glb`, { type: 'model/gltf-binary' })
-          modelName = matchedPreset
-        } else if (source === 'sketchfab') {
-          const results = await searchSketchfabModels(query, { maxResults: 5 })
-          if (!results.length) return { ok: false, message: `No downloadable Sketchfab models found for "${query}".` }
-          file = await downloadSketchfabGlb(results[0].id)
-          modelName = results[0].name
-        } else {
-          const results = await searchModels(query, { maxResults: 5 })
-          if (!results.length) {
-            const { exportPresetToGlb } = await import('@/engine/three/presets')
-            const glbBlob = await exportPresetToGlb('cyber-cube')
-            file = new File([glbBlob], `cyber-cube-${Date.now()}.glb`, { type: 'model/gltf-binary' })
-            modelName = 'Cyber Tesseract'
-          } else {
-            file = await downloadModelAsGlb(results[0].id)
-            modelName = results[0].name
-          }
-        }
-        const imported = await s.importFiles([file])
-        const asset = imported.imported[0]
-        if (!asset) return { ok: false, message: '3D model asset could not be prepared.' }
-
-        const mode = String(args.mode ?? 'turntable') as CameraMode
-        const radius = (asset.modelRadius ?? 2.4) * 2.5
-        const rig = defaultCameraRig()
-        rig.mode = mode
-        rig.radiusStart = radius
-        rig.radiusEnd = mode === 'dolly' ? radius * 0.55 : radius
-
-        // Lazy: pulls the three.js chunk only when a 3D render is actually requested.
-        const { renderGlbToVideo } = await import('@/engine/three/renderGlbToVideo')
-        const rendered = await renderGlbToVideo({ asset, rig, duration: dur, fps: 30, width, height })
-        const videoFile = new File([rendered.blob], `3d-${modelName.replace(/\W+/g, '-').toLowerCase()}-${Date.now()}.webm`, { type: 'video/webm' })
-        const next = useTimelineStore.getState()
-        const vimported = await next.importFiles([videoFile])
-        const vasset = vimported.imported[0]
-        if (!vasset) return { ok: false, message: 'Rendered 3D animation could not be imported.' }
-        const videoTrack = next.project.tracks.find((t) => t.type === 'video')
-        if (!videoTrack) return { ok: false, message: 'No video track available.' }
-        next.addClip(vasset.id, videoTrack.id)
-        const clip = next.project.tracks.flatMap((t) => t.clips).find((c) => c.assetId === vasset.id)
-        if (clip) next.updateClip(clip.id, { duration: dur, sourceEnd: dur })
-        return { ok: true, message: `${desc} — rendered ${rendered.frames} frames of "${modelName}" at ${width}x${height} and added it to the timeline.` }
-      } catch (err) {
-        return { ok: false, message: `3D animation failed for "${modelName}": ${err instanceof Error ? err.message : String(err)}` }
-      }
-    }
-    case 'set_3d_camera': {
-      const clip = findClip(String(args.assetName ?? ''))
-      if (!clip || !clip.modelRig) {
-        return { ok: false, message: `"${String(args.assetName)}" is not a 3D model clip.` }
-      }
-      const rig = { ...clip.modelRig }
-      if (args.mode != null) rig.mode = String(args.mode) as CameraMode
-      if (args.azimuthStart != null) rig.azimuthStart = Number(args.azimuthStart)
-      if (args.azimuthEnd != null) rig.azimuthEnd = Number(args.azimuthEnd)
-      if (args.elevation != null) {
-        rig.elevationStart = Number(args.elevation)
-        rig.elevationEnd = Number(args.elevation)
-      }
-      if (args.radius != null) {
-        rig.radiusStart = Number(args.radius)
-        rig.radiusEnd = Number(args.radius)
-      }
-      if (args.fov != null) rig.fov = Number(args.fov)
-      if (args.pan != null) rig.pan = Number(args.pan)
-      s.updateClip(clip.id, { modelRig: clampRig(rig) })
       return { ok: true, message: desc }
     }
     case 'generate_script': {

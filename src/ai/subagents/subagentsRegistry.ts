@@ -42,16 +42,15 @@ export const SUBAGENT_REGISTRY: Record<SubagentRole, SubagentInfo> = {
   },
   asset_curator: {
     role: 'asset_curator',
-    name: 'Media & 3D Asset Curator',
-    title: 'B-Roll & 3D Model Specialist',
-    description: 'Searches and imports 3D GLB models from Poly Haven / Sketchfab, stock images, and animated stickers.',
+    name: 'Media & Asset Curator',
+    title: 'B-Roll & Media Specialist',
+    description: 'Searches and imports stock images, animated stickers, and royalty-free media assets.',
     capabilities: [
-      '3D GLB model discovery and orbital camera animation',
       'Stock B-roll photography matching',
       'Animated GIF reaction sticker placement',
       'Green-screen background removal',
     ],
-    icon: 'Box',
+    icon: 'Image',
   },
   timeline_editor: {
     role: 'timeline_editor',

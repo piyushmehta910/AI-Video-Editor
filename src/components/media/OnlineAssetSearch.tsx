@@ -8,7 +8,6 @@ import {
   Pause,
   Image as ImageIcon,
   Music,
-  Box,
   Smile,
   Sparkles,
   Check,
@@ -20,22 +19,21 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { searchStockImages, downloadStockImage, type StockImageResult } from '@/api/stock/search'
 import { searchMusic, type MusicTrackResult } from '@/api/music/search'
-import { searchModels, downloadModelAsGlb, type PolyHavenModel } from '@/api/models/polyhaven'
 import { searchGiphy, downloadGiphy, type StickerResult } from '@/api/stickers/search'
 import { convertStickerGif } from '@/engine/stickers/gifToVideo'
 import { needsProxy, proxyFetch } from '@/api/proxy'
 
-type OnlineCategory = 'all' | 'images' | 'music' | '3d' | 'stickers'
+type OnlineCategory = 'all' | 'images' | 'music' | 'stickers'
 
 interface SearchResultItem {
   id: string
-  type: 'image' | 'music' | 'model' | 'sticker'
+  type: 'image' | 'music' | 'sticker'
   title: string
   subtitle?: string
   previewUrl?: string
   thumbnailUrl?: string
   source: string
-  originalData: StockImageResult | MusicTrackResult | PolyHavenModel | StickerResult
+  originalData: StockImageResult | MusicTrackResult | StickerResult
 }
 
 export function OnlineAssetSearch() {
@@ -109,28 +107,7 @@ export function OnlineAssetSearch() {
         )
       }
 
-      // 3. 3D GLB Models (Poly Haven CC0)
-      if (cat === 'all' || cat === '3d') {
-        promises.push(
-          searchModels(q, { maxResults: cat === '3d' ? 12 : 6 })
-            .then((models) => {
-              for (const mod of models) {
-                combined.push({
-                  id: `model-${mod.id}`,
-                  type: 'model',
-                  title: mod.name || mod.id,
-                  subtitle: `Poly Haven · ${mod.polycount ? `${Math.round(mod.polycount / 1000)}k polys` : '3D Model'}`,
-                  thumbnailUrl: `https://cdn.polyhaven.org/asset_img/primary/${encodeURIComponent(mod.id)}.png?width=256`,
-                  source: 'Poly Haven',
-                  originalData: mod,
-                })
-              }
-            })
-            .catch(() => {}),
-        )
-      }
-
-      // 4. GIF Stickers (Giphy)
+      // 3. GIF Stickers (Giphy)
       if (cat === 'all' || cat === 'stickers') {
         promises.push(
           searchGiphy(q, { limit: cat === 'stickers' ? 16 : 8 })
@@ -180,9 +157,6 @@ export function OnlineAssetSearch() {
         fileToImport = new File([blob], `${tr.title.replace(/[^\w\s-]/g, '') || 'music-track'}.mp3`, {
           type: blob.type || 'audio/mpeg',
         })
-      } else if (item.type === 'model') {
-        const mod = item.originalData as PolyHavenModel
-        fileToImport = await downloadModelAsGlb(mod.id)
       } else if (item.type === 'sticker') {
         const st = item.originalData as StickerResult
         const gifFile = await downloadGiphy(st)
@@ -234,7 +208,6 @@ export function OnlineAssetSearch() {
     { id: 'all', label: 'All Sources', icon: Sparkles },
     { id: 'images', label: 'Photos', icon: ImageIcon },
     { id: 'music', label: 'Music & SFX', icon: Music },
-    { id: '3d', label: '3D Models', icon: Box },
     { id: 'stickers', label: 'GIF Stickers', icon: Smile },
   ]
 
@@ -261,7 +234,7 @@ export function OnlineAssetSearch() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleSearch(query, category)
             }}
-            placeholder="Search photos, music, 3D models, stickers..."
+            placeholder="Search photos, music, stickers..."
             className="h-8 w-full rounded-lg border border-input bg-background pl-8 pr-16 text-xs text-foreground placeholder:text-muted-foreground focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
           />
           <div className="absolute right-1 flex items-center gap-1">
@@ -340,7 +313,7 @@ export function OnlineAssetSearch() {
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-2">
             <Loader2 className="size-6 animate-spin text-violet-500" />
             <p className="text-xs font-semibold">Searching online libraries...</p>
-            <p className="text-[10px] opacity-70">Querying Unsplash, Pexels, Deezer, Poly Haven & Giphy</p>
+            <p className="text-[10px] opacity-70">Querying Unsplash, Pexels, Deezer & Giphy</p>
           </div>
         ) : results.length > 0 ? (
           <div className="grid grid-cols-2 gap-2">
@@ -373,7 +346,7 @@ export function OnlineAssetSearch() {
                       )}
                     </div>
                   ) : (
-                    <Box className="size-6 text-muted-foreground" />
+                    <div className="size-6 text-muted-foreground" />
                   )}
 
                   {/* Source Badge */}
@@ -427,7 +400,7 @@ export function OnlineAssetSearch() {
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-1.5">
             <Search className="size-6 opacity-40" />
             <p className="text-xs font-semibold">No online assets found</p>
-            <p className="text-[10px] opacity-70">Try searching for broader terms like &quot;city&quot;, &quot;ambient&quot;, &quot;robot&quot;, &quot;fire&quot;.</p>
+            <p className="text-[10px] opacity-70">Try searching for broader terms like &quot;city&quot;, &quot;ambient&quot;, &quot;fire&quot;.</p>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground gap-3">
@@ -437,11 +410,11 @@ export function OnlineAssetSearch() {
             <div className="space-y-1">
               <p className="text-xs font-bold text-foreground">Universal Online Asset Search</p>
               <p className="text-[10px] text-muted-foreground max-w-[220px] leading-relaxed">
-                Search and download millions of free stock photos, music tracks, 3D GLB models, and animated stickers directly into your project.
+                Search and download millions of free stock photos, music tracks, and animated stickers directly into your project.
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-1 pt-1 max-w-[240px]">
-              {['Cyberpunk', 'Lo-Fi Chill', 'Nature 4K', 'Robot 3D', 'Subscribe', 'Space'].map((keyword) => (
+              {['Cyberpunk', 'Lo-Fi Chill', 'Nature 4K', 'Subscribe', 'Space', 'Retro'].map((keyword) => (
                 <button
                   key={keyword}
                   type="button"

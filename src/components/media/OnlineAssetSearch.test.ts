@@ -1,14 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { searchStockImages } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
-import { searchModels } from '@/api/models/polyhaven'
 import { searchGiphy } from '@/api/stickers/search'
 
 describe('Online Asset Search APIs', () => {
-  it('has valid stock, music, 3D model, and sticker search functions', () => {
+  it('has valid stock, music, and sticker search functions', () => {
     expect(typeof searchStockImages).toBe('function')
     expect(typeof searchMusic).toBe('function')
-    expect(typeof searchModels).toBe('function')
     expect(typeof searchGiphy).toBe('function')
   })
 

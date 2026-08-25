@@ -9,6 +9,7 @@ import {
   RotateCw,
   Scan,
   Repeat,
+  Undo2,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
@@ -236,6 +237,25 @@ export function PreviewCanvas({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
+            aria-label={playback.speed < 0 ? 'Play in reverse (click to go forward)' : 'Reverse playback'}
+            title={playback.speed < 0 ? 'Reversing (J) — click for forward' : 'Reverse playback (J)'}
+            disabled={empty}
+            className={cn(
+              'flex size-7 items-center justify-center rounded-lg border transition disabled:opacity-30 disabled:pointer-events-none',
+              playback.speed < 0
+                ? 'bg-violet-500/30 text-violet-300 border-violet-500/40'
+                : 'bg-white/5 text-white/70 hover:bg-white/15 hover:text-white border-transparent',
+            )}
+            onClick={() => {
+              playback.setSpeed(playback.speed < 0 ? 1 : -1)
+              if (!playback.isPlaying) playback.toggle()
+            }}
+          >
+            <Undo2 className="size-3.5" />
+          </button>
+
+          <button
+            type="button"
             aria-label="Seek back 5s"
             title="Rewind 5s (J)"
             disabled={empty}
@@ -283,6 +303,13 @@ export function PreviewCanvas({
           >
             <Repeat className="size-3.5" />
           </button>
+
+          <span
+            className="ml-1 inline-flex min-w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono text-white/80"
+            title="Playback speed (J reverses, L fast-forwards)"
+          >
+            {`${playback.speed}×`}
+          </span>
         </div>
 
         {/* Right: Tools & Fullscreen */}

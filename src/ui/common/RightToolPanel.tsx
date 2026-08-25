@@ -2,7 +2,6 @@ import * as React from 'react'
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   FolderUp,
   Search,
   Loader2,
@@ -55,9 +54,7 @@ import {
   History,
   FastForward,
   Compass,
-  Crosshair,
   Sun,
-  Camera,
   Target,
   Pencil,
   Boxes,
@@ -87,24 +84,9 @@ const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: s
   wand: Wand2,
 }
 
-const CAMERA_PRESET_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  orbit: RotateCcw,
-  'zoom-in': Maximize2,
-  'zoom-out': Crop,
-  crane: ArrowLeftRight,
-  compass: Compass,
-  spiral: Sparkles,
-  film: Clapperboard,
-  focus: Crosshair,
-  box: Box,
-  'arrow-down': ChevronDown,
-  search: Search,
-  'arrow-left': ChevronLeft,
-  'arrow-right': ChevronRight,
-}
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
-import type { Clip, Effect, EffectType, TextOverlay, Asset } from '@/engine/types'
+import type { Clip, Effect, EffectType, TextOverlay } from '@/engine/types'
 import { loadGoogleFont, GOOGLE_FONTS } from '@/lib/fonts'
 import { upsertKeyframe, removeKeyframe } from '@/lib/keyframes'
 import {
@@ -138,17 +120,6 @@ import { generateAvatarVideo, type AvatarRole } from '@/api/llm/avatarGenerator'
 import { readMediaFile } from '@/engine/storage/opfs'
 import { searchMusic, searchSoundEffects, type MusicTrackResult, type SoundEffectResult } from '@/api/music/search'
 import { normalizeClipVolume } from '@/hooks/useInspector'
-import { searchModels, downloadModelAsGlb } from '@/api/models/polyhaven'
-import { searchSketchfabModels, downloadSketchfabGlb } from '@/api/models/sketchfab'
-import {
-  CAMERA_TRAJECTORY_PRESETS,
-  type CameraTrajectoryPreset,
-  type CameraMode,
-  type CameraRig,
-} from '@/engine/three/rig'
-import { ThreeDPreviewCanvas } from '@/ui/three/ThreeDPreviewCanvas'
-import { ThreeDStudioModal } from '@/ui/three/ThreeDStudioModal'
-import { BUILTIN_3D_PRESETS, exportPresetToGlb } from '@/engine/three/presets'
 import { BUILTIN_MOTION_PRESETS } from '@/engine/motion/presets'
 import { generateMotionCode, getMotionHistory } from '@/api/llm/motionGenerator'
 import { renderMotionClip } from '@/engine/motion/sandbox'
@@ -172,7 +143,6 @@ export type ToolSection =
   | 'effects'
   | 'audio'
   | 'captions'
-  | '3d'
   | 'transitions'
   | 'stickers'
   | 'speed'
@@ -192,7 +162,6 @@ export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ c
   { id: 'audio', label: 'Audio', icon: Music },
   { id: 'voiceover', label: 'Voiceover', icon: Mic },
   { id: 'captions', label: 'Captions', icon: FileText },
-  { id: '3d', label: '3D', icon: Box },
   { id: 'transitions', label: 'Transitions', icon: ArrowLeftRight },
   { id: 'stickers', label: 'Stickers', icon: Smile },
   { id: 'speed', label: 'Speed', icon: Gauge },
@@ -212,7 +181,6 @@ const SECTION_DESCRIPTIONS: Partial<Record<ToolSection, string>> = {
   audio: 'Music, voice and sound cleanup',
   voiceover: 'AI text-to-speech with NVIDIA Magpie zero-shot voice cloning',
   captions: 'Text overlays and titles',
-  '3d': 'Search, download and animate models',
   transitions: 'How clips flow into each other',
   stickers: 'Animated GIF overlays',
   speed: 'Clip playback rate presets',
@@ -3728,558 +3696,6 @@ function CaptionsSection() {
   )
 }
 
-// ─── 3D Section ───────────────────────────────────────────────────────────────
-type ModelResult = {
-  id: string
-  name: string
-  categories: string[]
-  polycount: number
-  source: 'polyhaven' | 'sketchfab'
-}
-
-function ThreeDSection() {
-  const assets = useTimelineStore((s) => s.assets)
-  const importFiles = useTimelineStore((s) => s.importFiles)
-  const addClip = useTimelineStore((s) => s.addClip)
-  const updateClip = useTimelineStore((s) => s.updateClip)
-  const project = useTimelineStore((s) => s.project)
-  const playhead = useTimelineStore((s) => s.playhead)
-
-  const [panelTab, setPanelTab] = React.useState<'camera' | 'lighting' | 'render'>('camera')
-  const [isStudioOpen, setIsStudioOpen] = React.useState(false)
-  const [selectedPresetId, setSelectedPresetId] = React.useState<string>('cyber-cube')
-  const [selectedAssetId, setSelectedAssetId] = React.useState<string>('')
-  const [usePreset, setUsePreset] = React.useState(true)
-
-  // Camera Trajectory Rig
-  const [selectedPresetPathId, setSelectedPresetPathId] = React.useState<string>('turntable-360')
-  const [flightMode, setFlightMode] = React.useState<CameraMode>('turntable')
-  const [azimuthStart, setAzimuthStart] = React.useState(0)
-  const [azimuthEnd, setAzimuthEnd] = React.useState(360)
-  const [elevationStart, setElevationStart] = React.useState(20)
-  const [elevationEnd, setElevationEnd] = React.useState(20)
-  const [fov, setFov] = React.useState(40)
-  const [duration, setDuration] = React.useState(5)
-  const [resolution, setResolution] = React.useState('auto')
-  const [fps, setFps] = React.useState(30)
-  const [lighting, setLighting] = React.useState<'studio' | 'neon' | 'sunset' | 'spotlight' | 'ambient'>('studio')
-
-  // Search Online Models State
-  const [source, setSource] = React.useState<'polyhaven' | 'sketchfab'>('polyhaven')
-  const [query, setQuery] = React.useState('')
-  const [results, setResults] = React.useState<ModelResult[]>([])
-  const [searching, setSearching] = React.useState(false)
-  const [downloading, setDownloading] = React.useState<string | null>(null)
-
-  // Render & Status
-  const [rendering, setRendering] = React.useState(false)
-  const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-  const [success, setSuccess] = React.useState<string | null>(null)
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
-
-  const modelAssets = React.useMemo(() => assets.filter((a) => a.type === 'model'), [assets])
-  const selectedAsset = modelAssets.find((a) => a.id === selectedAssetId)
-
-  const handleCustomGlbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files?.length) return
-    const { imported } = await importFiles(Array.from(files))
-    if (imported.length) {
-      setSelectedAssetId(imported[0].id)
-      setUsePreset(false)
-      setSuccess(`Imported 3D model "${imported[0].name}"`)
-    }
-  }
-
-  const applyTrajectoryPreset = (preset: CameraTrajectoryPreset) => {
-    setSelectedPresetPathId(preset.id)
-    setFlightMode(preset.mode)
-    setAzimuthStart(preset.azimuthStart)
-    setAzimuthEnd(preset.azimuthEnd)
-    setElevationStart(preset.elevationStart)
-    setElevationEnd(preset.elevationEnd)
-    setFov(preset.fov)
-  }
-
-  const search = async () => {
-    if (!query.trim() || searching) return
-    setSearching(true)
-    setError(null)
-    try {
-      if (source === 'sketchfab') {
-        const models = await searchSketchfabModels(query, { maxResults: 12 })
-        setResults(models.map((m) => ({ ...m, source: 'sketchfab' as const })))
-        if (!models.length) setError('No downloadable models found on Sketchfab.')
-      } else {
-        const models = await searchModels(query, { maxResults: 12 })
-        setResults(models.map((m) => ({ ...m, source: 'polyhaven' as const })))
-        if (!models.length) setError('No models found on Poly Haven.')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSearching(false)
-    }
-  }
-
-  const downloadAndImport = async (model: ModelResult) => {
-    if (downloading) return
-    setDownloading(model.id)
-    setError(null)
-    setSuccess(null)
-    try {
-      const file =
-        model.source === 'sketchfab'
-          ? await downloadSketchfabGlb(model.id)
-          : await downloadModelAsGlb(model.id, { resolution: '2k' })
-      const { imported, errors } = await importFiles([file])
-      if (imported.length) {
-        setSelectedAssetId(imported[0].id)
-        setUsePreset(false)
-        setSuccess(`Staged "${imported[0].name}" in 3D Viewport!`)
-      } else {
-        setError(errors[0] ?? 'Import failed')
-      }
-    } catch (err) {
-      setError(`Download failed: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setDownloading(null)
-    }
-  }
-
-  const renderQuickVideo = async () => {
-    setRendering(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      let targetAsset: Asset
-      if (usePreset || !selectedAsset) {
-        const glbBlob = await exportPresetToGlb(selectedPresetId)
-        const glbFile = new File([glbBlob], `${selectedPresetId}-${Date.now()}.glb`, { type: 'model/gltf-binary' })
-        const imp = await importFiles([glbFile])
-        if (!imp.imported.length) throw new Error('Could not prepare 3D preset')
-        targetAsset = imp.imported[0]
-      } else {
-        targetAsset = selectedAsset
-      }
-
-      const [w, h] = resolution === 'auto'
-        ? [project.width || 1280, project.height || 720]
-        : resolution.split('x').map(Number)
-      const baseRadius = (targetAsset.modelRadius ?? 2.4) * 2.5 || 6.0
-      const currentPreset = CAMERA_TRAJECTORY_PRESETS.find((p) => p.id === selectedPresetPathId)
-      const rStart = baseRadius * (currentPreset?.radiusMultStart ?? 1.0)
-      const rEnd = baseRadius * (currentPreset?.radiusMultEnd ?? 1.0)
-
-      const rig: CameraRig = {
-        mode: flightMode,
-        azimuthStart,
-        azimuthEnd,
-        elevationStart,
-        elevationEnd,
-        radiusStart: rStart,
-        radiusEnd: rEnd,
-        targetX: 0,
-        targetY: 0,
-        targetZ: 0,
-        fov,
-        pan: 1.0,
-      }
-
-      const { renderGlbToVideo } = await import('@/engine/three/renderGlbToVideo')
-      const res = await renderGlbToVideo({
-        asset: targetAsset,
-        rig,
-        duration,
-        fps,
-        width: w,
-        height: h,
-        onProgress: (done, total) => setProgress({ done, total }),
-      })
-
-      const videoFile = new File([res.blob], `3d-${selectedPresetId || 'model'}-${Date.now()}.webm`, {
-        type: 'video/webm',
-      })
-      const vimp = await importFiles([videoFile])
-      const videoTrack = project.tracks.find((t) => t.type === 'video')
-      if (videoTrack && vimp.imported.length) {
-        const clip = addClip(vimp.imported[0].id, videoTrack.id, playhead ?? 0)
-        if (clip) {
-          updateClip(clip.id, { duration, sourceEnd: duration, clipType: 'video' })
-          setSuccess(`Rendered ${duration}s HD 3D video (${w}x${h}) and added to timeline!`)
-        }
-      } else {
-        setSuccess(`Rendered ${duration}s HD 3D video successfully!`)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setRendering(false)
-      setProgress(null)
-    }
-  }
-
-  const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0
-
-  return (
-    <div className="space-y-3 p-3">
-      {/* ── TOP 3D SEARCH & DISCOVERY BAR (AT TOP) ── */}
-      <div className="space-y-2 rounded-lg border border-violet-500/30 bg-muted/25 p-2.5 shadow-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold flex items-center gap-1.5 text-foreground">
-            <Search className="size-3.5 text-violet-500" />
-            Search 3D Models
-          </span>
-          <Select value={source} onValueChange={(v) => { setSource(v as 'polyhaven' | 'sketchfab'); setResults([]) }}>
-            <SelectTrigger className="h-6 w-28 text-[10px] bg-background"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="polyhaven">Poly Haven (CC0)</SelectItem>
-              <SelectItem value="sketchfab">Sketchfab</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex gap-1.5">
-          <Input
-            placeholder="Search models (e.g. drone, car, robot, trophy)..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void search() }}
-            className="h-7 text-xs bg-background"
-          />
-          <Button size="sm" className="h-7 px-2.5 bg-violet-600 hover:bg-violet-500 text-white" onClick={() => void search()} disabled={searching}>
-            {searching ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
-          </Button>
-        </div>
-
-        {/* Quick Search Tag Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-          <span className="text-[9px] text-muted-foreground shrink-0 font-medium">Quick:</span>
-          {['drone', 'robot', 'car', 'statue', 'chair', 'sword', 'trophy'].map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              className="rounded bg-muted/50 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-violet-500/20 hover:text-violet-300 transition shrink-0 capitalize font-medium"
-              onClick={() => {
-                setQuery(tag)
-                setSearching(true)
-                setError(null)
-                void (async () => {
-                  try {
-                    if (source === 'sketchfab') {
-                      const models = await searchSketchfabModels(tag, { maxResults: 12 })
-                      setResults(models.map((m) => ({ ...m, source: 'sketchfab' as const })))
-                    } else {
-                      const models = await searchModels(tag, { maxResults: 12 })
-                      setResults(models.map((m) => ({ ...m, source: 'polyhaven' as const })))
-                    }
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : String(err))
-                  } finally {
-                    setSearching(false)
-                  }
-                })()
-              }}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-
-        {results.length > 0 && (
-          <div className="grid max-h-48 grid-cols-2 gap-1 overflow-y-auto pt-1">
-            {results.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className="group relative flex flex-col overflow-hidden rounded border bg-card p-1.5 text-left transition hover:border-violet-500"
-                onClick={() => void downloadAndImport(m)}
-                disabled={downloading === m.id}
-              >
-                <div className="flex items-center gap-1">
-                  <Box className="size-3 text-violet-400 shrink-0" />
-                  <span className="truncate text-[10px] font-medium">{m.name}</span>
-                </div>
-                {downloading === m.id && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/60">
-                    <Loader2 className="size-3.5 animate-spin text-white" />
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Dedicated Studio Launcher Banner ── */}
-      <Button
-        type="button"
-        className="h-8 w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
-        onClick={() => setIsStudioOpen(true)}
-      >
-        <Maximize2 className="mr-1.5 size-3.5" />
-        Open Full 3D Animation Studio Workspace
-      </Button>
-
-      {/* ── 1. Live Interactive WebGL Viewport ── */}
-      <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Box className="size-4 text-violet-400" />
-            <span className="text-xs font-bold truncate max-w-[140px]">
-              {usePreset ? selectedPresetId : selectedAsset?.name || '3D Model'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="text-[10px] text-muted-foreground hover:text-foreground font-semibold"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              + Upload .GLB
-            </button>
-          </div>
-        </div>
-
-        <input ref={fileInputRef} type="file" accept=".glb,.gltf" className="hidden" onChange={handleCustomGlbUpload} />
-
-        {/* Live Canvas */}
-        <ThreeDPreviewCanvas
-          asset={!usePreset ? selectedAsset : null}
-          presetId={usePreset ? selectedPresetId : undefined}
-          lighting={lighting}
-          className="h-40 w-full"
-        />
-
-        {/* Model Presets Quick Bar */}
-        <div className="space-y-1 pt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase">Featured 3D Presets</span>
-            <span className="text-[9px] text-muted-foreground font-mono">{BUILTIN_3D_PRESETS.length} Models</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-36 overflow-y-auto pr-0.5">
-            {BUILTIN_3D_PRESETS.map((preset) => {
-              const isSelected = usePreset && selectedPresetId === preset.id
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg border p-1.5 text-left text-[10px] font-medium transition shadow-2xs',
-                    isSelected
-                      ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold ring-1 ring-violet-500/40'
-                      : 'border-border/60 bg-card text-muted-foreground hover:border-violet-500/30 hover:text-foreground',
-                  )}
-                  onClick={() => {
-                    setUsePreset(true)
-                    setSelectedPresetId(preset.id)
-                  }}
-                  title={preset.description}
-                >
-                  <span
-                    className="size-2 rounded-full shrink-0 shadow-xs"
-                    style={{ backgroundColor: preset.color }}
-                  />
-                  <span className="truncate flex-1">{preset.name}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Uploaded Models Select */}
-        {modelAssets.length > 0 && (
-          <div className="pt-1">
-            <Select value={selectedAssetId} onValueChange={(id) => { setSelectedAssetId(id); setUsePreset(false) }}>
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Or select imported 3D model..." />
-              </SelectTrigger>
-              <SelectContent>
-                {modelAssets.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>Custom: {a.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {/* ── 2. Organized Sub-Tabs ── */}
-      <div className="flex rounded-lg border bg-muted/40 p-0.5">
-        {[
-          { id: 'camera' as const, label: 'Camera', icon: Camera },
-          { id: 'lighting' as const, label: 'Lighting', icon: Sun },
-          { id: 'render' as const, label: 'Render', icon: Play },
-        ].map(({ id, label, icon: TabIcon }) => (
-          <button
-            key={id}
-            type="button"
-            className={cn(
-              'flex-1 flex items-center justify-center gap-1 rounded-md py-1 text-center text-[10px] font-semibold transition',
-              panelTab === id ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-            )}
-            onClick={() => setPanelTab(id)}
-          >
-            <TabIcon className="size-3 shrink-0" />
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* TAB: CAMERA TRAJECTORIES */}
-      {panelTab === 'camera' && (
-        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold">Camera Trajectory</span>
-            <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 dark:text-violet-300 uppercase">
-              {flightMode}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1">
-            {CAMERA_TRAJECTORY_PRESETS.slice(0, 6).map((preset) => {
-              const Icon = CAMERA_PRESET_ICON_MAP[preset.icon] || Camera
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={cn(
-                    'flex items-center gap-1.5 rounded p-1.5 text-[10px] font-medium transition text-left',
-                    selectedPresetPathId === preset.id
-                      ? 'border border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
-                      : 'border border-border/60 bg-card text-muted-foreground hover:text-foreground',
-                  )}
-                  onClick={() => applyTrajectoryPreset(preset)}
-                >
-                  <Icon className="size-3 shrink-0 text-violet-600 dark:text-violet-400" />
-                  <span className="truncate">{preset.name}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="grid grid-cols-3 gap-1 pt-1 border-t">
-            {CAMERA_TRAJECTORY_PRESETS.filter((p) => p.category === 'viewport').slice(0, 3).map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className={cn(
-                  'rounded border py-1 text-[9px] font-medium transition text-center',
-                  selectedPresetPathId === preset.id
-                    ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
-                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => applyTrajectoryPreset(preset)}
-              >
-                {preset.name.split(' ')[0]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB: LIGHTING & ATMOSPHERE */}
-      {panelTab === 'lighting' && (
-        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-          <span className="text-xs font-semibold">Lighting & Atmosphere</span>
-          <div className="grid grid-cols-3 gap-1">
-            {(['studio', 'neon', 'sunset', 'spotlight', 'ambient'] as const).map((l) => (
-              <button
-                key={l}
-                type="button"
-                className={cn(
-                  'rounded border py-1 text-[10px] font-medium capitalize transition text-center',
-                  lighting === l
-                    ? 'border-amber-500/60 bg-amber-500/20 text-amber-300 font-bold'
-                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => setLighting(l)}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB: RENDER & TIMELINE */}
-      {panelTab === 'render' && (
-        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Quality</Label>
-              <Select value={resolution} onValueChange={setResolution}>
-                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto ({project.width || 1280}×{project.height || 720})</SelectItem>
-                  <SelectItem value="1920x1080">1080p HD (16:9)</SelectItem>
-                  <SelectItem value="1280x720">720p HD (16:9)</SelectItem>
-                  <SelectItem value="1080x1920">9:16 Vertical (Shorts/Reels)</SelectItem>
-                  <SelectItem value="1080x1080">1:1 Square (Instagram)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Framerate</Label>
-              <Select value={String(fps)} onValueChange={(v) => setFps(Number(v))}>
-                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="24">24 FPS</SelectItem>
-                  <SelectItem value="30">30 FPS</SelectItem>
-                  <SelectItem value="60">60 FPS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1 pt-1">
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>Duration</span>
-              <span className="font-mono text-violet-300 font-bold">{duration}s</span>
-            </div>
-            <Slider value={[duration]} min={1} max={15} step={1} onValueChange={([v]) => setDuration(v)} />
-          </div>
-        </div>
-      )}
-
-      {/* ── Render Progress ── */}
-      {progress && (
-        <div className="space-y-1 rounded-md border bg-card p-2">
-          <div className="flex justify-between text-[11px]">
-            <span className="text-muted-foreground font-mono">Rendering: {progress.done}/{progress.total} frames</span>
-            <span className="font-semibold text-violet-400">{pct}%</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-      )}
-
-      {error && <SectionNotice kind="error" text={error} />}
-      {success && <SectionNotice kind="ok" text={success} />}
-
-      <Button
-        size="sm"
-        className="h-9 w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
-        onClick={() => void renderQuickVideo()}
-        disabled={rendering}
-      >
-        {rendering ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Video className="mr-2 size-3.5" />}
-        {rendering ? 'Rendering 3D Video...' : `Render 3D Flight (${duration}s @ ${resolution})`}
-      </Button>
-
-      {/* ── Dedicated 3D Animation Studio Modal ── */}
-      <ThreeDStudioModal
-        isOpen={isStudioOpen}
-        onClose={() => setIsStudioOpen(false)}
-        initialAssetId={selectedAssetId}
-      />
-    </div>
-  )
-}
 
 // ─── Transitions Section ──────────────────────────────────────────────────────
 const TRANSITION_TYPES: Array<{ type: 'cut' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'wipe-down' | 'slide' | 'zoom'; label: string; desc: string }> = [
@@ -7869,7 +7285,6 @@ const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
   audio: AudioSection,
   voiceover: VoiceoverSection,
   captions: CaptionsSection,
-  '3d': ThreeDSection,
   transitions: TransitionsSection,
   stickers: StickersSection,
   speed: SpeedSection,

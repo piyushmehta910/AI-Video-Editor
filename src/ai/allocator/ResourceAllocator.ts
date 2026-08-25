@@ -10,7 +10,6 @@ export type ApiProvider =
   | 'pexels'
   | 'pixabay'
   | 'giphy'
-  | 'sketchfab'
   | 'firecrawl'
   | 'freemusicarchive'
 
@@ -25,14 +24,13 @@ export interface ProviderHealth {
   consecutiveFailures: number
 }
 
-export type FallbackCategory = 'llm' | 'tts' | 'stock_images' | 'stickers' | 'models_3d' | 'music' | 'research'
+export type FallbackCategory = 'llm' | 'tts' | 'stock_images' | 'stickers' | 'music' | 'research'
 
 const FALLBACK_WATERFALL: Record<FallbackCategory, ApiProvider[]> = {
   llm: ['nvidia_nim', 'opencode_zen', 'openrouter'],
   tts: ['elevenlabs', 'nvidia_tts'],
   stock_images: ['unsplash', 'pexels', 'pixabay'],
   stickers: ['giphy'],
-  models_3d: ['sketchfab'],
   music: ['freemusicarchive'],
   research: ['firecrawl'],
 }
@@ -47,7 +45,6 @@ const DEFAULT_LIMITS: Record<ApiProvider, number> = {
   pexels: 60,
   pixabay: 100,
   giphy: 40,
-  sketchfab: 30,
   firecrawl: 20,
   freemusicarchive: 60,
 }
@@ -82,7 +79,6 @@ export class ResourceAllocator {
       'pexels',
       'pixabay',
       'giphy',
-      'sketchfab',
       'firecrawl',
       'freemusicarchive',
     ]
@@ -118,7 +114,6 @@ export class ResourceAllocator {
       else if (provider === 'pexels') stats.hasKey = Boolean(cfg.stockImages?.pexels?.apiKey)
       else if (provider === 'pixabay') stats.hasKey = Boolean(cfg.stockImages?.pixabay?.apiKey)
       else if (provider === 'giphy') stats.hasKey = Boolean(cfg.giphy?.apiKey)
-      else if (provider === 'sketchfab') stats.hasKey = Boolean(cfg.sketchfab?.apiKey)
       else if (provider === 'firecrawl') stats.hasKey = Boolean(cfg.firecrawl?.apiKey)
       else if (provider === 'freemusicarchive') stats.hasKey = true
     }

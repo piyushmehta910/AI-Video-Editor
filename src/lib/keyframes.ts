@@ -1,8 +1,11 @@
 import type { ClipKeyframe } from '@/engine/types'
 
 /**
- * Pure helpers for clip property keyframes. Keyframes currently act as
- * captured markers (toggle at playhead); interpolation is a future concern.
+ * Pure helpers for clip property keyframes.
+ *
+ * Keyframes capture property values at a playhead, and
+ * `interpolatePropertyKeyframe` (below) linearly interpolates them across time
+ * so animations replay in the compositor (`src/engine/render/composite.ts`).
  */
 
 /** Tolerance for "at playhead": half a frame at the project fps. */
