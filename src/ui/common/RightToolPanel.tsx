@@ -295,7 +295,7 @@ function SlideSection() {
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
 
-  const [tab, setTab] = React.useState<'studio' | 'generator' | 'inductive' | 'markdown' | 'history'>('generator')
+  const [tab, setTab] = React.useState<'generator' | 'studio' | 'templates'>('generator')
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [topic, setTopic] = React.useState('')
   const [count, setCount] = React.useState(4)
@@ -572,10 +572,9 @@ function SlideSection() {
       {/* ── Sub Navigation Tabs ── */}
       <div className="flex rounded-lg border bg-muted/40 p-0.5">
         {[
-          { id: 'studio' as const, label: 'Slide Studio', icon: Presentation },
           { id: 'generator' as const, label: 'AI Generator', icon: Sparkles },
-          { id: 'inductive' as const, label: 'Inductive', icon: Brain },
-          { id: 'history' as const, label: 'History', icon: History },
+          { id: 'studio' as const, label: 'Slide Studio', icon: Presentation },
+          { id: 'templates' as const, label: 'Templates & History', icon: History },
         ].map(({ id, label, icon: TabIcon }) => (
           <button
             key={id}
@@ -592,7 +591,176 @@ function SlideSection() {
         ))}
       </div>
 
-      {/* ═══════════ TAB 1: INTERACTIVE LIVE SLIDE STUDIO ═══════════ */}
+      {/* ═══════════ TAB 1: AI DECK GENERATOR ═══════════ */}
+      {tab === 'generator' && (
+        <div className="space-y-2.5">
+          {/* 1-Click Archetype Templates */}
+          <div className="space-y-1">
+            <span className="text-[10px] text-muted-foreground font-semibold">Instant Deck Archetypes:</span>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { title: 'Startup Pitch', topic: 'Next-Gen AI Platform Seed Pitch & Investment Deck', theme: 'pitch_dark', count: 4 },
+                { title: 'Product Launch', topic: 'Product Launch Keynote: Features & Roadmap', theme: 'apple_minimal', count: 5 },
+                { title: 'Tech Deep Dive', topic: 'WebGPU Shaders & Neural Pipeline Architecture', theme: 'cyber_neon', count: 4 },
+                { title: 'Executive Report', topic: 'Quarterly Growth Metrics & Strategic Review', theme: 'clean_studio', count: 4 },
+              ].map((tmpl) => (
+                <button
+                  key={tmpl.title}
+                  type="button"
+                  className="flex items-center justify-between rounded border border-border/60 bg-muted/25 px-2 py-1 text-[10px] text-left text-muted-foreground hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-foreground transition"
+                  onClick={() => {
+                    setTopic(tmpl.topic)
+                    setTheme(tmpl.theme as SlideTheme)
+                    setCount(tmpl.count)
+                  }}
+                >
+                  <span className="font-semibold text-[10px] truncate">{tmpl.title}</span>
+                  <span className="rounded bg-violet-500/20 px-1 text-[8px] font-mono text-violet-300">
+                    {tmpl.count}s
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Presentation Topic</Label>
+              <button
+                type="button"
+                onClick={() => void handleRunInductiveAnalysis()}
+                disabled={analyzingInductive || busy}
+                className="text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-500 font-semibold flex items-center gap-1 transition"
+                title="Scan video clips, transcript, and pacing to auto-detect topic thesis"
+              >
+                {analyzingInductive ? <Loader2 className="size-2.5 animate-spin" /> : <Brain className="size-2.5" />}
+                {analyzingInductive ? 'Analyzing...' : 'Auto-Detect from Video'}
+              </button>
+            </div>
+            <Input
+              placeholder="e.g. Next-Gen WebGPU & AI Video Architecture"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              className="h-8 text-xs bg-card"
+              disabled={busy}
+            />
+            {/* Quick Topic Chips */}
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {[
+                'Startup Pitch',
+                'Tech Architecture',
+                'Product Roadmap',
+                'Growth Metrics',
+                'Explainer',
+              ].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground transition"
+                  onClick={() => setTopic(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Inductive Thesis Pill if detected */}
+          {inductiveContext && (
+            <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-2 text-[10px] space-y-1 animate-in fade-in">
+              <div className="flex items-center justify-between text-violet-700 dark:text-violet-300 font-bold">
+                <span className="flex items-center gap-1">
+                  <Brain className="size-3" />
+                  Auto-Inferred Thesis
+                </span>
+                <span className="text-[9px] font-mono text-violet-400 capitalize">{inductiveContext.tone} Tone</span>
+              </div>
+              <p className="text-foreground text-[11px] font-medium leading-snug">{inductiveContext.topicThesis}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Slide Count</Label>
+              <Select value={String(count)} onValueChange={(v) => setCount(Number(v))} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 Slides (Quick Pitch)</SelectItem>
+                  <SelectItem value="4">4 Slides (Balanced)</SelectItem>
+                  <SelectItem value="5">5 Slides (Executive)</SelectItem>
+                  <SelectItem value="6">6 Slides (Comprehensive)</SelectItem>
+                  <SelectItem value="8">8 Slides (Deep Dive)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Archetype</Label>
+              <Select value={layoutArchetype} onValueChange={setLayoutArchetype} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Startup Pitch Deck">Startup Pitch Deck</SelectItem>
+                  <SelectItem value="Executive Keynote">Executive Keynote</SelectItem>
+                  <SelectItem value="Product Launch">Product Launch</SelectItem>
+                  <SelectItem value="Technical Deep Dive">Technical Deep Dive</SelectItem>
+                  <SelectItem value="Creative Storytelling">Creative Storytelling</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Theme & Typography Grid */}
+          <div className="grid grid-cols-3 gap-1.5 pt-1">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Visual Theme</Label>
+              <Select value={theme} onValueChange={(v) => setTheme(v as SlideTheme)} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SLIDE_THEMES_META).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Typography</Label>
+              <Select value={font} onValueChange={(v) => setFont(v as SlideFont)} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SLIDE_FONTS_META).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Animation</Label>
+              <Select value={animation} onValueChange={(v) => setAnimation(v as SlideAnimation)} disabled={busy}>
+                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SLIDE_ANIMATIONS_META).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8 mt-1 shadow-xs"
+            onClick={() => void handleGenerateDeck()}
+            disabled={busy || !topic.trim()}
+          >
+            {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+            {busy ? progress || 'Generating Slides...' : `Generate ${count} Presentation Slides`}
+          </Button>
+        </div>
+      )}
+
+      {/* ═══════════ TAB 2: INTERACTIVE LIVE SLIDE STUDIO ═══════════ */}
       {tab === 'studio' && (
         <div className="space-y-3">
           {deck && currentSlide ? (
@@ -913,242 +1081,35 @@ function SlideSection() {
         </div>
       )}
 
-      {/* ═══════════ TAB 2: AI DECK GENERATOR ═══════════ */}
-      {tab === 'generator' && (
-        <div className="space-y-2.5">
-          {/* 1-Click Archetype Templates */}
-          <div className="space-y-1">
-            <span className="text-[10px] text-muted-foreground font-semibold">Instant Deck Archetypes:</span>
-            <div className="grid grid-cols-2 gap-1">
-              {[
-                { title: 'Startup Pitch', topic: 'Next-Gen AI Platform Seed Pitch & Investment Deck', theme: 'pitch_dark', count: 4 },
-                { title: 'Product Launch', topic: 'Product Launch Keynote: Features & Roadmap', theme: 'apple_minimal', count: 5 },
-                { title: 'Tech Deep Dive', topic: 'WebGPU Shaders & Neural Pipeline Architecture', theme: 'cyber_neon', count: 4 },
-                { title: 'Executive Report', topic: 'Quarterly Growth Metrics & Strategic Review', theme: 'clean_studio', count: 4 },
-              ].map((tmpl) => (
+
+      {/* ═══════════ TAB 3: TEMPLATES & DECK HISTORY ═══════════ */}
+      {tab === 'templates' && (
+        <div className="space-y-3">
+          <div className="space-y-1.5 max-h-72 overflow-y-auto">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Past Saved Decks:</span>
+            {savedDecks.length > 0 ? (
+              savedDecks.map((d) => (
                 <button
-                  key={tmpl.title}
+                  key={d.id}
                   type="button"
-                  className="flex items-center justify-between rounded border border-border/60 bg-muted/25 px-2 py-1 text-[10px] text-left text-muted-foreground hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-foreground transition"
+                  className="flex w-full flex-col items-start rounded border bg-card p-2 text-left hover:border-violet-500 transition"
                   onClick={() => {
-                    setTopic(tmpl.topic)
-                    setTheme(tmpl.theme as SlideTheme)
-                    setCount(tmpl.count)
+                    setTopic(d.topic)
+                    setTab('generator')
+                    setSuccess(`Loaded "${d.title}" into generator!`)
                   }}
                 >
-                  <span className="font-semibold text-[10px] truncate">{tmpl.title}</span>
-                  <span className="rounded bg-violet-500/20 px-1 text-[8px] font-mono text-violet-300">
-                    {tmpl.count}s
-                  </span>
+                  <div className="flex items-center justify-between w-full">
+                    <span className="truncate text-xs font-semibold">{d.title}</span>
+                    <span className="rounded bg-violet-500/20 px-1 text-[9px] text-violet-700 dark:text-violet-300 uppercase">{d.theme}</span>
+                  </div>
+                  <span className="text-[9px] text-muted-foreground">{new Date(d.timestamp).toLocaleTimeString()} · {d.slideCount} slides</span>
                 </button>
-              ))}
-            </div>
+              ))
+            ) : (
+              <EmptyHint text="No saved presentation decks yet. Generate a deck to see history." icon={Layers} />
+            )}
           </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold">Presentation Topic</Label>
-            <Input
-              placeholder="e.g. Next-Gen WebGPU & AI Video Architecture"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="h-8 text-xs bg-card"
-              disabled={busy}
-            />
-            {/* Quick Topic Chips */}
-            <div className="flex flex-wrap gap-1 pt-0.5">
-              {[
-                'Startup Pitch',
-                'Tech Architecture',
-                'Product Roadmap',
-                'Growth Metrics',
-                'Explainer',
-              ].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[9px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground transition"
-                  onClick={() => setTopic(t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Slide Count</Label>
-              <Select value={String(count)} onValueChange={(v) => setCount(Number(v))} disabled={busy}>
-                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="3">3 Slides (Quick Pitch)</SelectItem>
-                  <SelectItem value="4">4 Slides (Balanced)</SelectItem>
-                  <SelectItem value="5">5 Slides (Executive)</SelectItem>
-                  <SelectItem value="6">6 Slides (Comprehensive)</SelectItem>
-                  <SelectItem value="8">8 Slides (Deep Dive)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Archetype</Label>
-              <Select value={layoutArchetype} onValueChange={setLayoutArchetype} disabled={busy}>
-                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Startup Pitch Deck">Startup Pitch Deck</SelectItem>
-                  <SelectItem value="Executive Keynote">Executive Keynote</SelectItem>
-                  <SelectItem value="Product Launch">Product Launch</SelectItem>
-                  <SelectItem value="Technical Deep Dive">Technical Deep Dive</SelectItem>
-                  <SelectItem value="Creative Storytelling">Creative Storytelling</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Theme & Typography Grid */}
-          <div className="grid grid-cols-3 gap-1.5 pt-1">
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Visual Theme</Label>
-              <Select value={theme} onValueChange={(v) => setTheme(v as SlideTheme)} disabled={busy}>
-                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SLIDE_THEMES_META).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Typography</Label>
-              <Select value={font} onValueChange={(v) => setFont(v as SlideFont)} disabled={busy}>
-                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SLIDE_FONTS_META).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground">Animation</Label>
-              <Select value={animation} onValueChange={(v) => setAnimation(v as SlideAnimation)} disabled={busy}>
-                <SelectTrigger className="h-7 text-xs bg-card"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SLIDE_ANIMATIONS_META).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Button
-            size="sm"
-            className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold h-8 mt-1 shadow-xs"
-            onClick={() => void handleGenerateDeck()}
-            disabled={busy || !topic.trim()}
-          >
-            {busy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-            {busy ? progress || 'Generating Slides...' : `Generate ${count} Presentation Slides`}
-          </Button>
-        </div>
-      )}
-
-      {/* ═══════════ TAB 3: INDUCTIVE AI CONTEXT ═══════════ */}
-      {tab === 'inductive' && (
-        <div className="space-y-3">
-          <div className="rounded-lg border bg-violet-500/10 p-2.5 border-violet-500/30 space-y-2">
-            <div className="flex items-center gap-1.5 text-violet-700 dark:text-violet-300 font-semibold text-xs">
-              <Sparkles className="size-3.5" />
-              <span>Inductive Context Reasoning</span>
-            </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Scans video clips, transcripts, scene descriptions, and pacing to inductively infer the presentation thesis, audience, and slide structure.
-            </p>
-            <Button
-              size="sm"
-              className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold"
-              onClick={() => void handleRunInductiveAnalysis()}
-              disabled={analyzingInductive || busy}
-            >
-              {analyzingInductive ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-              {analyzingInductive ? 'Analyzing Project Context...' : 'Auto-Detect & Induce Slide Plan'}
-            </Button>
-          </div>
-
-          {inductiveContext && (
-            <div className="space-y-2 rounded-lg border bg-card p-2.5 text-xs">
-              <div>
-                <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Induced Core Thesis</span>
-                <p className="font-semibold text-foreground mt-0.5">{inductiveContext.topicThesis}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
-                <div>
-                  <span className="text-muted-foreground">Target Audience:</span>
-                  <span className="ml-1 font-medium">{inductiveContext.targetAudience}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Tone:</span>
-                  <span className="ml-1 font-medium capitalize">{inductiveContext.tone}</span>
-                </div>
-              </div>
-
-              {inductiveContext.narrativePillars.length > 0 && (
-                <div className="space-y-1 pt-1 border-t">
-                  <span className="text-[10px] text-muted-foreground font-semibold">Narrative Evidence Pillars</span>
-                  <ul className="space-y-1 text-[10px]">
-                    {inductiveContext.narrativePillars.map((p, i) => (
-                      <li key={i} className="flex items-start gap-1">
-                        <span className="text-violet-600 dark:text-violet-400 font-bold">•</span>
-                        <span><strong>{p.pillar}:</strong> {p.evidence}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <Button
-                size="sm"
-                className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
-                onClick={() => void handleGenerateDeck(inductiveContext.topicThesis, inductiveContext.recommendedSlideCount)}
-                disabled={busy}
-              >
-                <Sparkles className="mr-2 size-3.5" />
-                Generate {inductiveContext.recommendedSlideCount} Slides from Induced Context
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══════════ TAB 4: DECK HISTORY ═══════════ */}
-      {tab === 'history' && (
-        <div className="space-y-1.5 max-h-64 overflow-y-auto">
-          {savedDecks.length > 0 ? (
-            savedDecks.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                className="flex w-full flex-col items-start rounded border bg-card p-2 text-left hover:border-violet-500"
-                onClick={() => {
-                  setTopic(d.topic)
-                  setTab('generator')
-                  setSuccess(`Loaded "${d.title}" from deck history!`)
-                }}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="truncate text-xs font-semibold">{d.title}</span>
-                  <span className="rounded bg-violet-500/20 px-1 text-[9px] text-violet-700 dark:text-violet-300 uppercase">{d.theme}</span>
-                </div>
-                <span className="text-[9px] text-muted-foreground">{new Date(d.timestamp).toLocaleTimeString()} · {d.slideCount} slides</span>
-              </button>
-            ))
-          ) : (
-            <EmptyHint text="No saved presentation decks yet. Generate a deck to see history." icon={Layers} />
-          )}
         </div>
       )}
 
