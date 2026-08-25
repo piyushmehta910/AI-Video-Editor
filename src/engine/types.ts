@@ -483,7 +483,22 @@ export function createEffect(type: EffectType, value: number): Effect {
   return { id: crypto.randomUUID(), type, value, enabled: true }
 }
 
-export function newProject(name = 'Untitled Project'): Project {
+export interface NewProjectOptions {
+  name?: string
+  width?: number
+  height?: number
+  fps?: number
+  aspectRatio?: string
+}
+
+export function newProject(nameOrOptions: string | NewProjectOptions = 'Untitled Project'): Project {
+  const options = typeof nameOrOptions === 'string' ? { name: nameOrOptions } : (nameOrOptions ?? {})
+  const name = options.name?.trim() || 'Untitled Project'
+  const width = options.width || 1920
+  const height = options.height || 1080
+  const fps = options.fps || 30
+  const aspectRatio = options.aspectRatio || '16:9'
+
   const tracks: Track[] = []
   const types: TrackType[] = ['video', 'video', 'video', 'audio', 'audio', 'audio', 'text', 'fx']
   const perType: Record<TrackType, number> = { video: 0, audio: 0, text: 0, fx: 0 }
@@ -504,10 +519,10 @@ export function newProject(name = 'Untitled Project'): Project {
   return {
     id: crypto.randomUUID(),
     name,
-    width: 1920,
-    height: 1080,
-    fps: 30,
-    aspectRatio: '16:9',
+    width,
+    height,
+    fps,
+    aspectRatio,
     tracks,
     captions: defaultCaptionsConfig(),
     schemaVersion: 2,

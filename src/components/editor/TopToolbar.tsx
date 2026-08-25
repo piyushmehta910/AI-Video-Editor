@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { ExportDialog } from '@/ui/export/ExportDialog'
+import { NewProjectDialog } from '@/components/editor/NewProjectDialog'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
@@ -72,7 +73,6 @@ function ToolButton({
 export function TopToolbar() {
   const project = useTimelineStore((s) => s.project)
   const renameProject = useTimelineStore((s) => s.renameProject)
-  const resetProject = useTimelineStore((s) => s.resetProject)
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
 
@@ -312,51 +312,8 @@ export function TopToolbar() {
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
 
-      {/* New Project Confirmation Modal */}
-      {newProjectOpen && (
-        <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5">
-                <FilePlus className="size-5" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold text-foreground">Start a New Project?</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  This will reset the timeline for a clean start. Your uploaded media files remain safely in your library.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs text-muted-foreground">
-              Current project: <span className="font-semibold text-foreground font-mono">{project.name}</span>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setNewProjectOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                className="bg-violet-600 hover:bg-violet-500 text-white font-semibold"
-                onClick={() => {
-                  resetProject()
-                  setNameDraft('Untitled Project')
-                  setNewProjectOpen(false)
-                }}
-              >
-                <FilePlus className="size-3.5 mr-1.5" />
-                Start New Project
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* New Project Setup Modal */}
+      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
     </div>
   )
 }

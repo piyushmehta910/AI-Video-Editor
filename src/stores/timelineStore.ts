@@ -88,7 +88,7 @@ export interface TimelineState {
 
   renameProject: (name: string) => void
   setProjectSettings: (patch: Partial<Pick<Project, 'width' | 'height' | 'fps' | 'aspectRatio'>>) => void
-  resetProject: () => void
+  resetProject: (options?: import('@/engine/types').NewProjectOptions) => void
 
   addClip: (assetId: string, trackId: string, startTime?: number) => Clip | undefined
   /** Adds an asset to its default track (audio→audio, everything else→video), appended after the last clip. */
@@ -574,13 +574,13 @@ export const useTimelineStore = create<TimelineState>()(
       commitHistory()
     },
 
-    resetProject: () => {
+    resetProject: (options) => {
       useTimelineStore.temporal.getState().clear()
       useHistoryStore.getState().clearLog()
       pendingPast = null
       pendingMeta = null
       pendingUi = null
-      set({ project: newProject(), selection: { clipIds: [], trackId: null }, playhead: 0 })
+      set({ project: newProject(options), selection: { clipIds: [], trackId: null }, playhead: 0 })
       scheduleSave()
     },
 

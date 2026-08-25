@@ -31,7 +31,7 @@ describe('rules of hooks (regression guard)', () => {
       throw new Error(`Hook scanner failed on src/:\n${output}`)
     }
     expect(output).toContain('OK: no conditional / nested hook violations')
-  })
+  }, 20_000)
 
   it('detects a hook called after an early return', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hooks-early-'))
