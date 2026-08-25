@@ -506,12 +506,12 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <SeparatorLine />
 
-        {/* Editing tools */}
-        <ToolbarButton label="Cut (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
-          <Scissors className="size-4" />
-        </ToolbarButton>
+        {/* Clip Edit Tools */}
         <ToolbarButton label="Split (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
           <Slice className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Cut (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
+          <Scissors className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Duplicate (Ctrl+D)" onClick={duplicateSelected} disabled={!selection.clipIds.length}>
           <CopyPlus className="size-4" />
@@ -521,67 +521,60 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <SeparatorLine />
 
-        {/* Add tools */}
+        {/* Core Timeline Tools */}
         <ToolbarButton label="Add Text (T)" onClick={handleAddText}>
           <Type className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Audio" onClick={() => onOpenTool?.('audio')}>
-          <Music className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="3D Assets" onClick={() => onOpenTool?.('3d')}>
-          <Box className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Slide Generator" onClick={() => onOpenTool?.('slide')}>
-          <Layers className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Avatar Generator" onClick={() => onOpenTool?.('avatar')}>
-          <Clapperboard className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Design" onClick={() => onOpenTool?.('design')}>
-          <Code className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Script Generator" onClick={() => onOpenTool?.('script')}>
-          <ScrollText className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Image Search" onClick={() => onOpenTool?.('images')}>
-          <Image className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Denoise Audio" onClick={runDenoiseOnSelection} disabled={!selection.clipIds.length}>
-          <VolumeX className="size-4" />
-        </ToolbarButton>
-        <SeparatorLine />
-
-        {/* Panel tools - open right panel */}
-        <ToolbarButton label="Project Insights" onClick={() => onOpenTool?.('insights')}>
-          <BarChart3 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Captions" onClick={() => onOpenTool?.('captions')}>
           <Captions className="size-4" />
         </ToolbarButton>
+        <ToolbarButton label="Voiceover & Audio" onClick={() => onOpenTool?.('voiceover')}>
+          <Music className="size-4" />
+        </ToolbarButton>
         <ToolbarButton label="Effects" onClick={() => onOpenTool?.('effects')}>
           <Sparkles className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Crop" onClick={() => onOpenTool?.('crop')}>
-          <Crop className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Transitions" onClick={() => onOpenTool?.('transitions')}>
           <Zap className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Stickers" onClick={() => onOpenTool?.('stickers')}>
-          <Stamp className="size-4" />
+        <ToolbarButton label="Script Studio" onClick={() => onOpenTool?.('script')}>
+          <ScrollText className="size-4" />
         </ToolbarButton>
+
+        {/* More AI & Production Tools Dropdown */}
+        <div className="relative">
+          <ToolbarButton label="More Studio Tools" onClick={() => setMoreOpen((o) => !o)} active={moreOpen}>
+            <MoreHorizontal className="size-4" />
+          </ToolbarButton>
+          {moreOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setMoreOpen(false)}
+                aria-hidden
+              />
+              <div className="absolute top-full left-0 z-50 mt-1 flex w-56 flex-col gap-0.5 rounded-xl border border-border/80 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95">
+                <p className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">Generators</p>
+                <MenuRow icon={<Clapperboard className="size-4 text-violet-500" />} label="Avatar Generator" onClick={() => { onOpenTool?.('avatar'); setMoreOpen(false) }} />
+                <MenuRow icon={<Layers className="size-4 text-indigo-500" />} label="Slide & Lesson Generator" onClick={() => { onOpenTool?.('slide'); setMoreOpen(false) }} />
+                <MenuRow icon={<Box className="size-4 text-amber-500" />} label="3D Scene & Models" onClick={() => { onOpenTool?.('3d'); setMoreOpen(false) }} />
+                <MenuRow icon={<Code className="size-4 text-pink-500" />} label="Motion Code Design" onClick={() => { onOpenTool?.('design'); setMoreOpen(false) }} />
+                <MenuRow icon={<Image className="size-4 text-emerald-500" />} label="Stock Images" onClick={() => { onOpenTool?.('images'); setMoreOpen(false) }} />
+                <MenuRow icon={<Stamp className="size-4 text-yellow-500" />} label="Giphy Animated Stickers" onClick={() => { onOpenTool?.('stickers'); setMoreOpen(false) }} />
+                <div className="bg-border/60 my-1 h-px" />
+                <p className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">Editing & Audio</p>
+                <MenuRow icon={<VolumeX className="size-4 text-red-500" />} label="AI Audio Denoise" onClick={() => { runDenoiseOnSelection(); setMoreOpen(false) }} />
+                <MenuRow icon={<Crop className="size-4 text-blue-500" />} label="Crop & Reframe" onClick={() => { onOpenTool?.('crop'); setMoreOpen(false) }} />
+                <MenuRow icon={<Loader2 className="size-4 text-purple-500" />} label="Speed & Pacing" onClick={() => { onOpenTool?.('speed'); setMoreOpen(false) }} />
+                <MenuRow icon={<Wand2 className="size-4 text-orange-500" />} label="Keyframe Automation" onClick={() => { onOpenTool?.('keyframe'); setMoreOpen(false) }} />
+                <MenuRow icon={<BarChart3 className="size-4 text-cyan-500" />} label="Project Quality & Insights" onClick={() => { onOpenTool?.('insights'); setMoreOpen(false) }} />
+              </div>
+            </>
+          )}
+        </div>
         <SeparatorLine />
 
-        {/* Modifier tools */}
-        <ToolbarButton label="Speed" onClick={() => onOpenTool?.('speed')}>
-          <Loader2 className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton label="Keyframe" onClick={() => onOpenTool?.('keyframe')}>
-          <Wand2 className="size-4" />
-        </ToolbarButton>
-        <SeparatorLine />
-
-        {/* Snap + Zoom */}
+        {/* Snap & Zoom Controls */}
         <ToolbarButton
           label={snapEnabled ? 'Magnetic snap on (Shift inverts)' : 'Magnetic snap off (Shift inverts)'}
           active={snapEnabled}
@@ -626,38 +619,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             `${selection.clipIds.length} selected`
           ) : null}
         </span>
-
-        <div className="relative sm:hidden">
-          <ToolbarButton label="More tools" onClick={() => setMoreOpen((o) => !o)}>
-            <MoreHorizontal className="size-4" />
-          </ToolbarButton>
-          {moreOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setMoreOpen(false)}
-                aria-hidden
-              />
-              <div className="absolute top-full right-0 z-50 mt-1 flex w-52 flex-col gap-0.5 rounded-lg border bg-card p-1.5 shadow-xl">
-                <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Add</p>
-                <MenuRow icon={<Type className="size-4" />} label="Add Text" onClick={() => { handleAddText(); setMoreOpen(false) }} />
-                <MenuRow icon={<Music className="size-4" />} label="Audio" onClick={() => { onOpenTool?.('audio'); setMoreOpen(false) }} />
-                <MenuRow icon={<Box className="size-4" />} label="3D Assets" onClick={() => { onOpenTool?.('3d'); setMoreOpen(false) }} />
-                <MenuRow icon={<Layers className="size-4" />} label="Slide Generator" onClick={() => { onOpenTool?.('slide'); setMoreOpen(false) }} />
-                <MenuRow icon={<Clapperboard className="size-4" />} label="Avatar Generator" onClick={() => { onOpenTool?.('avatar'); setMoreOpen(false) }} />
-                <div className="bg-border my-1 h-px" />
-                <p className="text-muted-foreground px-2 py-1 text-[10px] font-semibold tracking-wide uppercase">Tools</p>
-                <MenuRow icon={<BarChart3 className="size-4" />} label="Project Insights" onClick={() => { onOpenTool?.('insights'); setMoreOpen(false) }} />
-                <MenuRow icon={<Sparkles className="size-4" />} label="Effects" onClick={() => { onOpenTool?.('effects'); setMoreOpen(false) }} />
-                <MenuRow icon={<Crop className="size-4" />} label="Crop" onClick={() => { onOpenTool?.('crop'); setMoreOpen(false) }} />
-                <MenuRow icon={<Zap className="size-4" />} label="Transitions" onClick={() => { onOpenTool?.('transitions'); setMoreOpen(false) }} />
-                <MenuRow icon={<Stamp className="size-4" />} label="Stickers" onClick={() => { onOpenTool?.('stickers'); setMoreOpen(false) }} />
-                <MenuRow icon={<Loader2 className="size-4" />} label="Speed" onClick={() => { onOpenTool?.('speed'); setMoreOpen(false) }} />
-                <MenuRow icon={<Wand2 className="size-4" />} label="Keyframe" onClick={() => { onOpenTool?.('keyframe'); setMoreOpen(false) }} />
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       {/* Body */}

@@ -10,7 +10,6 @@ import {
   Search,
   Sparkles,
   Square,
-  Video,
   X,
   Check,
   Globe,
@@ -25,17 +24,16 @@ import { EmptyState } from '@/components/onboarding/EmptyState'
 import { cn } from '@/lib/utils'
 import { DragPreviewLayer } from './DragPreview'
 import { applyAssetDropRules } from './afterAdd'
-import { isGenerated, generatedCategory, isRecording } from './generatedAssets'
+import { isGenerated, generatedCategory } from './generatedAssets'
 import { ImportButton } from './ImportButton'
 import { MediaItem } from './MediaItem'
 import { MediaSourcePreview } from './MediaSourcePreview'
 import { OnlineAssetSearch } from './OnlineAssetSearch'
 
-const TABS: { value: 'media' | 'generated' | 'online' | 'recordings'; label: string; icon: React.ReactNode }[] = [
-  { value: 'media', label: 'Media', icon: <FolderOpen className="size-3.5" /> },
-  { value: 'generated', label: 'AI Gen', icon: <Sparkles className="size-3.5" /> },
-  { value: 'online', label: 'Online API', icon: <Globe className="size-3.5" /> },
-  { value: 'recordings', label: 'Record', icon: <Video className="size-3.5" /> },
+const TABS: { value: 'media' | 'generated' | 'online'; label: string; icon: React.ReactNode }[] = [
+  { value: 'media', label: 'Project Media', icon: <FolderOpen className="size-3.5" /> },
+  { value: 'generated', label: 'AI Assets', icon: <Sparkles className="size-3.5" /> },
+  { value: 'online', label: 'Stock Search', icon: <Globe className="size-3.5" /> },
 ]
 
 const FILTERS: { value: MediaFilter; label: string }[] = [
@@ -104,13 +102,12 @@ export function MediaBin() {
 
   // Count metrics for filters and tabs
   const tabCounts = React.useMemo(() => {
-    const rawMedia = assets.filter((a) => !isGenerated(a) && !isRecording(a))
+    const rawMedia = assets.filter((a) => !isGenerated(a))
     const generated = assets.filter((a) => isGenerated(a))
-    const recordings = assets.filter((a) => isRecording(a))
     return {
       media: rawMedia.length,
       generated: generated.length,
-      recordings: recordings.length,
+      online: 0,
     }
   }, [assets])
 
@@ -118,9 +115,7 @@ export function MediaBin() {
     const baseList =
       tab === 'generated'
         ? assets.filter(isGenerated)
-        : tab === 'recordings'
-          ? assets.filter(isRecording)
-          : assets.filter((a) => !isGenerated(a) && !isRecording(a))
+        : assets.filter((a) => !isGenerated(a))
 
     return {
       all: baseList.length,
@@ -136,13 +131,9 @@ export function MediaBin() {
     if (tab === 'generated') {
       list = list.filter(isGenerated)
       if (genSubTab !== 'all') list = list.filter((a) => generatedCategory(a) === genSubTab)
-    } else if (tab === 'recordings') {
-      list = list.filter(isRecording)
-      if (filter === 'video') list = list.filter((a) => a.type === 'video')
-      else if (filter === 'audio') list = list.filter((a) => a.type === 'audio')
     } else {
-      // Default: 'media' tab (raw uploaded assets)
-      list = list.filter((a) => !isGenerated(a) && !isRecording(a))
+      // Default: 'media' tab (raw uploaded + recorded assets)
+      list = list.filter((a) => !isGenerated(a))
       if (filter === 'video') list = list.filter((a) => a.type === 'video')
       else if (filter === 'audio') list = list.filter((a) => a.type === 'audio')
       else if (filter === 'image') list = list.filter((a) => a.type === 'image')
@@ -223,8 +214,8 @@ export function MediaBin() {
           </div>
         </div>
 
-        {/* Tab Switcher: Project Media | AI Generated | Online API Search | Recordings */}
-        <div className="grid grid-cols-4 gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+        {/* Tab Switcher: Project Media | AI Assets | Stock Search */}
+        <div className="grid grid-cols-3 gap-0.5 rounded-lg border bg-muted/30 p-0.5">
           {TABS.map(({ value, label, icon }) => {
             const count = tabCounts[value as keyof typeof tabCounts] ?? 0
             const active = tab === value
@@ -481,25 +472,6 @@ export function MediaBin() {
             <p className="text-muted-foreground text-[11px] leading-relaxed max-w-[200px]">
               Clips generated from Avatar Generator, Slides, TTS, and 3D Studio land here automatically.
             </p>
-          </div>
-        )}
-        {visibleAssets.length === 0 && tab === 'recordings' && (
-          <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
-            <div className="bg-muted flex size-12 items-center justify-center rounded-xl border border-red-500/20 text-red-400">
-              <Video className="size-6" />
-            </div>
-            <h4 className="text-xs font-semibold text-foreground">No Recordings Yet</h4>
-            <p className="text-muted-foreground text-[11px] leading-relaxed max-w-[200px]">
-              Use the Import button at top to record screen, webcam, or microphone.
-            </p>
-            <div className="flex gap-1.5 pt-2">
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void startRecording('screen')}>
-                Record Screen
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void startRecording('webcam')}>
-                Record Webcam
-              </Button>
-            </div>
           </div>
         )}
 
