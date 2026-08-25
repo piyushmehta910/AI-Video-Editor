@@ -6,8 +6,9 @@ import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { WebMMuxer } from './webm-muxer'
-import { createEncoderGuard, waitForDrain, yieldToBrowser } from './encoderGuard'
+import { createEncoderGuard, waitForDrain } from './encoderGuard'
 import { setExportActive } from './exportSession'
+import { deviceSafetyGuard } from '@/engine/safety/DeviceSafetyGuard'
 
 export interface ExportOptions {
   width: number
@@ -232,7 +233,7 @@ export async function exportProject(
       if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
       // Backpressure: wait until the hardware encoder has caught up before
       // compositing more frames.
-      await waitForDrain(encoder, 4)
+      await waitForDrain(encoder, deviceSafetyGuard.getMaxEncoderQueue())
       if (guard.failed) throw guard.error ?? new Error('Video encoder failed')
       const time = Math.min((i / opts.fps), duration - 1 / opts.fps)
       ctx.clearRect(0, 0, opts.width, opts.height)
@@ -278,10 +279,22 @@ export async function exportProject(
       frame.close()
 
       opts.onProgress(i + 1, total)
-      // Cooperative CPU pacing: every 12 frames take a 4ms breather to let GC,
-      // browser compositor, and OS cooling breathe; otherwise yield macrotask.
-      const needBreather = i > 0 && i % 12 === 0
-      await yieldToBrowser(needBreather)
+
+      // Evict dormant media elements to prevent memory leakage
+      if (i > 0 && i % 30 === 0) {
+        const activeAssetIds = new Set<string>()
+        for (const track of project.tracks) {
+          for (const c of track.clips) {
+            if (time >= c.startTime - 1.0 && time <= c.startTime + c.duration + 1.0) {
+              activeAssetIds.add(c.assetId)
+            }
+          }
+        }
+        deviceSafetyGuard.evictUnusedMediaElements(mediaElements, activeAssetIds)
+      }
+
+      // Device safety: adaptive CPU pacing & thermal throttling protection
+      await deviceSafetyGuard.adaptiveYield(i)
     }
 
     await Promise.race([encoder.flush(), guard.failure])

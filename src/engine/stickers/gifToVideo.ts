@@ -1,5 +1,7 @@
 import { decompressFrames, parseGIF } from 'gifuct-js'
 import { WebMMuxer } from '@/engine/export/webm-muxer'
+import { createEncoderGuard, waitForDrain } from '@/engine/export/encoderGuard'
+import { deviceSafetyGuard } from '@/engine/safety/DeviceSafetyGuard'
 import { codecConfig, codecString } from '@/engine/motion/sandbox'
 
 /**
@@ -209,15 +211,14 @@ export async function encodeFramesToWebM(
   try {
     const codec = await codecString()
     muxer = new WebMMuxer({ width: meta.width, height: meta.height, duration: durationSec, codec })
+    const guard = createEncoderGuard()
     encoder = new VideoEncoder({
       output: (chunk) => {
         const bytes = new Uint8Array(chunk.byteLength)
         chunk.copyTo(bytes)
         muxer?.addChunk({ data: bytes, timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
       },
-      error: (e) => {
-        throw e
-      },
+      error: (e) => guard.fail(e),
     })
     const encoderConfig: VideoEncoderConfig = {
       codec: codecConfig(codec),
@@ -236,19 +237,22 @@ export async function encodeFramesToWebM(
 
     for (let i = 0; i < sources.length; i++) {
       if (opts.signal?.aborted) throw new DOMException('Conversion aborted', 'AbortError')
+      await waitForDrain(encoder, deviceSafetyGuard.getMaxEncoderQueue())
+      if (guard.failed) throw guard.error ?? new Error('GIF encoder failed')
+
       const frame = new VideoFrame(sources[i], { timestamp: meta.timestampsUs[i] })
       encoder.encode(frame, { keyFrame: i === 0 || i % 30 === 0 })
       frame.close()
       opts.onProgress?.(i + 1, sources.length)
-      if (i % 8 === 0) await sleep()
+      await deviceSafetyGuard.adaptiveYield(i)
     }
 
-    await encoder.flush()
+    await Promise.race([encoder.flush(), guard.failure])
     encoder.close()
     encoder = null
     return { blob: muxer.finalize(), frames: sources.length, durationSec }
   } finally {
-    encoder?.close()
+    if (encoder && encoder.state !== 'closed') encoder.close()
   }
 }
 

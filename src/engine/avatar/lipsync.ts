@@ -1,4 +1,6 @@
 import { WebMMuxer } from '@/engine/export/webm-muxer'
+import { createEncoderGuard, waitForDrain } from '@/engine/export/encoderGuard'
+import { deviceSafetyGuard } from '@/engine/safety/DeviceSafetyGuard'
 
 export interface AvatarMouth {
   /** Anchor X as a fraction of the frame width (0-1). */
@@ -373,15 +375,14 @@ export async function generateLipsyncVideo(opts: LipsyncOptions): Promise<Lipsyn
 
   const codec = opts.codec ?? 'vp8'
   const muxer = new WebMMuxer({ width: opts.width, height: opts.height, duration: audio.duration, codec })
+  const guard = createEncoderGuard()
   const encoder = new VideoEncoder({
     output: (chunk) => {
       const bytes = new Uint8Array(chunk.byteLength)
       chunk.copyTo(bytes)
       muxer.addChunk({ data: bytes, timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
     },
-    error: (e) => {
-      throw e
-    },
+    error: (e) => guard.fail(e),
   })
 
   const config: VideoEncoderConfig = {
@@ -401,26 +402,33 @@ export async function generateLipsyncVideo(opts: LipsyncOptions): Promise<Lipsyn
   encoder.configure(config)
 
   const total = Math.max(1, Math.ceil(audio.duration * opts.fps))
-  for (let i = 0; i < total; i++) {
-    if (opts.signal?.aborted) throw new DOMException('Lip-sync aborted', 'AbortError')
-    const time = Math.min(i / opts.fps, Math.max(0, audio.duration - 1 / opts.fps))
-    const openness = envelope[Math.min(i, envelope.length - 1)] ?? 0
+  try {
+    for (let i = 0; i < total; i++) {
+      if (opts.signal?.aborted) throw new DOMException('Lip-sync aborted', 'AbortError')
+      await waitForDrain(encoder, deviceSafetyGuard.getMaxEncoderQueue())
+      if (guard.failed) throw guard.error ?? new Error('Avatar encoder failed')
 
-    drawBackground(ctx, opts.width, opts.height, opts.background, img)
-    coverDraw(ctx, img, opts.width, opts.height)
-    drawMouth(ctx, opts.mouth, openness, opts.width, opts.height, opts.style)
+      const time = Math.min(i / opts.fps, Math.max(0, audio.duration - 1 / opts.fps))
+      const openness = envelope[Math.min(i, envelope.length - 1)] ?? 0
 
-    const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
-    encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
-    frame.close()
+      drawBackground(ctx, opts.width, opts.height, opts.background, img)
+      coverDraw(ctx, img, opts.width, opts.height)
+      drawMouth(ctx, opts.mouth, openness, opts.width, opts.height, opts.style)
 
-    opts.onProgress?.(i + 1, total)
-    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0))
+      const frame = new VideoFrame(canvas, { timestamp: Math.round(time * 1_000_000) })
+      encoder.encode(frame, { keyFrame: i % Math.max(1, Math.round(opts.fps * 2)) === 0 })
+      frame.close()
+
+      opts.onProgress?.(i + 1, total)
+      await deviceSafetyGuard.adaptiveYield(i)
+    }
+
+    await Promise.race([encoder.flush(), guard.failure])
+    encoder.close()
+    await encodeAudioToMuxer(muxer, audio, opts.signal)
+  } finally {
+    if (encoder.state !== 'closed') encoder.close()
   }
-
-  await encoder.flush()
-  encoder.close()
-  await encodeAudioToMuxer(muxer, audio, opts.signal)
 
   img.src = ''
   return { blob: muxer.finalize(), duration: audio.duration, frames: total }

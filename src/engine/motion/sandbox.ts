@@ -1,4 +1,6 @@
 import { WebMMuxer } from '@/engine/export/webm-muxer'
+import { createEncoderGuard, waitForDrain } from '@/engine/export/encoderGuard'
+import { deviceSafetyGuard } from '@/engine/safety/DeviceSafetyGuard'
 
 export interface MotionRenderOptions {
   /** Generated animation code: defines window.__ANIMATE(ctx, t, w, h) and optionally __INIT(ctx, w, h). */
@@ -219,10 +221,6 @@ export function codecConfig(codec: 'vp8' | 'vp9' | 'av1'): string {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
-}
-
 /**
  * Boot a fresh sandboxed iframe running `code` and return a FrameSource that
  * can request deterministic frames. Each call gets its own opaque-origin
@@ -270,15 +268,14 @@ export async function renderMotionClip(opts: MotionRenderOptions): Promise<Motio
 
     const codec = opts.codec ?? (await codecString())
     muxer = new WebMMuxer({ width, height, duration, codec })
+    const guard = createEncoderGuard()
     encoder = new VideoEncoder({
       output: (chunk) => {
         const bytes = new Uint8Array(chunk.byteLength)
         chunk.copyTo(bytes)
         muxer?.addChunk({ data: bytes, timestamp: chunk.timestamp / 1000, isKey: chunk.type === 'key' })
       },
-      error: (e) => {
-        throw e
-      },
+      error: (e) => guard.fail(e),
     })
     const encoderConfig: VideoEncoderConfig = {
       codec: codecConfig(codec),
@@ -298,6 +295,9 @@ export async function renderMotionClip(opts: MotionRenderOptions): Promise<Motio
     const total = Math.max(1, Math.round(duration * fps))
     for (let i = 0; i < total; i++) {
       if (signal?.aborted) throw new DOMException('Render aborted', 'AbortError')
+      await waitForDrain(encoder, deviceSafetyGuard.getMaxEncoderQueue())
+      if (guard.failed) throw guard.error ?? new Error('Motion encoder failed')
+
       const t = Math.min(i / fps, duration)
       const bitmap = await Promise.race([
         source.frame(t),
@@ -308,16 +308,17 @@ export async function renderMotionClip(opts: MotionRenderOptions): Promise<Motio
       frame.close()
       bitmap.close()
       opts.onProgress?.(i + 1, total)
-      if (i % 16 === 0) await sleep(0)
+
+      await deviceSafetyGuard.adaptiveYield(i)
     }
 
-    await encoder.flush()
+    await Promise.race([encoder.flush(), guard.failure])
     encoder.close()
     encoder = null
     return { blob: muxer.finalize(), frames: total }
   } finally {
     source.dispose()
-    encoder?.close()
+    if (encoder && encoder.state !== 'closed') encoder.close()
   }
 }
 
