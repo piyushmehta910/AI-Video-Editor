@@ -1,19 +1,23 @@
 import * as React from 'react'
 import {
   ArrowLeftRight,
+  Box,
   Captions,
   ChevronDown,
   ChevronRight,
   Clapperboard,
   CopyPlus,
+  Image,
   Loader2,
   Magnet,
   Maximize,
   Music,
+  Presentation,
   Redo2,
   Scissors,
   ScrollText,
   Slice,
+  Smile,
   Sparkles,
   Trash2,
   Type,
@@ -496,7 +500,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         </ToolbarButton>
         <SeparatorLine />
 
-        {/* Core Timeline Tools */}
+        {/* Core Timeline Tools & Generators */}
         <ToolbarButton label="Add Text (T)" onClick={handleAddText}>
           <Type className="size-4" />
         </ToolbarButton>
@@ -506,14 +510,29 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <ToolbarButton label="Voiceover & Audio" onClick={() => onOpenTool?.('voiceover')}>
           <Music className="size-4" />
         </ToolbarButton>
+        <ToolbarButton label="Slides & Keynotes" onClick={() => onOpenTool?.('slide')}>
+          <Presentation className="size-4 text-indigo-400" />
+        </ToolbarButton>
+        <ToolbarButton label="AI Avatar Presenter" onClick={() => onOpenTool?.('avatar')}>
+          <Clapperboard className="size-4 text-violet-400" />
+        </ToolbarButton>
+        <ToolbarButton label="3D Assets & Models" onClick={() => onOpenTool?.('3d')}>
+          <Box className="size-4 text-amber-400" />
+        </ToolbarButton>
         <ToolbarButton label="Effects" onClick={() => onOpenTool?.('effects')}>
-          <Sparkles className="size-4" />
+          <Sparkles className="size-4 text-pink-400" />
         </ToolbarButton>
         <ToolbarButton label="Transitions" onClick={() => onOpenTool?.('transitions')}>
-          <Zap className="size-4" />
+          <Zap className="size-4 text-yellow-400" />
+        </ToolbarButton>
+        <ToolbarButton label="Giphy Stickers" onClick={() => onOpenTool?.('stickers')}>
+          <Smile className="size-4 text-emerald-400" />
+        </ToolbarButton>
+        <ToolbarButton label="Stock Media" onClick={() => onOpenTool?.('images')}>
+          <Image className="size-4 text-cyan-400" />
         </ToolbarButton>
         <ToolbarButton label="Script Studio" onClick={() => onOpenTool?.('script')}>
-          <ScrollText className="size-4" />
+          <ScrollText className="size-4 text-blue-400" />
         </ToolbarButton>
         <SeparatorLine />
 
