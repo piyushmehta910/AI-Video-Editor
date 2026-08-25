@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
 import type { DenoiseResult, RNNoiseConfig } from '@/engine/denoise/rnnoise-engine'
-import { RNNoiseEngine } from '@/engine/denoise/rnnoise-engine'
 
 interface UseDenoiseOptions {
   config?: RNNoiseConfig
@@ -107,6 +106,7 @@ export function useDenoise(options: UseDenoiseOptions = {}) {
     setResult(null)
     lastReportedRef.current = 0
     try {
+      const { RNNoiseEngine } = await import('@/engine/denoise/rnnoise-engine')
       const engine = new RNNoiseEngine({ ...options.config })
       await engine.initialize()
       const res = await engine.denoise(audioBuffer, sampleRate, (p) => reportProgress(p))

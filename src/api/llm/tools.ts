@@ -1352,7 +1352,7 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       return `Denoise background noise for "${clip.name}"`
     }
     case 'set_snap_enabled': {
-      return `${Boolean(args.enabled) ? 'Enable' : 'Disable'} magnetic snapping`
+      return `${args.enabled ? 'Enable' : 'Disable'} magnetic snapping`
     }
     case 'execute_autonomous_video_plan': {
       const goal = String(args.goal ?? '')

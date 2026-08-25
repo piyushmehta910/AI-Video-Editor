@@ -66,12 +66,16 @@ export default defineConfig({
       : []),
   ],
   build: {
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Pin the heavy, rarely-used libs to dedicated chunks so they can never
-          // leak into the entry chunk via a transitive static import.
-          if (id.includes('node_modules/three')) return 'three'
+          // Pin heavy and independent libs to dedicated chunks
+          if (id.includes('node_modules/three') || id.includes('node_modules/@gltf-transform')) return 'three'
+          if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/lucide-react')) return 'vendor-ui'
+          if (id.includes('node_modules/mediabunny') || id.includes('node_modules/gifuct-js')) return 'vendor-media'
+          if (id.includes('node_modules/zustand') || id.includes('node_modules/zundo') || id.includes('node_modules/immer')) return 'vendor-state'
         },
       },
     },

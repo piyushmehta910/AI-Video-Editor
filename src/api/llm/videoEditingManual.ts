@@ -48,22 +48,22 @@ You can invoke and execute any action corresponding to the ClipForge middle tool
   - Position presets: \`bottom\` (safe lower third), \`top\` (header), \`center\` (impact splash).
 
 ### 5. VISUAL EFFECTS, FILTERS & TRANSITIONS
-- **Transitions (\`set_transition\` / \`add_transition\`)\**:
+- **Transitions (\`set_transition\` / \`add_transition\`)**:
   - \`crossfade\` / \`fade\`: Smooth scene progression and emotional shifts.
   - \`wipe\` / \`slide\`: Topic changes and bullet point advances.
   - \`zoom\` / \`glitch\`: High-energy pattern interrupts and beat drops.
 - **Visual Filters & Effects (\`apply_filter\` / \`add_effect\` / \`set_clip_property\`)**:
   - Adjust opacity, contrast, brightness, rotation, and scale framing.
-- **Smart Reframing & Crop (\`set_project_ratio\` / \`smart_reframe\`)\**:
+- **Smart Reframing & Crop (\`set_project_ratio\` / \`smart_reframe\`)**:
   - Reframe between \`16:9\` (YouTube / Desktop), \`9:16\` (TikTok / Reels / Shorts), \`1:1\` (Instagram / Square).
 
 ### 6. GENERATIVE AI STUDIOS & OVERLAY ASSETS
 - **AI Slide Presentation Studio (\`generate_slides\`)**: Generate 16:9 keynote slide decks with themes (\`tech_dark\`, \`startup_pitch\`, \`minimal_light\`, \`cyberpunk\`, \`academic\`).
-- **AI Talking Head & Lip Sync Studio (\`generate_avatar_intro\` / \`generate_avatar_outro\` / \`generate_avatar_presenter\`)\**: Create neural-lip-synced talking head video clips.
-- **3D Assets & Spatial Models (\`add_3d_model\`, \`set_3d_camera\`, \`animate_3d_model\`)\**: Import 3D GLB models from Poly Haven / Sketchfab with orbit/cinematic camera animations.
-- **Stock Imagery & B-Roll (\`search_stock_image\`)\**: Search and insert high-res photography from Unsplash, Pexels, and Pixabay.
-- **Motion Graphics Generator (\`generate_motion_graphics\`)\**: Render animated HTML5/Canvas overlays and kinetic typography.
-- **Background Removal (\`remove_background\`)\**: AI WebGPU segmentation to isolate subjects from background.
+- **AI Talking Head & Lip Sync Studio (\`generate_avatar_intro\` / \`generate_avatar_outro\` / \`generate_avatar_presenter\`)**: Create neural-lip-synced talking head video clips.
+- **3D Assets & Spatial Models (\`add_3d_model\`, \`set_3d_camera\`, \`animate_3d_model\`)**: Import 3D GLB models from Poly Haven / Sketchfab with orbit/cinematic camera animations.
+- **Stock Imagery & B-Roll (\`search_stock_image\`)**: Search and insert high-res photography from Unsplash, Pexels, and Pixabay.
+- **Motion Graphics Generator (\`generate_motion_graphics\`)**: Render animated HTML5/Canvas overlays and kinetic typography.
+- **Background Removal (\`remove_background\`)**: AI WebGPU segmentation to isolate subjects from background.
 
 ---
 

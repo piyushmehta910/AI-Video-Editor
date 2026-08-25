@@ -327,7 +327,10 @@ function SlideSection() {
   const [success, setSuccess] = React.useState<string | null>(null)
   const [adding, setAdding] = React.useState(false)
 
-  const savedDecks = React.useMemo(() => getSavedSlideDecks(), [busy])
+  const savedDecks = React.useMemo(() => {
+    void busy
+    return getSavedSlideDecks()
+  }, [busy])
 
   React.useEffect(() => {
     return () => previews.forEach((p) => URL.revokeObjectURL(p.url))
@@ -4752,7 +4755,10 @@ function DesignSection() {
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState<string | null>(null)
 
-  const history = React.useMemo(() => getMotionHistory(), [busy])
+  const history = React.useMemo(() => {
+    void busy
+    return getMotionHistory()
+  }, [busy])
 
   // ── Sandboxed motion preview (Web Worker) ──────────────────────────────
   // Motion code runs inside motionPreview.worker.ts (no DOM/storage access).

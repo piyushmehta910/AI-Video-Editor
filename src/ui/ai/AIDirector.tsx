@@ -885,7 +885,7 @@ export function AIDirector({
         setBusy(false)
       }
     },
-    [busy, messages, askedQuestions, projectId, promptQuestion],
+    [busy, messages, askedQuestions, projectId, promptQuestion, productionMode],
   )
 
   React.useEffect(() => {

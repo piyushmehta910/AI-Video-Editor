@@ -66,7 +66,7 @@ export function MediaSourcePreview({
         }
         createdUrl = u
         setUrl(u)
-      } catch (err) {
+      } catch {
         if (active) {
           setError('Could not load media preview')
         }
