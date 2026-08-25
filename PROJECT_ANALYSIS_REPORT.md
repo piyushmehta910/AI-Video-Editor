@@ -1,4 +1,4 @@
-﻿# ClipForge â€” Complete Project Analysis Report
+# ClipForge â€” Complete Project Analysis Report
 
 | | |
 |---|---|
@@ -55,8 +55,7 @@
         â”‚  CORS proxy    â”‚   dev: vite middleware Â· prod: api/proxy.ts
         â””â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜
    OpenRouter Â· OpenCode Zen Â· NVIDIA NIM Â· ElevenLabs Â· Unsplash/
-   Pexels/Pixabay Â· Giphy Â· Sketchfab/PolyHaven Â· MusicBrainz/Deezer/
-   Freesound Â· Firecrawl
+   MusicBrainz/Deezer Â· Firecrawl
 ```
 
 ### 2.1 Boot flow

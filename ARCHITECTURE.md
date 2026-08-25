@@ -177,7 +177,7 @@
 | **Stock Photos** | **Unsplash** | High-resolution editorial photography | Access Key | Pexels |
 | **Stock Photos/Video**| **Pexels** | Video b-roll & stock footage | API Key | Pixabay |
 | **Stock Photos/Video**| **Pixabay** | Vector illustrations & stock photos | API Key | Unsplash |
-| **Sound Effects** | **Freesound** | Transition swooshes, UI & cinematic SFX | API Key | Synthesized SFX |
+| **Sound Effects** | **Procedural Web Audio** | Transition swooshes, UI & cinematic SFX | Built-in (Offline) | Internet Archive |
 | **Music Streaming** | **Deezer** | Keyless music catalog preview & streaming | Keyless (Proxied) | MusicBrainz |
 | **Music Metadata** | **MusicBrainz** | CC0 open-source music metadata | Keyless (Open) | Deezer |
 | **3D Assets** | **Poly Haven** | Photorealistic CC0 GLB 3D models & HDRIs | Keyless (Open) | Sketchfab |

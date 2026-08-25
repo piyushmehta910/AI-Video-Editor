@@ -11,7 +11,6 @@ import {
   testPixabay,
   testDeezer,
   testMusicBrainz,
-  testFreesound,
   testPolyHaven,
   testFirecrawl,
   testGiphy,
@@ -126,11 +125,6 @@ export function ConnectionOverview() {
       id: 'musicbrainz',
       label: 'MusicBrainz',
       run: () => testMusicBrainz(mbBaseUrl, mbUserAgent, mbTimeoutMs),
-    },
-    {
-      id: 'freesound',
-      label: 'Freesound',
-      run: () => testFreesound(deezerEndpoint ? (config as { freesoundApiKey?: string }).freesoundApiKey ?? '' : '', 15000),
     },
     {
       id: 'polyhaven',

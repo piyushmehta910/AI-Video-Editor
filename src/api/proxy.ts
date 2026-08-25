@@ -5,7 +5,6 @@ const PROXIED_HOSTS = [
   'opencode.ai',
   'api.deezer.com',
   'api.elevenlabs.io',
-  'freesound.org',
 ]
 
 export function needsProxy(url: string): boolean {

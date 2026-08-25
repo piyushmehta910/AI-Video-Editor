@@ -82,14 +82,9 @@ export interface DeezerConfig extends BaseConfig {
   endpoint: string
 }
 
-export interface FreesoundConfig extends BaseConfig {
-  apiKey: string
-}
-
 export interface MusicConfig {
   musicbrainz: MusicBrainzConfig
   deezer: DeezerConfig
-  freesound: FreesoundConfig
 }
 
 export interface GiphyConfig extends BaseConfig {
@@ -265,17 +260,9 @@ export const defaultDeezerConfig: DeezerConfig = {
   status: 'disabled',
 }
 
-export const defaultFreesoundConfig: FreesoundConfig = {
-  enabled: true,
-  apiKey: '',
-  timeoutMs: 30000,
-  status: 'disabled',
-}
-
 export const defaultMusicConfig: MusicConfig = {
   musicbrainz: defaultMusicBrainzConfig,
   deezer: defaultDeezerConfig,
-  freesound: defaultFreesoundConfig,
 }
 
 export const defaultGiphyConfig: GiphyConfig = {

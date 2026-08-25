@@ -2197,7 +2197,7 @@ function AudioSection() {
       setSfxResults([])
       const sfx = await searchSoundEffects(q, { maxResults: 8 })
       setSfxResults(sfx)
-      if (!sfx.length) setSearchError('No sound effects found (check Freesound API key in Settings).')
+      if (!sfx.length) setSearchError('No sound effects found for this query.')
     }
     setSearching(false)
   }
@@ -2345,7 +2345,7 @@ function AudioSection() {
 
         <div className="flex gap-1.5">
           <Input
-            placeholder={searchTab === 'music' ? 'Search music (Deezer, Archive)...' : 'Search SFX (Freesound)...'}
+            placeholder={searchTab === 'music' ? 'Search music (Deezer, Archive)...' : 'Search SFX (Whoosh, Impact, Pop)...'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {

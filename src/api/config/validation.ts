@@ -255,17 +255,6 @@ export async function testSketchfab(apiKey: string, timeoutMs: number): Promise<
   )
 }
 
-export async function testFreesound(apiKey: string, timeoutMs: number): Promise<TestResult> {
-  const label = 'Freesound'
-  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
-  return doRequest(
-    label,
-    `https://freesound.org/apiv2/search/text/?query=whoosh&token=${encodeURIComponent(apiKey)}&page_size=1`,
-    { headers: { Accept: 'application/json' } },
-    timeoutMs,
-  )
-}
-
 export async function testPolyHaven(timeoutMs: number): Promise<TestResult> {
   return doRequest('Poly Haven (CC0)', 'https://api.polyhaven.com/assets?t=models', {
     headers: { Accept: 'application/json' },

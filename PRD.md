@@ -183,7 +183,7 @@ Legend: **Priority** P0 = launch-blocking, P1 = important, P2 = nice-to-have. **
 | ID | Requirement | Pri | Status |
 |---|---|---|---|
 | FR-AU-01 | RNNoise WASM speech denoise (48 kHz) per audio clip with before/after preview | P1 | ✅ |
-| FR-AU-02 | Music search: MusicBrainz (keyless) / Deezer / Freesound; import result as asset | P1 | ✅ |
+| FR-AU-02 | Music & SFX search: MusicBrainz (keyless) / Deezer / Procedural SFX & Archive; import result as asset | P1 | ✅ |
 | FR-AU-03 | Auto-ducking engine primitives (`collectTriggerRanges`, `buildDuckSegments`) for music-under-voice mixing | P2 | 🟡 engine done; not yet exposed as one-click action |
 | FR-AU-04 | TTS voiceover: ElevenLabs (voice/model/stability/similarity/style/speed sliders) or NVIDIA NIM OpenAI-compatible TTS; procedural fallback without keys | P1 | ✅ |
 
@@ -290,7 +290,7 @@ Legend: **Priority** P0 = launch-blocking, P1 = important, P2 = nice-to-have. **
         │ NVIDIA NIM · ElevenLabs ·      │
         │ Unsplash/Pexels/Pixabay ·      │
         │ Giphy · Sketchfab/PolyHaven ·  │
-        │ MusicBrainz/Deezer/Freesound · │
+        │ MusicBrainz/Deezer/Archive ·   │
         │ Firecrawl                      │
         └────────────────────────────────┘
 ```

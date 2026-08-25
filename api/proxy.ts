@@ -19,7 +19,6 @@ const ALLOWED_HOSTS = [
   'opencode.ai',
   'api.deezer.com',
   'api.elevenlabs.io',
-  'freesound.org',
   'openrouter.ai',
   'api.firecrawl.dev',
   'api.sketchfab.com',
