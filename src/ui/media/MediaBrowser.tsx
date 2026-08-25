@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Box, Check, ChevronLeft, Film, FolderUp, Image, Music, Play, Plus, Scan, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, Film, FolderUp, Image, Music, Play, Plus, Scan, Trash2 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { Asset, TrackType } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -9,12 +9,11 @@ import { analyzeAsset } from '@/api/llm/analysis'
 import { MediaSourcePreview } from '@/components/media/MediaSourcePreview'
 
 const ACCEPTED =
-  '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*,.glb,.gltf,model/gltf-binary,model/gltf+json'
+  '.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpg,.mpeg,.ts,.ogv,.3gp,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,audio/*,.jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.svg,image/*'
 
 function AssetIcon({ type }: { type: Asset['type'] }) {
   if (type === 'video') return <Film className="size-3.5" />
   if (type === 'audio') return <Music className="size-3.5" />
-  if (type === 'model') return <Box className="size-3.5" />
   return <Image className="size-3.5" />
 }
 
@@ -60,7 +59,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
       video: 'video',
       image: 'video',
       audio: 'audio',
-      model: 'video',
     }
     const tt = typeToTrack[type]
     return project.tracks.find((t) => t.type === tt)?.id

@@ -86,8 +86,7 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
   if (assets.length) {
     lines.push('Available media:')
     for (const a of assets) {
-      const label = a.type === 'model' ? '3D model' : a.type
-      lines.push(`  - "${a.name}" (${label})`)
+      lines.push(`  - "${a.name}" (${a.type})`)
     }
   }
   lines.push(
@@ -96,7 +95,7 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
   lines.push(
     'CRITICAL EXECUTION MANDATE: You are an active agentic video director. When the user asks you to make an edit, ' +
       'split, trim, delete, move clips, change speed/volume/opacity, add captions/subtitles, apply filters/effects, ' +
-      'generate voiceover/music, add slides/avatars/3D models, or modify the project in ANY way, YOU MUST CALL ' +
+      'generate voiceover/music, add slides/avatars, or modify the project in ANY way, YOU MUST CALL ' +
       'THE CORRESPONDING FUNCTION TOOL(S) IMMEDIATELY to execute the task. DO NOT just explain in plain text how ' +
       'the user can do it manually — ALWAYS EXECUTE IT DIRECTLY via tool calls.',
   )

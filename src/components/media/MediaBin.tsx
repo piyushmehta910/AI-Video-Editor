@@ -1,6 +1,5 @@
 import * as React from 'react'
 import {
-  Box,
   Film,
   FolderOpen,
   Image as ImageIcon,
@@ -41,7 +40,6 @@ const FILTERS: { value: MediaFilter; label: string }[] = [
   { value: 'video', label: 'Videos' },
   { value: 'audio', label: 'Audio' },
   { value: 'image', label: 'Images' },
-  { value: 'model', label: '3D Models' },
 ]
 
 const SORTS: { value: MediaSort; label: string }[] = [
@@ -122,7 +120,6 @@ export function MediaBin() {
       video: baseList.filter((a) => a.type === 'video').length,
       audio: baseList.filter((a) => a.type === 'audio').length,
       image: baseList.filter((a) => a.type === 'image').length,
-      model: baseList.filter((a) => a.type === 'model').length,
     }
   }, [assets, tab])
 
@@ -137,7 +134,6 @@ export function MediaBin() {
       if (filter === 'video') list = list.filter((a) => a.type === 'video')
       else if (filter === 'audio') list = list.filter((a) => a.type === 'audio')
       else if (filter === 'image') list = list.filter((a) => a.type === 'image')
-      else if (filter === 'model') list = list.filter((a) => a.type === 'model')
     }
 
     if (search.trim()) {
@@ -562,8 +558,6 @@ export function MediaBin() {
             </div>
             {previewAsset.asset.type === 'audio' ? (
               <audio src={previewAsset.url} controls autoPlay className="w-full" />
-            ) : previewAsset.asset.type === 'model' ? (
-              <ModelPlaceholder name={previewAsset.asset.name} />
             ) : previewAsset.asset.type === 'video' ? (
               // eslint-disable-next-line jsx-a11y/media-has-caption -- raw asset preview, not content playback
               <video src={previewAsset.url} controls autoPlay className="max-h-[70vh] rounded-lg" />
@@ -573,15 +567,6 @@ export function MediaBin() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function ModelPlaceholder({ name }: { name: string }) {
-  return (
-    <div className="bg-muted flex aspect-video w-[480px] max-w-full flex-col items-center justify-center gap-2 rounded-lg">
-      <Box className="text-muted-foreground size-10" />
-      <p className="text-muted-foreground text-xs">3D model loaded: {name}</p>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { readMediaFile } from '@/engine/storage/opfs'
 import type { Asset, Project } from '@/engine/types'
-import { projectDuration, defaultCameraRig } from '@/engine/types'
+import { projectDuration } from '@/engine/types'
 import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
@@ -221,19 +221,6 @@ export async function exportMp4(
             return el.videoWidth > 0 ? el : null
           },
           image: (asset) => loadImage(asset),
-          model: async (clip, asset, time, size) => {
-            const { renderModelFrame } = await import('@/engine/three/modelRenderer')
-            return renderModelFrame({
-              asset,
-              rig: clip.modelRig ?? defaultCameraRig(),
-              time,
-              clipStart: clip.startTime,
-              clipDuration: clip.duration,
-              width: size.width,
-              height: size.height,
-              signal: opts.signal,
-            })
-          },
           captions: makeCaptionsProvider(project),
         },
         { width: opts.width, height: opts.height },

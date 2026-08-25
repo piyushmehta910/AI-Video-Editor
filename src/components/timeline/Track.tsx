@@ -47,7 +47,7 @@ export function Track({
   const acceptsAsset = (asset: Asset | null): asset is Asset => {
     if (!asset) return false
     if (track.type === 'audio') return asset.type === 'audio'
-    if (track.type === 'video') return asset.type === 'video' || asset.type === 'image' || asset.type === 'model'
+    if (track.type === 'video') return asset.type === 'video' || asset.type === 'image'
     return false
   }
 

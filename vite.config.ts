@@ -72,7 +72,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           // Pin heavy and independent libs to dedicated chunks
-          if (id.includes('node_modules/three') || id.includes('node_modules/@gltf-transform')) return 'three'
           if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/lucide-react')) return 'vendor-ui'
           if (id.includes('node_modules/mediabunny') || id.includes('node_modules/gifuct-js')) return 'vendor-media'
           if (id.includes('node_modules/zustand') || id.includes('node_modules/zundo') || id.includes('node_modules/immer')) return 'vendor-state'

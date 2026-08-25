@@ -14,15 +14,15 @@ import {
   Trash2,
   Film,
 } from 'lucide-react'
-import type { CameraMode, Clip, TextOverlay, TrackType } from '@/engine/types'
-import { CAMERA_MODES, clampRig, formatSeconds } from '@/engine/types'
+import type { Clip, TextOverlay, TrackType } from '@/engine/types'
+import { formatSeconds } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useInspector } from '@/hooks/useInspector'
 import { Button } from '@/components/ui/button'
 import { CaptionsPanel } from '@/ui/inspector/CaptionsPanel'
 import { MultiClipInspector } from './MultiClipInspector'
 import { cn } from '@/lib/utils'
-import { LabeledSlider, NumInput, Row, Section, SelectInput } from './controls'
+import { LabeledSlider, Section } from './controls'
 import { TransformSection } from './TransformSection'
 import { AppearanceSection } from './AppearanceSection'
 import { TextSection } from './TextSection'
@@ -333,7 +333,6 @@ export function InspectorPanel({
           {(activeTab === 'all' || activeTab === 'audio') && <AudioSection insp={insp} />}
           {(activeTab === 'all' || activeTab === 'effects') && <EffectsSection insp={insp} />}
           {(activeTab === 'all' || activeTab === 'transitions') && <TransitionsSection insp={insp} />}
-          {(activeTab === 'all' || activeTab === 'transform') && <ModelCameraSection clip={clip} />}
           {(activeTab === 'all' || activeTab === 'captions') && (
             <Section title="Captions" defaultOpen={activeTab === 'captions'}>
               <CaptionsPanel />
@@ -390,68 +389,6 @@ function MultiSelectEdits() {
         onChange={(v) => applyToAll({ opacity: v / 100 }, 'Changed opacity of selected clips')}
       />
     </div>
-  )
-}
-
-/** 3D camera rig editor, shown only for model clips (ported from the old inspector). */
-function ModelCameraSection({ clip }: { clip: Clip }) {
-  const rig = clip.modelRig
-  if (!rig) return null
-
-  const setRig = (patch: Parameters<typeof clampRig>[0]) =>
-    useTimelineStore.getState().updateClip(clip.id, { modelRig: clampRig({ ...rig, ...patch }) })
-
-  return (
-    <Section title="3D Camera">
-      <Row label="Mode">
-        <SelectInput
-          value={rig.mode}
-          onChange={(v) => setRig({ mode: v as CameraMode })}
-          options={CAMERA_MODES.map((m) => ({ value: m, label: m.charAt(0).toUpperCase() + m.slice(1) }))}
-        />
-      </Row>
-      <Row label="Azimuth">
-        <NumInput value={rig.azimuthStart} onChange={(v) => setRig({ azimuthStart: v })} suffix="°" />
-        <NumInput value={rig.azimuthEnd} onChange={(v) => setRig({ azimuthEnd: v })} suffix="°" />
-      </Row>
-      <LabeledSlider
-        label="Elevation"
-        value={rig.elevationStart}
-        min={-89}
-        max={89}
-        format={(v) => `${Math.round(v)}°`}
-        onChange={(v) => setRig({ elevationStart: v, elevationEnd: v })}
-      />
-      <LabeledSlider
-        label="Radius"
-        value={rig.radiusStart}
-        min={0.5}
-        max={20}
-        step={0.1}
-        format={(v) => v.toFixed(1)}
-        onChange={(v) => setRig({ radiusStart: v, radiusEnd: v })}
-      />
-      <LabeledSlider
-        label="FOV"
-        value={rig.fov}
-        min={10}
-        max={120}
-        format={(v) => `${Math.round(v)}°`}
-        onChange={(v) => setRig({ fov: v })}
-      />
-      <LabeledSlider
-        label="Sweep"
-        value={rig.pan}
-        min={0.05}
-        max={1}
-        step={0.05}
-        format={(v) => `${Math.round(v * 100)}%`}
-        onChange={(v) => setRig({ pan: v })}
-      />
-      <p className="text-muted-foreground text-[9px]">
-        Azimuth start/end bracket the camera orbit; sweep controls how much plays over the clip.
-      </p>
-    </Section>
   )
 }
 

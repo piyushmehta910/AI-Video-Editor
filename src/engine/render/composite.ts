@@ -10,8 +10,6 @@ export interface CompositeMedia {
   video: (clip: Clip, asset: Asset, srcTime: number) => Promise<CanvasImageSource | null>
   /** Return a loaded image for an image asset. */
   image: (asset: Asset) => Promise<CanvasImageSource | null>
-  /** Render one frame of a 3D model asset's camera animation at the output size. */
-  model?: (clip: Clip, asset: Asset, time: number, size: { width: number; height: number }) => Promise<CanvasImageSource | null>
   /** Fallback when a video is not ready/decodable. */
   thumbnail?: (asset: Asset) => Promise<CanvasImageSource | null>
   /** Compute the auto-caption layer for this frame, or null when nothing to draw. */
@@ -455,16 +453,6 @@ export async function compositeFrame(
         }
       } else {
         drawImagePlaceholder(ctx, w, h, asset.name ?? 'Image')
-      }
-    } else if (asset.type === 'model') {
-      if (media.model) {
-        const source = await media.model(clip, asset, time, { width: w, height: h })
-        if (source) {
-          const { w: mw, h: mh } = sourceSize(source)
-          if (mw > 0 && mh > 0) {
-            ctx.drawImage(source, -w / 2 + anchorX * w, -h / 2 + anchorY * h, w, h)
-          }
-        }
       }
     }
     ctx.restore()

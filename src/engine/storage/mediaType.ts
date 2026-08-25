@@ -1,9 +1,8 @@
-export type MediaType = 'video' | 'audio' | 'image' | 'model'
+export type MediaType = 'video' | 'audio' | 'image'
 
 const VIDEO_EXT = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'mpg', 'mpeg', 'ts', 'ogv', 'ogm', '3gp', '3g2'])
 const AUDIO_EXT = new Set(['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'weba', 'wma', 'aiff', 'aif', 'amr'])
 const IMAGE_EXT = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'svg', 'ico', 'tif', 'tiff', 'jfif'])
-const MODEL_EXT = new Set(['glb', 'gltf'])
 
 /**
  * Detect the media type of a file from its MIME type first, then falling back
@@ -14,14 +13,12 @@ export const MAX_FILE_SIZES: Record<MediaType, number> = {
   video: 2 * 1024 * 1024 * 1024, // 2GB
   audio: 500 * 1024 * 1024, // 500MB
   image: 100 * 1024 * 1024, // 100MB
-  model: 500 * 1024 * 1024, // 500MB
 }
 
 export const ALLOWED_MIME_TYPES: Record<MediaType, string[]> = {
   video: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska', 'video/x-msvideo', 'video/mpeg', 'video/ogg', 'video/3gpp', 'video/3gpp2'],
   audio: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/flac', 'audio/opus', 'audio/webm', 'audio/x-wav', 'audio/x-aiff', 'audio/amr'],
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/bmp', 'image/svg+xml', 'image/tiff', 'image/x-icon'],
-  model: ['model/gltf-binary', 'model/gltf+json', 'application/gltf+json'],
 }
 
 export interface FileValidationResult {
@@ -61,7 +58,6 @@ export function validateFile(file: File): FileValidationResult {
     video: VIDEO_EXT,
     audio: AUDIO_EXT,
     image: IMAGE_EXT,
-    model: MODEL_EXT,
   }
   if (!extSets[type].has(ext)) {
     return { valid: false, type, error: `File extension .${ext} not allowed for ${type}` }
@@ -75,16 +71,11 @@ export function detectMediaType(file: { name: string; type: string }): MediaType
   if (mime.startsWith('video/')) return 'video'
   if (mime.startsWith('audio/')) return 'audio'
   if (mime.startsWith('image/')) return 'image'
-  if (mime === 'model/gltf-binary' || mime === 'model/gltf+json' || mime === 'application/gltf+json' || mime === 'application/json') {
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-    if (MODEL_EXT.has(ext)) return 'model'
-  }
   if (mime === 'application/octet-stream' || mime === '' || mime === 'application/x-msdownload') {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (VIDEO_EXT.has(ext)) return 'video'
     if (AUDIO_EXT.has(ext)) return 'audio'
     if (IMAGE_EXT.has(ext)) return 'image'
-    if (MODEL_EXT.has(ext)) return 'model'
   }
   return null
 }

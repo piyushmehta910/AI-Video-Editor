@@ -11,7 +11,6 @@ import {
   Film,
   Music2,
   Image as ImageIcon,
-  Box,
 } from 'lucide-react'
 import type { Asset } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
@@ -144,7 +143,6 @@ export function MediaSourcePreview({
           {asset.type === 'video' && <Film className="size-3 text-violet-500 shrink-0" />}
           {asset.type === 'audio' && <Music2 className="size-3 text-amber-500 shrink-0" />}
           {asset.type === 'image' && <ImageIcon className="size-3 text-emerald-500 shrink-0" />}
-          {asset.type === 'model' && <Box className="size-3 text-cyan-500 shrink-0" />}
           <span className="truncate font-semibold text-foreground text-[10px]" title={asset.name}>
             {asset.name}
           </span>
@@ -235,14 +233,6 @@ export function MediaSourcePreview({
 
             {asset.type === 'image' && (
               <img src={url} alt={asset.name} className="size-full object-contain" />
-            )}
-
-            {asset.type === 'model' && (
-              <div className="flex flex-col items-center justify-center gap-1.5 p-4 text-center">
-                <Box className="size-8 text-cyan-400 animate-bounce" />
-                <span className="text-xs font-semibold text-foreground">3D Model Asset</span>
-                <span className="text-[10px] text-muted-foreground">Ready for 3D Studio</span>
-              </div>
             )}
           </>
         ) : null}

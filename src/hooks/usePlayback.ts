@@ -6,7 +6,6 @@ import { makeCaptionsProvider } from '@/engine/captions/render'
 import { assetTimeAt, topmostVideoClip } from '@/engine/captions/captions'
 import { wrapSourceTime } from '@/engine/media/sourceTime'
 import type { Asset, Clip, Project, Track } from '@/engine/types'
-import { defaultCameraRig } from '@/engine/types'
 import { isExportActive } from '@/engine/export/exportSession'
 
 interface ElementRef {
@@ -244,18 +243,6 @@ React.useEffect(() => {
         },
         image: (asset) => loadImage(asset),
         thumbnail: (asset) => loadThumbnail(asset),
-        model: async (clip, asset, time, size) => {
-          const { renderModelFrame } = await import('@/engine/three/modelRenderer')
-          return renderModelFrame({
-            asset,
-            rig: clip.modelRig ?? defaultCameraRig(),
-            time,
-            clipStart: clip.startTime,
-            clipDuration: clip.duration,
-            width: size.width,
-            height: size.height,
-          })
-        },
         captions: makeCaptionsProvider(project),
       })
 
