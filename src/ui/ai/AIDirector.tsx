@@ -1327,163 +1327,25 @@ export function AIDirector({
             {/* Header Controls */}
             <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
               {/* AI Model & Provider Selector */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowModelMenu((s) => !s)}
-                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
-                    activeProviderKey === 'nvidia-nim'
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                      : activeProviderKey === 'opencode-zen'
-                        ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
-                        : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
-                  }`}
-                  title="Select AI Director Model & Provider"
-                >
-                  <Cpu className="size-3 shrink-0" />
-                  <span className="truncate max-w-[110px]">
-                    {activeProviderKey === 'nvidia-nim' ? 'NIM' : activeProviderKey === 'opencode-zen' ? 'Zen' : 'Router'}:{' '}
-                    {activeModel.split('/').pop()?.replace('-instruct', '')}
-                  </span>
-                </button>
-                {showModelMenu && (
-                  <div ref={modelMenuRef} className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-white/25 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2">
-                    <div className="flex items-center justify-between pb-1 border-b border-border/50">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Director Engine</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setOnlyFreeModels(!onlyFreeModels)}
-                          className={cn(
-                            'rounded px-1.5 py-0.5 text-[9px] font-bold transition border',
-                            onlyFreeModels
-                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground',
-                          )}
-                          title="Filter to only free endpoint models"
-                        >
-                          {onlyFreeModels ? 'Free Only' : 'Show Free'}
-                        </button>
-                        <Link to="/settings" className="text-[9px] text-violet-500 hover:underline font-semibold" onClick={() => setShowModelMenu(false)}>
-                          Keys
-                        </Link>
-                      </div>
-                    </div>
-
-                    {/* Provider switcher (3 tabs) with Key Status Indicator */}
-                    <div className="grid grid-cols-3 gap-0.5 bg-muted/40 p-0.5 rounded-lg border">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectDirectorModel('nvidia-nim', apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')}
-                        className={cn(
-                          'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
-                          activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-                        )}
-                        title={keyStatus.nvidiaNim ? 'NVIDIA NIM: API key configured' : 'NVIDIA NIM: No key added yet'}
-                      >
-                        <span className={cn('size-1.5 rounded-full shrink-0', keyStatus.nvidiaNim ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-                        <Zap className="size-2.5 shrink-0" />
-                        <span>NIM</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectDirectorModel('openrouter', apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free')}
-                        className={cn(
-                          'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
-                          activeProviderKey === 'openrouter' ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-                        )}
-                        title={keyStatus.openrouter ? 'OpenRouter: API key configured' : 'OpenRouter: No key added yet'}
-                      >
-                        <span className={cn('size-1.5 rounded-full shrink-0', keyStatus.openrouter ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-                        <Globe className="size-2.5 shrink-0" />
-                        <span>Router</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectDirectorModel('opencode-zen', apiConfig.opencodeZen.model || 'deepseek-v4-flash-free')}
-                        className={cn(
-                          'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
-                          activeProviderKey === 'opencode-zen' ? 'bg-card text-sky-600 dark:text-sky-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
-                        )}
-                        title={keyStatus.opencodeZen ? 'OpenCode Zen: API key configured' : 'OpenCode Zen: No key added yet'}
-                      >
-                        <span className={cn('size-1.5 rounded-full shrink-0', keyStatus.opencodeZen ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-                        <Code className="size-2.5 shrink-0" />
-                        <span>Zen</span>
-                      </button>
-                    </div>
-
-                    {/* Models list */}
-                    <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
-                      {(() => {
-                        const rawList: ModelOption[] =
-                          activeProviderKey === 'nvidia-nim'
-                            ? DIRECTOR_NVIDIA_MODELS
-                            : activeProviderKey === 'opencode-zen'
-                              ? DIRECTOR_ZEN_MODELS
-                              : DIRECTOR_OPENROUTER_MODELS
-
-                        const list = onlyFreeModels ? rawList.filter((m) => m.isFree) : rawList
-                        const currentModelId =
-                          activeProviderKey === 'nvidia-nim'
-                            ? apiConfig.nvidiaNim.model
-                            : activeProviderKey === 'opencode-zen'
-                              ? apiConfig.opencodeZen.model
-                              : apiConfig.openRouter.model
-
-                        if (list.length === 0) {
-                          return (
-                            <p className="text-[11px] text-muted-foreground text-center py-3">No free models in this category.</p>
-                          )
-                        }
-
-                        return list.map((m) => {
-                          const isSelected = currentModelId === m.id
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => handleSelectDirectorModel(activeProviderKey, m.id)}
-                              className={cn(
-                                'w-full flex items-start justify-between gap-2 rounded-lg p-2 text-xs text-left transition border',
-                                isSelected
-                                  ? 'bg-violet-500/15 border-violet-500/30 text-violet-600 dark:text-violet-300 font-bold'
-                                  : 'border-transparent bg-muted/20 hover:bg-muted/60 text-muted-foreground hover:text-foreground',
-                              )}
-                            >
-                              <div className="min-w-0 flex-1 space-y-0.5">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="truncate text-[11px] font-semibold text-foreground">{m.name}</span>
-                                  {m.isFree ? (
-                                    <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-1 py-0.2 text-[8px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                      FREE
-                                    </span>
-                                  ) : (
-                                    <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1 py-0.2 text-[8px] font-mono font-semibold text-amber-600 dark:text-amber-400">
-                                      PRO
-                                    </span>
-                                  )}
-                                  {m.tag && (
-                                    <span className="rounded bg-muted px-1 py-0.2 text-[8px] text-muted-foreground">
-                                      {m.tag}
-                                    </span>
-                                  )}
-                                </div>
-                                {m.description && (
-                                  <p className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
-                                    {m.description}
-                                  </p>
-                                )}
-                              </div>
-                              {isSelected && <Check className="size-3.5 text-violet-500 shrink-0 mt-0.5" />}
-                            </button>
-                          )
-                        })
-                      })()}
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* AI Model & Provider Selector Button */}
+              <button
+                type="button"
+                onClick={() => setShowModelMenu((s) => !s)}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
+                  activeProviderKey === 'nvidia-nim'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                    : activeProviderKey === 'opencode-zen'
+                      ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
+                      : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
+                }`}
+                title="Select AI Director Model & Provider"
+              >
+                <Cpu className="size-3 shrink-0" />
+                <span className="truncate max-w-[110px]">
+                  {activeProviderKey === 'nvidia-nim' ? 'NIM' : activeProviderKey === 'opencode-zen' ? 'Zen' : 'Router'}:{' '}
+                  {activeModel.split('/').pop()?.replace('-instruct', '')}
+                </span>
+              </button>
 
               {/* Autopilot / Review mode toggle */}
               <button
@@ -1584,6 +1446,165 @@ export function AIDirector({
               </button>
             </div>
           </div>
+
+          {/* AI Model & Provider Selector Popover Dropdown */}
+          {showModelMenu && (
+            <div
+              ref={modelMenuRef}
+              className="absolute inset-x-3 top-12 z-50 rounded-2xl border border-border/90 bg-background/98 dark:bg-slate-950/98 p-3 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2.5 max-h-[calc(100%-64px)] flex flex-col"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {/* Header with Title, Free toggle, Keys link, and Close button */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-border/60 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Cpu className="size-3.5 text-violet-500" />
+                  <span className="text-xs font-bold text-foreground">AI Director Model & Engine</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setOnlyFreeModels(!onlyFreeModels)}
+                    className={cn(
+                      'rounded-md px-2 py-0.5 text-[10px] font-bold transition border',
+                      onlyFreeModels
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground',
+                    )}
+                    title="Filter to only free endpoint models"
+                  >
+                    {onlyFreeModels ? 'Free Only' : 'Show Free'}
+                  </button>
+                  <Link
+                    to="/settings"
+                    className="rounded-md px-2 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-bold border border-violet-500/30 transition"
+                    onClick={() => setShowModelMenu(false)}
+                  >
+                    API Keys
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowModelMenu(false)}
+                    className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                    aria-label="Close model menu"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Provider switcher (3 tabs) with Key Status Indicator */}
+              <div className="grid grid-cols-3 gap-1 bg-muted/40 p-1 rounded-xl border border-border/60 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSelectDirectorModel('nvidia-nim', apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition truncate',
+                    activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs border border-border/40' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={keyStatus.nvidiaNim ? 'NVIDIA NIM: API key configured' : 'NVIDIA NIM: No key added yet'}
+                >
+                  <span className={cn('size-2 rounded-full shrink-0', keyStatus.nvidiaNim ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-muted-foreground/40')} />
+                  <Zap className="size-3 shrink-0" />
+                  <span>NIM</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectDirectorModel('openrouter', apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free')}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition truncate',
+                    activeProviderKey === 'openrouter' ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs border border-border/40' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={keyStatus.openrouter ? 'OpenRouter: API key configured' : 'OpenRouter: No key added yet'}
+                >
+                  <span className={cn('size-2 rounded-full shrink-0', keyStatus.openrouter ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-muted-foreground/40')} />
+                  <Globe className="size-3 shrink-0" />
+                  <span>Router</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectDirectorModel('opencode-zen', apiConfig.opencodeZen.model || 'deepseek-v4-flash-free')}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition truncate',
+                    activeProviderKey === 'opencode-zen' ? 'bg-card text-sky-600 dark:text-sky-400 shadow-xs border border-border/40' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={keyStatus.opencodeZen ? 'OpenCode Zen: API key configured' : 'OpenCode Zen: No key added yet'}
+                >
+                  <span className={cn('size-2 rounded-full shrink-0', keyStatus.opencodeZen ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-muted-foreground/40')} />
+                  <Code className="size-3 shrink-0" />
+                  <span>Zen</span>
+                </button>
+              </div>
+
+              {/* Models list */}
+              <div className="space-y-1.5 overflow-y-auto pr-0.5 flex-1 max-h-72">
+                {(() => {
+                  const rawList: ModelOption[] =
+                    activeProviderKey === 'nvidia-nim'
+                      ? DIRECTOR_NVIDIA_MODELS
+                      : activeProviderKey === 'opencode-zen'
+                        ? DIRECTOR_ZEN_MODELS
+                        : DIRECTOR_OPENROUTER_MODELS
+
+                  const list = onlyFreeModels ? rawList.filter((m) => m.isFree) : rawList
+                  const currentModelId =
+                    activeProviderKey === 'nvidia-nim'
+                      ? apiConfig.nvidiaNim.model
+                      : activeProviderKey === 'opencode-zen'
+                        ? apiConfig.opencodeZen.model
+                        : apiConfig.openRouter.model
+
+                  if (list.length === 0) {
+                    return (
+                      <p className="text-xs text-muted-foreground text-center py-6">No free models found in this category.</p>
+                    )
+                  }
+
+                  return list.map((m) => {
+                    const isSelected = currentModelId === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleSelectDirectorModel(activeProviderKey, m.id)}
+                        className={cn(
+                          'w-full flex items-start justify-between gap-2.5 rounded-xl p-2.5 text-xs text-left transition border',
+                          isSelected
+                            ? 'bg-violet-500/15 border-violet-500/40 text-violet-600 dark:text-violet-300 font-bold ring-1 ring-violet-500/30'
+                            : 'border-border/50 bg-muted/20 hover:bg-muted/60 text-muted-foreground hover:text-foreground hover:border-border',
+                        )}
+                      >
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="truncate text-xs font-bold text-foreground">{m.name}</span>
+                            {m.isFree ? (
+                              <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 text-[9px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                FREE
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 text-[9px] font-mono font-semibold text-amber-600 dark:text-amber-400">
+                                PRO
+                              </span>
+                            )}
+                            {m.tag && (
+                              <span className="rounded-full bg-muted border border-border px-1.5 py-0.2 text-[9px] text-muted-foreground">
+                                {m.tag}
+                              </span>
+                            )}
+                          </div>
+                          {m.description && (
+                            <p className="text-[11px] text-muted-foreground leading-tight line-clamp-2">
+                              {m.description}
+                            </p>
+                          )}
+                        </div>
+                        {isSelected && <Check className="size-4 text-violet-500 shrink-0 mt-0.5" />}
+                      </button>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          )}
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !busy && (
