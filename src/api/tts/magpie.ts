@@ -71,7 +71,7 @@ export const magpieTtsProvider: TtsProvider = {
     const speed = options.speed ?? 1.0
 
     const body: Record<string, unknown> = {
-      model: NVIDIA_MAGPIE_MODEL,
+      model: options.model ?? NVIDIA_MAGPIE_MODEL,
       input: options.text,
       voice,
       response_format: format,

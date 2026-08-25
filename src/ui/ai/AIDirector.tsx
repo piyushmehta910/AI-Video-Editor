@@ -1,6 +1,7 @@
 import * as React from 'react'
-import { Check, Clapperboard, GripHorizontal, HelpCircle, ListChecks, Maximize2, MessageSquare, Minimize2, Play, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X, Zap } from 'lucide-react'
+import { Check, Clapperboard, Cpu, GripHorizontal, HelpCircle, ListChecks, Maximize2, MessageSquare, Minimize2, Play, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X, Zap } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
+import { cn } from '@/lib/utils'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import { chatCompletion, getDirectorProvider, getProjectContextSystemPrompt, type ChatMessage } from '@/api/llm/director'
@@ -77,6 +78,22 @@ function suggestFollowups(usedTools: string[]): string[] {
   }
   return [...picks].slice(0, 3)
 }
+
+export const DIRECTOR_NVIDIA_MODELS = [
+  { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (Recommended)' },
+  { id: 'deepseek-ai/deepseek-r1', name: 'DeepSeek R1 (Reasoning)' },
+  { id: 'nvidia/llama-3.1-nemotron-70b-instruct', name: 'Nemotron 70B' },
+  { id: 'mistralai/mixtral-8x22b-instruct-v0.1', name: 'Mixtral 8x22B' },
+  { id: 'qwen/qwen2.5-72b-instruct', name: 'Qwen 2.5 72B' },
+]
+
+export const DIRECTOR_OPENROUTER_MODELS = [
+  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+  { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1' },
+  { id: 'openai/gpt-4o', name: 'GPT-4o' },
+  { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
+  { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
+]
 
 const MAX_PROPOSALS = 20
 
@@ -563,6 +580,31 @@ export function AIDirector({
   const [confirmAction, setConfirmAction] = React.useState<{ toolName: string; args: Record<string, unknown>; onConfirm: () => void } | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const pendingAnswerRef = React.useRef<((answer: string) => void) | null>(null)
+
+  const apiConfig = useApiConfigStore((s) => s.config)
+  const updateApiConfig = useApiConfigStore((s) => s.update)
+  const [showModelMenu, setShowModelMenu] = React.useState(false)
+
+  const activeProviderKey = apiConfig.preferences.preferredAiProvider || 'nvidia-nim'
+  const isNvidia = activeProviderKey === 'nvidia-nim' || activeProviderKey === 'nvidiaNim'
+  const activeModel = isNvidia
+    ? (apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')
+    : (apiConfig.openRouter.model || 'anthropic/claude-3.5-sonnet')
+
+  const handleSelectDirectorModel = (providerKey: 'nvidia-nim' | 'openrouter', modelId: string) => {
+    updateApiConfig((draft) => {
+      draft.preferences.preferredAiProvider = providerKey
+      if (providerKey === 'nvidia-nim') {
+        draft.nvidiaNim.model = modelId
+        draft.nvidiaNim.enabled = true
+      } else {
+        draft.openRouter.model = modelId
+        draft.openRouter.enabled = true
+      }
+      return draft
+    })
+    setShowModelMenu(false)
+  }
 
   const hydrateTimeline = useTimelineStore((s) => s.hydrate)
   const hydrateConfig = useApiConfigStore((s) => s.hydrate)
@@ -1151,6 +1193,82 @@ export function AIDirector({
 
             {/* Header Controls */}
             <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+              {/* AI Model & Provider Selector */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowModelMenu((s) => !s)}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold transition-all border ${
+                    isNvidia
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                      : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
+                  }`}
+                  title="Select AI Director Model & Provider (NVIDIA NIM or OpenRouter)"
+                >
+                  <Cpu className="size-2.5" />
+                  <span className="truncate max-w-[85px]">
+                    {isNvidia ? 'NVIDIA' : 'OpenRouter'}: {activeModel.split('/').pop()?.replace('-instruct', '')}
+                  </span>
+                </button>
+                {showModelMenu && (
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-white/25 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2">
+                    <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Director Engine</span>
+                      <Link to="/settings" className="text-[9px] text-violet-500 hover:underline" onClick={() => setShowModelMenu(false)}>
+                        API Keys
+                      </Link>
+                    </div>
+
+                    {/* Provider switcher */}
+                    <div className="grid grid-cols-2 gap-1 bg-muted/40 p-0.5 rounded-lg border">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDirectorModel('nvidia-nim', apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')}
+                        className={cn(
+                          'flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-bold transition',
+                          isNvidia ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <span>⚡ NVIDIA NIM</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDirectorModel('openrouter', apiConfig.openRouter.model || 'anthropic/claude-3.5-sonnet')}
+                        className={cn(
+                          'flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-bold transition',
+                          !isNvidia ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <span>🌐 OpenRouter</span>
+                      </button>
+                    </div>
+
+                    {/* Models list */}
+                    <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                      {(isNvidia ? DIRECTOR_NVIDIA_MODELS : DIRECTOR_OPENROUTER_MODELS).map((m) => {
+                        const isSelected = (isNvidia ? apiConfig.nvidiaNim.model : apiConfig.openRouter.model) === m.id
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleSelectDirectorModel(isNvidia ? 'nvidia-nim' : 'openrouter', m.id)}
+                            className={cn(
+                              'w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition',
+                              isSelected
+                                ? 'bg-violet-500/15 text-violet-600 dark:text-violet-300 font-bold'
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            <span className="truncate">{m.name}</span>
+                            {isSelected && <Check className="size-3 text-violet-500 shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Autopilot / Review mode toggle */}
               <button
                 type="button"
