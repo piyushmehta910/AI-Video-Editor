@@ -178,7 +178,13 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
           <Button
             variant="ghost"
             size="icon"
-            className="size-10 text-white hover:bg-white/10 hover:text-white"
+            className={[
+              'relative size-11 rounded-full transition-all duration-150',
+              'ring-2 ring-white/20 hover:ring-white/40',
+              playback.isPlaying
+                ? 'bg-violet-600/80 hover:bg-violet-600 text-white shadow-lg shadow-violet-900/60'
+                : 'bg-white/10 hover:bg-white/20 text-white shadow-md',
+            ].join(' ')}
             onClick={playback.toggle}
             title="Play / pause (Space)"
           >

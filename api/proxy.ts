@@ -54,7 +54,7 @@ async function forwardProxyRequest(payload: ProxyPayload) {
       status: 403,
       statusText: 'Forbidden',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ error: 'Host not allowed by proxy' }),
+      body: new TextEncoder().encode(JSON.stringify({ error: 'Host not allowed by proxy' })),
     }
   }
   try {
@@ -67,10 +67,12 @@ async function forwardProxyRequest(payload: ProxyPayload) {
       },
       payload.timeoutMs,
     )
-    const body = await res.text()
+    const arrayBuffer = await res.arrayBuffer()
+    const body = new Uint8Array(arrayBuffer)
     const headers: Record<string, string> = {}
     res.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'content-type') headers[key] = value
+      const lower = key.toLowerCase()
+      if (lower === 'content-type' || lower === 'content-length') headers[key] = value
     })
     return { status: res.status, statusText: res.statusText, headers, body }
   } catch (err) {
@@ -78,7 +80,7 @@ async function forwardProxyRequest(payload: ProxyPayload) {
       status: 502,
       statusText: 'Bad Gateway',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+      body: new TextEncoder().encode(JSON.stringify({ error: err instanceof Error ? err.message : String(err) })),
     }
   }
 }

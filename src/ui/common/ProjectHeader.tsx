@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Download, Home, Pencil, Settings, FilePlus, AlertTriangle } from 'lucide-react'
+import { Download, Home, Pencil, Settings, FilePlus } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
@@ -100,11 +100,11 @@ export function ProjectHeader() {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
+        className="h-7 gap-1.5 px-2 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary border border-primary/20 hover:border-primary/40 rounded-md shrink-0 transition-colors"
         onClick={() => setResetConfirmOpen(true)}
-        title="Reset project to clean canvas"
+        title="Start a new empty project"
       >
-        <FilePlus className="size-3.5 text-primary" />
+        <FilePlus className="size-3.5" />
         <span className="hidden lg:inline">New Project</span>
       </Button>
 
@@ -203,24 +203,23 @@ export function ProjectHeader() {
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
 
-      {/* Reset / New Project Confirmation Modal */}
       {resetConfirmOpen && (
         <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-start gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive shrink-0 mt-0.5">
-                <AlertTriangle className="size-5" />
+              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                <FilePlus className="size-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-foreground">Reset to New Project?</h3>
+                <h3 className="text-sm font-bold text-foreground">Start a New Project?</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  This will clear all video tracks, clips, overlays, and edits from the timeline and start a clean, empty canvas.
+                  This will clear all tracks, clips, and edits from your current timeline. Your media files are kept safe in the library.
                 </p>
               </div>
             </div>
 
             <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs text-muted-foreground">
-              Current project name: <span className="font-semibold text-foreground font-mono">{project.name}</span>
+              Current project: <span className="font-semibold text-foreground font-mono">{project.name}</span>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
@@ -232,8 +231,9 @@ export function ProjectHeader() {
                 Cancel
               </Button>
               <Button
-                variant="destructive"
+                variant="default"
                 size="sm"
+                className="bg-primary hover:bg-primary/90"
                 onClick={() => {
                   resetProject()
                   setNameDraft('Untitled Project')
@@ -241,7 +241,7 @@ export function ProjectHeader() {
                 }}
               >
                 <FilePlus className="size-3.5 mr-1.5" />
-                Reset to New Project
+                New Project
               </Button>
             </div>
           </div>

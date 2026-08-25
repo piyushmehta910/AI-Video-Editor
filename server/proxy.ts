@@ -20,7 +20,7 @@ export interface ProxyResult {
   status: number
   statusText: string
   headers: Record<string, string>
-  body: string
+  body: Uint8Array
 }
 
 /**
@@ -68,7 +68,7 @@ export async function forwardProxyRequest(payload: ProxyPayload): Promise<ProxyR
       status: 403,
       statusText: 'Forbidden',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ error: 'Host not allowed by proxy' }),
+      body: new TextEncoder().encode(JSON.stringify({ error: 'Host not allowed by proxy' })),
     }
   }
   try {
@@ -81,11 +81,12 @@ export async function forwardProxyRequest(payload: ProxyPayload): Promise<ProxyR
       },
       payload.timeoutMs,
     )
-    const body = await res.text()
+    const arrayBuffer = await res.arrayBuffer()
+    const body = new Uint8Array(arrayBuffer)
     const headers: Record<string, string> = {}
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()
-      if (lower === 'content-type') {
+      if (lower === 'content-type' || lower === 'content-length') {
         headers[key] = value
       }
     })
@@ -95,7 +96,7 @@ export async function forwardProxyRequest(payload: ProxyPayload): Promise<ProxyR
       status: 502,
       statusText: 'Bad Gateway',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+      body: new TextEncoder().encode(JSON.stringify({ error: err instanceof Error ? err.message : String(err) })),
     }
   }
 }
