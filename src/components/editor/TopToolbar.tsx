@@ -1,10 +1,11 @@
 import * as React from 'react'
-import { Check, Clapperboard, Download, FilePlus, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
+import { Check, Clapperboard, Download, FilePlus, FolderOpen, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { ExportDialog } from '@/ui/export/ExportDialog'
 import { NewProjectDialog } from '@/components/editor/NewProjectDialog'
+import { OpenProjectDialog } from '@/components/editor/OpenProjectDialog'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
@@ -78,6 +79,7 @@ export function TopToolbar() {
   const renameProject = useTimelineStore((s) => s.renameProject)
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
+  const dirty = useTimelineStore((s) => s.dirty)
 
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
   const leftOpen = useEditorStore((s) => s.leftOpen)
@@ -93,6 +95,7 @@ export function TopToolbar() {
   const [nameDraft, setNameDraft] = React.useState(project.name)
   const [exportOpen, setExportOpen] = React.useState(false)
   const [newProjectOpen, setNewProjectOpen] = React.useState(false)
+  const [openProjectOpen, setOpenProjectOpen] = React.useState(false)
   const [justSaved, setJustSaved] = React.useState(false)
 
   const commitName = () => {
@@ -156,10 +159,26 @@ export function TopToolbar() {
             className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-violet-500/40 rounded-lg"
           >
             <FilePlus className="size-3.5 text-violet-500" />
-            <span className="hidden md:inline">New</span>
+            <span className="hidden sm:inline">New</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent className="text-[11px]">Create New Project</TooltipContent>
+        <TooltipContent className="text-[11px]">Create New Project (All Options)</TooltipContent>
+      </Tooltip>
+
+      {/* Open Project Button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setOpenProjectOpen(true)}
+            className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-violet-500/40 rounded-lg"
+          >
+            <FolderOpen className="size-3.5 text-violet-500" />
+            <span className="hidden sm:inline">Open</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="text-[11px]">Open a Saved Project</TooltipContent>
       </Tooltip>
 
       {/* Project name (editable) */}
@@ -194,7 +213,7 @@ export function TopToolbar() {
       )}
 
       {/* Project settings (aspect / fps / resolution) — compact, desktop only */}
-      <div className="hidden items-center gap-1 xl:flex">
+      <div className="hidden items-center gap-1 lg:flex">
         <Select
           value={project.aspectRatio}
           onValueChange={(v) => {
@@ -276,7 +295,11 @@ export function TopToolbar() {
             <Button
               variant="ghost"
               size="sm"
-              className={cn('h-8 gap-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all', justSaved && 'text-emerald-500 bg-emerald-500/10')}
+              className={cn(
+                'h-8 gap-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all',
+                justSaved && 'text-emerald-500 bg-emerald-500/10',
+                dirty && !saving && !justSaved && 'text-amber-500',
+              )}
               onClick={() => void handleSave()}
               disabled={saving}
             >
@@ -285,9 +308,12 @@ export function TopToolbar() {
               ) : justSaved ? (
                 <Check className="size-3.5 text-emerald-500" />
               ) : (
-                <Save className="size-3.5 text-muted-foreground" />
+                <Save className={cn('size-3.5', dirty && 'text-amber-500')} />
               )}
-              <span className="hidden sm:inline">{saving ? 'Saving…' : justSaved ? 'Saved' : 'Save'}</span>
+              <span className="hidden sm:inline">{saving ? 'Saving…' : justSaved ? 'Saved' : dirty ? 'Unsaved' : 'Save'}</span>
+              {dirty && !saving && !justSaved && (
+                <span aria-hidden className="ml-0.5 size-1.5 rounded-full bg-amber-500 animate-pulse" />
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent className="text-[11px] font-medium">Save Project (Ctrl+S)</TooltipContent>
@@ -330,6 +356,9 @@ export function TopToolbar() {
 
       {/* New Project Setup Modal */}
       <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
+
+      {/* Open Project Picker */}
+      <OpenProjectDialog open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} />
     </div>
   )
 }

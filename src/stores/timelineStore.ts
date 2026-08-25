@@ -45,6 +45,8 @@ export interface TimelineState {
   assets: Asset[]
   hydrated: boolean
   saving: boolean
+  /** True from the first unsaved mutation until the next autosave completes. */
+  dirty: boolean
   /** True when this session generated the first-run Welcome Project (drives the tour). */
   welcomeLoaded: boolean
   selection: { clipIds: string[]; trackId: string | null }
@@ -61,6 +63,10 @@ export interface TimelineState {
 
   hydrate: () => Promise<void>
   save: () => Promise<void>
+  /** List all saved projects (newest first) for the Open Project picker. */
+  listProjects: () => Promise<Project[]>
+  /** Swap the active project to a previously saved one (by id). Re-seeds history. Returns false if not found. */
+  loadProject: (id: string) => Promise<boolean>
 
   importFiles: (files: File[]) => Promise<{ imported: Asset[]; errors: string[] }>
   deleteAsset: (assetId: string) => Promise<void>
@@ -174,9 +180,28 @@ export const useTimelineStore = create<TimelineState>()(
 
   const scheduleSave = () => {
     if (saveTimer) clearTimeout(saveTimer)
+    set({ dirty: true })
     saveTimer = setTimeout(() => {
       void get().save()
     }, 2000)
+  }
+
+  /** Persist immediately, bypassing the debounce (used on tab close/hide and Ctrl+S). */
+  const flushSave = () => {
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    if (get().dirty) void get().save()
+  }
+
+  // Data-safety: flush pending edits the moment the tab hides or closes so a
+  // change made within the 2s debounce window is never lost.
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    window.addEventListener('beforeunload', flushSave)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushSave()
+    })
   }
 
   // --- History engine -------------------------------------------------------
@@ -190,6 +215,9 @@ export const useTimelineStore = create<TimelineState>()(
   let pendingPast: Project | null = null
   let pendingMeta: HistoryMeta | null = null
   let pendingUi: UiCheckpoint | null = null
+  // Set when hydrate could not read the stored project; autosave must stand down
+  // so a failed load never clobbers good data with a blank project.
+  let hydrateFailed = false
 
   const captureUi = (): UiCheckpoint => {
     const s = get()
@@ -299,6 +327,7 @@ export const useTimelineStore = create<TimelineState>()(
     assets: [],
     hydrated: false,
     saving: false,
+    dirty: false,
     welcomeLoaded: false,
     selection: { clipIds: [], trackId: null },
     playhead: 0,
@@ -387,19 +416,73 @@ export const useTimelineStore = create<TimelineState>()(
         })
       } catch (err) {
         console.error('Hydrate failed', err)
+        // Block autosave: writing now would overwrite the stored project with a blank one.
+        hydrateFailed = true
         set({ hydrated: true })
       }
     },
 
     save: async () => {
       const { project } = get()
+      // After a failed load, only refuse to write when the project is still an
+      // untouched blank — that would overwrite good stored data with nothing.
+      if (hydrateFailed && project.tracks.every((t) => t.clips.length === 0)) {
+        console.warn('Skipped autosave because the last load failed — refusing to overwrite stored data')
+        return
+      }
       set({ saving: true })
       try {
         await putRecord('projects', { ...cloneProject(project), modifiedAt: Date.now() })
+        set({ dirty: false })
       } finally {
         set({ saving: false })
       }
     },
+    listProjects: async () => {
+      const projects = await getAllRecords<Project>('projects')
+      return projects.sort((a, b) => b.modifiedAt - a.modifiedAt)
+    },
+
+    loadProject: async (id) => {
+      const stored = (await getAllRecords<Project>('projects')).find((p) => p.id === id)
+      if (!stored) return false
+      // Persist any pending edits on the outgoing project first so switching
+      // never loses work.
+      flushSave()
+      const assets = (await getAllRecords<Asset>('assets')).sort((a, b) => b.importedAt - a.importedAt)
+      const transcripts: Record<string, StoredTranscript> = {}
+      const scenes: Record<string, StoredScenes> = {}
+      const ocr: Record<string, StoredOcr> = {}
+      await Promise.all(
+        assets.map(async (asset) => {
+          const [t, s, o] = await Promise.all([
+            getStoredTranscript(asset.id),
+            getStoredScenes(asset.id),
+            getStoredOcr(asset.id),
+          ])
+          if (t) transcripts[asset.id] = t
+          if (s) scenes[asset.id] = s
+          if (o) ocr[asset.id] = o
+        }),
+      )
+      useTimelineStore.temporal.getState().clear()
+      useHistoryStore.getState().clearLog()
+      pendingPast = null
+      pendingMeta = null
+      pendingUi = null
+      set({
+        project: migrateProjectTracks(stored),
+        assets,
+        transcripts,
+        scenes,
+        ocr,
+        selection: { clipIds: [], trackId: null },
+        playhead: 0,
+        dirty: false,
+      })
+      return true
+    },
+
 
     importFiles: async (files) => {
       const imported: Asset[] = []

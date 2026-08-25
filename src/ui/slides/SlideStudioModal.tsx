@@ -1438,7 +1438,7 @@ export function SlideStudioModal({
                     <select
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-[#0f0f1a] px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
                     >
                       {ALL_LLM_MODELS.map((m) => (
                         <option key={m.id} value={m.id}>

@@ -280,7 +280,7 @@ function NumInline({
         const v = Number(e.target.value)
         if (Number.isFinite(v)) onChange(Math.max(min, Math.min(max, v)))
       }}
-      className="bg-[#0f0f1a] border-border/80 focus:border-[#60a5fa] h-6 w-full min-w-0 rounded border px-1 font-mono text-[10px] outline-none"
+      className="bg-background border-border/80 focus:border-[#60a5fa] h-6 w-full min-w-0 rounded border px-1 font-mono text-[10px] outline-none"
     />
   )
 }

@@ -1,3 +1,5 @@
+import type { VideoBrief } from '@/ai/videoBrief'
+
 export type SubagentRole =
   | 'script_architect'
   | 'audio_producer'
@@ -39,6 +41,17 @@ export interface AutonomousVideoPlan {
   tasks: SubagentTask[]
   createdAt: number
   status: 'draft' | 'executing' | 'completed' | 'failed'
+  /** The completed user brief this plan was built from (drives pre-flight). */
+  brief?: VideoBrief
+}
+
+/** Public result consumed by the Director production status UI. */
+export interface GenerationResult {
+  planId: string
+  status: 'completed' | 'failed' | 'cancelled'
+  results: SubagentExecutionResult[]
+  completedTasks: number
+  failedTasks: number
 }
 
 export interface SubagentExecutionResult {

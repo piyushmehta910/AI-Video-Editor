@@ -132,7 +132,7 @@ export function TextSection({ insp }: { insp: InspectorApi }) {
           value={t.text}
           placeholder="Enter text overlay…"
           onChange={(e) => setText({ text: e.target.value })}
-          className="w-full resize-y rounded-lg border border-border bg-[#0f0f1a] px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-500 ring-1 ring-border/40 focus:ring-violet-500/30"
+          className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-500 ring-1 ring-border/40 focus:ring-violet-500/30"
         />
       </div>
 
@@ -214,7 +214,7 @@ export function TextSection({ insp }: { insp: InspectorApi }) {
             loadGoogleFont(font)
             setText({ fontFamily: font })
           }}
-          className="w-full rounded-lg border border-border bg-[#0f0f1a] px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
         >
           <optgroup label="Google Fonts">
             {filteredFonts.map((f) => (
@@ -510,7 +510,7 @@ export function TextSection({ insp }: { insp: InspectorApi }) {
         <select
           value={t.animation ?? 'none'}
           onChange={(v) => setText({ animation: v.target.value as TextAnimation })}
-          className="w-full rounded-lg border border-border bg-[#0f0f1a] px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
         >
           {TEXT_ANIMATIONS.map((a) => (
             <option key={a} value={a}>

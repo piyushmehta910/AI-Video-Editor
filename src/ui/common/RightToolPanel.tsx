@@ -5025,7 +5025,7 @@ function DesignSection() {
   const motionSizeRef = React.useRef<{ w: number; h: number } | null>(null)
   const motionBusyRef = React.useRef(false)
   const motionQueuedRef = React.useRef<{ t: number; needInit: boolean } | null>(null)
-  const motionInitedCodeRef = React.useRef<string | null>(null)
+  const motionInitializedCodeRef = React.useRef<string | null>(null)
 
   const getMotionWorker = React.useCallback((): Worker | null => {
     if (motionWorkerRef.current) return motionWorkerRef.current
@@ -5100,8 +5100,8 @@ function DesignSection() {
         motionQueuedRef.current = { t, needInit }
         return
       }
-      const initForCode = needInit || motionInitedCodeRef.current !== motionCode
-      if (initForCode) motionInitedCodeRef.current = motionCode
+      const initForCode = needInit || motionInitializedCodeRef.current !== motionCode
+      if (initForCode) motionInitializedCodeRef.current = motionCode
       dispatchMotionFrameRef.current(offscreen, w, h, t, initForCode)
     },
     [motionCode, getMotionWorker],

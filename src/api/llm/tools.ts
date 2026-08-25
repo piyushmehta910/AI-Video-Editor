@@ -1,6 +1,7 @@
 import { useTimelineStore } from '@/stores/timelineStore'
 import { aspectToSize } from '@/engine/types'
 import type { Asset, Clip, TextAnimation } from '@/engine/types'
+import { DEFAULT_VIDEO_BRIEF, type VideoAspectRatio, type VideoStyle } from '@/ai/videoBrief'
 import { searchStockImages, downloadStockImage } from '@/api/stock/search'
 import { searchMusic } from '@/api/music/search'
 import { transcribeAsset, getStoredTranscript, type StoredTranscript } from '@/api/llm/understanding'
@@ -2064,23 +2065,30 @@ export async function applyTool(
       try {
         const { subagentOrchestrator } = await import('@/ai/subagents/SubagentOrchestrator')
         const goal = String(args.goal ?? '').trim()
-        const targetDurationSeconds = args.targetDurationSeconds ? Number(args.targetDurationSeconds) : undefined
-        const aspectRatio = args.aspectRatio as any
-        const style = args.style as any
-        const topic = args.topic ? String(args.topic) : undefined
+        const topic = String(args.topic ?? goal).trim() || 'an interesting topic'
+        const duration = Number(args.targetDurationSeconds)
+        const aspect = typeof args.aspectRatio === 'string' ? (args.aspectRatio as VideoAspectRatio) : DEFAULT_VIDEO_BRIEF.aspectRatio
+        const style = typeof args.style === 'string' ? (args.style as VideoStyle) : DEFAULT_VIDEO_BRIEF.style
+
+        // The completed brief is the only plan input — derive it from the tool
+        // arguments instead of re-inferring intent from free-form text.
+        const brief = {
+          ...DEFAULT_VIDEO_BRIEF,
+          topic,
+          durationSeconds: Number.isFinite(duration) && duration >= 5 ? Math.round(duration) : DEFAULT_VIDEO_BRIEF.durationSeconds,
+          aspectRatio: aspect,
+          style,
+        }
 
         const plan = await subagentOrchestrator.formulateAutonomousPlan({
-          goal,
-          targetDurationSeconds,
-          aspectRatio,
-          style,
-          topic,
+          goal: goal || `Create a video about ${topic}`,
+          brief,
         })
         const results = await subagentOrchestrator.executePlan(plan)
         const passedCount = results.filter((r) => r.ok).length
         return {
-          ok: true,
-          message: `Autonomous generation executed successfully! (${passedCount}/${results.length} subagents completed).`,
+          ok: results.some((r) => r.ok),
+          message: `Autonomous generation finished (${passedCount}/${results.length} production tasks completed).`,
         }
       } catch (err) {
         return { ok: false, message: `Autonomous generation failed: ${err instanceof Error ? err.message : String(err)}` }

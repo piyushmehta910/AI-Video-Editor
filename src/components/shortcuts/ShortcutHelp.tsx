@@ -31,7 +31,7 @@ export function ShortcutHelpButton() {
 }
 
 /**
- * Briefly displays the pressed (unrecognised) key combo, e.g. "Ctrl Shift Q",
+ * Briefly displays the pressed (unrecognized) key combo, e.g. "Ctrl Shift Q",
  * so users get feedback about why nothing happened. Pointer-transparent and
  * hidden from assistive tech — it is decorative feedback only.
  */

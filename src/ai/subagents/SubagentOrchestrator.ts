@@ -1,11 +1,14 @@
 import { useTimelineStore } from '@/stores/timelineStore'
 import { applyTool } from '@/api/llm/tools'
 import { aiContextManager } from '@/ai/context/AIContextManager'
-import { contextUnderstandingEngine } from '@/ai/context/ContextUnderstandingEngine'
-import { resourceAllocator } from '@/ai/allocator/ResourceAllocator'
-import { colorDesignEngine } from '@/engine/design/ColorDesignEngine'
+import type { VideoBrief } from '@/ai/videoBrief'
+import { getScript } from '@/stores/scriptStore'
+import { validateBriefProviders } from './providerPreflight'
+import { runSceneSequence, SCENE_SEQUENCE_TOOL } from './scriptToPlan'
 import { SUBAGENT_REGISTRY } from './subagentsRegistry'
 import type { SubagentRole, SubagentTask, AutonomousVideoPlan, SubagentExecutionResult } from './types'
+
+const VISUAL_CLIP_TYPES = new Set(['video', 'image', 'avatar', 'animation', 'slide'])
 
 export type PlanExecutionCallback = (event: {
   planId: string
@@ -28,6 +31,7 @@ export class SubagentOrchestrator {
   private activePlan: AutonomousVideoPlan | null = null
   private isExecuting = false
   private abortController: AbortController | null = null
+  private lastRunCancelled = false
   private subscribers = new Set<PlanExecutionCallback>()
 
   public static getInstance(): SubagentOrchestrator {
@@ -59,133 +63,45 @@ export class SubagentOrchestrator {
     }
   }
 
+  /** True when the most recent executePlan run ended because of abort(). */
+  public wasLastRunCancelled(): boolean {
+    return this.lastRunCancelled
+  }
+
   /**
    * 1. Formulate Autonomous Video Creation Plan
-   * Decomposes user goal into specialized subagent tasks using timeline context,
-   * prompt understanding, and multi-provider resource allocation.
+   * Builds the dependency-ordered production task list from the completed user
+   * brief. The brief is the single source of truth — no re-inference here.
    */
   public async formulateAutonomousPlan(options: {
     goal: string
-    targetDurationSeconds?: number
-    aspectRatio?: '16:9' | '9:16' | '1:1' | '4:5' | '21:9'
-    style?: 'energetic' | 'educational' | 'cinematic' | 'minimalist' | 'tech'
-    topic?: string
+    brief: VideoBrief
   }): Promise<AutonomousVideoPlan> {
-    const context = await aiContextManager.getComprehensiveContext()
-    const userPrefs = await contextUnderstandingEngine.getUserPreferences()
-    const analysis = contextUnderstandingEngine.analyzePrompt(options.goal, userPrefs)
-    const palette = colorDesignEngine.selectPalette(analysis.suggestedColorMood)
-
-    const targetDuration = options.targetDurationSeconds || analysis.estimatedDurationSeconds || (context.duration > 0 ? Math.round(context.duration) : 30)
-    const aspect = options.aspectRatio || analysis.visualStrategy.recommendedAspect || '9:16'
-    const style = options.style || (analysis.desiredTone === 'dramatic' ? 'cinematic' : analysis.desiredTone === 'educational' ? 'educational' : 'energetic')
-    const topic = options.topic || options.goal
-
+    const brief = options.brief
     const planId = crypto.randomUUID()
-    const tasks: SubagentTask[] = []
-
-    // 1. Aspect Ratio Configuration
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'timeline_editor',
-      title: `Set Project Aspect Ratio to ${aspect}`,
-      description: `Configures canvas viewport to ${aspect} (${analysis.videoType} format, ${style} aesthetic, ${palette.name} palette).`,
-      tool: 'set_project_ratio',
-      arguments: { aspect },
-      status: 'pending',
-    })
-
-    // 2. Script Subagent: Generate Structured Narrative
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'script_architect',
-      title: `Draft ${analysis.videoType} Script & Storyboard`,
-      description: `Drafts targeted narrative for ${analysis.targetAudience} audience with hook, 3 key points, and CTA about "${topic}".`,
-      tool: 'generate_script',
-      arguments: {
-        topic,
-        style,
-        targetDuration,
-      },
-      status: 'pending',
-    })
-
-    // 3. Visual Subagent: AI Presentation Slides
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'visual_animator',
-      title: 'Create AI Visual Slide Deck',
-      description: `Compiles modern Marp presentation slides to accompany key topic points.`,
-      tool: 'generate_slides',
-      arguments: {
-        topic,
-        style: style === 'tech' ? 'tech' : style === 'cinematic' ? 'minimal' : 'modern',
-        slideCount: 3,
-      },
-      status: 'pending',
-    })
-
-    const bestStockProvider = resourceAllocator.selectBestProvider('stock_images') || 'unsplash'
-
-    // 4. Asset Subagent: Curate B-Roll & Visual Assets
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'asset_curator',
-      title: 'Discover Visual & Media Assets',
-      description: `Searches and downloads high-quality stock visuals matching topic context via ${bestStockProvider}.`,
-      tool: 'search_stock_image',
-      arguments: {
-        query: topic.split(' ')[0] || 'nature',
-      },
-      status: 'pending',
-    })
-
-    // 5. Audio Subagent: Curate Background Music Track
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'audio_producer',
-      title: 'Curate Atmospheric Background Music',
-      description: `Finds and downloads royalty-free background score matching ${style} mood.`,
-      tool: 'search_music',
-      arguments: {
-        mood: style === 'energetic' ? 'upbeat' : style === 'tech' ? 'electronic' : 'cinematic',
-      },
-      status: 'pending',
-    })
-
-    // 6. Subtitles & Motion Subagent: Synchronized Captions
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'motion_subtitler',
-      title: 'Generate Animated Kinetic Captions',
-      description: 'Generates animated karaoke subtitle overlays across speech track.',
-      tool: 'auto_generate_captions',
-      arguments: {
-        style: 'karaoke',
-      },
-      status: 'pending',
-    })
-
-    // 7. Quality Critic Subagent: Post-Assembly Timeline Audit
-    tasks.push({
-      id: crypto.randomUUID(),
-      role: 'quality_critic',
-      title: 'Timeline Health & Pacing Review',
-      description: 'Audits audio balance, removes dead silence gaps, and verifies pacing.',
-      tool: 'check_quality',
-      arguments: {},
-      status: 'pending',
-    })
+    const id = () => crypto.randomUUID()
+    const tasks: SubagentTask[] = [
+      { id: id(), role: 'timeline_editor', title: `Set ${brief.aspectRatio} canvas`, description: `Prepare ${brief.platform} format.`, tool: 'set_project_ratio', arguments: { aspect: brief.aspectRatio }, status: 'pending' },
+    ]
+    if (brief.useResearch) tasks.push({ id: id(), role: 'script_architect', title: 'Research factual context', description: `Collect facts for ${brief.topic}.`, tool: 'web_research', arguments: { query: brief.topic }, status: 'pending' })
+    tasks.push({ id: id(), role: 'script_architect', title: 'Write timed narration script', description: `Write for ${brief.audience} in ${brief.language}.`, tool: 'generate_script', arguments: { topic: brief.topic, durationSeconds: brief.durationSeconds, language: brief.language }, status: 'pending' })
+    // Scene production is one deterministic adapter pass: per-scene TTS,
+    // measured durations, visuals trimmed to narration, captions after VO.
+    tasks.push({ id: id(), role: 'visual_animator', title: 'Produce scripted scenes', description: `Voice every scene and place timed ${brief.sourceStrategy} visuals.`, tool: SCENE_SEQUENCE_TOOL, arguments: {}, status: 'pending' })
+    if (brief.music !== 'none') tasks.push({ id: id(), role: 'audio_producer', title: 'Add background music', description: `Find ${brief.music} music matching the topic.`, tool: 'search_music', arguments: { query: `${brief.music} ${brief.style} instrumental background` }, status: 'pending' })
+    tasks.push({ id: id(), role: 'quality_critic', title: 'Review finished timeline', description: 'Verify timing, media, and story structure.', tool: 'check_quality', arguments: {}, status: 'pending' })
+    tasks.push({ id: id(), role: 'timeline_editor', title: 'Render final preview', description: 'Generate the preview render of the finished video.', tool: 'render_preview', arguments: {}, status: 'pending' })
 
     const plan: AutonomousVideoPlan = {
       id: planId,
-      goal: options.goal,
-      targetDurationSeconds: targetDuration,
-      aspectRatio: aspect,
-      style,
+      goal: options.goal || `Create ${brief.platform} video about ${brief.topic}`,
+      targetDurationSeconds: brief.durationSeconds,
+      aspectRatio: brief.aspectRatio,
+      style: brief.style,
       tasks,
       createdAt: Date.now(),
       status: 'draft',
+      brief,
     }
 
     this.activePlan = plan
@@ -203,22 +119,57 @@ export class SubagentOrchestrator {
 
     this.isExecuting = true
     this.abortController = new AbortController()
+    this.lastRunCancelled = false
     const signal = this.abortController.signal
     plan.status = 'executing'
 
     const results: SubagentExecutionResult[] = []
     const totalTasks = plan.tasks.length
 
+    // Stage 0 — provider pre-flight. Hard blockers stop the run BEFORE any
+    // timeline mutation; missing optional providers are disclosed and degraded.
+    const preflight = plan.brief
+      ? validateBriefProviders(plan.brief)
+      : { blockers: [], warnings: [] }
+    if (preflight.warnings.length) {
+      this.emit({
+        planId: plan.id,
+        stage: 'planning',
+        progressPercent: 2,
+        message: `Provider check: ${preflight.warnings.join(' ')}`,
+        tasks: plan.tasks,
+      })
+    }
+    if (preflight.blockers.length) {
+      plan.status = 'failed'
+      for (const blocker of preflight.blockers) {
+        results.push({ taskId: 'preflight', role: 'quality_critic', ok: false, message: blocker })
+      }
+      this.emit({
+        planId: plan.id,
+        stage: 'failed',
+        progressPercent: 100,
+        message: `Cannot start production: ${preflight.blockers.join(' ')}`,
+        tasks: plan.tasks,
+      })
+      return results
+    }
+
     this.emit({
       planId: plan.id,
       stage: 'executing',
       progressPercent: 5,
-      message: `Starting autonomous generation with ${totalTasks} subagents...`,
+      message: preflight.warnings.length
+        ? `Starting production with ${totalTasks} tasks (with ${preflight.warnings.length} limitation${preflight.warnings.length > 1 ? 's' : ''})...`
+        : `Starting autonomous generation with ${totalTasks} subagents...`,
       tasks: plan.tasks,
     })
 
     const store = useTimelineStore.getState()
-    store.begin()
+    // One undo step for the whole Director run: capture pre-state, suppress all
+    // intermediate snapshots, and commit once when the run ends (even on cancel).
+    store.begin({ type: 'edit', description: `AI Director: ${plan.goal}` })
+    store.suspendHistory(true)
 
     try {
       for (let i = 0; i < plan.tasks.length; i++) {
@@ -243,9 +194,49 @@ export class SubagentOrchestrator {
         })
 
         try {
-          const res = await applyTool(task.tool, task.arguments, { undoStep: false })
+          // Scene production is executed by the deterministic adapter, not
+          // through the generic tool switch.
+          if (task.tool === SCENE_SEQUENCE_TOOL) {
+            if (!plan.brief) throw new Error('Scene production requires a completed brief.')
+            const seqResults = await runSceneSequence({
+              brief: plan.brief,
+              runId: plan.id,
+              signal,
+              onStage: (message) =>
+                this.emit({
+                  planId: plan.id,
+                  stage: 'executing',
+                  activeRole: task.role,
+                  progressPercent: percent,
+                  message,
+                  tasks: plan.tasks,
+                }),
+            })
+            results.push(...seqResults)
+            const failedCount = seqResults.filter((r) => !r.ok).length
+            // Partial scene failures keep the run alive (cancel-retention rule);
+            // total failure marks the task failed.
+            task.status = failedCount < seqResults.length ? 'completed' : 'failed'
+            task.resultMessage = `${seqResults.length - failedCount}/${seqResults.length} steps succeeded`
+            continue
+          }
+
+          const args = { ...task.arguments }
+          if (args.text === '__generated_script__') {
+            const script = getScript()
+            args.text = script ? [script.hook, ...script.scenes.map((scene) => scene.text), script.cta].filter(Boolean).join(' ') : ''
+          }
+          const res = await applyTool(task.tool, args, { undoStep: false })
           task.status = res.ok ? 'completed' : 'failed'
           task.resultMessage = res.message
+
+          // Background music must sit under the narration, never over it.
+          if (task.tool === 'search_music' && res.ok) {
+            const st = useTimelineStore.getState()
+            const musicClips = st.project.tracks.flatMap((t) => t.clips).filter((c) => c.clipType === 'music')
+            const latest = musicClips[musicClips.length - 1]
+            if (latest) st.updateClip(latest.id, { volume: 0.15 })
+          }
 
           results.push({
             taskId: task.id,
@@ -277,14 +268,49 @@ export class SubagentOrchestrator {
 
       const health = await aiContextManager.evaluateTimelineHealth()
 
-      plan.status = 'completed'
-      this.emit({
-        planId: plan.id,
-        stage: 'completed',
-        progressPercent: 100,
-        message: `Autonomous generation complete! Duration: ${health.totalDuration.toFixed(1)}s, ${health.clipCount} clips.`,
-        tasks: plan.tasks,
-      })
+      // Completion gate — never claim success without the brief's essentials.
+      this.lastRunCancelled = signal.aborted
+      const finalState = useTimelineStore.getState()
+      const directorClips = finalState.project.tracks
+        .flatMap((t) => t.clips)
+        .filter((c) => c.createdBy === 'director' && c.directorRunId === plan.id)
+      const hasVisuals = directorClips.some((c) => c.clipType !== undefined && VISUAL_CLIP_TYPES.has(c.clipType))
+      const hasNarration = directorClips.some((c) => c.clipType === 'voice' || c.clipType === 'audio')
+      const narrationRequired = plan.brief?.narration === 'voiceover'
+      const failedCount = results.filter((r) => !r.ok).length
+
+      if (signal.aborted) {
+        plan.status = 'failed'
+        this.emit({
+          planId: plan.id,
+          stage: 'completed',
+          progressPercent: 100,
+          message: `Generation cancelled. Work created so far (${directorClips.length} clips, ${health.totalDuration.toFixed(1)}s) remains on the timeline.`,
+          tasks: plan.tasks,
+        })
+      } else if (!hasVisuals || (narrationRequired && !hasNarration)) {
+        plan.status = 'failed'
+        const missing = [!hasVisuals ? 'timed visuals' : null, narrationRequired && !hasNarration ? 'narration' : null]
+          .filter(Boolean)
+          .join(' and ')
+        this.emit({
+          planId: plan.id,
+          stage: 'failed',
+          progressPercent: 100,
+          message: `Production incomplete — ${missing} missing. Partial work remains on the timeline for inspection.`,
+          tasks: plan.tasks,
+        })
+      } else {
+        plan.status = 'completed'
+        const caveats = failedCount > 0 ? ` (${failedCount} step${failedCount > 1 ? 's' : ''} need attention)` : ''
+        this.emit({
+          planId: plan.id,
+          stage: 'completed',
+          progressPercent: 100,
+          message: `Video complete! Duration: ${health.totalDuration.toFixed(1)}s, ${health.clipCount} clips.${caveats}`,
+          tasks: plan.tasks,
+        })
+      }
     } catch (err: unknown) {
       plan.status = 'failed'
       const errMsg = err instanceof Error ? err.message : String(err)
@@ -296,6 +322,7 @@ export class SubagentOrchestrator {
         tasks: plan.tasks,
       })
     } finally {
+      store.suspendHistory(false)
       this.isExecuting = false
       this.abortController = null
     }

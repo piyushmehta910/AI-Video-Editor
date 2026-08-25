@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { subagentOrchestrator } from './SubagentOrchestrator'
 import { SUBAGENT_REGISTRY } from './subagentsRegistry'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { DEFAULT_VIDEO_BRIEF } from '@/ai/videoBrief'
 
 describe('SubagentOrchestrator & Multi-Agent Architecture', () => {
   beforeEach(() => {
@@ -46,10 +47,7 @@ describe('SubagentOrchestrator & Multi-Agent Architecture', () => {
   it('formulates an autonomous video creation plan with subagent task delegation', async () => {
     const plan = await subagentOrchestrator.formulateAutonomousPlan({
       goal: 'Create an engaging vertical short about Quantum Computing',
-      targetDurationSeconds: 30,
-      aspectRatio: '9:16',
-      style: 'tech',
-      topic: 'Quantum Computing',
+      brief: { ...DEFAULT_VIDEO_BRIEF, topic: 'Quantum Computing', durationSeconds: 30, aspectRatio: '9:16', style: 'tech' },
     })
 
     expect(plan).toBeDefined()
@@ -63,8 +61,9 @@ describe('SubagentOrchestrator & Multi-Agent Architecture', () => {
     expect(rolesAssigned).toContain('script_architect')
     expect(rolesAssigned).toContain('visual_animator')
     expect(rolesAssigned).toContain('audio_producer')
-    expect(rolesAssigned).toContain('motion_subtitler')
     expect(rolesAssigned).toContain('quality_critic')
+    expect(plan.brief).toBeDefined()
+    expect(plan.status).toBe('draft')
   })
 
   it('subscribes to real-time execution progress updates', async () => {
@@ -75,12 +74,54 @@ describe('SubagentOrchestrator & Multi-Agent Architecture', () => {
 
     const plan = await subagentOrchestrator.formulateAutonomousPlan({
       goal: 'Short test video',
-      targetDurationSeconds: 15,
-      aspectRatio: '16:9',
-      style: 'minimalist',
+      brief: { ...DEFAULT_VIDEO_BRIEF, topic: 'Short test', durationSeconds: 15, aspectRatio: '16:9', style: 'minimalist' },
     })
 
     expect(plan.status).toBe('draft')
     unsub()
+  })
+
+  it('orders a completed brief around script, scene production, music, review, and preview', async () => {
+    const plan = await subagentOrchestrator.formulateAutonomousPlan({
+      goal: 'Create a solar-energy short',
+      brief: { ...DEFAULT_VIDEO_BRIEF, topic: 'Solar energy', durationSeconds: 30, sourceStrategy: 'mixed', useResearch: true },
+    })
+    const tools = plan.tasks.map((task) => task.tool)
+    expect(tools).toContain('generate_script')
+    expect(tools).toContain('__scene_sequence__')
+    expect(tools).toContain('check_quality')
+    expect(tools).toContain('render_preview')
+    // Legacy per-feature tasks are replaced by the deterministic scene adapter.
+    expect(tools).not.toContain('generate_voiceover')
+    expect(tools).not.toContain('generate_slides')
+    expect(tools).not.toContain('auto_generate_captions')
+    // Dependency order: script → scenes → quality → preview.
+    expect(tools.indexOf('generate_script')).toBeLessThan(tools.indexOf('__scene_sequence__'))
+    expect(tools.indexOf('__scene_sequence__')).toBeLessThan(tools.indexOf('check_quality'))
+    expect(tools.indexOf('check_quality')).toBeLessThan(tools.indexOf('render_preview'))
+    const music = plan.tasks.find((task) => task.tool === 'search_music')
+    expect(music?.arguments).toHaveProperty('query')
+    expect(String(music?.arguments.query)).toContain(DEFAULT_VIDEO_BRIEF.style)
+  })
+
+  it('blocks execution before any timeline mutation when required providers are missing', async () => {
+    // No LLM key configured in this test environment.
+    const plan = await subagentOrchestrator.formulateAutonomousPlan({
+      goal: 'Blocked run',
+      brief: { ...DEFAULT_VIDEO_BRIEF, topic: 'Anything', narration: 'voiceover' },
+    })
+    const events: Array<{ stage: string; message: string }> = []
+    const unsub = subagentOrchestrator.subscribe((e) => events.push({ stage: e.stage, message: e.message }))
+
+    const results = await subagentOrchestrator.executePlan(plan)
+
+    unsub()
+    expect(results.length).toBeGreaterThan(0)
+    expect(results.every((r) => !r.ok)).toBe(true)
+    expect(plan.status).toBe('failed')
+    expect(events.some((e) => e.stage === 'failed' && /Cannot start production/.test(e.message))).toBe(true)
+    // No clips were placed and no history entry was created.
+    const clips = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
+    expect(clips).toHaveLength(0)
   })
 })

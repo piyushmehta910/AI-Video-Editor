@@ -20,7 +20,8 @@ export interface ProxyResult {
   status: number
   statusText: string
   headers: Record<string, string>
-  body: Uint8Array
+  /** Upstream payload. A stream when the provider streams (e.g. SSE), bytes otherwise. */
+  body: ReadableStream<Uint8Array> | Uint8Array
 }
 
 /**
@@ -81,8 +82,6 @@ export async function forwardProxyRequest(payload: ProxyPayload): Promise<ProxyR
       },
       payload.timeoutMs,
     )
-    const arrayBuffer = await res.arrayBuffer()
-    const body = new Uint8Array(arrayBuffer)
     const headers: Record<string, string> = {}
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()
@@ -90,7 +89,9 @@ export async function forwardProxyRequest(payload: ProxyPayload): Promise<ProxyR
         headers[key] = value
       }
     })
-    return { status: res.status, statusText: res.statusText, headers, body }
+    // Pass the upstream stream straight through instead of buffering the whole
+    // response — required for SSE/token streaming and large downloads.
+    return { status: res.status, statusText: res.statusText, headers, body: res.body ?? new Uint8Array(0) }
   } catch (err) {
     return {
       status: 502,

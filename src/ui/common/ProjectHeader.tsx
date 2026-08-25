@@ -1,10 +1,11 @@
 import * as React from 'react'
-import { Download, Home, Pencil, Settings, FilePlus } from 'lucide-react'
+import { Download, FolderOpen, Home, Pencil, Settings, FilePlus } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
 import { ExportDialog } from '@/ui/export/ExportDialog'
 import { NewProjectDialog } from '@/components/editor/NewProjectDialog'
+import { OpenProjectDialog } from '@/components/editor/OpenProjectDialog'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import {
   Select,
@@ -41,6 +42,8 @@ export function ProjectHeader() {
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
   const [exportOpen, setExportOpen] = React.useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = React.useState(false)
+  const [openProjectOpen, setOpenProjectOpen] = React.useState(false)
+  const dirty = useTimelineStore((s) => s.dirty)
   const [editingName, setEditingName] = React.useState(false)
   const [nameDraft, setNameDraft] = React.useState(project.name)
 
@@ -92,9 +95,21 @@ export function ProjectHeader() {
           className="group flex shrink-0 items-center gap-1 text-xs sm:text-sm font-semibold max-w-[110px] sm:max-w-[180px]"
         >
           <span className="truncate">{project.name}</span>
+          {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" title="Unsaved changes (auto-saves)" />}
           <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
         </button>
       )}
+
+      {/* Open Project Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1.5 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border/40 rounded-md shrink-0 transition-colors"
+        onClick={() => setOpenProjectOpen(true)}
+        title="Open a saved project"
+      >
+        <FolderOpen className="size-3.5 text-violet-500" />
+      </Button>
 
       {/* New Project / Reset Button */}
       <Button
@@ -205,6 +220,9 @@ export function ProjectHeader() {
 
       {/* New Project Setup Modal */}
       <NewProjectDialog open={resetConfirmOpen} onClose={() => setResetConfirmOpen(false)} />
+
+      {/* Open Project Picker */}
+      <OpenProjectDialog open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} />
     </div>
   )
 }

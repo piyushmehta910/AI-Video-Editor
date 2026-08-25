@@ -11,6 +11,12 @@ await useApiConfigStore.getState().hydrate()
 initTheme()
 preloadEssentialFonts()
 
+// Ask the browser to never evict OPFS media (project files) under storage pressure.
+// Without this, browsers can wipe media while IndexedDB metadata survives.
+if ('storage' in navigator && typeof navigator.storage?.persist === 'function') {
+  void navigator.storage.persist().catch(() => {})
+}
+
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {})

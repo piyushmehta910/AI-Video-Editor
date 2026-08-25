@@ -36,7 +36,7 @@ export interface EditorUIState {
   trimMode: TrimMode
   /** Keyboard-shortcuts cheat sheet modal visibility. */
   shortcutsOpen: boolean
-  /** Last unrecognised key combo, shown briefly as a hint overlay. */
+  /** Last unrecognized key combo, shown briefly as a hint overlay. */
   keysHint: string | null
 
   toggleLeft: () => void

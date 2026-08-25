@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { Project } from '@/engine/types'
 import type { QualityIssue } from '@/ai/quality/checker'
 import type { EditPlan } from '@/api/llm/plan'
+import type { VideoBrief } from '@/ai/videoBrief'
+import type { SubagentTask } from '@/ai/subagents/types'
 
 /**
  * AI Director session state: chat transcript, staged proposals, proactive
@@ -40,6 +42,18 @@ export interface PendingAiPlan {
   before: Project
 }
 
+export type VideoProductionStatus = 'idle' | 'briefing' | 'executing' | 'completed' | 'failed' | 'cancelled'
+
+export interface VideoProductionState {
+  brief: VideoBrief | null
+  step: number
+  status: VideoProductionStatus
+  progressPercent: number
+  message: string
+  tasks: SubagentTask[]
+  error?: string
+}
+
 interface AiState {
   mode: AiDirectorMode
   messages: AiChatMessage[]
@@ -50,6 +64,7 @@ interface AiState {
   dismissedIssueIds: string[]
   pendingPlan: PendingAiPlan | null
   pendingQuestion: string | null
+  videoProduction: VideoProductionState
 
   setMode: (mode: AiDirectorMode) => void
   addMessage: (message: AiChatMessage) => void
@@ -69,6 +84,10 @@ interface AiState {
   clearPlan: () => void
 
   setPendingQuestion: (question: string | null) => void
+  startVideoBrief: (brief: VideoBrief) => void
+  updateVideoBrief: (brief: VideoBrief, step: number) => void
+  setVideoProduction: (patch: Partial<VideoProductionState>) => void
+  clearVideoProduction: () => void
   resetSession: () => void
 }
 
@@ -82,6 +101,7 @@ export const useAIStore = create<AiState>((set, get) => ({
   dismissedIssueIds: [],
   pendingPlan: null,
   pendingQuestion: null,
+  videoProduction: { brief: null, step: 0, status: 'idle', progressPercent: 0, message: '', tasks: [] },
 
   setMode: (mode) => set({ mode }),
 
@@ -131,6 +151,11 @@ export const useAIStore = create<AiState>((set, get) => ({
 
   setPendingQuestion: (question) => set({ pendingQuestion: question }),
 
+  startVideoBrief: (brief) => set({ videoProduction: { brief, step: 0, status: 'briefing', progressPercent: 0, message: 'Tell me about your video.', tasks: [] } }),
+  updateVideoBrief: (brief, step) => set((s) => ({ videoProduction: { ...s.videoProduction, brief, step } })),
+  setVideoProduction: (patch) => set((s) => ({ videoProduction: { ...s.videoProduction, ...patch } })),
+  clearVideoProduction: () => set({ videoProduction: { brief: null, step: 0, status: 'idle', progressPercent: 0, message: '', tasks: [] } }),
+
   resetSession: () =>
     set({
       messages: [],
@@ -139,6 +164,7 @@ export const useAIStore = create<AiState>((set, get) => ({
       dismissedIssueIds: [],
       pendingPlan: null,
       pendingQuestion: null,
+      videoProduction: { brief: null, step: 0, status: 'idle', progressPercent: 0, message: '', tasks: [] },
       busy: false,
       analyzing: false,
     }),

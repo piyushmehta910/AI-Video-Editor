@@ -151,7 +151,7 @@ describe('wrapSourceTime', () => {
   })
 
   it('loops when a stretched clip runs past its source end', () => {
-    // Old behaviour froze at duration-0.05 forever; now it wraps.
+    // Old behavior froze at duration-0.05 forever; now it wraps.
     // max = 0.14 - 0.02 = 0.12
     expect(wrapSourceTime(0.15, DURATION)).toBeCloseTo(0.03, 6)
     expect(wrapSourceTime(0.26, DURATION)).toBeCloseTo(0.02, 6)

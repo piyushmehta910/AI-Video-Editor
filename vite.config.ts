@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { forwardProxyRequest, type ProxyPayload } from './server/proxy.ts'
 
 // Bundle analysis: ANALYZE=1 npm run build -> stats.html (treemap of every chunk)
@@ -42,7 +43,11 @@ function apiProxyDevMiddleware(): Plugin {
         for (const [key, value] of Object.entries(result.headers)) {
           res.setHeader(key, value)
         }
-        res.end(result.body)
+        if (result.body instanceof Uint8Array) {
+          res.end(result.body)
+        } else {
+          Readable.fromWeb(result.body as unknown as import('node:stream/web').ReadableStream).pipe(res)
+        }
       })
     },
   }

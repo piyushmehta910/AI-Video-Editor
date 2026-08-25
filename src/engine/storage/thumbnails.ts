@@ -26,11 +26,79 @@ function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   })
 }
 
+const THUMB_BOX = 320
+
+function canvasToThumbnail(canvas: HTMLCanvasElement): Promise<Thumbnail> {
+  return new Promise((resolve) => {
+    canvas.toBlob((b) => resolve({ url: URL.createObjectURL(b!), width: canvas.width, height: canvas.height }), 'image/jpeg', 0.82)
+  })
+}
+
+async function imageThumbnail(blob: Blob): Promise<Thumbnail> {
+  const img = await loadImageFromBlob(blob)
+  const scale = Math.min(THUMB_BOX / img.naturalWidth, THUMB_BOX / img.naturalHeight)
+  const width = Math.max(2, Math.round(img.naturalWidth * scale))
+  const height = Math.max(2, Math.round(img.naturalHeight * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+  return canvasToThumbnail(canvas)
+}
+
+async function videoThumbnail(blob: Blob): Promise<Thumbnail> {
+  const url = URL.createObjectURL(blob)
+  const video = document.createElement('video')
+  video.muted = true
+  video.preload = 'auto'
+  video.src = url
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadeddata = () => resolve()
+      video.onerror = () => reject(new Error('Video decode failed'))
+      setTimeout(() => reject(new Error('Video thumbnail timeout')), 10000)
+    })
+    // Grab a representative frame near the start instead of the usual black first frame.
+    const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 1
+    const target = Math.min(duration * 0.1, Math.max(duration - 0.1, 0))
+    await new Promise<void>((resolve) => {
+      video.onseeked = () => resolve()
+      video.currentTime = target
+      setTimeout(resolve, 3000)
+    })
+    if (!video.videoWidth || !video.videoHeight) throw new Error('No video frame available')
+    const scale = Math.min(THUMB_BOX / video.videoWidth, THUMB_BOX / video.videoHeight)
+    const width = Math.max(2, Math.round(video.videoWidth * scale))
+    const height = Math.max(2, Math.round(video.videoHeight * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    canvas.getContext('2d')!.drawImage(video, 0, 0, width, height)
+    return canvasToThumbnail(canvas)
+  } finally {
+    video.removeAttribute('src')
+    URL.revokeObjectURL(url)
+  }
+}
+
 export async function generateThumbnail(
-  _blob: Blob,
-  _type: 'video' | 'image' | 'audio' | 'model',
+  blob: Blob,
+  type: 'video' | 'image' | 'audio' | 'model',
 ): Promise<Thumbnail> {
-  // Placeholder - full implementation in separate PR
+  if (type === 'image') {
+    try {
+      return await imageThumbnail(blob)
+    } catch {
+      // fall through to placeholder
+    }
+  }
+  if (type === 'video') {
+    try {
+      return await videoThumbnail(blob)
+    } catch {
+      // fall through to placeholder
+    }
+  }
   const canvas = document.createElement('canvas')
   canvas.width = 320
   canvas.height = 180
@@ -41,10 +109,8 @@ export async function generateThumbnail(
   ctx.font = '600 22px sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('THUMBNAIL', 160, 90)
-  const blobResult = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/jpeg'))
-  const url = URL.createObjectURL(blobResult)
-  return { url, width: 320, height: 180 }
+  ctx.fillText(type === 'audio' ? 'AUDIO' : type.toUpperCase(), 160, 90)
+  return canvasToThumbnail(canvas)
 }
 
 export async function probeMedia(_blob: Blob, type: 'video' | 'image' | 'audio' | 'model'): Promise<MediaProbe> {

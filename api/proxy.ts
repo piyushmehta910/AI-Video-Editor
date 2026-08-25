@@ -67,14 +67,14 @@ async function forwardProxyRequest(payload: ProxyPayload) {
       },
       payload.timeoutMs,
     )
-    const arrayBuffer = await res.arrayBuffer()
-    const body = new Uint8Array(arrayBuffer)
     const headers: Record<string, string> = {}
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()
       if (lower === 'content-type' || lower === 'content-length') headers[key] = value
     })
-    return { status: res.status, statusText: res.statusText, headers, body }
+    // Stream the upstream body straight through so SSE/token streaming and
+    // large downloads are not buffered in memory.
+    return { status: res.status, statusText: res.statusText, headers, body: res.body ?? new Uint8Array(0) }
   } catch (err) {
     return {
       status: 502,

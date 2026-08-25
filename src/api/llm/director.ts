@@ -181,44 +181,74 @@ export async function chatCompletion(
       body: JSON.stringify(body),
       signal: controller.signal,
     }
-    const res = needsProxy(url)
-      ? await proxyFetch(url, { ...init, signal: undefined }, provider.config.timeoutMs)
-      : await fetch(url, init)
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`AI provider error ${res.status}: ${text.slice(0, 200) || res.statusText}`)
-    }
-    const data = (await res.json()) as {
-      choices?: Array<{
-        message?: {
-          role?: string
-          content?: string | null
-          tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>
+    let lastError: unknown
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = needsProxy(url)
+          ? await proxyFetch(url, { ...init, signal: undefined }, provider.config.timeoutMs)
+          : await fetch(url, init)
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          throw new Error(`AI provider error ${res.status}: ${text.slice(0, 200) || res.statusText}`)
         }
-      }>
+        const data = (await res.json()) as {
+          choices?: Array<{
+            message?: {
+              role?: string
+              content?: string | null
+              tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>
+            }
+          }>
+        }
+        const msg = data.choices?.[0]?.message
+        if (!msg) throw new Error('Empty response from AI provider')
+        return {
+          role: 'assistant',
+          content: msg.content ?? null,
+          tool_calls: (msg.tool_calls ?? []).map((tc) => ({
+            id: tc.id ?? crypto.randomUUID(),
+            name: tc.function?.name ?? '',
+            arguments: safeParse(tc.function?.arguments),
+          })),
+        }
+      } catch (err) {
+        lastError = err
+        if (controller.signal.aborted) throw err
+        if (attempt >= 3 || !isTransientError(err)) throw err
+        await new Promise((resolve) => setTimeout(resolve, attempt * 900))
+      }
     }
-    const msg = data.choices?.[0]?.message
-    if (!msg) throw new Error('Empty response from AI provider')
-    return {
-      role: 'assistant',
-      content: msg.content ?? null,
-      tool_calls: (msg.tool_calls ?? []).map((tc) => ({
-        id: tc.id ?? crypto.randomUUID(),
-        name: tc.function?.name ?? '',
-        arguments: safeParse(tc.function?.arguments),
-      })),
-    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   } finally {
     clearTimeout(timer)
   }
 }
 
+function isTransientError(err: unknown): boolean {
+  if (err instanceof TypeError) return true
+  const msg = err instanceof Error ? err.message : String(err)
+  return /AI provider error (429|500|502|503|504)\b/.test(msg)
+}
+
 export function safeParse(json: string | undefined): Record<string, unknown> {
   if (!json) return {}
-  try {
-    const parsed = JSON.parse(json) as unknown
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
-  } catch {
-    return {}
+  for (const candidate of [json, repairJson(json)]) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>
+    } catch {
+      // fall through to the next repair strategy
+    }
   }
+  return {}
+}
+
+/** Best-effort cleanup for LLM tool-argument JSON (fences, prose wrappers, trailing commas). */
+function repairJson(raw: string): string {
+  let s = raw.trim()
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
+  const start = s.indexOf('{')
+  const end = s.lastIndexOf('}')
+  if (start !== -1 && end > start) s = s.slice(start, end + 1)
+  return s.replace(/,\s*([}\]])/g, '$1')
 }

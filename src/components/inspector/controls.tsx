@@ -112,7 +112,7 @@ export function NumInput({
           if (Number.isFinite(v)) onChange(clamp(v, min, max))
         }}
         onBlur={() => setDraft(null)}
-        className="focus:border-[#60a5fa] bg-[#0f0f1a] border-border/80 h-7 w-full rounded-md border px-2 font-mono text-[11px] outline-none"
+        className="focus:border-[#60a5fa] bg-background border-border/80 h-7 w-full rounded-md border px-2 font-mono text-[11px] outline-none"
       />
       {suffix && (
         <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 font-mono text-[10px]">
@@ -227,7 +227,7 @@ export function ColorInput({
         }}
         onBlur={() => setDraft(null)}
         spellCheck={false}
-        className="focus:border-[#60a5fa] bg-[#0f0f1a] border-border/80 h-7 w-full min-w-0 rounded-md border px-2 font-mono text-[11px] outline-none"
+        className="focus:border-[#60a5fa] bg-background border-border/80 h-7 w-full min-w-0 rounded-md border px-2 font-mono text-[11px] outline-none"
       />
     </div>
   )
@@ -254,7 +254,7 @@ export function SelectInput({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-[#0f0f1a] border-border/80 focus:border-[#60a5fa] h-7 w-full min-w-0 rounded-md border px-1.5 text-[11px] outline-none disabled:opacity-40"
+      className="bg-background border-border/80 focus:border-[#60a5fa] h-7 w-full min-w-0 rounded-md border px-1.5 text-[11px] outline-none disabled:opacity-40"
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>

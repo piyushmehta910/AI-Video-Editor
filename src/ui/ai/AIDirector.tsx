@@ -1,11 +1,15 @@
 import * as React from 'react'
 import {
+  AlertCircle,
   Check,
+  CheckCircle2,
+  Circle,
   Clapperboard,
   Cpu,
   GripHorizontal,
   HelpCircle,
   ListChecks,
+  Loader2,
   Maximize2,
   Mic,
   Minimize2,
@@ -18,6 +22,7 @@ import {
   Subtitles,
   Trash2,
   User,
+  Video,
   X,
   Zap,
 } from 'lucide-react'
@@ -44,6 +49,9 @@ import {
 } from '@/api/llm/plan'
 import { loadAskedQuestions, rememberAskedQuestion } from '@/api/llm/askedQuestions'
 import { Button } from '@/components/ui/button'
+import { useAIStore } from '@/stores/aiStore'
+import { DEFAULT_VIDEO_BRIEF, VIDEO_BRIEF_QUESTIONS, applyBriefAnswer, isVideoCreationPrompt } from '@/ai/videoBrief'
+import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
 
 interface UiMessage {
   id: string
@@ -414,6 +422,11 @@ export function AIDirector({
   const [showQuality, setShowQuality] = React.useState(false)
   const [issues, setIssues] = React.useState<QualityIssue[]>([])
   const [checking, setChecking] = React.useState(false)
+  const videoProduction = useAIStore((s) => s.videoProduction)
+  const startVideoBrief = useAIStore((s) => s.startVideoBrief)
+  const updateVideoBrief = useAIStore((s) => s.updateVideoBrief)
+  const setVideoProduction = useAIStore((s) => s.setVideoProduction)
+  const clearVideoProduction = useAIStore((s) => s.clearVideoProduction)
 
   const [launcherPos, setLauncherPos] = React.useState<Position>(getInitialLauncherPosition)
   const launcherDragStartRef = React.useRef<{
@@ -550,6 +563,7 @@ export function AIDirector({
   const [plan, setPlan] = React.useState<PendingPlan | null>(null)
   const [pendingQuestion, setPendingQuestion] = React.useState<PendingQuestionState | null>(null)
   const [questionAnswer, setQuestionAnswer] = React.useState('')
+  const [briefAnswer, setBriefAnswer] = React.useState('')
   const [revising, setRevising] = React.useState(false)
   const [reviseInput, setReviseInput] = React.useState('')
   const [askedQuestions, setAskedQuestions] = React.useState<string[]>([])
@@ -646,12 +660,81 @@ export function AIDirector({
     resolve(answer)
   }
 
+  const runVideoProduction = React.useCallback(async (brief: typeof DEFAULT_VIDEO_BRIEF) => {
+    setVideoProduction({ status: 'executing', progressPercent: 1, message: 'Creating your production plan…', tasks: [], error: undefined })
+    let lastMessage = ''
+    const unsubscribe = subagentOrchestrator.subscribe((event) => {
+      lastMessage = event.message
+      setVideoProduction({
+        status: event.stage === 'completed' ? 'completed' : event.stage === 'failed' ? 'failed' : 'executing',
+        progressPercent: event.progressPercent,
+        message: event.message,
+        tasks: event.tasks,
+      })
+    })
+    try {
+      const plan = await subagentOrchestrator.formulateAutonomousPlan({ goal: `Create a video about ${brief.topic}`, brief })
+      const results = await subagentOrchestrator.executePlan(plan)
+      const cancelled = subagentOrchestrator.wasLastRunCancelled()
+      const failedCount = results.filter((result) => !result.ok).length
+      const gateFailed = plan.status !== 'completed' && !cancelled
+      setVideoProduction({
+        status: cancelled ? 'cancelled' : plan.status === 'completed' ? 'completed' : 'failed',
+        progressPercent: 100,
+        message: cancelled
+          ? 'Generation cancelled. Created work remains on the timeline.'
+          : gateFailed
+            ? lastMessage || 'Production could not be completed.'
+            : failedCount > 0
+              ? `Video created with ${failedCount} optional task failure${failedCount === 1 ? '' : 's'}. Review the production details.`
+              : 'Video production complete. Preview it, then use Export to download the final video.',
+      })
+      const chatText = cancelled
+        ? 'Generation stopped. Everything created so far is still on your timeline — undo removes it all at once.'
+        : gateFailed
+          ? lastMessage || 'The video could not be completed. Check the status card for what is missing.'
+          : failedCount > 0
+            ? `Your video was created, but ${failedCount} optional production task${failedCount === 1 ? '' : 's'} could not finish. Review the status card, preview the timeline, then export when ready.`
+            : 'Your video is ready in the timeline. Preview it, then use Export to download the final file.'
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: chatText,
+          tools: ['execute_autonomous_video_plan'],
+        },
+      ])
+    } catch (error) {
+      setVideoProduction({
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Production could not start.',
+      })
+    } finally {
+      unsubscribe()
+    }
+  }, [setVideoProduction])
+
+  const answerVideoBrief = React.useCallback((answer: string) => {
+    const current = useAIStore.getState().videoProduction
+    if (!current.brief || current.status !== 'briefing') return
+    const next = applyBriefAnswer(current.brief, current.step, answer.trim())
+    const isFinal = current.step === VIDEO_BRIEF_QUESTIONS.length - 1
+    updateVideoBrief(next, isFinal ? current.step : current.step + 1)
+    if (isFinal) void runVideoProduction(next)
+  }, [runVideoProduction, updateVideoBrief])
+
   const send = React.useCallback(
     async (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || busy) return
       setInput('')
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', text: trimmed }])
+      if (isVideoCreationPrompt(trimmed)) {
+        startVideoBrief({ ...DEFAULT_VIDEO_BRIEF, topic: trimmed })
+        return
+      }
       setBusy(true)
       try {
         const provider = getDirectorProvider()
@@ -874,7 +957,7 @@ export function AIDirector({
         setBusy(false)
       }
     },
-    [busy, messages, askedQuestions, projectId, promptQuestion, productionMode],
+    [busy, messages, askedQuestions, projectId, promptQuestion, productionMode, startVideoBrief],
   )
 
   React.useEffect(() => {
@@ -1535,6 +1618,21 @@ export function AIDirector({
                       </button>
                     ))}
                   </div>
+                  {/* Create Full Video — spans full width */}
+                  <button
+                    type="button"
+                    onClick={() => void send('Create a video')}
+                    className="mt-2 flex items-center gap-3 w-full text-left p-3 rounded-xl border border-violet-500/50 bg-gradient-to-r from-violet-600/15 via-purple-600/10 to-indigo-600/15 hover:from-violet-600/25 hover:border-violet-500 transition-all shadow-xs group backdrop-blur-sm"
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-500">
+                      <Video className="size-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground group-hover:text-violet-500 transition-colors">Create Full Video from Scratch</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">AI Director guides you through a 6-step brief, then auto-produces the complete video</div>
+                    </div>
+                    <Sparkles className="size-3.5 text-violet-400 ml-auto shrink-0" />
+                  </button>
                 </div>
               </div>
             )}
@@ -1654,6 +1752,188 @@ export function AIDirector({
                 </div>
               </div>
             ))}
+
+            {videoProduction.status === 'briefing' && videoProduction.brief && (() => {
+              const question = VIDEO_BRIEF_QUESTIONS[videoProduction.step]
+              return (
+                <div className="space-y-3 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md animate-in fade-in zoom-in-95">
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30">
+                      <Clapperboard className="size-3.5" />
+                    </div>
+                    <span className="text-xs font-bold text-violet-700 dark:text-violet-300">
+                      Create a video · Step {videoProduction.step + 1} of {VIDEO_BRIEF_QUESTIONS.length}
+                    </span>
+                    <span className="ml-auto text-[9px] font-semibold rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5">
+                      {Math.round(((videoProduction.step + 1) / VIDEO_BRIEF_QUESTIONS.length) * 100)}%
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{question.title}</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-foreground">{question.prompt}</p>
+                  </div>
+                  {question.options.length > 0 && (
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                      {question.options.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setBriefAnswer('')
+                            answerVideoBrief(option.value)
+                          }}
+                          className="flex items-center justify-between gap-2 rounded-xl border border-white/30 bg-white/50 px-3 py-2 text-left text-xs font-medium text-foreground hover:border-violet-500 hover:bg-violet-500/15 dark:border-white/15 dark:bg-white/10 transition-all shadow-xs"
+                        >
+                          <span>{option.label}</span>
+                          <Check className="size-3.5 text-violet-500 opacity-0 hover:opacity-100 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-1 pt-1.5 border-t border-white/15 dark:border-white/10">
+                    <div className="text-[10px] font-semibold text-muted-foreground">
+                      {question.options.length > 0 ? 'Or enter custom answer:' : 'Answer:'}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        autoFocus
+                        value={briefAnswer}
+                        onChange={(event) => setBriefAnswer(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && briefAnswer.trim()) {
+                            answerVideoBrief(briefAnswer)
+                            setBriefAnswer('')
+                          }
+                        }}
+                        placeholder={videoProduction.step === 0 ? 'Describe the topic and message…' : 'Write a custom answer…'}
+                        className="min-w-0 flex-1 rounded-xl border border-white/30 bg-white/50 px-3 py-2 text-xs outline-none focus:border-violet-500 dark:border-white/15 dark:bg-white/5"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 px-3 bg-violet-600 hover:bg-violet-500 text-white font-bold shadow-xs shrink-0"
+                        onClick={() => {
+                          answerVideoBrief(briefAnswer)
+                          setBriefAnswer('')
+                        }}
+                        disabled={!briefAnswer.trim()}
+                      >
+                        <Send className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex justify-between pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={videoProduction.step === 0}
+                      onClick={() => updateVideoBrief(videoProduction.brief!, videoProduction.step - 1)}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setBriefAnswer('')
+                        clearVideoProduction()
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {videoProduction.status !== 'idle' && videoProduction.status !== 'briefing' && (
+              <div className="space-y-2.5 rounded-xl border border-sky-500/35 bg-sky-500/10 p-3.5 backdrop-blur-xl shadow-md" aria-live="polite">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-6 items-center justify-center rounded-lg bg-sky-600/20 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+                    {videoProduction.status === 'executing' ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : videoProduction.status === 'completed' ? (
+                      <CheckCircle2 className="size-3.5 text-emerald-500" />
+                    ) : (
+                      <AlertCircle className="size-3.5 text-rose-500" />
+                    )}
+                  </div>
+                  <span className="text-xs font-bold text-sky-700 dark:text-sky-300">
+                    {videoProduction.status === 'completed'
+                      ? 'Video production complete'
+                      : videoProduction.status === 'failed'
+                        ? 'Production failed'
+                        : videoProduction.status === 'cancelled'
+                          ? 'Production cancelled'
+                          : `Producing video · ${videoProduction.progressPercent}%`}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-sky-950/15">
+                  <div
+                    className="h-full bg-sky-500 transition-all duration-500"
+                    style={{ width: `${videoProduction.progressPercent}%` }}
+                  />
+                </div>
+                <p className="text-xs text-foreground">{videoProduction.message}</p>
+                {videoProduction.tasks.length > 0 && (
+                  <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
+                    {videoProduction.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className={cn(
+                          'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                          task.status === 'completed'
+                            ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                            : task.status === 'running'
+                              ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                              : task.status === 'failed'
+                                ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                                : task.status === 'skipped'
+                                  ? 'border-muted bg-muted/20 text-muted-foreground line-through'
+                                  : 'border-white/15 bg-white/5 text-muted-foreground'
+                        )}
+                      >
+                        {task.status === 'completed' ? (
+                          <CheckCircle2 className="size-3 shrink-0 text-emerald-500" />
+                        ) : task.status === 'running' ? (
+                          <Loader2 className="size-3 shrink-0 animate-spin text-sky-500" />
+                        ) : task.status === 'failed' ? (
+                          <AlertCircle className="size-3 shrink-0 text-rose-500" />
+                        ) : (
+                          <Circle className="size-3 shrink-0 text-muted-foreground/40" />
+                        )}
+                        <span className="truncate">{task.title}</span>
+                        {task.resultMessage && task.status === 'failed' && (
+                          <span className="ml-auto text-[9px] text-rose-400 shrink-0">Failed</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-1 pt-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => subagentOrchestrator.abort()}
+                    disabled={videoProduction.status !== 'executing'}
+                  >
+                    Cancel
+                  </Button>
+                  {(videoProduction.status === 'failed' || videoProduction.status === 'cancelled') && videoProduction.brief && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void runVideoProduction(videoProduction.brief!)}
+                    >
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {pendingQuestion && (
               <div className="space-y-3 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md animate-in fade-in zoom-in-95">

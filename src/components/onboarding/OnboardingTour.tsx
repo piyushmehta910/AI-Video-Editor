@@ -42,7 +42,7 @@ function rectFor(selector: string): Rect | null {
 export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
   const [step, setStep] = React.useState(0)
   const [rect, setRect] = React.useState<Rect | null>(null)
-  const [dontShowAgain, setDontShowAgain] = React.useState(false)
+  const [doNotShowAgain, setDoNotShowAgain] = React.useState(false)
 
   React.useEffect(() => {
     const update = () => setRect(rectFor(STEPS[step].target))
@@ -66,7 +66,7 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
 
   const finish = () => {
     try {
-      if (dontShowAgain) localStorage.setItem(TOUR_DISMISSED_KEY, '1')
+      if (doNotShowAgain) localStorage.setItem(TOUR_DISMISSED_KEY, '1')
     } catch {
       // ignore storage errors
     }
@@ -131,8 +131,8 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
         <label className="text-muted-foreground mt-3 flex cursor-pointer items-center gap-1.5 text-[11px] select-none">
           <input
             type="checkbox"
-            checked={dontShowAgain}
-            onChange={(e) => setDontShowAgain(e.target.checked)}
+            checked={doNotShowAgain}
+            onChange={(e) => setDoNotShowAgain(e.target.checked)}
             className="accent-violet-500 size-3"
           />
           Don't show again

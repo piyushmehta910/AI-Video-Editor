@@ -47,7 +47,7 @@ describe('exportFormats', () => {
     expect(defaultExportName()).toMatch(/^clipforge-export-\d{4}-\d{2}-\d{2}$/)
   })
 
-  it('sanitises unsafe filename characters', () => {
+  it('sanitizes unsafe filename characters', () => {
     expect(sanitizeFilename('my: video/final?')).toBe('my- video-final-')
     expect(sanitizeFilename('   ')).toBe('clipforge-export')
   })

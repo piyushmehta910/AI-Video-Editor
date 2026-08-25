@@ -272,6 +272,10 @@ export interface Clip {
   fxType?: FxClipType
   /** Avatar clips: auto-lipsync against the attached audio clip when set. */
   autoLipsync?: boolean
+  /** Set when an automated Director run created this content (scoped cancel/retry/cleanup). */
+  createdBy?: 'director'
+  /** Groups all clips/assets from one Director production run. */
+  directorRunId?: string
   /** Smart reframing configuration for aspect-ratio changes. */
   reframing?: {
     enabled: boolean
@@ -325,6 +329,10 @@ export interface Asset {
   /** Peak-amplitude waveform strip data (audio assets) */
   waveform?: FilmstripData
   importedAt: number
+  /** Set when an automated Director run imported this asset. */
+  createdBy?: 'director'
+  /** Groups all assets from one Director production run. */
+  directorRunId?: string
 }
 
 export interface Project {
