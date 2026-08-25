@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Download, FilePlus, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
+import { Check, Clapperboard, Download, FilePlus, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -39,6 +39,7 @@ function dimsForAspect(current: { width: number; height: number }, ratio: number
 function ToolButton({
   children,
   onClick,
+  onDoubleClick,
   label,
   disabled,
   active,
@@ -46,6 +47,7 @@ function ToolButton({
 }: {
   children: React.ReactNode
   onClick: () => void
+  onDoubleClick?: () => void
   label: string
   disabled?: boolean
   active?: boolean
@@ -59,6 +61,7 @@ function ToolButton({
           size="sm"
           className={cn('h-8 w-8 p-0 rounded-lg transition-all', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 font-bold')}
           onClick={onClick}
+          onDoubleClick={onDoubleClick}
           disabled={disabled}
           data-testid={testId}
         >
@@ -80,6 +83,9 @@ export function TopToolbar() {
   const leftOpen = useEditorStore((s) => s.leftOpen)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
+  const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
+  const toggleAIDirector = useEditorStore((s) => s.toggleAIDirector)
+  const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
 
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
 
@@ -250,6 +256,16 @@ export function TopToolbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
+        <ToolButton
+          label="AI Director Assistant (Click or double-click to open)"
+          onClick={toggleAIDirector}
+          onDoubleClick={() => setAIDirectorOpen(true)}
+          active={aiDirectorOpen}
+          testId="ai-director-button"
+        >
+          <Clapperboard className="size-4 text-violet-500" />
+        </ToolButton>
+
         <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
         </ToolButton>

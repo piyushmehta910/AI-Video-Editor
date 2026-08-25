@@ -1068,7 +1068,12 @@ export function AIDirector({
           onPointerDown={handleLauncherPointerDown}
           onPointerMove={handleLauncherPointerMove}
           onPointerUp={handleLauncherPointerUp}
-          title="Drag AI Director anywhere or click to open"
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            changeOpen(true)
+            setIsMinimized(false)
+          }}
+          title="Double-click or click to open AI Director (Drag anywhere)"
           aria-label="AI Director"
         >
           <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600/80 via-purple-600/75 to-indigo-600/80 text-white shadow-[0_8px_32px_0_rgba(124,58,237,0.4)] backdrop-blur-2xl border border-white/30 ring-1 ring-white/20 hover:scale-105 hover:border-white/50 transition-all">
@@ -1081,7 +1086,7 @@ export function AIDirector({
             )}
           </div>
           <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-xl bg-background/75 dark:bg-slate-950/70 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-xl border border-white/20 backdrop-blur-xl whitespace-nowrap">
-            AI Director <span className="text-muted-foreground font-normal">(Drag me)</span>
+            AI Director <span className="text-muted-foreground font-normal">(Double-click or drag)</span>
           </div>
         </div>
       )}
@@ -1095,7 +1100,11 @@ export function AIDirector({
           onPointerMove={handleMinimizedPointerMove}
           onPointerUp={handleMinimizedPointerUp}
           onPointerCancel={handleMinimizedPointerUp}
-          title="Drag to move — click Expand to restore"
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            setIsMinimized(false)
+          }}
+          title="Drag to move — double-click or click Expand to restore"
         >
           <div className="flex size-5 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xs flex-shrink-0">
             <Clapperboard className="size-3" />
@@ -1154,7 +1163,8 @@ export function AIDirector({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            title="Drag header to reposition AI Director anywhere"
+            onDoubleClick={toggleMaximize}
+            title="Drag header to move • Double-click to maximize or restore"
           >
             <div className="flex items-center text-muted-foreground hover:text-foreground transition">
               <GripHorizontal className="size-4 opacity-75" />
