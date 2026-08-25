@@ -1571,7 +1571,7 @@ function AvatarSection() {
                 title={`${preset.name} - ${preset.tagline}`}
               >
                 <div
-                  className="size-12 overflow-hidden rounded-full border border-border/80 bg-cover bg-center shadow-xs"
+                  className="size-12 overflow-hidden rounded-full border border-border/80 bg-cover bg-center shadow-xs [&>svg]:size-full [&>svg]:block shrink-0"
                   dangerouslySetInnerHTML={{ __html: preset.svg }}
                 />
                 <span className="mt-1 truncate text-[10px] font-bold leading-tight text-foreground max-w-full">
@@ -1643,7 +1643,7 @@ function AvatarSection() {
               </div>
             ) : (
               <div
-                className="size-full"
+                className="size-full [&>svg]:size-full [&>svg]:block"
                 dangerouslySetInnerHTML={{ __html: currentPreset.svg }}
               />
             )}

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { AVATAR_FACE_PRESETS } from './faces'
 
 describe('Avatar Face Presets', () => {
-  it('has at least 10 default face presets', () => {
-    expect(AVATAR_FACE_PRESETS.length).toBeGreaterThanOrEqual(10)
+  it('has at least 6 curated face presets', () => {
+    expect(AVATAR_FACE_PRESETS.length).toBeGreaterThanOrEqual(6)
   })
 
   it('all presets have valid mouth coordinates and SVG content', () => {

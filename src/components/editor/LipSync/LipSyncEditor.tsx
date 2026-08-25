@@ -694,7 +694,7 @@ export function LipSyncEditor({ clip, onSave, onClose }: LipSyncEditorProps) {
                         onClick={() => void loadPresetFace(preset.id)}
                       >
                         <div
-                          className="size-14 rounded-full overflow-hidden border shadow-xs transition group-hover:scale-105"
+                          className="size-14 rounded-full overflow-hidden border shadow-xs transition group-hover:scale-105 [&>svg]:size-full [&>svg]:block shrink-0"
                           dangerouslySetInnerHTML={{ __html: preset.svg }}
                         />
                         <span className="text-[10px] font-bold text-foreground mt-1.5 line-clamp-1">
