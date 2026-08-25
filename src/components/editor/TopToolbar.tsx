@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Clapperboard, Download, FilePlus, FolderOpen, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
+import { Check, Clapperboard, Download, FilePlus, FolderOpen, History, Home, PanelLeft, Pencil, Save, Settings, Sparkles } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -275,15 +275,24 @@ export function TopToolbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
-        <ToolButton
-          label="AI Director Assistant (Click or double-click to open)"
+        <Button
+          variant={aiDirectorOpen ? "secondary" : "ghost"}
+          size="sm"
           onClick={toggleAIDirector}
           onDoubleClick={() => setAIDirectorOpen(true)}
-          active={aiDirectorOpen}
-          testId="ai-director-button"
+          className={cn(
+            "h-8 gap-1.5 px-2.5 rounded-lg text-xs font-bold transition-all border",
+            aiDirectorOpen
+              ? "bg-violet-600/15 border-violet-500/50 text-violet-600 dark:text-violet-300 shadow-xs"
+              : "border-violet-500/30 hover:border-violet-500/60 text-foreground hover:text-violet-600 hover:bg-violet-500/10 bg-violet-500/5"
+          )}
+          title="Open AI Director Studio (Click or double-click)"
+          data-testid="ai-director-button"
         >
-          <Clapperboard className="size-4 text-violet-500" />
-        </ToolButton>
+          <Clapperboard className="size-3.5 text-violet-500 shrink-0" />
+          <span className="hidden sm:inline">AI Director</span>
+          <Sparkles className="size-3 text-amber-500 fill-amber-500 shrink-0" />
+        </Button>
 
         <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />

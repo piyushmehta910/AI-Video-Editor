@@ -89,7 +89,7 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   generatedSubTab: 'all',
   linkAudio: persisted('clipforge-link-audio', false),
   mode: (localStorage.getItem('clipforge-mode') as EditorMode) || 'hybrid',
-  aiDirectorOpen: false,
+  aiDirectorOpen: persisted('clipforge-ai-director-open', true),
   historyPanelOpen: false,
   tool: 'select',
   trimMode: false,
@@ -130,8 +130,16 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
     }
     set({ mode })
   },
-  toggleAIDirector: () => set((s) => ({ aiDirectorOpen: !s.aiDirectorOpen })),
-  setAIDirectorOpen: (open) => set({ aiDirectorOpen: open }),
+  toggleAIDirector: () =>
+    set((s) => {
+      const next = !s.aiDirectorOpen
+      persist('clipforge-ai-director-open', next)
+      return { aiDirectorOpen: next }
+    }),
+  setAIDirectorOpen: (open) => {
+    persist('clipforge-ai-director-open', open)
+    set({ aiDirectorOpen: open })
+  },
   toggleHistoryPanel: () => set((s) => ({ historyPanelOpen: !s.historyPanelOpen })),
   setTool: (tool) => set({ tool }),
   toggleTrimMode: () => set((s) => ({ trimMode: !s.trimMode })),

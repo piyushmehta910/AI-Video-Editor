@@ -1236,13 +1236,13 @@ export function AIDirector({
             maxWidth: 'calc(100vw - 20px)',
             maxHeight: 'calc(100vh - 20px)',
           }}
-          className={`fixed top-0 left-0 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/30 dark:border-white/15 bg-background/75 dark:bg-slate-950/75 shadow-[0_16px_48px_0_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all ${
+          className={`fixed top-0 left-0 z-50 flex flex-col rounded-2xl border border-white/30 dark:border-white/15 bg-background/75 dark:bg-slate-950/75 shadow-[0_16px_48px_0_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all ${
             isResizing ? 'select-none' : ''
           }`}
         >
           {/* Draggable Header Bar with Glassmorphism */}
           <div
-            className="relative flex cursor-grab active:cursor-grabbing select-none items-center gap-2.5 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-4 py-2.5 backdrop-blur-xl touch-none"
+            className="relative flex cursor-grab active:cursor-grabbing select-none items-center gap-2.5 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-4 py-2.5 backdrop-blur-xl rounded-t-2xl touch-none"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -1259,7 +1259,8 @@ export function AIDirector({
               <div className="flex items-center gap-1.5">
                 <h3 className="text-xs font-bold leading-none text-foreground tracking-tight">AI Director</h3>
                 {busy ? (
-                  <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-semibold text-violet-400 border border-violet-500/30 animate-pulse">
+                  <span className="flex items-center gap-1 rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-semibold text-violet-400 border border-violet-500/30">
+                    <Loader2 className="size-2.5 animate-spin" />
                     Thinking...
                   </span>
                 ) : (
@@ -2138,23 +2139,24 @@ export function AIDirector({
           )}
 
           {/* Bottom Action & Input Bar with Glassmorphism */}
-          <div className="border-t border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 p-3 backdrop-blur-xl space-y-2">
+          <div className="border-t border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 p-3 backdrop-blur-xl space-y-2 rounded-b-2xl">
             {/* Quick Action Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
               {[
-                { label: '⚡ Auto-Edit', prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.' },
-                { label: '📝 Captions', prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
-                { label: '✂️ Cut Silence', prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
-                { label: '🎨 Teal & Orange', prompt: 'Apply a Hollywood Teal & Orange cinematic color grade preset to all video clips.' },
-                { label: '📱 9:16 Reel', prompt: 'Reframe this project to a vertical 9:16 Reel/Shorts format.' },
+                { label: 'Auto-Edit', icon: Sparkles, prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.' },
+                { label: 'Captions', icon: Subtitles, prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
+                { label: 'Cut Silence', icon: Scissors, prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
+                { label: 'Teal & Orange', icon: Palette, prompt: 'Apply a Hollywood Teal & Orange cinematic color grade preset to all video clips.' },
+                { label: '9:16 Reel', icon: Smartphone, prompt: 'Reframe this project to a vertical 9:16 Reel/Shorts format.' },
               ].map((p, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => void send(p.prompt)}
                   disabled={busy}
-                  className="rounded-full border border-border/70 bg-card/80 hover:bg-muted hover:border-violet-500/50 px-2.5 py-1 text-[10px] font-semibold text-foreground transition-all shadow-xs shrink-0 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-full border border-border/70 bg-card/80 hover:bg-muted hover:border-violet-500/50 px-2.5 py-1 text-[10px] font-semibold text-foreground transition-all shadow-xs shrink-0 disabled:opacity-50"
                 >
+                  <p.icon className="size-3 text-muted-foreground" />
                   {p.label}
                 </button>
               ))}
