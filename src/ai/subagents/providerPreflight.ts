@@ -58,3 +58,17 @@ export function validateBriefProviders(brief: VideoBrief): PreflightReport {
 
   return { blockers, warnings }
 }
+
+export function getProviderKeyStatus(): {
+  nvidiaNim: boolean
+  openrouter: boolean
+  opencodeZen: boolean
+} {
+  const { config } = useApiConfigStore.getState()
+  return {
+    nvidiaNim: Boolean(config.nvidiaNim.apiKey?.trim()),
+    openrouter: Boolean(config.openRouter.apiKey?.trim()),
+    opencodeZen: Boolean(config.opencodeZen.apiKey?.trim()),
+  }
+}
+

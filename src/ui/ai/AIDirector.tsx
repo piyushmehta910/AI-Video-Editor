@@ -3,26 +3,39 @@ import {
   AlertCircle,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
   Circle,
   Clapperboard,
   Code,
   Cpu,
+  Download,
+  ExternalLink,
+  FileText,
   Globe,
   GripHorizontal,
   HelpCircle,
+  Info,
+  Layers,
   ListChecks,
   Loader2,
   Maximize2,
   Mic,
   Minimize2,
+  Music,
   Palette,
+  Play,
+  RotateCcw,
   Scissors,
   Send,
   Settings,
+  ShieldCheck,
   Smartphone,
   Sparkles,
   Subtitles,
   Trash2,
+  Undo2,
   User,
   Video,
   X,
@@ -54,6 +67,25 @@ import { Button } from '@/components/ui/button'
 import { useAIStore } from '@/stores/aiStore'
 import { DEFAULT_VIDEO_BRIEF, VIDEO_BRIEF_QUESTIONS, applyBriefAnswer, extractCleanTopic, isVideoCreationPrompt } from '@/ai/videoBrief'
 import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
+import { getProviderKeyStatus } from '@/ai/subagents/providerPreflight'
+
+const TOOL_METADATA: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+  generate_script: { label: 'Narration Script', icon: FileText },
+  __scene_sequence__: { label: 'Scene Production', icon: Video },
+  search_music: { label: 'Music Track', icon: Music },
+  auto_generate_captions: { label: 'Animated Captions', icon: Subtitles },
+  add_caption: { label: 'Subtitle Layer', icon: Subtitles },
+  check_quality: { label: 'Quality Audit', icon: ShieldCheck },
+  render_preview: { label: 'Preview Engine', icon: Play },
+  split_clip: { label: 'Split Cut', icon: Scissors },
+  trim_clip: { label: 'Clip Trimming', icon: Scissors },
+  set_project_ratio: { label: 'Canvas Formatting', icon: Smartphone },
+  web_research: { label: 'Web Research', icon: Globe },
+  generate_voiceover: { label: 'Voiceover Synthesis', icon: Mic },
+  search_stock_image: { label: 'Stock Visuals', icon: Sparkles },
+  apply_color_preset: { label: 'Color Grading', icon: Palette },
+  execute_autonomous_video_plan: { label: 'Autonomous Video Pipeline', icon: Clapperboard },
+}
 
 interface UiMessage {
   id: string
@@ -470,8 +502,8 @@ export function AIDirector({
   const handleLauncherPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!launcherDragStartRef.current) return
     const wasMoved = launcherDragStartRef.current.hasMoved
-    const finalX = launcherPos.x
-    const finalY = launcherPos.y
+    let finalX = launcherPos.x
+    let finalY = launcherPos.y
     launcherDragStartRef.current = null
     try {
       ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
@@ -480,6 +512,11 @@ export function AIDirector({
     }
 
     if (wasMoved) {
+      const snapLeft = 16
+      const snapRight = Math.max(16, window.innerWidth - 75)
+      finalX = finalX < window.innerWidth / 2 ? snapLeft : snapRight
+      finalY = Math.min(Math.max(16, finalY), Math.max(16, window.innerHeight - 80))
+      setLauncherPos({ x: finalX, y: finalY })
       try {
         localStorage.setItem(LAUNCHER_STORAGE_KEY, JSON.stringify({ x: finalX, y: finalY }))
       } catch {
@@ -569,9 +606,11 @@ export function AIDirector({
   const [revising, setRevising] = React.useState(false)
   const [reviseInput, setReviseInput] = React.useState('')
   const [askedQuestions, setAskedQuestions] = React.useState<string[]>([])
+  const [expandedTaskId, setExpandedTaskId] = React.useState<string | null>(null)
   // Destructive tools park their effect here until the user confirms (dialog below).
   const [confirmAction, setConfirmAction] = React.useState<{ toolName: string; args: Record<string, unknown>; onConfirm: () => void } | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const modelMenuRef = React.useRef<HTMLDivElement>(null)
   const pendingAnswerRef = React.useRef<((answer: string) => void) | null>(null)
 
   const apiConfig = useApiConfigStore((s) => s.config)
@@ -579,6 +618,18 @@ export function AIDirector({
   const [showModelMenu, setShowModelMenu] = React.useState(false)
 
   const [onlyFreeModels, setOnlyFreeModels] = React.useState(false)
+  const keyStatus = getProviderKeyStatus()
+
+  React.useEffect(() => {
+    if (!showModelMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setShowModelMenu(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => window.removeEventListener('mousedown', handleClickOutside)
+  }, [showModelMenu])
 
   const rawProvider = apiConfig.preferences.preferredAiProvider || 'nvidia-nim'
   const activeProviderKey: 'nvidia-nim' | 'openrouter' | 'opencode-zen' =
@@ -1300,7 +1351,7 @@ export function AIDirector({
                   </span>
                 </button>
                 {showModelMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-white/25 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2">
+                  <div ref={modelMenuRef} className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-white/25 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2">
                     <div className="flex items-center justify-between pb-1 border-b border-border/50">
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Director Engine</span>
                       <div className="flex items-center gap-2">
@@ -1323,7 +1374,7 @@ export function AIDirector({
                       </div>
                     </div>
 
-                    {/* Provider switcher (3 tabs) */}
+                    {/* Provider switcher (3 tabs) with Key Status Indicator */}
                     <div className="grid grid-cols-3 gap-0.5 bg-muted/40 p-0.5 rounded-lg border">
                       <button
                         type="button"
@@ -1332,7 +1383,9 @@ export function AIDirector({
                           'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
                           activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
+                        title={keyStatus.nvidiaNim ? 'NVIDIA NIM: API key configured' : 'NVIDIA NIM: No key added yet'}
                       >
+                        <span className={cn('size-1.5 rounded-full shrink-0', keyStatus.nvidiaNim ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
                         <Zap className="size-2.5 shrink-0" />
                         <span>NIM</span>
                       </button>
@@ -1343,7 +1396,9 @@ export function AIDirector({
                           'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
                           activeProviderKey === 'openrouter' ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
+                        title={keyStatus.openrouter ? 'OpenRouter: API key configured' : 'OpenRouter: No key added yet'}
                       >
+                        <span className={cn('size-1.5 rounded-full shrink-0', keyStatus.openrouter ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
                         <Globe className="size-2.5 shrink-0" />
                         <span>Router</span>
                       </button>
@@ -1354,7 +1409,9 @@ export function AIDirector({
                           'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
                           activeProviderKey === 'opencode-zen' ? 'bg-card text-sky-600 dark:text-sky-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
+                        title={keyStatus.opencodeZen ? 'OpenCode Zen: API key configured' : 'OpenCode Zen: No key added yet'}
                       >
+                        <span className={cn('size-1.5 rounded-full shrink-0', keyStatus.opencodeZen ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
                         <Code className="size-2.5 shrink-0" />
                         <span>Zen</span>
                       </button>
@@ -1725,8 +1782,23 @@ export function AIDirector({
                     {m.text}
                   </div>
                   {m.tools && m.tools.length > 0 && (
-                    <div className="text-muted-foreground text-[10px] font-mono">
-                      {m.proposed ? 'Proposed' : 'Used'}: {m.tools.join(', ')}
+                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                      <span className="text-[10px] font-semibold text-muted-foreground mr-0.5">
+                        {m.proposed ? 'Proposed:' : 'Actions:'}
+                      </span>
+                      {m.tools.map((toolName) => {
+                        const meta = TOOL_METADATA[toolName] || { label: toolName.replace(/_/g, ' '), icon: Zap }
+                        const Icon = meta.icon
+                        return (
+                          <span
+                            key={toolName}
+                            className="inline-flex items-center gap-1 rounded-md border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur-xs shadow-2xs"
+                          >
+                            <Icon className="size-2.5 text-violet-500 shrink-0" />
+                            <span>{meta.label}</span>
+                          </span>
+                        )
+                      })}
                     </div>
                   )}
                   {m.review && m.review.length > 0 && (
@@ -1763,20 +1835,35 @@ export function AIDirector({
               const question = VIDEO_BRIEF_QUESTIONS[videoProduction.step]
               return (
                 <div className="space-y-3 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md animate-in fade-in zoom-in-95">
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30">
-                      <Clapperboard className="size-3.5" />
+                  {/* Visual 6-Segment Step Progress Bar */}
+                  <div className="space-y-1.5 pb-1 border-b border-white/10 dark:border-white/5">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <div className="flex items-center gap-1.5 text-violet-700 dark:text-violet-300">
+                        <Clapperboard className="size-3.5 text-violet-500" />
+                        <span>Create a Video · Step {videoProduction.step + 1} of {VIDEO_BRIEF_QUESTIONS.length}</span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{question.title}</span>
                     </div>
-                    <span className="text-xs font-bold text-violet-700 dark:text-violet-300">
-                      Create a video · Step {videoProduction.step + 1} of {VIDEO_BRIEF_QUESTIONS.length}
-                    </span>
-                    <span className="ml-auto text-[9px] font-semibold rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5">
-                      {Math.round(((videoProduction.step + 1) / VIDEO_BRIEF_QUESTIONS.length) * 100)}%
-                    </span>
+                    <div className="grid grid-cols-6 gap-1">
+                      {VIDEO_BRIEF_QUESTIONS.map((q, idx) => (
+                        <div
+                          key={q.id}
+                          className={cn(
+                            'h-1.5 rounded-full transition-all duration-300',
+                            idx < videoProduction.step
+                              ? 'bg-violet-600 dark:bg-violet-400'
+                              : idx === videoProduction.step
+                                ? 'bg-violet-500 animate-pulse ring-2 ring-violet-500/30'
+                                : 'bg-muted/40 dark:bg-white/10'
+                          )}
+                          title={`Step ${idx + 1}: ${q.title}`}
+                        />
+                      ))}
+                    </div>
                   </div>
+
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{question.title}</p>
-                    <p className="mt-1 text-xs sm:text-sm font-semibold text-foreground">{question.prompt}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-foreground leading-snug">{question.prompt}</p>
                   </div>
                   {question.options.length > 0 && (
                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -1812,7 +1899,7 @@ export function AIDirector({
                           }
                         }}
                         placeholder={videoProduction.step === 0 ? 'Describe the topic and message…' : 'Write a custom answer…'}
-                        className="min-w-0 flex-1 rounded-xl border border-white/30 bg-white/50 px-3 py-2 text-xs outline-none focus:border-violet-500 dark:border-white/15 dark:bg-white/5"
+                        className="min-w-0 flex-1 rounded-xl border border-white/30 bg-white/50 px-3 py-2 text-xs outline-none focus:border-violet-500 dark:border-white/15 dark:bg-white/5 text-foreground placeholder:text-muted-foreground"
                       />
                       <Button
                         size="sm"
@@ -1883,58 +1970,110 @@ export function AIDirector({
                 </div>
                 <p className="text-xs text-foreground">{videoProduction.message}</p>
                 {videoProduction.tasks.length > 0 && (
-                  <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
-                    {videoProduction.tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={cn(
-                          'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-                          task.status === 'completed'
-                            ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                            : task.status === 'running'
-                              ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-                              : task.status === 'failed'
-                                ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-400'
-                                : task.status === 'skipped'
-                                  ? 'border-muted bg-muted/20 text-muted-foreground line-through'
-                                  : 'border-white/15 bg-white/5 text-muted-foreground'
-                        )}
-                      >
-                        {task.status === 'completed' ? (
-                          <CheckCircle2 className="size-3 shrink-0 text-emerald-500" />
-                        ) : task.status === 'running' ? (
-                          <Loader2 className="size-3 shrink-0 animate-spin text-sky-500" />
-                        ) : task.status === 'failed' ? (
-                          <AlertCircle className="size-3 shrink-0 text-rose-500" />
-                        ) : (
-                          <Circle className="size-3 shrink-0 text-muted-foreground/40" />
-                        )}
-                        <span className="truncate">{task.title}</span>
-                        {task.resultMessage && task.status === 'failed' && (
-                          <span className="ml-auto text-[9px] text-rose-400 shrink-0">Failed</span>
-                        )}
-                      </div>
-                    ))}
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-0.5">
+                    {videoProduction.tasks.map((task) => {
+                      const isExpanded = expandedTaskId === task.id
+                      return (
+                        <div
+                          key={task.id}
+                          className={cn(
+                            'rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer select-none',
+                            task.status === 'completed'
+                              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                              : task.status === 'running'
+                                ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                                : task.status === 'failed'
+                                  ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                                  : task.status === 'skipped'
+                                    ? 'border-muted bg-muted/20 text-muted-foreground line-through'
+                                    : 'border-white/15 bg-white/5 text-muted-foreground'
+                          )}
+                          onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                          title="Click to view task details"
+                        >
+                          <div className="flex items-center gap-2">
+                            {task.status === 'completed' ? (
+                              <CheckCircle2 className="size-3 shrink-0 text-emerald-500" />
+                            ) : task.status === 'running' ? (
+                              <Loader2 className="size-3 shrink-0 animate-spin text-sky-500" />
+                            ) : task.status === 'failed' ? (
+                              <AlertCircle className="size-3 shrink-0 text-rose-500" />
+                            ) : (
+                              <Circle className="size-3 shrink-0 text-muted-foreground/40" />
+                            )}
+                            <span className="truncate flex-1">{task.title}</span>
+                            {task.resultMessage && task.status === 'failed' && (
+                              <span className="text-[9px] text-rose-400 shrink-0">Failed</span>
+                            )}
+                            {isExpanded ? (
+                              <ChevronUp className="size-3 text-muted-foreground shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3 text-muted-foreground shrink-0" />
+                            )}
+                          </div>
+                          {isExpanded && (
+                            <div className="mt-1.5 pt-1.5 border-t border-current/10 text-[10px] space-y-0.5">
+                              {task.description && <p className="opacity-90">Role: <span className="font-semibold">{task.role}</span> — {task.description}</p>}
+                              {task.resultMessage && <p className="opacity-80">Result: {task.resultMessage}</p>}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
-                <div className="flex gap-1 pt-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => subagentOrchestrator.abort()}
-                    disabled={videoProduction.status !== 'executing'}
-                  >
-                    Cancel
-                  </Button>
+
+                {/* Completion Action Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  {videoProduction.status === 'completed' && (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs"
+                        onClick={() => {
+                          useTimelineStore.getState().setPlayhead(0)
+                        }}
+                      >
+                        <Play className="size-3 mr-1" />
+                        Seek to Start (0:00)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          useTimelineStore.getState().undo()
+                          clearVideoProduction()
+                        }}
+                      >
+                        <Undo2 className="size-3 mr-1" />
+                        Undo Production
+                      </Button>
+                    </>
+                  )}
+                  {videoProduction.status === 'executing' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => subagentOrchestrator.abort()}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                   {(videoProduction.status === 'failed' || videoProduction.status === 'cancelled') && videoProduction.brief && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      className="h-7 text-xs font-bold text-violet-600 dark:text-violet-400"
                       onClick={() => void runVideoProduction(videoProduction.brief!)}
                     >
-                      Retry
+                      <RotateCcw className="size-3 mr-1" />
+                      Retry Production
                     </Button>
                   )}
                 </div>
