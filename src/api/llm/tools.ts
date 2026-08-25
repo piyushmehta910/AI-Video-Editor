@@ -434,11 +434,16 @@ export const DIRECTOR_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'ask_user',
-      description: 'Ask the user ONE concise clarifying question when a request is genuinely ambiguous (e.g. which clip, what length, which style). Applied immediately and read-only. Never ask a question that has already been asked in this project — make your best guess instead.',
+      description: 'Ask the user ONE concise clarifying question when a request is genuinely ambiguous (e.g. video style, duration, music choice, target audience). Always provide 2-4 concise MCQ options for quick selection, allowing the user to either pick an option or write a custom answer.',
       parameters: {
         type: 'object',
         properties: {
-          question: { type: 'string', description: 'A single, concise question for the user.' },
+          question: { type: 'string', description: 'A single, concise clarifying question for the user.' },
+          options: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '2 to 4 concise multiple-choice answer options (e.g. ["15s Viral Reel (9:16)", "60s YouTube Short", "3-minute Deep Dive"]).',
+          },
         },
         required: ['question'],
       },

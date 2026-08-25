@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Clapperboard, GripHorizontal, ListChecks, Maximize2, MessageSquare, Minimize2, Play, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X, Zap } from 'lucide-react'
+import { Check, Clapperboard, GripHorizontal, HelpCircle, ListChecks, Maximize2, MessageSquare, Minimize2, Play, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X, Zap } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
@@ -548,8 +548,13 @@ export function AIDirector({
     })
   }
 
+  interface PendingQuestionState {
+    question: string
+    options?: string[]
+  }
+
   const [plan, setPlan] = React.useState<PendingPlan | null>(null)
-  const [pendingQuestion, setPendingQuestion] = React.useState<string | null>(null)
+  const [pendingQuestion, setPendingQuestion] = React.useState<PendingQuestionState | null>(null)
   const [questionAnswer, setQuestionAnswer] = React.useState('')
   const [revising, setRevising] = React.useState(false)
   const [reviseInput, setReviseInput] = React.useState('')
@@ -589,21 +594,22 @@ export function AIDirector({
     }
   }, [])
 
-  /** Prompt the user for the answer to an AI question and resolve with it. */
-  const promptQuestion = React.useCallback((question: string): Promise<string> => {
+  /** Prompt the user for the answer to an AI question with optional MCQ options and resolve with it. */
+  const promptQuestion = React.useCallback((question: string, options?: string[]): Promise<string> => {
     return new Promise((resolve) => {
       pendingAnswerRef.current = resolve
       setQuestionAnswer('')
-      setPendingQuestion(question)
+      setPendingQuestion({ question, options })
     })
   }, [])
 
-  const submitAnswer = () => {
-    const answer = questionAnswer.trim()
+  const submitAnswer = (customVal?: string) => {
+    const answer = (typeof customVal === 'string' ? customVal : questionAnswer).trim()
     if (!answer || !pendingAnswerRef.current) return
     const resolve = pendingAnswerRef.current
     pendingAnswerRef.current = null
     setPendingQuestion(null)
+    setQuestionAnswer('')
     resolve(answer)
   }
 
@@ -694,10 +700,13 @@ export function AIDirector({
               break
             } else if (name === 'ask_user') {
               const q = String(tc.arguments.question ?? '').trim()
+              const rawOptions = Array.isArray(tc.arguments.options)
+                ? (tc.arguments.options as unknown[]).map(String).filter((s) => s.trim().length > 0)
+                : []
               if (q && !askedQuestions.includes(q)) {
                 const next = rememberAskedQuestion(projectId, q)
                 setAskedQuestions(next)
-                const answer = await promptQuestion(q)
+                const answer = await promptQuestion(q, rawOptions.length > 0 ? rawOptions : undefined)
                 apiMessages.push({ role: 'tool', content: `User answered: ${answer}`, tool_call_id: tc.id })
                 asked = true
               } else {
@@ -1489,23 +1498,63 @@ export function AIDirector({
             ))}
 
             {pendingQuestion && (
-              <div className="space-y-2 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md">
-                <p className="text-xs font-bold text-violet-700 dark:text-violet-300">The director needs to know:</p>
-                <p className="text-sm font-medium">{pendingQuestion}</p>
-                <div className="flex gap-1.5 pt-1">
-                  <input
-                    autoFocus
-                    value={questionAnswer}
-                    onChange={(e) => setQuestionAnswer(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitAnswer()
-                    }}
-                    placeholder="Type your answer..."
-                    className="min-w-0 flex-1 rounded-xl border border-white/30 dark:border-white/15 bg-white/50 dark:bg-white/5 px-3 py-2 text-xs outline-none focus:border-violet-500 backdrop-blur-md text-foreground"
-                  />
-                  <Button size="sm" className="h-8 px-3 bg-violet-600 text-white font-bold" onClick={submitAnswer} disabled={!questionAnswer.trim()} aria-label="Send answer">
-                    <Send className="size-3.5" />
-                  </Button>
+              <div className="space-y-3 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3.5 backdrop-blur-xl shadow-md animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30">
+                    <HelpCircle className="size-3.5" />
+                  </div>
+                  <span className="text-xs font-bold text-violet-700 dark:text-violet-300">Clarification Question</span>
+                  <span className="ml-auto text-[9px] font-semibold rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5">Choose or Custom</span>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-foreground leading-snug">{pendingQuestion.question}</p>
+
+                {/* MCQ Options */}
+                {pendingQuestion.options && pendingQuestion.options.length > 0 && (
+                  <div className="space-y-1.5 pt-0.5">
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Select Options:</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {pendingQuestion.options.map((opt, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setQuestionAnswer(opt)
+                            submitAnswer(opt)
+                          }}
+                          className="flex items-center justify-between gap-2 rounded-xl border border-white/30 dark:border-white/15 bg-white/50 dark:bg-white/10 px-3 py-2 text-left text-xs font-medium text-foreground hover:border-violet-500 hover:bg-violet-500/15 hover:text-violet-600 dark:hover:text-violet-300 transition-all shadow-xs group"
+                        >
+                          <span className="min-w-0 flex-1">{opt}</span>
+                          <Check className="size-3.5 text-violet-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Write-in Input */}
+                <div className="space-y-1 pt-1.5 border-t border-white/15 dark:border-white/10">
+                  <div className="text-[10px] font-semibold text-muted-foreground">Or enter custom answer:</div>
+                  <div className="flex gap-1.5">
+                    <input
+                      autoFocus
+                      value={questionAnswer}
+                      onChange={(e) => setQuestionAnswer(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitAnswer()
+                      }}
+                      placeholder="Type your custom answer..."
+                      className="min-w-0 flex-1 rounded-xl border border-white/30 dark:border-white/15 bg-white/50 dark:bg-white/5 px-3 py-2 text-xs outline-none focus:border-violet-500 backdrop-blur-md text-foreground placeholder:text-muted-foreground"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8 px-3 bg-violet-600 hover:bg-violet-500 text-white font-bold shadow-xs shrink-0"
+                      onClick={() => submitAnswer()}
+                      disabled={!questionAnswer.trim()}
+                      aria-label="Send answer"
+                    >
+                      <Send className="size-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
