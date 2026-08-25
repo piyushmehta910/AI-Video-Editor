@@ -92,21 +92,16 @@ function suggestFollowups(usedTools: string[]): string[] {
   return [...picks].slice(0, 3)
 }
 
-export const DIRECTOR_NVIDIA_MODELS = [
-  { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (Recommended)' },
-  { id: 'deepseek-ai/deepseek-r1', name: 'DeepSeek R1 (Reasoning)' },
-  { id: 'nvidia/llama-3.1-nemotron-70b-instruct', name: 'Nemotron 70B' },
-  { id: 'mistralai/mixtral-8x22b-instruct-v0.1', name: 'Mixtral 8x22B' },
-  { id: 'qwen/qwen2.5-72b-instruct', name: 'Qwen 2.5 72B' },
-]
+import {
+  NVIDIA_NIM_MODELS,
+  OPENROUTER_MODELS,
+  OPENCODE_ZEN_MODELS,
+  type ModelOption,
+} from '@/api/llm/models'
 
-export const DIRECTOR_OPENROUTER_MODELS = [
-  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-  { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1' },
-  { id: 'openai/gpt-4o', name: 'GPT-4o' },
-  { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
-  { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
-]
+export const DIRECTOR_NVIDIA_MODELS = NVIDIA_NIM_MODELS
+export const DIRECTOR_OPENROUTER_MODELS = OPENROUTER_MODELS
+export const DIRECTOR_ZEN_MODELS = OPENCODE_ZEN_MODELS
 
 const MAX_PROPOSALS = 20
 
@@ -567,18 +562,32 @@ export function AIDirector({
   const updateApiConfig = useApiConfigStore((s) => s.update)
   const [showModelMenu, setShowModelMenu] = React.useState(false)
 
-  const activeProviderKey = apiConfig.preferences.preferredAiProvider || 'nvidia-nim'
-  const isNvidia = activeProviderKey === 'nvidia-nim' || activeProviderKey === 'nvidiaNim'
-  const activeModel = isNvidia
-    ? (apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')
-    : (apiConfig.openRouter.model || 'anthropic/claude-3.5-sonnet')
+  const [onlyFreeModels, setOnlyFreeModels] = React.useState(false)
 
-  const handleSelectDirectorModel = (providerKey: 'nvidia-nim' | 'openrouter', modelId: string) => {
+  const rawProvider = apiConfig.preferences.preferredAiProvider || 'nvidia-nim'
+  const activeProviderKey: 'nvidia-nim' | 'openrouter' | 'opencode-zen' =
+    rawProvider === 'openRouter' || rawProvider === 'openrouter'
+      ? 'openrouter'
+      : rawProvider === 'opencodeZen' || rawProvider === 'opencode-zen'
+        ? 'opencode-zen'
+        : 'nvidia-nim'
+
+  const activeModel =
+    activeProviderKey === 'nvidia-nim'
+      ? (apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')
+      : activeProviderKey === 'opencode-zen'
+        ? (apiConfig.opencodeZen.model || 'deepseek-v4-flash-free')
+        : (apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free')
+
+  const handleSelectDirectorModel = (providerKey: 'nvidia-nim' | 'openrouter' | 'opencode-zen', modelId: string) => {
     updateApiConfig((draft) => {
       draft.preferences.preferredAiProvider = providerKey
       if (providerKey === 'nvidia-nim') {
         draft.nvidiaNim.model = modelId
         draft.nvidiaNim.enabled = true
+      } else if (providerKey === 'opencode-zen') {
+        draft.opencodeZen.model = modelId
+        draft.opencodeZen.enabled = true
       } else {
         draft.openRouter.model = modelId
         draft.openRouter.enabled = true
@@ -1180,71 +1189,145 @@ export function AIDirector({
                   type="button"
                   onClick={() => setShowModelMenu((s) => !s)}
                   className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
-                    isNvidia
+                    activeProviderKey === 'nvidia-nim'
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                      : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
+                      : activeProviderKey === 'opencode-zen'
+                        ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
+                        : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
                   }`}
                   title="Select AI Director Model & Provider"
                 >
                   <Cpu className="size-3 shrink-0" />
-                  <span className="truncate max-w-[90px]">
-                    {isNvidia ? '⚡ NIM' : '🌐 OpenRouter'}: {activeModel.split('/').pop()?.replace('-instruct', '')}
+                  <span className="truncate max-w-[110px]">
+                    {activeProviderKey === 'nvidia-nim' ? '⚡ NIM' : activeProviderKey === 'opencode-zen' ? '💻 Zen' : '🌐 Router'}:{' '}
+                    {activeModel.split('/').pop()?.replace('-instruct', '')}
                   </span>
                 </button>
                 {showModelMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-white/25 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-white/25 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-2">
                     <div className="flex items-center justify-between pb-1 border-b border-border/50">
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Director Engine</span>
-                      <Link to="/settings" className="text-[9px] text-violet-500 hover:underline" onClick={() => setShowModelMenu(false)}>
-                        API Keys
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setOnlyFreeModels(!onlyFreeModels)}
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-[9px] font-bold transition border',
+                            onlyFreeModels
+                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground',
+                          )}
+                          title="Filter to only free endpoint models"
+                        >
+                          {onlyFreeModels ? '✓ Free Only' : 'Show Free'}
+                        </button>
+                        <Link to="/settings" className="text-[9px] text-violet-500 hover:underline font-semibold" onClick={() => setShowModelMenu(false)}>
+                          Keys
+                        </Link>
+                      </div>
                     </div>
 
-                    {/* Provider switcher */}
-                    <div className="grid grid-cols-2 gap-1 bg-muted/40 p-0.5 rounded-lg border">
+                    {/* Provider switcher (3 tabs) */}
+                    <div className="grid grid-cols-3 gap-0.5 bg-muted/40 p-0.5 rounded-lg border">
                       <button
                         type="button"
                         onClick={() => handleSelectDirectorModel('nvidia-nim', apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')}
                         className={cn(
-                          'flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-bold transition',
-                          isNvidia ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                          'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
+                          activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        <span>⚡ NVIDIA NIM</span>
+                        <span>⚡ NIM</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSelectDirectorModel('openrouter', apiConfig.openRouter.model || 'anthropic/claude-3.5-sonnet')}
+                        onClick={() => handleSelectDirectorModel('openrouter', apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free')}
                         className={cn(
-                          'flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-bold transition',
-                          !isNvidia ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                          'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
+                          activeProviderKey === 'openrouter' ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        <span>🌐 OpenRouter</span>
+                        <span>🌐 Router</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDirectorModel('opencode-zen', apiConfig.opencodeZen.model || 'deepseek-v4-flash-free')}
+                        className={cn(
+                          'flex items-center justify-center gap-1 py-1 rounded-md text-[9px] font-bold transition truncate',
+                          activeProviderKey === 'opencode-zen' ? 'bg-card text-sky-600 dark:text-sky-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <span>💻 Zen</span>
                       </button>
                     </div>
 
                     {/* Models list */}
-                    <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                      {(isNvidia ? DIRECTOR_NVIDIA_MODELS : DIRECTOR_OPENROUTER_MODELS).map((m) => {
-                        const isSelected = (isNvidia ? apiConfig.nvidiaNim.model : apiConfig.openRouter.model) === m.id
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => handleSelectDirectorModel(isNvidia ? 'nvidia-nim' : 'openrouter', m.id)}
-                            className={cn(
-                              'w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition',
-                              isSelected
-                                ? 'bg-violet-500/15 text-violet-600 dark:text-violet-300 font-bold'
-                                : 'hover:bg-muted text-muted-foreground hover:text-foreground',
-                            )}
-                          >
-                            <span className="truncate">{m.name}</span>
-                            {isSelected && <Check className="size-3 text-violet-500 shrink-0" />}
-                          </button>
-                        )
-                      })}
+                    <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
+                      {(() => {
+                        const rawList: ModelOption[] =
+                          activeProviderKey === 'nvidia-nim'
+                            ? DIRECTOR_NVIDIA_MODELS
+                            : activeProviderKey === 'opencode-zen'
+                              ? DIRECTOR_ZEN_MODELS
+                              : DIRECTOR_OPENROUTER_MODELS
+
+                        const list = onlyFreeModels ? rawList.filter((m) => m.isFree) : rawList
+                        const currentModelId =
+                          activeProviderKey === 'nvidia-nim'
+                            ? apiConfig.nvidiaNim.model
+                            : activeProviderKey === 'opencode-zen'
+                              ? apiConfig.opencodeZen.model
+                              : apiConfig.openRouter.model
+
+                        if (list.length === 0) {
+                          return (
+                            <p className="text-[11px] text-muted-foreground text-center py-3">No free models in this category.</p>
+                          )
+                        }
+
+                        return list.map((m) => {
+                          const isSelected = currentModelId === m.id
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => handleSelectDirectorModel(activeProviderKey, m.id)}
+                              className={cn(
+                                'w-full flex items-start justify-between gap-2 rounded-lg p-2 text-xs text-left transition border',
+                                isSelected
+                                  ? 'bg-violet-500/15 border-violet-500/30 text-violet-600 dark:text-violet-300 font-bold'
+                                  : 'border-transparent bg-muted/20 hover:bg-muted/60 text-muted-foreground hover:text-foreground',
+                              )}
+                            >
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="truncate text-[11px] font-semibold text-foreground">{m.name}</span>
+                                  {m.isFree ? (
+                                    <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-1 py-0.2 text-[8px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                      FREE
+                                    </span>
+                                  ) : (
+                                    <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1 py-0.2 text-[8px] font-mono font-semibold text-amber-600 dark:text-amber-400">
+                                      PRO
+                                    </span>
+                                  )}
+                                  {m.tag && (
+                                    <span className="rounded bg-muted px-1 py-0.2 text-[8px] text-muted-foreground">
+                                      {m.tag}
+                                    </span>
+                                  )}
+                                </div>
+                                {m.description && (
+                                  <p className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
+                                    {m.description}
+                                  </p>
+                                )}
+                              </div>
+                              {isSelected && <Check className="size-3.5 text-violet-500 shrink-0 mt-0.5" />}
+                            </button>
+                          )
+                        })
+                      })()}
                     </div>
                   </div>
                 )}
