@@ -109,11 +109,23 @@ export async function extractProjectObservations(): Promise<{
   }
 }
 
+export interface GenerateInductiveSlideOptions {
+  topicPrompt?: string
+  provider?: string
+  model?: string
+}
+
 /**
  * Synthesize an inductive slide deck plan from timeline observations.
  */
-export async function generateInductiveSlideContext(topicPrompt?: string): Promise<InductiveSlideContext> {
-  const provider = getDirectorProvider()
+export async function generateInductiveSlideContext(
+  topicPromptOrOptions?: string | GenerateInductiveSlideOptions,
+): Promise<InductiveSlideContext> {
+  const options =
+    typeof topicPromptOrOptions === 'string'
+      ? { topicPrompt: topicPromptOrOptions }
+      : topicPromptOrOptions ?? {}
+  const provider = getDirectorProvider({ provider: options.provider, model: options.model })
   if (!provider) throw new Error('No AI provider configured. Add one in Settings → AI & Reasoning.')
 
   const obs = await extractProjectObservations()
@@ -125,7 +137,7 @@ Project Timeline Observations:
 - Key Topics / Keywords: ${obs.keywords.join(', ') || '(none detected yet)'}
 - Spoken Audio Transcripts: ${obs.transcripts.join(' ') || '(no spoken voiceover yet)'}
 - Visual Scene Summaries: ${obs.sceneSummaries.join('; ') || '(no visual scenes analyzed yet)'}
-User Prompt: "${topicPrompt || 'Synthesize presentation deck matching current project video'}"
+User Prompt: "${options.topicPrompt || 'Synthesize presentation deck matching current project video'}"
 `
 
   const messages: ChatMessage[] = [
@@ -168,7 +180,7 @@ Output strictly valid JSON with this shape:
     if (start !== -1 && end !== -1) {
       const parsed = JSON.parse(content.slice(start, end + 1))
       return {
-        topicThesis: String(parsed.topicThesis || topicPrompt || 'Project Presentation'),
+        topicThesis: String(parsed.topicThesis || options.topicPrompt || 'Project Presentation'),
         targetAudience: String(parsed.targetAudience || 'General Audience'),
         tone: parsed.tone || 'professional',
         recommendedSlideCount: Math.max(2, Math.min(10, Number(parsed.recommendedSlideCount) || 5)),
@@ -186,7 +198,7 @@ Output strictly valid JSON with this shape:
 
   // Safe fallback
   return {
-    topicThesis: topicPrompt || 'Executive Overview Deck',
+    topicThesis: options.topicPrompt || 'Executive Overview Deck',
     targetAudience: 'Professional Stakeholders',
     tone: 'professional',
     recommendedSlideCount: 4,

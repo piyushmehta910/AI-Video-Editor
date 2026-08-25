@@ -6,6 +6,8 @@ export interface MotionCodeOptions {
   style?: string
   language?: string
   transparent?: boolean
+  provider?: string
+  model?: string
 }
 
 export interface MotionCodeResult {
@@ -80,7 +82,7 @@ function extractCode(content: string): string {
 }
 
 export async function generateMotionCode(options: MotionCodeOptions): Promise<MotionCodeResult> {
-  const provider = getDirectorProvider()
+  const provider = getDirectorProvider({ provider: options.provider, model: options.model })
   if (!provider) throw new Error('No AI provider configured. Add one in Settings → AI & Reasoning.')
   const styleLine = options.style && options.style !== 'auto' ? ` Visual Style: ${options.style}.` : ''
   const languageLine = options.language && options.language !== 'auto' ? ` Text Language: ${options.language}.` : ''

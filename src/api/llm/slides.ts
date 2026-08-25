@@ -53,6 +53,8 @@ export interface GenerateSlidesOptions {
   font?: SlideFont
   animation?: SlideAnimation
   layoutArchetype?: string
+  provider?: string
+  model?: string
 }
 
 export const SLIDE_THEMES_META: Record<
@@ -366,7 +368,7 @@ export async function generateSlides(options: GenerateSlidesOptions): Promise<Sl
   const animation = options.animation ?? 'slide_up'
   const count = options.count ?? 4
 
-  const provider = getDirectorProvider()
+  const provider = getDirectorProvider({ provider: options.provider, model: options.model })
   if (!provider) {
     return generateLocalFallbackSlides(options.topic, count, theme, font, animation)
   }

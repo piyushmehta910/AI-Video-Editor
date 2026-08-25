@@ -23,16 +23,24 @@ export interface DirectorProvider {
   config: LLMConfig
 }
 
-export function getDirectorProvider(): DirectorProvider | null {
+export interface DirectorProviderOverride {
+  provider?: string
+  model?: string
+}
+
+export function getDirectorProvider(override?: DirectorProviderOverride): DirectorProvider | null {
   const { config } = useApiConfigStore.getState()
-  const preferred = config.preferences.preferredAiProvider
+  const preferred = override?.provider || config.preferences.preferredAiProvider
   const candidates: Array<{ name: string; cfg: LLMConfig }> = [
     { name: 'OpenRouter', cfg: config.openRouter },
     { name: 'OpenCode Zen', cfg: config.opencodeZen },
     { name: 'NVIDIA NIM', cfg: config.nvidiaNim },
   ]
-  const tryCandidate = (name: string, cfg: LLMConfig): DirectorProvider | null =>
-    cfg.enabled && cfg.apiKey && cfg.baseUrl && cfg.model ? { name, config: cfg } : null
+  const tryCandidate = (name: string, cfg: LLMConfig): DirectorProvider | null => {
+    if (!cfg.enabled || !cfg.apiKey || !cfg.baseUrl || !cfg.model) return null
+    const modelToUse = override?.model || cfg.model
+    return { name, config: { ...cfg, model: modelToUse } }
+  }
   if (preferred) {
     const prefs: Record<string, { name: string; cfg: LLMConfig }> = {
       openRouter: { name: 'OpenRouter', cfg: config.openRouter },

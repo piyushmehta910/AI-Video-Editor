@@ -16,6 +16,8 @@ export interface GenerateAvatarOptions {
   avatarImage?: Blob
   style?: LipsyncStyle
   audioBlob?: Blob
+  provider?: string
+  model?: string
 }
 
 export interface GenerateAvatarResult {
@@ -124,6 +126,8 @@ export async function generateAvatarVideo(options: GenerateAvatarOptions): Promi
       topic: `${ROLE_PROMPTS[role]} Topic: "${topic}"`,
       durationSeconds,
       language,
+      provider: options.provider,
+      model: options.model,
     })
   }
 

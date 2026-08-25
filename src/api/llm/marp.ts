@@ -42,8 +42,10 @@ export async function generateMarpMarkdown(options: {
   count?: number
   language?: string
   contextClues?: string
+  provider?: string
+  model?: string
 }): Promise<string> {
-  const provider = getDirectorProvider()
+  const provider = getDirectorProvider({ provider: options.provider, model: options.model })
   if (!provider) throw new Error('No AI provider configured. Add one in Settings → AI & Reasoning.')
   const languageLine = options.language && options.language !== 'auto' ? ` Write in ${options.language}.` : ''
   const countLine = options.count && options.count > 0 ? ` Use exactly ${options.count} slides.` : ' Use 4 to 6 slides.'

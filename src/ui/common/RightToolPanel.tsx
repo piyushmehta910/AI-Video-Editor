@@ -159,6 +159,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ModelSelectField } from './ModelSelectField'
+import { WHISPER_MODELS } from '@/api/llm/models'
 import { cn } from '@/lib/utils'
 
 export type ToolSection =
@@ -304,6 +306,8 @@ function SlideSection() {
   const [animation, setAnimation] = React.useState<SlideAnimation>('slide_up')
   const [layoutArchetype, setLayoutArchetype] = React.useState('Startup Pitch Deck')
   const [slideDuration, setSlideDuration] = React.useState(5)
+  const [slideProvider, setSlideProvider] = React.useState<'nvidia-nim' | 'openrouter'>('nvidia-nim')
+  const [slideModel, setSlideModel] = React.useState('meta/llama-3.3-70b-instruct')
 
   // Current Slide Deck State
   const [deck, setDeck] = React.useState<SlideDeck | null>(null)
@@ -364,6 +368,8 @@ function SlideSection() {
         font,
         animation,
         layoutArchetype,
+        provider: slideProvider,
+        model: slideModel,
       })
 
       setDeck(generated)
@@ -747,6 +753,13 @@ function SlideSection() {
               </Select>
             </div>
           </div>
+
+          <ModelSelectField
+            provider={slideProvider}
+            model={slideModel}
+            onProviderChange={setSlideProvider}
+            onModelChange={setSlideModel}
+          />
 
           <Button
             size="sm"
@@ -1150,6 +1163,8 @@ function AvatarSection() {
   const [scriptText, setScriptText] = React.useState('Welcome back! Today we are exploring the latest AI video production tools.')
   const [topicPrompt, setTopicPrompt] = React.useState('')
   const [scriptLanguage, setScriptLanguage] = React.useState<'english' | 'hindi'>('english')
+  const [avatarProvider, setAvatarProvider] = React.useState<'nvidia-nim' | 'openrouter'>('nvidia-nim')
+  const [avatarModel, setAvatarModel] = React.useState('meta/llama-3.3-70b-instruct')
   const [voiceId, setVoiceId] = React.useState('alloy')
   const [isGeneratingScript, setIsGeneratingScript] = React.useState(false)
   const [role, setRole] = React.useState<AvatarRole>('presenter')
@@ -1281,6 +1296,8 @@ function AvatarSection() {
         topic: `${scriptLanguage === 'hindi' ? 'Hindi and English mixed Hinglish narration for: ' : 'Presenter avatar speech: '}${topic}`,
         durationSeconds: 15,
         creatorStyle: 'off',
+        provider: avatarProvider,
+        model: avatarModel,
       })
       const fullText = [script.hook, ...script.scenes.map((s) => s.text), script.cta].filter(Boolean).join(' ')
       if (fullText.trim()) {
@@ -1837,6 +1854,14 @@ function AvatarSection() {
                   Generate
                 </Button>
               </div>
+
+              <ModelSelectField
+                provider={avatarProvider}
+                model={avatarModel}
+                onProviderChange={setAvatarProvider}
+                onModelChange={setAvatarModel}
+                className="pt-1"
+              />
             </div>
 
             <div className="space-y-1">
@@ -3059,6 +3084,7 @@ function CaptionsSection() {
   const setPlayhead = useTimelineStore((s) => s.setPlayhead)
 
   const [tab, setTab] = React.useState<'auto' | 'style' | 'cues'>('auto')
+  const [whisperModel, setWhisperModel] = React.useState<string>('Xenova/whisper-base')
   const [generating, setGenerating] = React.useState(false)
   const [progressText, setProgressText] = React.useState('')
   const [progressPercent, setProgressPercent] = React.useState(0)
@@ -3273,6 +3299,24 @@ function CaptionsSection() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center justify-between text-[10px]">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Whisper AI Model</Label>
+                <span className="text-[9px] font-mono text-violet-400">On-Device WebGPU/WASM</span>
+              </div>
+              <select
+                value={whisperModel}
+                onChange={(e) => setWhisperModel(e.target.value)}
+                className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-400 transition"
+              >
+                {WHISPER_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} — {m.desc}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <Button
@@ -4691,6 +4735,8 @@ function DesignSection() {
   const [transparent, setTransparent] = React.useState(false)
   const [resolution, setResolution] = React.useState('auto')
   const [fps, setFps] = React.useState(30)
+  const [motionProvider, setMotionProvider] = React.useState<'nvidia-nim' | 'openrouter'>('nvidia-nim')
+  const [motionModel, setMotionModel] = React.useState('meta/llama-3.3-70b-instruct')
   const [motionCode, setMotionCode] = React.useState<string>(BUILTIN_MOTION_PRESETS[0].code)
 
   // Live Canvas Playback State
@@ -4857,6 +4903,8 @@ function DesignSection() {
         durationSeconds: duration,
         style,
         transparent,
+        provider: motionProvider,
+        model: motionModel,
       })
       setMotionCode(res.code)
       setSuccess('Generated motion graphics animation! Ready to preview & render.')
@@ -5066,6 +5114,13 @@ function DesignSection() {
             <Switch checked={transparent} onCheckedChange={setTransparent} />
           </div>
 
+          <ModelSelectField
+            provider={motionProvider}
+            model={motionModel}
+            onProviderChange={setMotionProvider}
+            onModelChange={setMotionModel}
+          />
+
           <Button
             size="sm"
             className="w-full bg-violet-600 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
@@ -5211,6 +5266,8 @@ function ScriptSection() {
   const [sceneCount, setSceneCount] = React.useState(5)
   const [customTone, setCustomTone] = React.useState('high_energy')
   const [language, setLanguage] = React.useState('auto')
+  const [scriptProvider, setScriptProvider] = React.useState<'nvidia-nim' | 'openrouter'>('nvidia-nim')
+  const [scriptModel, setScriptModel] = React.useState('meta/llama-3.3-70b-instruct')
   const [busy, setBusy] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState<'storyboard' | 'editor' | 'teleprompter' | 'hook'>('storyboard')
   const [teleprompterZoom, setTeleprompterZoom] = React.useState(14)
@@ -5286,6 +5343,8 @@ function ScriptSection() {
         customTone,
         sceneCount,
         language,
+        provider: scriptProvider,
+        model: scriptModel,
       })
       setScript(result)
       const personaName = customCreator.trim() ? customCreator.trim() : CREATOR_STYLES[creatorStyle].name
@@ -5621,6 +5680,13 @@ function ScriptSection() {
             </Select>
           </div>
         </div>
+
+        <ModelSelectField
+          provider={scriptProvider}
+          model={scriptModel}
+          onProviderChange={setScriptProvider}
+          onModelChange={setScriptModel}
+        />
 
         <Button
           size="sm"

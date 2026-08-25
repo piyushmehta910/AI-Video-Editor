@@ -523,6 +523,8 @@ export interface GenerateScriptOptions {
   customCreator?: string
   customTone?: string
   sceneCount?: number
+  provider?: string
+  model?: string
 }
 
 export async function generateScript(options: GenerateScriptOptions): Promise<ProjectScript> {
@@ -557,7 +559,7 @@ CREATOR PERSONA: ${creatorDirective}${scenesDirective}${toneDirective}${language
 Write the complete viral, structured narration script now.`
 
   const styleLabel = options.customCreator?.trim() ? options.customCreator.trim() : styleObj.name
-  const provider = getDirectorProvider()
+  const provider = getDirectorProvider({ provider: options.provider, model: options.model })
   if (!provider) throw new Error('No AI provider configured. Add one in Settings → AI & Reasoning.')
 
   const systemPrompt = options.customCreator?.trim()
