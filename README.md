@@ -3,7 +3,7 @@
 > **Browser-native video editor with an autonomous AI Director.**  
 > 100% client-side video processing — zero video uploads, user-owned API keys, and deterministic WebCodecs + WebGPU performance.
 
-[![Tests](https://img.shields.io/badge/tests-172%20passed-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-231%20passed-brightgreen.svg)](#testing)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8%20Strict-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8-646cff.svg)](https://vitejs.dev/)
@@ -15,6 +15,8 @@
 
 - **Multi-Track Non-Linear Timeline**: 4 specialized track types (`video`, `audio`, `text`, `fx`), ripple deletion, razor split, snap-to-grid, and keyframing.
 - **Autonomous AI Director**: Multi-provider LLM pair editor (NVIDIA NIM, OpenCode Zen, OpenRouter) with structured planning, script writing, and staged tool approval.
+- **AI Slide Maker & Web Grounding**: Generate cinematic presentation slide decks with real-time web research & URL scraping powered by Firecrawl.
+- **Typography & Google Fonts**: Curated library of 25+ Google Fonts with dynamic loading, custom letter spacing, line height, text transform, stroke, shadows, and entrance animations.
 - **Client-Side Speech & Captions**: Automatic speech recognition powered by in-browser Whisper WASM/Transformers.js with word-level timestamps and animated subtitles.
 - **AI Audio Denoising**: Real-time voice isolation and background noise suppression via RNNoise WebAssembly.
 - **3D Model Integration**: Import `.glb` and `.gltf` 3D assets, apply animated camera rigs (*Turntable*, *Orbit*, *Dolly*, *Static*), and composite directly into video tracks.
@@ -68,7 +70,7 @@ Visit `http://localhost:5173` to launch ClipForge AI Studio.
 | :--- | :--- |
 | `npm run dev` | Starts the Vite development server with local proxy middleware |
 | `npm run build` | Runs TypeScript compilation (`tsc -b`) and Vite production bundle |
-| `npm test` | Runs the test suite via Vitest (172 unit tests) |
+| `npm test` | Runs the test suite via Vitest (231 unit tests) |
 | `npm run lint` | Runs oxlint over the codebase |
 | `npm run check:hooks` | Validates React hook rules across all source components |
 | `npm run preview` | Previews the production build locally |
