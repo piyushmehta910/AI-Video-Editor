@@ -1,34 +1,32 @@
 import { useApiConfigStore } from '@/api/config/store'
+import { defaultNvidiaNimConfig } from '@/api/config/types'
 import { needsProxy, proxyFetch } from '@/api/proxy'
 import type { TtsProvider } from './types'
 
 export const NVIDIA_TTS_PROVIDER_ID = 'nvidia-nim-tts'
 
-function nvidiaTtsConfig() {
-  return useApiConfigStore.getState().config.nvidiaTts
+function getNvidiaNimConfig() {
+  return useApiConfigStore.getState().config.nvidiaNim ?? defaultNvidiaNimConfig
 }
 
 /**
- * NVIDIA NIM voice provider. NVIDIA exposes TTS models as OpenAI-compatible
- * `/v1/audio/speech` endpoints on the same base URL as its chat models, so the
- * provider is fully configurable: set the base URL, model id and voice in
- * Settings. No hardcoded catalog model — whatever endpoint the account serves
- * is used as-is.
+ * NVIDIA NIM voice provider. Uses the unified NVIDIA NIM API key and base URL
+ * with OpenAI-compatible `/v1/audio/speech` endpoint.
  */
 export const nvidiaTtsProvider: TtsProvider = {
   id: NVIDIA_TTS_PROVIDER_ID,
-  name: 'NVIDIA NIM',
+  name: 'NVIDIA NIM Voice',
 
   isConfigured() {
-    const cfg = nvidiaTtsConfig()
-    return Boolean(cfg.apiKey?.trim() && cfg.model?.trim())
+    const cfg = getNvidiaNimConfig()
+    return Boolean(cfg.apiKey?.trim())
   },
 
   async synthesize(options) {
-    const cfg = nvidiaTtsConfig()
+    const cfg = getNvidiaNimConfig()
     const base = (cfg.baseUrl ?? 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')
-    const model = options.model ?? cfg.model
-    const format = options.outputFormat ?? cfg.format ?? 'mp3'
+    const model = options.model ?? cfg.voiceModel ?? 'nvidia/magpie-tts-zeroshot'
+    const format = options.outputFormat ?? 'wav'
     const url = `${base}/audio/speech`
 
     const init: RequestInit = {
@@ -40,9 +38,9 @@ export const nvidiaTtsProvider: TtsProvider = {
       body: JSON.stringify({
         model,
         input: options.text,
-        voice: options.voiceId ?? cfg.voice ?? 'default',
+        voice: options.voiceId ?? cfg.voice ?? 'Aaliyah',
         response_format: format,
-        speed: options.speed ?? cfg.speed ?? 1.0,
+        speed: options.speed ?? cfg.voiceSpeed ?? 1.0,
       }),
     }
     const timeoutMs = cfg.timeoutMs ?? 60000
@@ -51,7 +49,7 @@ export const nvidiaTtsProvider: TtsProvider = {
       : await fetch(url, init)
     if (!res.ok) {
       const text = await res.text().catch(() => '')
-      throw new Error(`NVIDIA TTS error ${res.status}: ${text.slice(0, 200)}`)
+      throw new Error(`NVIDIA Voice error ${res.status}: ${text.slice(0, 250)}`)
     }
     const blob = await res.blob()
     return { blob, url: URL.createObjectURL(blob) }

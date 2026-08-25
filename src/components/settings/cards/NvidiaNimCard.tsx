@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { Bot, RefreshCcw } from 'lucide-react'
+import { Bot, RefreshCcw, Mic, Volume2 } from 'lucide-react'
 import { useApiConfigStore } from '@/api/config/store'
 import { defaultNvidiaNimConfig, type NvidiaNimConfig } from '@/api/config/types'
 import { fetchNvidiaNimModels, testNvidiaNim } from '@/api/config/validation'
+import { MAGPIE_VOICE_PRESETS } from '@/api/tts/magpie'
 import { ApiKeyInput } from '../ApiKeyInput'
 import { ApiTester } from '../ApiTester'
 import { FieldRow } from '../FieldRow'
@@ -60,12 +61,21 @@ const NIM_FREE_MODELS = [
   '01-ai/yi-large',
 ]
 
+const NIM_VOICE_MODELS = [
+  { id: 'nvidia/magpie-tts-zeroshot', label: 'Magpie TTS Zero-Shot (Expressive & Cloned)' },
+  { id: 'nvidia/fastpitch-hifigan', label: 'FastPitch + HiFi-GAN (Ultra-Fast)' },
+  { id: 'nvidia/riva-tts', label: 'NVIDIA Riva Enterprise TTS' },
+]
+
 export function NvidiaNimCard() {
   const { config, update } = useApiConfigStore()
   const cfg: NvidiaNimConfig = config.nvidiaNim
   const apiKey = cfg.apiKey ?? ''
   const baseUrl = cfg.baseUrl ?? 'https://integrate.api.nvidia.com/v1'
-  const model = cfg.model ?? 'meta/llama-3.1-8b-instruct'
+  const model = cfg.model ?? 'meta/llama-3.3-70b-instruct'
+  const voiceModel = cfg.voiceModel ?? 'nvidia/magpie-tts-zeroshot'
+  const voice = cfg.voice ?? 'Aaliyah'
+  const voiceSpeed = cfg.voiceSpeed ?? 1.0
   const temperature = cfg.temperature ?? 0.7
   const maxTokens = cfg.maxTokens ?? 2048
   const timeoutMs = cfg.timeoutMs ?? 30000
@@ -73,6 +83,9 @@ export function NvidiaNimCard() {
   const [models, setModels] = React.useState<string[]>(NIM_FREE_MODELS)
   const [refreshing, setRefreshing] = React.useState(false)
   const [refreshMessage, setRefreshMessage] = React.useState<string | null>(null)
+  const [testingVoice, setTestingVoice] = React.useState(false)
+  const [voiceAudioUrl, setVoiceAudioUrl] = React.useState<string | null>(null)
+  const [voiceTestError, setVoiceTestError] = React.useState<string | null>(null)
 
   const set = (patch: Partial<NvidiaNimConfig>) => {
     update((draft) => ({ ...draft, nvidiaNim: { ...draft.nvidiaNim, ...patch } }))
@@ -84,7 +97,7 @@ export function NvidiaNimCard() {
     try {
       const catalog = await fetchNvidiaNimModels(apiKey, baseUrl, timeoutMs)
       setModels(Array.from(new Set([...NIM_FREE_MODELS, ...catalog])))
-      setRefreshMessage(`Catalog returned ${catalog.length} chat models`)
+      setRefreshMessage(`Catalog returned ${catalog.length} models`)
     } catch (err) {
       setRefreshMessage(err instanceof Error ? err.message : String(err))
     } finally {
@@ -92,29 +105,60 @@ export function NvidiaNimCard() {
     }
   }
 
-return (
+  const handleTestVoice = async () => {
+    if (!apiKey.trim()) {
+      setVoiceTestError('Enter an NVIDIA API key first')
+      return
+    }
+    setTestingVoice(true)
+    setVoiceTestError(null)
+    try {
+      const { magpieTtsProvider } = await import('@/api/tts/magpie')
+      const result = await magpieTtsProvider.synthesize({
+        text: 'Hello! NVIDIA NIM voice synthesis is working on this route.',
+        voiceId: voice,
+        model: voiceModel,
+        speed: voiceSpeed,
+      })
+      setVoiceAudioUrl(result.url)
+    } catch (err) {
+      setVoiceTestError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTestingVoice(false)
+    }
+  }
+
+  return (
     <ProviderCard
       icon={<Bot className="size-4.5" />}
-      title="NVIDIA NIM"
-      description="Free hosted chat models — script generation & reasoning"
+      title="NVIDIA NIM (Unified AI & Voice)"
+      description="Single API key & route for both LLM Chat Reasoning and Zero-Shot Voice Synthesis"
       enabled={cfg.enabled}
       status={<ProviderStatusBadge status={cfg.status ?? 'disabled'} />}
       onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'disconnected' : 'disabled' })}
       onReset={() => update((draft) => ({ ...draft, nvidiaNim: { ...defaultNvidiaNimConfig } }))}
     >
-      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-500 md:col-span-2">
-        <span className="font-semibold">Notice:</span> Hosted endpoint (<code>integrate.api.nvidia.com</code>) retires on <strong>August 26, 2026</strong>. Please set OpenRouter as your primary provider or connect a self-hosted NIM instance.
+      <div className="rounded-md border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs text-violet-600 dark:text-violet-400 md:col-span-2">
+        <span className="font-semibold">Unified Provider:</span> One NVIDIA key powers both the <strong>AI Director</strong> and <strong>Voice Over Studio</strong>. Just select your chat model and voice model below.
       </div>
 
-      <FieldRow label="API Key" htmlFor="nim-api-key" className="md:col-span-2">
+      <FieldRow label="NVIDIA API Key" htmlFor="nim-api-key" className="md:col-span-2">
         <ApiKeyInput id="nim-api-key" value={apiKey} placeholder="nvapi-..." onChange={(e) => set({ apiKey: e.target.value })} />
       </FieldRow>
 
-      <FieldRow label="Base URL" htmlFor="nim-base-url" className="md:col-span-2">
+      <FieldRow label="Base URL (Shared Route)" htmlFor="nim-base-url" className="md:col-span-2">
         <Input id="nim-base-url" value={baseUrl} placeholder="https://integrate.api.nvidia.com/v1" onChange={(e) => set({ baseUrl: e.target.value })} />
       </FieldRow>
 
-      <FieldRow label="Model" htmlFor="nim-model" className="md:col-span-2">
+      {/* ── Section: LLM Model ── */}
+      <div className="md:col-span-2 border-t border-border/60 pt-3 mt-1">
+        <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-foreground">
+          <Bot className="size-3.5 text-violet-500" />
+          AI Director & Scripting Model
+        </div>
+      </div>
+
+      <FieldRow label="Chat Model" htmlFor="nim-model" className="md:col-span-2">
         <div className="flex gap-2">
           <Select value={model} onValueChange={(value) => set({ model: value })}>
             <SelectTrigger id="nim-model" className="w-full"><SelectValue placeholder="Select model" /></SelectTrigger>
@@ -135,6 +179,40 @@ return (
         <Input id="nim-max-tokens" type="number" min={256} step={256} value={maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) })} />
       </FieldRow>
 
+      {/* ── Section: Voice Model ── */}
+      <div className="md:col-span-2 border-t border-border/60 pt-3 mt-1">
+        <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-foreground">
+          <Mic className="size-3.5 text-pink-500" />
+          Voice Over Studio Model (Same Route: /audio/speech)
+        </div>
+      </div>
+
+      <FieldRow label="Voice Model" htmlFor="nim-voice-model">
+        <Select value={voiceModel} onValueChange={(val) => set({ voiceModel: val })}>
+          <SelectTrigger id="nim-voice-model" className="w-full"><SelectValue placeholder="Select voice model" /></SelectTrigger>
+          <SelectContent>
+            {NIM_VOICE_MODELS.map((vm) => (
+              <SelectItem key={vm.id} value={vm.id}>{vm.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
+
+      <FieldRow label="Default Voice Preset" htmlFor="nim-voice">
+        <Select value={voice} onValueChange={(val) => set({ voice: val })}>
+          <SelectTrigger id="nim-voice" className="w-full"><SelectValue placeholder="Select voice" /></SelectTrigger>
+          <SelectContent>
+            {MAGPIE_VOICE_PRESETS.map((vp) => (
+              <SelectItem key={vp.id} value={vp.id}>{vp.label} ({vp.style})</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldRow>
+
+      <FieldRow label="Speech Speed" hint={`${voiceSpeed.toFixed(2)}x`}>
+        <Slider min={0.5} max={2.0} step={0.05} value={[voiceSpeed]} onValueChange={([val]) => set({ voiceSpeed: val })} />
+      </FieldRow>
+
       <FieldRow label="Timeout (ms)" htmlFor="nim-timeout">
         <Input id="nim-timeout" type="number" min={1000} step={1000} value={timeoutMs} onChange={(e) => set({ timeoutMs: Number(e.target.value) })} />
       </FieldRow>
@@ -150,9 +228,42 @@ return (
         </Select>
       </FieldRow>
 
-      <FieldRow className="md:col-span-2">
-        <ApiTester run={() => testNvidiaNim(apiKey, baseUrl, model, timeoutMs).then((result) => { set({ status: result.ok ? 'connected' : 'disconnected' }); return result })} />
-      </FieldRow>
+      {/* ── Dual Testing Row ── */}
+      <div className="md:col-span-2 border-t border-border/60 pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex-1">
+          <ApiTester
+            run={() =>
+              testNvidiaNim(apiKey, baseUrl, model, timeoutMs).then((result) => {
+                set({ status: result.ok ? 'connected' : 'disconnected' })
+                return result
+              })
+            }
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleTestVoice()}
+            disabled={testingVoice || !apiKey.trim()}
+            className="gap-1.5 text-xs font-semibold"
+          >
+            {testingVoice ? <RefreshCcw className="size-3.5 animate-spin" /> : <Volume2 className="size-3.5 text-pink-500" />}
+            Test Voice Synthesis
+          </Button>
+          {voiceAudioUrl && (
+            <audio src={voiceAudioUrl} controls autoPlay className="h-8 max-w-[160px]" />
+          )}
+        </div>
+      </div>
+
+      {voiceTestError && (
+        <div className="md:col-span-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md p-2">
+          Voice test error: {voiceTestError}
+        </div>
+      )}
     </ProviderCard>
   )
 }

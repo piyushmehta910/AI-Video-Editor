@@ -7563,23 +7563,17 @@ const ELEVEN_MODELS = [
   { id: 'eleven_monolingual_v1', name: 'English v1 (Standard)' },
 ]
 
-const MAGPIE_MODELS = [
-  { id: 'magpie-tts-zeroshot', name: 'NVIDIA NIM: magpie-tts-zeroshot (Zero-Shot Cloning & 20+ Presets)' },
-  { id: 'magpie-tts-multilingual', name: 'NVIDIA NIM: magpie-tts-multilingual (Expressive Multilingual)' },
-]
-
 // ─── Voiceover / TTS Studio ──────────────────────────────────────────────────
 function VoiceoverSection() {
   const config = useApiConfigStore((s) => s.config)
   const [text, setText] = React.useState('')
-  const [provider, setProvider] = React.useState<'nvidia' | 'magpie' | 'elevenlabs'>('magpie')
-  const [magpieModel, setMagpieModel] = React.useState('magpie-tts-zeroshot')
+  const [provider, setProvider] = React.useState<'nvidia' | 'elevenlabs'>('nvidia')
+  const [magpieModel, setMagpieModel] = React.useState('nvidia/magpie-tts-zeroshot')
   const [magpieVoice, setMagpieVoice] = React.useState('Finn')
   const [elevenModel, setElevenModel] = React.useState(config.elevenLabs.model || 'eleven_multilingual_v2')
   const [elevenVoice, setElevenVoice] = React.useState(config.elevenLabs.voiceId || '21m00Tcm4TlvDq8ikWAM')
   const [customVoiceId, setCustomVoiceId] = React.useState('')
   const [useCustomVoice, setUseCustomVoice] = React.useState(false)
-  const [nvidiaVoice, setNvidiaVoice] = React.useState(config.nvidiaTts.voice || 'en-US-ryan-high')
   const [speed, setSpeed] = React.useState(1.0)
   const [busy, setBusy] = React.useState(false)
   const [audioUrl, setAudioUrl] = React.useState<string | null>(null)
@@ -7592,25 +7586,19 @@ function VoiceoverSection() {
     setAudioUrl(null)
     try {
       let synthesizeResult: { blob: Blob; url: string }
-      if (provider === 'magpie') {
+      if (provider === 'nvidia') {
         const { magpieTtsProvider } = await import('@/api/tts/magpie')
         if (!magpieTtsProvider.isConfigured()) {
           throw new Error(
-            'No NVIDIA API key found. Go to Settings → NVIDIA NIM Voice and enter your API key (starts with nvapi-), then try again.',
+            'No NVIDIA API key found. Go to Settings → NVIDIA NIM and enter your API key (starts with nvapi-), then try again.',
           )
         }
         synthesizeResult = await magpieTtsProvider.synthesize({
           text: text.trim(),
-          voiceId: magpieVoice,
+          voiceId: useCustomVoice && customVoiceId.trim() ? customVoiceId.trim() : magpieVoice,
           model: magpieModel,
           speed,
         })
-      } else if (provider === 'nvidia') {
-        const { nvidiaTtsProvider } = await import('@/api/tts/nvidia')
-        if (!nvidiaTtsProvider.isConfigured()) {
-          throw new Error('NVIDIA TTS API key not configured. Go to Settings → NVIDIA NIM Voice and enter your API key.')
-        }
-        synthesizeResult = await nvidiaTtsProvider.synthesize({ text: text.trim(), voiceId: nvidiaVoice, speed })
       } else {
         const { elevenLabsProvider } = await import('@/api/tts/elevenlabs')
         if (!elevenLabsProvider.isConfigured()) throw new Error('ElevenLabs API key not configured. Add it in Settings → ElevenLabs.')
@@ -7635,7 +7623,7 @@ function VoiceoverSection() {
     const store = useTimelineStore.getState()
     const res = await fetch(audioUrl)
     const blob = await res.blob()
-    const voiceTag = provider === 'magpie' ? magpieVoice : provider === 'elevenlabs' ? elevenVoice : 'narrator'
+    const voiceTag = provider === 'nvidia' ? magpieVoice : elevenVoice
     const fname = `voiceover_${voiceTag}_${Date.now()}.wav`
     const file = new File([blob], fname, { type: blob.type || 'audio/wav' })
     const { imported, errors } = await store.importFiles([file])
@@ -7647,44 +7635,45 @@ function VoiceoverSection() {
     if (asset) store.addAssetToTimeline(asset.id)
   }
 
-  // Dynamic import of MAGPIE_VOICE_PRESETS
   const [voicePresets, setVoicePresets] = React.useState<{ id: string; label: string; style: string }[]>([])
   React.useEffect(() => {
     import('@/api/tts/index').then(({ MAGPIE_VOICE_PRESETS }) => setVoicePresets(MAGPIE_VOICE_PRESETS ?? []))
   }, [])
 
   return (
-    <div className="space-y-4 p-3">
-      {/* Provider selector */}
+    <div className="space-y-4">
+      {/* Provider Selector */}
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold text-foreground">TTS Provider</Label>
-        <div className="grid grid-cols-3 gap-1">
-          {(['magpie', 'elevenlabs', 'nvidia'] as const).map((p) => (
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { id: 'nvidia', label: 'NVIDIA NIM (Magpie & Riva)' },
+            { id: 'elevenlabs', label: 'ElevenLabs' },
+          ].map((p) => (
             <button
-              key={p}
+              key={p.id}
               type="button"
-              onClick={() => setProvider(p)}
+              onClick={() => setProvider(p.id as 'nvidia' | 'elevenlabs')}
               className={cn(
-                'rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-all',
-                provider === p
+                'rounded-lg border px-2.5 py-2 text-[11px] font-semibold transition-all',
+                provider === p.id
                   ? 'border-violet-500/60 bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
                   : 'border-border bg-card text-muted-foreground hover:border-violet-400/40 hover:text-foreground',
               )}
             >
-              {p === 'magpie' ? 'NVIDIA Magpie (NIM)' : p === 'elevenlabs' ? 'ElevenLabs' : 'NVIDIA FastConformer'}
+              {p.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Magpie Controls ── */}
-      {provider === 'magpie' && (
+      {/* ── NVIDIA Controls ── */}
+      {provider === 'nvidia' && (
         <div className="space-y-2.5 rounded-lg border bg-muted/15 p-2.5">
           {/* API Key status */}
           {(() => {
             const nimKey = config.nvidiaNim?.apiKey?.trim()
-            const ttsKey = config.nvidiaTts?.apiKey?.trim()
-            const hasKey = Boolean(nimKey || ttsKey)
+            const hasKey = Boolean(nimKey)
             return (
               <div
                 className={[
@@ -7696,36 +7685,54 @@ function VoiceoverSection() {
               >
                 <span className={['size-1.5 rounded-full shrink-0', hasKey ? 'bg-emerald-500' : 'bg-amber-500'].join(' ')} />
                 {hasKey
-                  ? `API key detected (${ttsKey ? 'NVIDIA NIM Voice' : 'NVIDIA NIM LLM'}) — ready`
-                  : 'No API key — go to Settings → NVIDIA NIM Voice and add your nvapi-… key'}
+                  ? 'NVIDIA NIM API key detected (Unified route /audio/speech) — ready'
+                  : 'No API key — go to Settings → NVIDIA NIM and add your nvapi-… key'}
               </div>
             )
           })()}
 
           <div className="space-y-1">
-            <Label className="text-[10px] font-semibold text-muted-foreground">Magpie TTS Model</Label>
+            <Label className="text-[10px] font-semibold text-muted-foreground">NVIDIA Voice Model</Label>
             <select
               value={magpieModel}
               onChange={(e) => setMagpieModel(e.target.value)}
               className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-400"
             >
-              {MAGPIE_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
+              <option value="nvidia/magpie-tts-zeroshot">nvidia/magpie-tts-zeroshot (Expressive & Cloned)</option>
+              <option value="nvidia/fastpitch-hifigan">nvidia/fastpitch-hifigan (Ultra-Fast)</option>
+              <option value="nvidia/riva-tts">nvidia/riva-tts (Enterprise Speech)</option>
             </select>
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] font-semibold text-muted-foreground">Voice Preset ({voicePresets.length} voices)</Label>
-            <select
-              value={magpieVoice}
-              onChange={(e) => setMagpieVoice(e.target.value)}
-              className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-400"
-            >
-              {voicePresets.map((v) => (
-                <option key={v.id} value={v.id}>{v.label} — {v.style}</option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] font-semibold text-muted-foreground">Voice ({voicePresets.length} presets)</Label>
+              <button
+                type="button"
+                className="text-[9px] text-violet-600 dark:text-violet-400 hover:underline"
+                onClick={() => setUseCustomVoice(!useCustomVoice)}
+              >
+                {useCustomVoice ? 'Choose Preset' : 'Custom Voice ID'}
+              </button>
+            </div>
+            {useCustomVoice ? (
+              <Input
+                value={customVoiceId}
+                onChange={(e) => setCustomVoiceId(e.target.value)}
+                placeholder="e.g. en-US-ryan-high"
+                className="h-8 text-xs bg-card"
+              />
+            ) : (
+              <select
+                value={magpieVoice}
+                onChange={(e) => setMagpieVoice(e.target.value)}
+                className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-violet-400"
+              >
+                {voicePresets.map((v) => (
+                  <option key={v.id} value={v.id}>{v.label} — {v.style}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       )}
@@ -7775,21 +7782,6 @@ function VoiceoverSection() {
                 ))}
               </select>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ── NVIDIA NIM TTS Controls ── */}
-      {provider === 'nvidia' && (
-        <div className="space-y-2 rounded-lg border bg-muted/15 p-2.5">
-          <div className="space-y-1">
-            <Label className="text-[10px] font-semibold text-muted-foreground">Voice ID</Label>
-            <Input
-              value={nvidiaVoice}
-              onChange={(e) => setNvidiaVoice(e.target.value)}
-              placeholder="e.g. en-US-ryan-high"
-              className="h-8 text-xs bg-card"
-            />
           </div>
         </div>
       )}

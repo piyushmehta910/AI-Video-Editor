@@ -16,7 +16,11 @@ export interface LLMConfig extends BaseConfig {
   priority: PriorityLevel
 }
 
-export interface NvidiaNimConfig extends LLMConfig {}
+export interface NvidiaNimConfig extends LLMConfig {
+  voiceModel?: string
+  voice?: string
+  voiceSpeed?: number
+}
 
 export interface OpenCodeZenConfig extends LLMConfig {
   reasoningLevel: string
@@ -141,12 +145,15 @@ export const defaultNvidiaNimConfig: NvidiaNimConfig = {
   enabled: false,
   apiKey: '',
   baseUrl: 'https://integrate.api.nvidia.com/v1',
-  model: 'meta/llama-3.1-8b-instruct',
+  model: 'meta/llama-3.3-70b-instruct',
   temperature: 0.7,
   maxTokens: 2048,
   timeoutMs: 30000,
   priority: 3,
   status: 'disabled',
+  voiceModel: 'nvidia/magpie-tts-zeroshot',
+  voice: 'Aaliyah',
+  voiceSpeed: 1.0,
 }
 
 export const defaultOpenCodeZenConfig: OpenCodeZenConfig = {

@@ -100,10 +100,34 @@ export async function fetchNvidiaNimModels(apiKey: string, baseUrl = 'https://in
 }
 
 export async function testNvidiaTts(apiKey: string, baseUrl: string, timeoutMs: number): Promise<TestResult> {
-  const label = 'NVIDIA TTS'
+  const label = 'NVIDIA Voice'
   if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
   const url = `${baseUrl.replace(/\/$/, '')}/models`
   return doRequest(label, url, { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } }, timeoutMs)
+}
+
+export async function testNvidiaVoice(apiKey: string, baseUrl: string, model = 'nvidia/magpie-tts-zeroshot', timeoutMs = 20000): Promise<TestResult> {
+  const label = 'NVIDIA NIM Voice'
+  if (!apiKey.trim()) return { ok: false, status: 'disconnected', message: `${label}: Enter an API key to test`, latencyMs: 0 }
+  const url = `${baseUrl.replace(/\/$/, '')}/audio/speech`
+  const start = performance.now()
+  try {
+    const res = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, input: 'NVIDIA voice synthesis online.', voice: 'Aaliyah', response_format: 'wav', speed: 1.0 }),
+    }, timeoutMs)
+    const latencyMs = Math.round(performance.now() - start)
+    if (res.ok || res.status === 200) {
+      return { ok: true, status: 'connected', message: `${label}: Voice synthesis ready (${model})`, latencyMs }
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, status: 'disconnected', message: `${label}: Invalid API key`, latencyMs }
+    }
+    return { ok: false, status: 'disconnected', message: `${label}: HTTP ${res.status}`, latencyMs }
+  } catch (err) {
+    return handleError(err, label)
+  }
 }
 
 export async function testOpenCodeZen(apiKey: string, baseUrl: string, model: string, timeoutMs: number): Promise<TestResult> {

@@ -1,5 +1,5 @@
 import { useApiConfigStore } from '@/api/config/store'
-import { defaultNvidiaNimConfig, defaultNvidiaTtsConfig } from '@/api/config/types'
+import { defaultNvidiaNimConfig } from '@/api/config/types'
 import { needsProxy, proxyFetch } from '@/api/proxy'
 import type { TtsProvider } from './types'
 
@@ -33,10 +33,6 @@ export const MAGPIE_VOICE_PRESETS: { id: string; label: string; style: string }[
   { id: 'Nora', label: 'Nora', style: 'Cheerful, broadcast female' },
 ]
 
-function nvidiaTtsConfig() {
-  return useApiConfigStore.getState().config?.nvidiaTts ?? defaultNvidiaTtsConfig
-}
-
 function nvidiaNimConfig() {
   return useApiConfigStore.getState().config?.nvidiaNim ?? defaultNvidiaNimConfig
 }
@@ -44,11 +40,8 @@ function nvidiaNimConfig() {
 /**
  * NVIDIA Magpie-TTS-Zeroshot provider.
  *
- * Uses the NVIDIA NIM `/v1/audio/speech` endpoint with model `magpie-tts-zeroshot`.
- * Supports both preset voice IDs and optional zero-shot voice cloning via a
- * reference audio blob (uploaded as base64 in the request body).
- *
- * Falls back to the nvidiaNim API key if nvidiaTts key is not set.
+ * Uses the NVIDIA NIM `/v1/audio/speech` endpoint with model `nvidia/magpie-tts-zeroshot`
+ * on the unified NVIDIA NIM API route.
  */
 export const magpieTtsProvider: TtsProvider = {
   id: MAGPIE_TTS_PROVIDER_ID,
@@ -56,17 +49,13 @@ export const magpieTtsProvider: TtsProvider = {
 
   isConfigured() {
     const nimCfg = nvidiaNimConfig()
-    const ttsCfg = nvidiaTtsConfig()
-    // Any valid API key is sufficient — `enabled` only gates the provider from
-    // being auto-selected; it should not block explicit generation calls.
-    return Boolean(ttsCfg.apiKey?.trim() || nimCfg.apiKey?.trim())
+    return Boolean(nimCfg.apiKey?.trim())
   },
 
   async synthesize(options) {
-    const ttsCfg = nvidiaTtsConfig()
     const nimCfg = nvidiaNimConfig()
-    const apiKey = ttsCfg.apiKey || nimCfg.apiKey || ''
-    const base = (ttsCfg.baseUrl ?? nimCfg.baseUrl ?? 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')
+    const apiKey = nimCfg.apiKey || ''
+    const base = (nimCfg.baseUrl ?? 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')
     const url = `${base}/audio/speech`
     const voice = options.voiceId ?? MAGPIE_VOICE_PRESETS[0].id
     const format = options.outputFormat ?? 'wav'
@@ -89,7 +78,7 @@ export const magpieTtsProvider: TtsProvider = {
       body: JSON.stringify(body),
     }
 
-    const timeoutMs = ttsCfg.timeoutMs ?? 90000
+    const timeoutMs = nimCfg.timeoutMs ?? 90000
     const res = needsProxy(url)
       ? await proxyFetch(url, { ...init, signal: undefined }, timeoutMs)
       : await fetch(url, init)
