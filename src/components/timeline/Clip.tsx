@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Film, Image as ImageIcon, Music, Sparkles, Sticker, Type, User, Volume2, Wand2, Eye } from 'lucide-react'
+import { Film, Image as ImageIcon, Music, Presentation, Sparkles, Sticker, Type, User, Volume2, Wand2, Eye } from 'lucide-react'
 import type { Asset, Clip as ClipModel, FxClipType, TextClipType, Track } from '@/engine/types'
 import { TRACK_COLORS } from '@/engine/types'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,7 @@ const CLIP_TYPE_BADGE: Partial<Record<NonNullable<ClipModel['clipType']>, React.
   image: <ImageIcon className="size-3" />,
   avatar: <User className="size-3" />,
   animation: <Sparkles className="size-3" />,
+  slide: <Presentation className="size-3 text-indigo-400" />,
   music: <Music className="size-3" />,
   voice: <Type className="size-3" />,
   sfx: <Volume2 className="size-3" />,

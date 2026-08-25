@@ -155,6 +155,7 @@ export function SlideStudioModal({
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isAddingTimeline, setIsAddingTimeline] = React.useState(false)
   const [isAddingCurrent, setIsAddingCurrent] = React.useState(false)
+  const [separateSlideTrack, setSeparateSlideTrack] = React.useState(true)
   const [isInducing, setIsInducing] = React.useState(false)
   const [progressMsg, setProgressMsg] = React.useState('')
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
@@ -349,20 +350,26 @@ export function SlideStudioModal({
       const { imported } = await importFiles([file])
       if (imported.length) {
         const startBase = playhead ?? 0
-        const videoTrack = project.tracks.find((t) => t.type === 'video')
-        if (videoTrack) {
-          const newClip = addClip(imported[0].id, videoTrack.id, startBase)
+        const targetTrack = separateSlideTrack
+          ? (project.tracks.find((t) => t.type === 'video' && (t.name.toLowerCase().includes('slide') || t.name.toLowerCase().includes('presentation'))) ||
+             project.tracks.find((t) => t.type === 'video' && t.clips.every((c) => c.clipType === 'slide')) ||
+             project.tracks.find((t) => t.type === 'video'))
+          : project.tracks.find((t) => t.type === 'video')
+
+        if (targetTrack) {
+          const newClip = addClip(imported[0].id, targetTrack.id, startBase)
           if (newClip) {
             updateClip(newClip.id, {
               duration: slideDuration,
               sourceEnd: slideDuration,
-              clipType: 'image',
+              clipType: 'slide',
+              name: `Slide ${currentSlideIdx + 1}: ${currentSlide.title}`,
             })
             select([newClip.id])
           }
         }
         setSuccessMsg(
-          `Inserted Slide #${currentSlideIdx + 1} ("${currentSlide.title}") at ${startBase.toFixed(1)}s!`,
+          `Inserted Slide #${currentSlideIdx + 1} ("${currentSlide.title}") onto ${separateSlideTrack ? 'dedicated slide' : 'main video'} track at ${startBase.toFixed(1)}s!`,
         )
       }
     } catch (err) {
@@ -401,22 +408,28 @@ export function SlideStudioModal({
 
       const { imported } = await importFiles(files)
       if (imported.length) {
-        const videoTrack = project.tracks.find((t) => t.type === 'video')
-        if (videoTrack) {
+        const targetTrack = separateSlideTrack
+          ? (project.tracks.find((t) => t.type === 'video' && (t.name.toLowerCase().includes('slide') || t.name.toLowerCase().includes('presentation'))) ||
+             project.tracks.find((t) => t.type === 'video' && t.clips.every((c) => c.clipType === 'slide')) ||
+             project.tracks.find((t) => t.type === 'video'))
+          : project.tracks.find((t) => t.type === 'video')
+
+        if (targetTrack) {
           const startBase = playhead ?? 0
           imported.forEach((asset, idx) => {
-            const newClip = addClip(asset.id, videoTrack.id, startBase + idx * slideDuration)
+            const newClip = addClip(asset.id, targetTrack.id, startBase + idx * slideDuration)
             if (newClip) {
               updateClip(newClip.id, {
                 duration: slideDuration,
                 sourceEnd: slideDuration,
-                clipType: 'image',
+                clipType: 'slide',
+                name: `Slide ${idx + 1}: ${deck.slides[idx]?.title || 'Presentation'}`,
               })
             }
           })
         }
         setSuccessMsg(
-          `Successfully staged ${imported.length} presentation slides (${slideW}×${slideH}) sequentially on the timeline!`,
+          `Successfully staged ${imported.length} presentation slides (${slideW}×${slideH}) onto ${separateSlideTrack ? 'dedicated slide' : 'main video'} track!`,
         )
       }
     } catch (err) {
@@ -474,6 +487,36 @@ export function SlideStudioModal({
                       <SelectItem value="15">15 sec</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Track Target Toggle */}
+                <div className="flex items-center rounded-lg border border-border/80 bg-muted/30 p-0.5 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setSeparateSlideTrack(true)}
+                    className={cn(
+                      'px-2 py-1 rounded-md text-[10px] font-semibold transition',
+                      separateSlideTrack
+                        ? 'bg-violet-600 text-white shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title="Place slides on a separate dedicated Presentation track"
+                  >
+                    📊 Separate Slide Track
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSeparateSlideTrack(false)}
+                    className={cn(
+                      'px-2 py-1 rounded-md text-[10px] font-semibold transition',
+                      !separateSlideTrack
+                        ? 'bg-violet-600 text-white shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title="Place slides directly onto main video track"
+                  >
+                    🎬 Main Video
+                  </button>
                 </div>
 
                 <Button

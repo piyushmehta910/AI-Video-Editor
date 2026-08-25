@@ -8,7 +8,7 @@
 export type TrackType = 'video' | 'audio' | 'text' | 'fx'
 
 /** Content subtype for clips on VIDEO tracks. */
-export type VideoClipType = 'video' | 'image' | 'avatar' | 'animation'
+export type VideoClipType = 'video' | 'image' | 'avatar' | 'animation' | 'slide'
 /** Content subtype for clips on AUDIO tracks. */
 export type AudioClipType = 'audio' | 'music' | 'voice' | 'sfx'
 /** Content subtype for clips on TEXT tracks. */

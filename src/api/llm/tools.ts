@@ -2038,11 +2038,21 @@ export async function applyTool(
         )
         const imported = await s.importFiles(files)
         const assets = imported.imported
-        const videoTrack = s.project.tracks.find((t) => t.type === 'video')
-        if (!videoTrack) return { ok: false, message: 'No video track available.' }
-        for (const asset of assets) {
-          const clip = s.addClip(asset.id, videoTrack.id)
-          if (clip) s.updateClip(clip.id, { duration: perSlide, sourceEnd: perSlide })
+        const slideTrack = s.project.tracks.find((t) => t.type === 'video' && (t.name.toLowerCase().includes('slide') || t.name.toLowerCase().includes('presentation'))) ||
+          s.project.tracks.find((t) => t.type === 'video' && t.clips.every((c) => c.clipType === 'slide')) ||
+          s.project.tracks.find((t) => t.type === 'video')
+        if (!slideTrack) return { ok: false, message: 'No video/slide track available.' }
+        for (let i = 0; i < assets.length; i++) {
+          const asset = assets[i]
+          const clip = s.addClip(asset.id, slideTrack.id)
+          if (clip) {
+            s.updateClip(clip.id, {
+              duration: perSlide,
+              sourceEnd: perSlide,
+              clipType: 'slide',
+              name: `Slide ${i + 1}: ${deck.title}`,
+            })
+          }
         }
         return { ok: true, message: `${desc} — rendered ${assets.length} Marp slides ("${deck.title}", ${marpTheme} theme) onto the timeline.` }
       } catch (err) {
