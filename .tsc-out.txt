@@ -1,3 +1,0 @@
-﻿src/ui/common/RightToolPanel.tsx(5,3): error TS6133: 'ChevronDown' is declared but its value is never read.
-src/ui/common/RightToolPanel.tsx(58,3): error TS6133: 'Crosshair' is declared but its value is never read.
-
