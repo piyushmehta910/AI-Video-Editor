@@ -18,6 +18,41 @@ export const BUILTIN_3D_PRESETS: ModelPreset[] = [
     color: '#06b6d4',
   },
   {
+    id: 'smartphone',
+    name: 'Titanium Smartphone',
+    category: 'Tech / Product',
+    description: 'Modern flagship smartphone with glass screen and triple camera array',
+    color: '#3b82f6',
+  },
+  {
+    id: 'golden-coin',
+    name: 'Golden Crypto Coin',
+    category: 'Finance',
+    description: 'Embossed glossy gold medallion with milled edges and crypto crest',
+    color: '#eab308',
+  },
+  {
+    id: 'vr-headset',
+    name: 'Spatial VR Headset',
+    category: 'Tech / Gaming',
+    description: 'Futuristic virtual reality visor with curved glass front and straps',
+    color: '#8b5cf6',
+  },
+  {
+    id: 'music-speaker',
+    name: 'Studio Hi-Fi Monitor',
+    category: 'Audio',
+    description: 'Professional active acoustic studio monitor with dual subwoofers',
+    color: '#f97316',
+  },
+  {
+    id: 'rocket',
+    name: 'Space Orbit Rocket',
+    category: 'Aero',
+    description: 'Multi-stage aerodynamic launch rocket with booster thrusters',
+    color: '#ef4444',
+  },
+  {
     id: 'studio-camera',
     name: 'Cinema Camera',
     category: 'Production',
@@ -91,6 +126,185 @@ export function buildPresetScene(presetId: string): THREE.Group {
       const ring1 = new THREE.Mesh(ringGeo, ringMat)
       ring1.rotation.x = Math.PI / 4
       group.add(ring1)
+      break
+    }
+
+    case 'smartphone': {
+      // Phone Body
+      const bodyGeo = new THREE.BoxGeometry(1.5, 3.1, 0.16)
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.95, roughness: 0.15 })
+      const body = new THREE.Mesh(bodyGeo, bodyMat)
+      group.add(body)
+
+      // Front Glass Screen
+      const screenGeo = new THREE.PlaneGeometry(1.4, 2.95)
+      const screenMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        emissive: 0x0369a1,
+        emissiveIntensity: 0.6,
+        roughness: 0.05,
+      })
+      const screen = new THREE.Mesh(screenGeo, screenMat)
+      screen.position.set(0, 0, 0.09)
+      group.add(screen)
+
+      // Camera Island on Back
+      const islandGeo = new THREE.BoxGeometry(0.65, 0.65, 0.08)
+      const islandMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.2 })
+      const island = new THREE.Mesh(islandGeo, islandMat)
+      island.position.set(-0.35, 1.1, -0.1)
+      group.add(island)
+
+      // 3 Camera Lenses
+      const lensGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.04, 24)
+      const lensMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.9, roughness: 0.1 })
+      const lensPositions: [number, number, number][] = [
+        [-0.45, 1.25, -0.13],
+        [-0.25, 1.25, -0.13],
+        [-0.35, 0.95, -0.13],
+      ]
+      for (const [lx, ly, lz] of lensPositions) {
+        const lens = new THREE.Mesh(lensGeo, lensMat)
+        lens.rotation.x = Math.PI / 2
+        lens.position.set(lx, ly, lz)
+        group.add(lens)
+      }
+      break
+    }
+
+    case 'golden-coin': {
+      // Main Coin Cylinder
+      const coinGeo = new THREE.CylinderGeometry(1.4, 1.4, 0.22, 64)
+      const goldMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        metalness: 0.98,
+        roughness: 0.12,
+        emissive: 0xb45309,
+        emissiveIntensity: 0.2,
+      })
+      const coin = new THREE.Mesh(coinGeo, goldMat)
+      coin.rotation.x = Math.PI / 2
+      group.add(coin)
+
+      // Raised Outer Rim
+      const rimGeo = new THREE.TorusGeometry(1.32, 0.08, 16, 64)
+      const rimMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 1.0, roughness: 0.1 })
+      const rimFront = new THREE.Mesh(rimGeo, rimMat)
+      rimFront.position.set(0, 0, 0.11)
+      group.add(rimFront)
+
+      const rimBack = new THREE.Mesh(rimGeo, rimMat)
+      rimBack.position.set(0, 0, -0.11)
+      group.add(rimBack)
+
+      // Central Crypto Symbol Star / Hex
+      const crestGeo = new THREE.OctahedronGeometry(0.65, 0)
+      const crestMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, metalness: 1.0, roughness: 0.08 })
+      const crest = new THREE.Mesh(crestGeo, crestMat)
+      crest.position.set(0, 0, 0.14)
+      crest.scale.set(1, 1, 0.2)
+      group.add(crest)
+      break
+    }
+
+    case 'vr-headset': {
+      // Main Visor Curved Body
+      const visorGeo = new THREE.BoxGeometry(2.2, 1.2, 1.2)
+      const visorMat = new THREE.MeshStandardMaterial({ color: 0x09090b, metalness: 0.85, roughness: 0.25 })
+      const visor = new THREE.Mesh(visorGeo, visorMat)
+      group.add(visor)
+
+      // Front Curved Glass Shield
+      const glassGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.9, 32, 1, false, 0, Math.PI)
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x8b5cf6,
+        emissive: 0x6d28d9,
+        emissiveIntensity: 0.5,
+        roughness: 0.05,
+      })
+      const glass = new THREE.Mesh(glassGeo, glassMat)
+      glass.rotation.z = Math.PI / 2
+      glass.rotation.y = Math.PI / 2
+      glass.position.set(0, 0, 0.6)
+      group.add(glass)
+
+      // Head Straps
+      const strapGeo = new THREE.TorusGeometry(1.2, 0.08, 16, 48, Math.PI)
+      const strapMat = new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.8 })
+      const strap = new THREE.Mesh(strapGeo, strapMat)
+      strap.rotation.x = Math.PI / 2
+      strap.position.set(0, 0, -0.6)
+      group.add(strap)
+      break
+    }
+
+    case 'music-speaker': {
+      // Speaker Cabinet
+      const cabGeo = new THREE.BoxGeometry(1.6, 2.6, 1.5)
+      const cabMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.35 })
+      const cab = new THREE.Mesh(cabGeo, cabMat)
+      group.add(cab)
+
+      // Top Tweeter Cone
+      const tweetGeo = new THREE.SphereGeometry(0.28, 32, 16)
+      const tweetMat = new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xc2410c, emissiveIntensity: 0.4 })
+      const tweet = new THREE.Mesh(tweetGeo, tweetMat)
+      tweet.position.set(0, 0.65, 0.76)
+      group.add(tweet)
+
+      // Bottom Subwoofer Cone
+      const subGeo = new THREE.CylinderGeometry(0.52, 0.15, 0.2, 32)
+      const subMat = new THREE.MeshStandardMaterial({ color: 0x27272a, metalness: 0.7, roughness: 0.2 })
+      const sub = new THREE.Mesh(subGeo, subMat)
+      sub.rotation.x = Math.PI / 2
+      sub.position.set(0, -0.45, 0.75)
+      group.add(sub)
+
+      // Subwoofer Dust Cap
+      const capGeo = new THREE.SphereGeometry(0.2, 24, 12)
+      const capMat = new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.5 })
+      const cap = new THREE.Mesh(capGeo, capMat)
+      cap.position.set(0, -0.45, 0.82)
+      group.add(cap)
+      break
+    }
+
+    case 'rocket': {
+      // Main Rocket Fuselage
+      const fuseGeo = new THREE.CylinderGeometry(0.4, 0.45, 2.8, 32)
+      const fuseMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.6, roughness: 0.2 })
+      const fuse = new THREE.Mesh(fuseGeo, fuseMat)
+      group.add(fuse)
+
+      // Nose Cone
+      const noseGeo = new THREE.ConeGeometry(0.4, 0.9, 32)
+      const noseMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.8, roughness: 0.15 })
+      const nose = new THREE.Mesh(noseGeo, noseMat)
+      nose.position.set(0, 1.85, 0)
+      group.add(nose)
+
+      // 4 Fins at base
+      const finMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
+      for (let i = 0; i < 4; i++) {
+        const finGeo = new THREE.BoxGeometry(0.06, 0.8, 0.5)
+        const fin = new THREE.Mesh(finGeo, finMat)
+        const angle = (i * Math.PI) / 2
+        fin.position.set(Math.cos(angle) * 0.55, -1.1, Math.sin(angle) * 0.55)
+        fin.rotation.y = -angle
+        group.add(fin)
+      }
+
+      // Thruster Nozzle
+      const nozGeo = new THREE.ConeGeometry(0.3, 0.4, 24, 1, true)
+      const nozMat = new THREE.MeshStandardMaterial({
+        color: 0xf97316,
+        emissive: 0xe11d48,
+        emissiveIntensity: 0.8,
+      })
+      const noz = new THREE.Mesh(nozGeo, nozMat)
+      noz.rotation.x = Math.PI
+      noz.position.set(0, -1.5, 0)
+      group.add(noz)
       break
     }
 

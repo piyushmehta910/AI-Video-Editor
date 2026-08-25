@@ -3769,28 +3769,39 @@ function ThreeDSection() {
         />
 
         {/* Model Presets Quick Bar */}
-        <div className="grid grid-cols-3 gap-1 pt-1">
-          {BUILTIN_3D_PRESETS.map((preset) => {
-            const isSelected = usePreset && selectedPresetId === preset.id
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                className={cn(
-                  'truncate rounded-md border p-1 text-center text-[10px] font-medium transition',
-                  isSelected
-                    ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold'
-                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => {
-                  setUsePreset(true)
-                  setSelectedPresetId(preset.id)
-                }}
-              >
-                {preset.name.split(' ')[0]}
-              </button>
-            )
-          })}
+        <div className="space-y-1 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Featured 3D Presets</span>
+            <span className="text-[9px] text-muted-foreground font-mono">{BUILTIN_3D_PRESETS.length} Models</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-36 overflow-y-auto pr-0.5">
+            {BUILTIN_3D_PRESETS.map((preset) => {
+              const isSelected = usePreset && selectedPresetId === preset.id
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg border p-1.5 text-left text-[10px] font-medium transition shadow-2xs',
+                    isSelected
+                      ? 'border-violet-500 bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold ring-1 ring-violet-500/40'
+                      : 'border-border/60 bg-card text-muted-foreground hover:border-violet-500/30 hover:text-foreground',
+                  )}
+                  onClick={() => {
+                    setUsePreset(true)
+                    setSelectedPresetId(preset.id)
+                  }}
+                  title={preset.description}
+                >
+                  <span
+                    className="size-2 rounded-full shrink-0 shadow-xs"
+                    style={{ backgroundColor: preset.color }}
+                  />
+                  <span className="truncate flex-1">{preset.name}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Uploaded Models Select */}
