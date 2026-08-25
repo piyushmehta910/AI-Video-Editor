@@ -65,6 +65,9 @@ import {
   PanelRight,
   Type,
   Smartphone,
+  Eye,
+  Disc,
+  Radio,
 } from 'lucide-react'
 
 const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -101,8 +104,7 @@ const CAMERA_PRESET_ICON_MAP: Record<string, React.ComponentType<{ className?: s
 }
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
-import type { Clip, EffectType, TextOverlay, Asset } from '@/engine/types'
-import { createEffect } from '@/engine/types'
+import type { Clip, Effect, EffectType, TextOverlay, Asset } from '@/engine/types'
 import { upsertKeyframe, removeKeyframe } from '@/lib/keyframes'
 import {
   CREATOR_STYLES,
@@ -4306,19 +4308,304 @@ function StickersSection() {
   )
 }
 
-// ─── Effects Section ──────────────────────────────────────────────────────────
+// ─── Effects Section (Visual Effects & Color Grading Studio) ──────────────────
+interface EffectPreset {
+  id: string
+  name: string
+  tag: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  badgeBg: string
+  badgeText: string
+  borderAccent: string
+  effects: Partial<Record<EffectType, { value: number; aberrationOffset?: number; glitchIntensity?: number; scanlines?: number; radius?: number }>>
+}
+
+const EFFECT_PRESETS: EffectPreset[] = [
+  {
+    id: 'cinema',
+    name: 'Hollywood Cinema',
+    tag: 'Cinematic Grade',
+    description: 'Warm highlights, balanced contrast, and subtle 35mm film grain for cinematic depth.',
+    icon: Film,
+    badgeBg: 'bg-amber-500/15',
+    badgeText: 'text-amber-400',
+    borderAccent: 'hover:border-amber-500/50',
+    effects: {
+      contrast: { value: 0.22 },
+      temperature: { value: 0.25 },
+      vibrance: { value: 0.3 },
+      vignette: { value: 0.28, radius: 0.35 },
+      grain: { value: 0.15 },
+    },
+  },
+  {
+    id: 'teal_orange',
+    name: 'Teal & Orange',
+    tag: 'Blockbuster Look',
+    description: 'Dynamic color contrast separating warm skin tones from cool, moody backgrounds.',
+    icon: Sparkles,
+    badgeBg: 'bg-cyan-500/15',
+    badgeText: 'text-cyan-400',
+    borderAccent: 'hover:border-cyan-500/50',
+    effects: {
+      temperature: { value: -0.25 },
+      contrast: { value: 0.28 },
+      saturation: { value: 0.3 },
+      vignette: { value: 0.32, radius: 0.38 },
+    },
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk Neon',
+    tag: 'Sci-Fi Vibe',
+    description: 'Hyper-saturated magenta tint, chromatic aberration, and digital scanlines.',
+    icon: Zap,
+    badgeBg: 'bg-fuchsia-500/15',
+    badgeText: 'text-fuchsia-400',
+    borderAccent: 'hover:border-fuchsia-500/50',
+    effects: {
+      tint: { value: 0.45 },
+      saturation: { value: 0.55 },
+      'chromatic-aberration': { value: 1, aberrationOffset: 4.5 },
+      glitch: { value: 1, glitchIntensity: 0.3, scanlines: 12 },
+      contrast: { value: 0.25 },
+    },
+  },
+  {
+    id: 'vintage_vhs',
+    name: 'Vintage VHS / 90s',
+    tag: 'Retro Tape',
+    description: 'Analog tape artifacts, color fringe, film grain, and nostalgic warmth.',
+    icon: Disc,
+    badgeBg: 'bg-emerald-500/15',
+    badgeText: 'text-emerald-400',
+    borderAccent: 'hover:border-emerald-500/50',
+    effects: {
+      grain: { value: 0.48 },
+      'chromatic-aberration': { value: 1, aberrationOffset: 3.5 },
+      temperature: { value: 0.2 },
+      contrast: { value: -0.1 },
+      blur: { value: 0.4 },
+    },
+  },
+  {
+    id: 'noir',
+    name: 'Dramatic Noir',
+    tag: 'Classic B&W',
+    description: 'High-contrast monochrome with deep shadows and heavy dramatic vignette.',
+    icon: Eye,
+    badgeBg: 'bg-zinc-500/15',
+    badgeText: 'text-zinc-300',
+    borderAccent: 'hover:border-zinc-400/50',
+    effects: {
+      grayscale: { value: 1.0 },
+      contrast: { value: 0.45 },
+      vignette: { value: 0.52, radius: 0.3 },
+      grain: { value: 0.2 },
+    },
+  },
+  {
+    id: 'sunset_glow',
+    name: 'Golden Hour',
+    tag: 'Warm Sunset',
+    description: 'Lush golden glow with soft exposure boost and vibrant saturation.',
+    icon: Sun,
+    badgeBg: 'bg-orange-500/15',
+    badgeText: 'text-orange-400',
+    borderAccent: 'hover:border-orange-500/50',
+    effects: {
+      temperature: { value: 0.65 },
+      brightness: { value: 0.12 },
+      saturation: { value: 0.35 },
+      vignette: { value: 0.22, radius: 0.4 },
+    },
+  },
+  {
+    id: 'matrix_glitch',
+    name: 'Matrix Glitch',
+    tag: 'Cyber Glitch',
+    description: 'Green-tinted scanline matrix with digital glitch slices and RGB split.',
+    icon: Radio,
+    badgeBg: 'bg-green-500/15',
+    badgeText: 'text-green-400',
+    borderAccent: 'hover:border-green-500/50',
+    effects: {
+      glitch: { value: 1, glitchIntensity: 0.7, scanlines: 18 },
+      tint: { value: -0.5 },
+      'chromatic-aberration': { value: 1, aberrationOffset: 6.0 },
+      contrast: { value: 0.3 },
+    },
+  },
+  {
+    id: 'dreamy_soft',
+    name: 'Dreamy Soft Aura',
+    tag: 'Ethereal Glow',
+    description: 'Gentle diffusion blur, lifted highlights, and pastel grading.',
+    icon: Wand2,
+    badgeBg: 'bg-pink-500/15',
+    badgeText: 'text-pink-400',
+    borderAccent: 'hover:border-pink-500/50',
+    effects: {
+      blur: { value: 2.2 },
+      brightness: { value: 0.18 },
+      saturation: { value: -0.15 },
+      vignette: { value: 0.25, radius: 0.45 },
+    },
+  },
+  {
+    id: 'arctic_cold',
+    name: 'Nordic Arctic',
+    tag: 'Crisp Frost',
+    description: 'Cold steel blue hues with sharp contrast and desaturated midtones.',
+    icon: Compass,
+    badgeBg: 'bg-blue-500/15',
+    badgeText: 'text-blue-400',
+    borderAccent: 'hover:border-blue-500/50',
+    effects: {
+      temperature: { value: -0.55 },
+      contrast: { value: 0.25 },
+      saturation: { value: -0.25 },
+      brightness: { value: 0.06 },
+    },
+  },
+]
+
 function EffectsSection() {
-  const clip = getSelectedClip()
+  const tracks = useTimelineStore((s) => s.project.tracks)
+  const selection = useTimelineStore((s) => s.selection)
+  const select = useTimelineStore((s) => s.select)
   const updateClip = useTimelineStore((s) => s.updateClip)
   const denoise = useDenoiseAction()
+
+  const [activeSubTab, setActiveSubTab] = React.useState<'presets' | 'color' | 'stylize' | 'audio'>('presets')
+  const [targetClipId, setTargetClipId] = React.useState<string | 'all'>('selected')
   const [denoiseBusy, setDenoiseBusy] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
+  // Collect all video / image clips on timeline
+  const videoClips = React.useMemo(() => {
+    const list: { id: string; name: string; trackName: string; clip: Clip }[] = []
+    for (const t of tracks) {
+      if (t.type === 'video' || t.type === 'fx') {
+        for (const c of t.clips) {
+          list.push({ id: c.id, name: c.name, trackName: t.name, clip: c })
+        }
+      }
+    }
+    return list
+  }, [tracks])
+
+  // Determine active target clip
+  const selectedClip = React.useMemo(() => {
+    if (selection.clipIds.length > 0) {
+      const found = tracks.flatMap((t) => t.clips).find((c) => c.id === selection.clipIds[0])
+      if (found) return found
+    }
+    if (targetClipId !== 'all' && targetClipId !== 'selected') {
+      const found = tracks.flatMap((t) => t.clips).find((c) => c.id === targetClipId)
+      if (found) return found
+    }
+    return videoClips[0]?.clip || null
+  }, [selection.clipIds, targetClipId, tracks, videoClips])
+
+  const getEffectVal = (clip: Clip | null, type: EffectType): number => {
+    if (!clip) return 0
+    const e = clip.effects.find((fx) => fx.type === type)
+    return e?.value ?? 0
+  }
+
+  const getEffectProp = (
+    clip: Clip | null,
+    type: EffectType,
+    prop: 'aberrationOffset' | 'glitchIntensity' | 'scanlines' | 'radius',
+  ): number | undefined => {
+    if (!clip) return undefined
+    const e = clip.effects.find((fx) => fx.type === type)
+    return e ? (e as any)[prop] : undefined
+  }
+
+  const setSingleEffect = (targetId: string, type: EffectType, patch: Partial<Effect> & { value: number }) => {
+    const target = tracks.flatMap((t) => t.clips).find((c) => c.id === targetId)
+    if (!target) return
+    const existing = target.effects.findIndex((fx) => fx.type === type)
+    const effects = [...target.effects]
+    if (existing >= 0) {
+      effects[existing] = { ...effects[existing], ...patch }
+    } else {
+      effects.push({
+        id: crypto.randomUUID(),
+        type,
+        enabled: true,
+        ...patch,
+      })
+    }
+    updateClip(target.id, { effects })
+  }
+
+  const setEffect = (type: EffectType, value: number, extra?: Partial<Effect>) => {
+    if (targetClipId === 'all') {
+      for (const item of videoClips) {
+        setSingleEffect(item.id, type, { value, ...extra })
+      }
+      setNotice({ kind: 'ok', text: `Updated ${type} on all ${videoClips.length} clips` })
+    } else if (selectedClip) {
+      setSingleEffect(selectedClip.id, type, { value, ...extra })
+    }
+  }
+
+  const applyPreset = (preset: EffectPreset, forceAll = false) => {
+    const isAll = forceAll || targetClipId === 'all'
+    const targets = isAll ? videoClips.map((v) => v.clip) : selectedClip ? [selectedClip] : []
+    if (targets.length === 0) {
+      setNotice({ kind: 'error', text: 'Please add a video or image clip to the timeline first.' })
+      return
+    }
+
+    for (const c of targets) {
+      const newEffects: Effect[] = []
+      for (const [type, cfg] of Object.entries(preset.effects)) {
+        if (cfg) {
+          newEffects.push({
+            id: crypto.randomUUID(),
+            type: type as EffectType,
+            value: cfg.value,
+            enabled: true,
+            aberrationOffset: cfg.aberrationOffset,
+            glitchIntensity: cfg.glitchIntensity,
+            scanlines: cfg.scanlines,
+            radius: cfg.radius,
+          })
+        }
+      }
+      updateClip(c.id, { effects: newEffects })
+    }
+    setNotice({
+      kind: 'ok',
+      text: isAll
+        ? `Applied "${preset.name}" to all ${targets.length} timeline clips!`
+        : `Applied "${preset.name}" to "${selectedClip?.name}"!`,
+    })
+  }
+
+  const resetEffects = (forceAll = false) => {
+    const isAll = forceAll || targetClipId === 'all'
+    const targets = isAll ? videoClips.map((v) => v.clip) : selectedClip ? [selectedClip] : []
+    if (targets.length === 0) return
+    for (const c of targets) {
+      updateClip(c.id, { effects: [] })
+    }
+    setNotice({
+      kind: 'ok',
+      text: isAll ? `Cleared effects on all ${targets.length} clips` : `Cleared effects on "${selectedClip?.name}"`,
+    })
+  }
+
   const runDenoise = async () => {
-    if (!clip || denoiseBusy) return
+    if (!selectedClip || denoiseBusy) return
     setDenoiseBusy(true)
     try {
-      await denoise.run(clip.id)
+      await denoise.run(selectedClip.id)
       setNotice({ kind: 'ok', text: 'Denoised audio created and added to timeline' })
     } catch {
       setNotice({ kind: 'error', text: denoise.error ?? 'Denoise failed' })
@@ -4327,44 +4614,323 @@ function EffectsSection() {
     }
   }
 
-  const getEffect = (type: EffectType): number => {
-    if (!clip) return 0
-    const e = clip.effects.find((fx) => fx.type === type)
-    return e?.value ?? 0
-  }
-
-  const setEffect = (type: EffectType, value: number) => {
-    if (!clip) return
-    const existing = clip.effects.findIndex((fx) => fx.type === type)
-    const effects = [...clip.effects]
-    if (existing >= 0) {
-      effects[existing] = { ...effects[existing], value }
-    } else {
-      effects.push(createEffect(type, value))
-    }
-    updateClip(clip.id, { effects })
-  }
-
-  if (!clip) return <EmptyHint text="Select a clip to adjust its effects." icon={Sparkles} />
-
   return (
-    <div className="space-y-3 p-3">
+    <div className="space-y-4 p-3.5">
       {notice && <SectionNotice kind={notice.kind} text={notice.text} />}
-      <EffectSlider label="Brightness" value={getEffect('brightness')} min={-1} max={1} onChange={(v) => setEffect('brightness', v)} />
-      <EffectSlider label="Contrast" value={getEffect('contrast')} min={-1} max={1} onChange={(v) => setEffect('contrast', v)} />
-      <EffectSlider label="Saturation" value={getEffect('saturation')} min={-1} max={1} onChange={(v) => setEffect('saturation', v)} />
-      <EffectSlider label="Blur" value={getEffect('blur')} min={0} max={20} step={0.5} onChange={(v) => setEffect('blur', v)} />
-      <EffectSlider label="Grayscale" value={getEffect('grayscale')} min={0} max={1} onChange={(v) => setEffect('grayscale', v)} />
-      <EffectSlider label="Vignette" value={getEffect('vignette')} min={0} max={1} onChange={(v) => setEffect('vignette', v)} />
-      <EffectSlider label="Temperature" value={getEffect('temperature')} min={-1} max={1} onChange={(v) => setEffect('temperature', v)} />
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
-        <div className="relative flex justify-center text-[10px]"><span className="bg-card px-2 text-muted-foreground">audio</span></div>
+
+      {/* ── Target Clip Selection Card ── */}
+      <div className="rounded-xl border border-border/70 bg-card/60 p-3 shadow-xs space-y-2">
+        <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-primary" />
+            <span>Target Video Clip</span>
+          </div>
+          {selectedClip && (
+            <span className="font-mono text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+              {selectedClip.effects.length} effect{selectedClip.effects.length !== 1 ? 's' : ''} active
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={targetClipId === 'all' ? 'all' : selectedClip ? selectedClip.id : ''}
+            onChange={(e) => {
+              const val = e.target.value
+              setTargetClipId(val as any)
+              if (val !== 'all' && val) {
+                select([val])
+              }
+            }}
+            className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
+          >
+            {videoClips.length === 0 ? (
+              <option value="">No video clips on timeline</option>
+            ) : (
+              <>
+                <option value="all">⚡ All Video Clips on Timeline ({videoClips.length})</option>
+                <optgroup label="Individual Clips">
+                  {videoClips.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} ({v.trackName})
+                    </option>
+                  ))}
+                </optgroup>
+              </>
+            )}
+          </select>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs shrink-0"
+            onClick={() => resetEffects(false)}
+            title="Reset effects on target clip"
+            disabled={!selectedClip && videoClips.length === 0}
+          >
+            <RotateCcw className="size-3 mr-1" />
+            Reset
+          </Button>
+        </div>
       </div>
-      <Button size="sm" variant="outline" className="w-full" onClick={() => void runDenoise()} disabled={denoiseBusy}>
-        {denoiseBusy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
-        {denoiseBusy ? 'Denoising...' : 'Denoise Audio'}
-      </Button>
+
+      {/* ── Sub-Navigation Tabs ── */}
+      <div className="grid grid-cols-4 gap-1 p-1 bg-muted/50 rounded-lg border border-border/40 text-xs font-medium">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('presets')}
+          className={`py-1.5 px-2 rounded-md transition text-center ${
+            activeSubTab === 'presets'
+              ? 'bg-card text-foreground font-semibold shadow-xs border border-border/60'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Presets
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('color')}
+          className={`py-1.5 px-2 rounded-md transition text-center ${
+            activeSubTab === 'color'
+              ? 'bg-card text-foreground font-semibold shadow-xs border border-border/60'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Color
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('stylize')}
+          className={`py-1.5 px-2 rounded-md transition text-center ${
+            activeSubTab === 'stylize'
+              ? 'bg-card text-foreground font-semibold shadow-xs border border-border/60'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Stylize
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('audio')}
+          className={`py-1.5 px-2 rounded-md transition text-center ${
+            activeSubTab === 'audio'
+              ? 'bg-card text-foreground font-semibold shadow-xs border border-border/60'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Audio FX
+        </button>
+      </div>
+
+      {/* ── Sub-Tab 1: Preset Looks ── */}
+      {activeSubTab === 'presets' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>1-Click Cinematic Filters</span>
+            <button
+              type="button"
+              onClick={() => resetEffects(true)}
+              className="text-[11px] text-primary hover:underline"
+            >
+              Clear All Timeline Effects
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5">
+            {EFFECT_PRESETS.map((preset) => {
+              const IconComp = preset.icon
+              return (
+                <div
+                  key={preset.id}
+                  className={`group relative rounded-xl border border-border/70 bg-card/60 p-3 transition hover:bg-card hover:shadow-xs ${preset.borderAccent}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-lg ${preset.badgeBg} ${preset.badgeText}`}>
+                        <IconComp className="size-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-foreground">{preset.name}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-medium ${preset.badgeBg} ${preset.badgeText}`}>
+                            {preset.tag}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{preset.description}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2 pt-2 border-t border-border/40">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="flex-1 h-7 text-xs"
+                      onClick={() => applyPreset(preset, false)}
+                    >
+                      <Sparkles className="size-3 mr-1" />
+                      Apply to Video
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2.5"
+                      onClick={() => applyPreset(preset, true)}
+                      title="Apply this effect to all clips on the timeline"
+                    >
+                      Apply to All
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sub-Tab 2: Color Grading ── */}
+      {activeSubTab === 'color' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-xs text-muted-foreground">
+            Adjust exposure, balance, and color grading parameters.
+          </div>
+
+          <EffectSlider
+            label="Brightness"
+            value={getEffectVal(selectedClip, 'brightness')}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('brightness', v)}
+          />
+          <EffectSlider
+            label="Contrast"
+            value={getEffectVal(selectedClip, 'contrast')}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('contrast', v)}
+          />
+          <EffectSlider
+            label="Saturation"
+            value={getEffectVal(selectedClip, 'saturation')}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('saturation', v)}
+          />
+          <EffectSlider
+            label="Vibrance"
+            value={getEffectVal(selectedClip, 'vibrance')}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('vibrance', v)}
+          />
+          <EffectSlider
+            label="Color Temperature (Cool / Warm)"
+            value={getEffectVal(selectedClip, 'temperature')}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('temperature', v)}
+          />
+          <EffectSlider
+            label="Tint (Green / Magenta)"
+            value={getEffectVal(selectedClip, 'tint')}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('tint', v)}
+          />
+          <EffectSlider
+            label="Grayscale"
+            value={getEffectVal(selectedClip, 'grayscale')}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('grayscale', v)}
+          />
+        </div>
+      )}
+
+      {/* ── Sub-Tab 3: Stylize & FX ── */}
+      {activeSubTab === 'stylize' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-xs text-muted-foreground">
+            Cinematic optical lens effects, glitch distortions, and film textures.
+          </div>
+
+          <EffectSlider
+            label="Film Grain"
+            value={getEffectVal(selectedClip, 'grain')}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('grain', v)}
+          />
+          <EffectSlider
+            label="Vignette Intensity"
+            value={getEffectVal(selectedClip, 'vignette')}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('vignette', v)}
+          />
+          <EffectSlider
+            label="Chromatic Aberration (RGB Split)"
+            value={getEffectProp(selectedClip, 'chromatic-aberration', 'aberrationOffset') ?? 0}
+            min={0}
+            max={12}
+            step={0.5}
+            onChange={(v) => setEffect('chromatic-aberration', 1, { aberrationOffset: v })}
+          />
+          <EffectSlider
+            label="Glitch Intensity"
+            value={getEffectProp(selectedClip, 'glitch', 'glitchIntensity') ?? 0}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setEffect('glitch', 1, { glitchIntensity: v, scanlines: 12 })}
+          />
+          <EffectSlider
+            label="Gaussian Blur"
+            value={getEffectVal(selectedClip, 'blur')}
+            min={0}
+            max={20}
+            step={0.5}
+            onChange={(v) => setEffect('blur', v)}
+          />
+        </div>
+      )}
+
+      {/* ── Sub-Tab 4: Audio FX ── */}
+      {activeSubTab === 'audio' && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border/70 bg-card/60 p-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <AudioLines className="size-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-foreground">AI Background Denoise</h4>
+                <p className="text-[11px] text-muted-foreground">Isolate vocals and eliminate background ambient hum.</p>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              variant="default"
+              className="w-full h-8 text-xs"
+              onClick={() => void runDenoise()}
+              disabled={denoiseBusy || !selectedClip}
+            >
+              {denoiseBusy ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Sparkles className="mr-2 size-3.5" />}
+              {denoiseBusy ? 'Processing RNNoise Audio...' : 'Denoise Clip Audio'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
