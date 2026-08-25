@@ -1,33 +1,23 @@
 import * as React from 'react'
 import {
   ArrowLeftRight,
-  Box,
   Captions,
   ChevronDown,
   ChevronRight,
   Clapperboard,
-  Code,
-  Crop,
   CopyPlus,
-  Image,
-  BarChart3,
-  Layers,
   Loader2,
   Magnet,
   Maximize,
-  MoreHorizontal,
   Music,
   Redo2,
   Scissors,
   ScrollText,
   Slice,
   Sparkles,
-  Stamp,
   Trash2,
   Type,
   Undo2,
-  VolumeX,
-  Wand2,
   Zap,
   ZoomIn,
   ZoomOut,
@@ -139,7 +129,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const [dragActive, setDragActive] = React.useState(false)
   const trimMode = useEditorStore((s) => s.trimMode)
   const setTrimMode = useEditorStore((s) => s.setTrimMode)
-  const [moreOpen, setMoreOpen] = React.useState(false)
   const tool = useEditorStore((s) => s.tool)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
@@ -454,20 +443,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     if (store.selection.clipIds.length) store.cutClips(store.selection.clipIds)
   }
 
-  const runDenoiseOnSelection = () => {
-    onOpenTool?.('audio')
-    const store = useTimelineStore.getState()
-    for (const id of store.selection.clipIds) {
-      for (const track of store.project.tracks) {
-        const clip = track.clips.find((c) => c.id === id)
-        if (clip && (track.type === 'audio' || clip.clipType === 'voice' || clip.clipType === 'music')) {
-          void denoiseAction.run(clip.id)
-          break
-        }
-      }
-    }
-  }
-
   const handleAddText = React.useCallback(() => {
     const s = useTimelineStore.getState()
     const targetTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks.find((t) => t.type === 'video')
@@ -540,38 +515,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <ToolbarButton label="Script Studio" onClick={() => onOpenTool?.('script')}>
           <ScrollText className="size-4" />
         </ToolbarButton>
-
-        {/* More AI & Production Tools Dropdown */}
-        <div className="relative">
-          <ToolbarButton label="More Studio Tools" onClick={() => setMoreOpen((o) => !o)} active={moreOpen}>
-            <MoreHorizontal className="size-4" />
-          </ToolbarButton>
-          {moreOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setMoreOpen(false)}
-                aria-hidden
-              />
-              <div className="absolute top-full left-0 z-50 mt-1 flex w-56 flex-col gap-0.5 rounded-xl border border-border/80 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95">
-                <p className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">Generators</p>
-                <MenuRow icon={<Clapperboard className="size-4 text-violet-500" />} label="Avatar Generator" onClick={() => { onOpenTool?.('avatar'); setMoreOpen(false) }} />
-                <MenuRow icon={<Layers className="size-4 text-indigo-500" />} label="Slide & Lesson Generator" onClick={() => { onOpenTool?.('slide'); setMoreOpen(false) }} />
-                <MenuRow icon={<Box className="size-4 text-amber-500" />} label="3D Scene & Models" onClick={() => { onOpenTool?.('3d'); setMoreOpen(false) }} />
-                <MenuRow icon={<Code className="size-4 text-pink-500" />} label="Motion Code Design" onClick={() => { onOpenTool?.('design'); setMoreOpen(false) }} />
-                <MenuRow icon={<Image className="size-4 text-emerald-500" />} label="Stock Images" onClick={() => { onOpenTool?.('images'); setMoreOpen(false) }} />
-                <MenuRow icon={<Stamp className="size-4 text-yellow-500" />} label="Giphy Animated Stickers" onClick={() => { onOpenTool?.('stickers'); setMoreOpen(false) }} />
-                <div className="bg-border/60 my-1 h-px" />
-                <p className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">Editing & Audio</p>
-                <MenuRow icon={<VolumeX className="size-4 text-red-500" />} label="AI Audio Denoise" onClick={() => { runDenoiseOnSelection(); setMoreOpen(false) }} />
-                <MenuRow icon={<Crop className="size-4 text-blue-500" />} label="Crop & Reframe" onClick={() => { onOpenTool?.('crop'); setMoreOpen(false) }} />
-                <MenuRow icon={<Loader2 className="size-4 text-purple-500" />} label="Speed & Pacing" onClick={() => { onOpenTool?.('speed'); setMoreOpen(false) }} />
-                <MenuRow icon={<Wand2 className="size-4 text-orange-500" />} label="Keyframe Automation" onClick={() => { onOpenTool?.('keyframe'); setMoreOpen(false) }} />
-                <MenuRow icon={<BarChart3 className="size-4 text-cyan-500" />} label="Project Quality & Insights" onClick={() => { onOpenTool?.('insights'); setMoreOpen(false) }} />
-              </div>
-            </>
-          )}
-        </div>
         <SeparatorLine />
 
         {/* Snap & Zoom Controls */}
@@ -935,19 +878,6 @@ function PlayheadAnnouncer() {
     <div role="status" aria-live="polite" className="sr-only">
       {message}
     </div>
-  )
-}
-
-function MenuRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex h-9 items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-muted"
-    >
-      <span className="text-muted-foreground">{icon}</span>
-      {label}
-    </button>
   )
 }
 
