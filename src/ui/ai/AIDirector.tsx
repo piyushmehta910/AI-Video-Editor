@@ -1,5 +1,26 @@
 import * as React from 'react'
-import { Check, Clapperboard, Cpu, GripHorizontal, HelpCircle, ListChecks, Maximize2, MessageSquare, Minimize2, Play, RotateCcw, Scaling, Send, Settings, Sparkles, Trash2, User, X, Zap } from 'lucide-react'
+import {
+  Check,
+  Clapperboard,
+  Cpu,
+  GripHorizontal,
+  HelpCircle,
+  ListChecks,
+  Maximize2,
+  Mic,
+  Minimize2,
+  Palette,
+  Scissors,
+  Send,
+  Settings,
+  Smartphone,
+  Sparkles,
+  Subtitles,
+  Trash2,
+  User,
+  X,
+  Zap,
+} from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -47,14 +68,6 @@ interface PendingPlan {
   plan: EditPlan
   status: 'pending' | 'applied' | 'failed'
 }
-
-const SUGGESTIONS = [
-  'Reframe this project to a vertical Reel (9:16)',
-  'Add captions to this video',
-  'Remove silent parts',
-  'Make this into a 30-second short',
-  'Make this better',
-]
 
 const FOLLOWUP_SUGGESTIONS: Record<string, string[]> = {
   search_stock_image: ['Add a stock image for the intro', 'Search for background music', 'Add captions'],
@@ -399,37 +412,6 @@ export function AIDirector({
     }
   }
 
-  const applyPresetSize = (w: number, h: number) => {
-    const maxWidth = Math.max(320, window.innerWidth - 20)
-    const maxHeight = Math.max(380, window.innerHeight - 20)
-    const finalW = Math.min(Math.max(320, w), maxWidth)
-    const finalH = Math.min(Math.max(380, h), maxHeight)
-    setSize({ width: finalW, height: finalH })
-    setIsMaximized(false)
-    try {
-      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify({ width: finalW, height: finalH }))
-    } catch {
-      // ignore
-    }
-  }
-
-  const resetPosition = () => {
-    const defaultX = Math.max(10, window.innerWidth - 460)
-    const defaultY = Math.max(10, window.innerHeight - 640)
-    const pos = { x: defaultX, y: defaultY }
-    const defaultSize = { width: 440, height: 580 }
-    setPosition(pos)
-    setSize(defaultSize)
-    setIsMaximized(false)
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
-      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(defaultSize))
-    } catch {
-      // ignore
-    }
-  }
-
-  const [showSizeMenu, setShowSizeMenu] = React.useState(false)
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
   const [busy, setBusy] = React.useState(false)
@@ -1190,22 +1172,23 @@ export function AIDirector({
             </div>
 
             {/* Header Controls */}
+            {/* Header Controls */}
             <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
               {/* AI Model & Provider Selector */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowModelMenu((s) => !s)}
-                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold transition-all border ${
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
                     isNvidia
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
                       : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
                   }`}
-                  title="Select AI Director Model & Provider (NVIDIA NIM or OpenRouter)"
+                  title="Select AI Director Model & Provider"
                 >
-                  <Cpu className="size-2.5" />
-                  <span className="truncate max-w-[85px]">
-                    {isNvidia ? 'NVIDIA' : 'OpenRouter'}: {activeModel.split('/').pop()?.replace('-instruct', '')}
+                  <Cpu className="size-3 shrink-0" />
+                  <span className="truncate max-w-[90px]">
+                    {isNvidia ? '⚡ NIM' : '🌐 OpenRouter'}: {activeModel.split('/').pop()?.replace('-instruct', '')}
                   </span>
                 </button>
                 {showModelMenu && (
@@ -1271,229 +1254,195 @@ export function AIDirector({
               <button
                 type="button"
                 onClick={toggleProductionMode}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold transition-all border ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
                   productionMode === 'autopilot'
-                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                    : 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
                 }`}
-                title={productionMode === 'autopilot' ? 'Autopilot: changes applied immediately. Click to switch to Review mode.' : 'Review mode: changes staged for approval. Click to switch to Autopilot.'}
+                title={productionMode === 'autopilot' ? 'Autopilot mode: changes executed directly. Click to switch to Review mode.' : 'Review mode: changes staged for approval. Click to switch to Autopilot.'}
               >
                 {productionMode === 'autopilot' ? (
-                  <><Zap className="size-2.5" /> Auto</>
+                  <><Zap className="size-2.5 text-emerald-500" /> Auto</>
                 ) : (
-                  <><ListChecks className="size-2.5" /> Review</>
+                  <><ListChecks className="size-2.5 text-amber-500" /> Review</>
                 )}
               </button>
-              {/* Quick Size Preset Selector */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowSizeMenu((s) => !s)}
-                  className={`rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition-colors ${
-                    showSizeMenu ? 'bg-white/20 text-foreground' : ''
-                  }`}
-                  title="Adjust Window Size"
-                  aria-label="Adjust Window Size"
-                >
-                  <Scaling className="size-3.5" />
-                </button>
-                {showSizeMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-xl border border-white/25 dark:border-white/15 bg-background/85 dark:bg-slate-950/85 p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
-                    <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      Window Size
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        applyPresetSize(360, 480)
-                        setShowSizeMenu(false)
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
-                    >
-                      <span>Compact</span>
-                      <span className="text-[10px] text-muted-foreground">360 × 480</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        applyPresetSize(440, 580)
-                        setShowSizeMenu(false)
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors font-medium text-violet-500 dark:text-violet-400"
-                    >
-                      <span>Standard</span>
-                      <span className="text-[10px] text-muted-foreground">440 × 580</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        applyPresetSize(560, 700)
-                        setShowSizeMenu(false)
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
-                    >
-                      <span>Large</span>
-                      <span className="text-[10px] text-muted-foreground">560 × 700</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        applyPresetSize(720, 650)
-                        setShowSizeMenu(false)
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
-                    >
-                      <span>Wide Studio</span>
-                      <span className="text-[10px] text-muted-foreground">720 × 650</span>
-                    </button>
-                    <div className="my-1 border-t border-white/10" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toggleMaximize()
-                        setShowSizeMenu(false)
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left hover:bg-white/10 transition-colors"
-                    >
-                      <span>{isMaximized ? 'Restore Normal' : 'Full Expand'}</span>
-                      <Maximize2 className="size-3 text-muted-foreground" />
-                    </button>
-                  </div>
-                )}
-              </div>
 
-              <button
-                type="button"
-                onClick={resetPosition}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
-                title="Reset Position & Size"
-                aria-label="Reset Position & Size"
-              >
-                <RotateCcw className="size-3.5" />
-              </button>
+              {/* Quality Audit Button with badge */}
               <button
                 type="button"
                 onClick={() => {
                   setShowQuality((s) => !s)
                   if (!checking && issues.length === 0) void runQualityCheck()
                 }}
-                className={`rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition ${
+                className={`relative rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition ${
                   showQuality ? 'text-violet-600 dark:text-violet-400 bg-white/10' : ''
                 }`}
-                title="Check project quality"
-                aria-label="Check project quality"
+                title="Audit Project Timeline Quality"
+                aria-label="Audit Project Quality"
               >
                 <ListChecks className="size-3.5" />
+                {issues.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white shadow-xs">
+                    {issues.length}
+                  </span>
+                )}
               </button>
+
+              {/* Clear Chat Button */}
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMessages([])
+                    setProposals([])
+                    setPlan(null)
+                  }}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition"
+                  title="Clear chat history"
+                  aria-label="Clear chat"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              )}
+
+              {/* Settings Link */}
               <Link
                 to="/settings"
-                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
-                title="Configure AI provider"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
+                title="Configure AI provider API keys"
               >
                 <Settings className="size-3.5" />
               </Link>
+
+              {/* Maximize / Restore */}
               <button
                 type="button"
                 onClick={toggleMaximize}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title={isMaximized ? 'Restore window' : 'Maximize window'}
                 aria-label={isMaximized ? 'Restore' : 'Maximize'}
               >
                 {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </button>
+
+              {/* Minimize to Pill */}
               <button
                 type="button"
                 onClick={() => setIsMinimized(true)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition flex items-center justify-center"
                 title="Minimize to floating pill"
                 aria-label="Minimize"
               >
-                <span className="inline-block w-3 h-0.5 bg-current rounded-full mb-1" />
+                <span className="inline-block w-2.5 h-0.5 bg-current rounded-full" />
               </button>
+
+              {/* Close */}
               <button
                 type="button"
                 onClick={() => changeOpen(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition"
                 title="Close AI Director"
                 aria-label="Close"
               >
-                <X className="size-4" />
+                <X className="size-3.5" />
               </button>
             </div>
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !busy && (
-              <div className="space-y-3 pt-1">
-                {/* Generate Video from text prompt */}
-                <div className="rounded-xl border border-violet-500/40 bg-violet-500/8 p-3.5 space-y-2.5 backdrop-blur-md shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-6 items-center justify-center rounded-lg bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30">
-                      <Clapperboard className="size-3.5" />
+              <div className="space-y-3.5 pt-1">
+                {/* Hero Welcome Card */}
+                <div className="relative overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-b from-violet-500/10 via-background to-background p-4 shadow-sm backdrop-blur-md">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="flex size-8 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-500/20">
+                      <Sparkles className="size-4" />
                     </div>
-                    <span className="text-xs font-bold text-foreground">Generate Video from Prompt</span>
-                    <span className="ml-auto text-[9px] font-semibold rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5">Planning Mode</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground">AI Director Studio</h4>
+                      <p className="text-[10px] text-muted-foreground">Autonomous video editing & creation engine</p>
+                    </div>
+                    <span className="ml-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Autopilot Ready
+                    </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Describe what you want to make. The AI Director will clarify your requirements, then plan and build the video step by step.
+                    Ask me to auto-edit, cut pauses, generate captions, apply color grading, synthesize voiceovers, or construct complete videos.
                   </p>
-                  <div className="flex gap-2">
-                    <input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && input.trim()) {
-                          void send(`Create a video: ${input.trim()}. Before starting, ask me any clarifying questions about style, duration, audience, or tone that you need to make the best possible video. Then present your full plan before executing.`)
-                        }
-                      }}
-                      placeholder="e.g. 'A 60s product demo for my SaaS app'"
-                      className="min-w-0 flex-1 rounded-xl border border-white/25 dark:border-white/15 bg-white/40 dark:bg-white/5 px-3 py-2 text-xs outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 backdrop-blur-md text-foreground"
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      className="size-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-md flex-shrink-0"
-                      disabled={!input.trim() || busy}
-                      onClick={() => {
-                        if (!input.trim()) return
-                        const prompt = `Create a video: ${input.trim()}. Before starting, ask me any clarifying questions about style, duration, audience, or tone that you need to make the best possible video. Then present your full plan before executing.`
-                        setInput('')
-                        void send(prompt)
-                      }}
-                      aria-label="Generate video"
-                    >
-                      <Play className="size-3.5 fill-white" />
-                    </Button>
+                </div>
+
+                {/* 1-Click Quick Action Cards */}
+                <div>
+                  <div className="flex items-center justify-between pb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Suggested Actions
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      {
+                        icon: Sparkles,
+                        title: 'Auto-Edit Project',
+                        desc: 'Analyze media & optimize pacing',
+                        prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.',
+                        color: 'text-violet-500 bg-violet-500/10 border-violet-500/30 hover:border-violet-500/60',
+                      },
+                      {
+                        icon: Scissors,
+                        title: 'Cut Silent Pauses',
+                        desc: 'Remove dead air & trim clips',
+                        prompt: 'Remove all silent parts and gaps longer than 1.2 seconds from the timeline clips to tighten the pacing.',
+                        color: 'text-rose-500 bg-rose-500/10 border-rose-500/30 hover:border-rose-500/60',
+                      },
+                      {
+                        icon: Subtitles,
+                        title: 'Generate Captions',
+                        desc: 'Dynamic animated subtitles',
+                        prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips on the timeline.',
+                        color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/30 hover:border-cyan-500/60',
+                      },
+                      {
+                        icon: Palette,
+                        title: 'Cinematic Colors',
+                        desc: 'Teal & Orange Hollywood grade',
+                        prompt: 'Apply a cinematic Teal & Orange color grade preset across all video clips on the timeline.',
+                        color: 'text-amber-500 bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60',
+                      },
+                      {
+                        icon: Smartphone,
+                        title: 'Reframe for Reels (9:16)',
+                        desc: 'Format for TikTok & Shorts',
+                        prompt: 'Reframe this project to a vertical 9:16 aspect ratio suitable for TikTok and Instagram Reels.',
+                        color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60',
+                      },
+                      {
+                        icon: Mic,
+                        title: 'Generate Voiceover',
+                        desc: 'Synthesize AI narration',
+                        prompt: 'Generate an energetic, high-quality voiceover narration for this video using TTS.',
+                        color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/60',
+                      },
+                    ].map((act, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => void send(act.prompt)}
+                        className={`flex flex-col text-left p-2.5 rounded-xl border transition-all hover:scale-[1.02] shadow-xs group bg-card/60 backdrop-blur-sm ${act.color}`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <act.icon className="size-3.5 shrink-0" />
+                          <span className="text-xs font-bold text-foreground group-hover:text-violet-500 transition-colors">
+                            {act.title}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground leading-tight">
+                          {act.desc}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-
-                {/* Mode banner */}
-                <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border text-[11px] ${
-                  productionMode === 'autopilot'
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                }`}>
-                  {productionMode === 'autopilot' ? <Zap className="size-3 flex-shrink-0" /> : <ListChecks className="size-3 flex-shrink-0" />}
-                  <span className="font-semibold">{productionMode === 'autopilot' ? 'Autopilot mode' : 'Review mode'}</span>
-                  <span className="text-muted-foreground">
-                    {productionMode === 'autopilot'
-                      ? '— changes applied instantly, no confirmation needed.'
-                      : '— all changes will be staged for your review first.'}
-                  </span>
-                </div>
-
-                <p className="text-muted-foreground text-[11px] font-medium pt-1">Quick actions:</p>
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => void send(s)}
-                    className="flex w-full items-center gap-2 rounded-xl border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 px-3.5 py-2.5 text-left text-xs transition-all hover:border-violet-400/50 hover:bg-white/60 dark:hover:bg-white/10 backdrop-blur-md shadow-xs"
-                  >
-                    <MessageSquare className="text-violet-500 dark:text-violet-400 size-3.5 shrink-0" />
-                    <span>{s}</span>
-                  </button>
-                ))}
               </div>
             )}
 
@@ -1816,40 +1765,45 @@ export function AIDirector({
           )}
 
           {/* Bottom Action & Input Bar with Glassmorphism */}
-          <div className="border-t border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 p-3 backdrop-blur-xl">
-            <div className="mb-2 flex gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 flex-1 text-[11px] font-semibold border-white/25 dark:border-white/15 bg-white/30 dark:bg-white/5 hover:bg-white/50 backdrop-blur-md shadow-xs text-violet-700 dark:text-violet-300"
-                disabled={busy}
-                onClick={() =>
-                  void send(
-                    'Auto-pilot: understand the current media, analyze the video (transcribe audio if needed, read on-screen text), then plan and apply the best edit — pacing, transitions, captions, music or images where they help. Ask me only if a decision is truly blocking.',
-                  )
-                }
-              >
-                <Sparkles className="mr-1 size-3 text-violet-500" />
-                Auto-Pilot Direct
-              </Button>
+          <div className="border-t border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 p-3 backdrop-blur-xl space-y-2">
+            {/* Quick Action Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+              {[
+                { label: '⚡ Auto-Edit', prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.' },
+                { label: '📝 Captions', prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
+                { label: '✂️ Cut Silence', prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
+                { label: '🎨 Teal & Orange', prompt: 'Apply a Hollywood Teal & Orange cinematic color grade preset to all video clips.' },
+                { label: '📱 9:16 Reel', prompt: 'Reframe this project to a vertical 9:16 Reel/Shorts format.' },
+              ].map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => void send(p.prompt)}
+                  disabled={busy}
+                  className="rounded-full border border-border/70 bg-card/80 hover:bg-muted hover:border-violet-500/50 px-2.5 py-1 text-[10px] font-semibold text-foreground transition-all shadow-xs shrink-0 disabled:opacity-50"
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-            <div className="flex gap-2">
+
+            {/* Input Field & Send Button */}
+            <div className="flex gap-2 items-center">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') void send(input)
+                  if (e.key === 'Enter' && input.trim()) void send(input)
                 }}
-                placeholder="Tell the director what to do..."
+                placeholder="Ask the Director to edit, cut, grade, add captions..."
                 className="min-w-0 flex-1 rounded-xl border border-white/25 dark:border-white/15 bg-white/40 dark:bg-white/5 px-3 py-2 text-xs sm:text-sm outline-none placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 backdrop-blur-md text-foreground transition-all"
               />
               <Button
                 size="icon"
-                className="size-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-md"
+                className="size-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-md shrink-0"
                 onClick={() => void send(input)}
                 disabled={!input.trim() || busy}
-                aria-label="Send"
+                aria-label="Send message"
               >
                 <Send className="size-4" />
               </Button>
