@@ -57,8 +57,9 @@ export const magpieTtsProvider: TtsProvider = {
   isConfigured() {
     const nimCfg = nvidiaNimConfig()
     const ttsCfg = nvidiaTtsConfig()
-    const hasKey = Boolean(ttsCfg.apiKey || nimCfg.apiKey)
-    return hasKey && (nimCfg.enabled || ttsCfg.enabled)
+    // Any valid API key is sufficient — `enabled` only gates the provider from
+    // being auto-selected; it should not block explicit generation calls.
+    return Boolean(ttsCfg.apiKey?.trim() || nimCfg.apiKey?.trim())
   },
 
   async synthesize(options) {

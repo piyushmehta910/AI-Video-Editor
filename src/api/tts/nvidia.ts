@@ -21,7 +21,7 @@ export const nvidiaTtsProvider: TtsProvider = {
 
   isConfigured() {
     const cfg = nvidiaTtsConfig()
-    return Boolean(cfg.enabled && cfg.apiKey && cfg.model)
+    return Boolean(cfg.apiKey?.trim() && cfg.model?.trim())
   },
 
   async synthesize(options) {

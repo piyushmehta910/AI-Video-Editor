@@ -7375,7 +7375,11 @@ function VoiceoverSection() {
       let synthesizeResult: { blob: Blob; url: string }
       if (provider === 'magpie') {
         const { magpieTtsProvider } = await import('@/api/tts/magpie')
-        if (!magpieTtsProvider.isConfigured()) throw new Error('NVIDIA API key not configured. Add it in Settings → NVIDIA NIM.')
+        if (!magpieTtsProvider.isConfigured()) {
+          throw new Error(
+            'No NVIDIA API key found. Go to Settings → NVIDIA NIM Voice and enter your API key (starts with nvapi-), then try again.',
+          )
+        }
         synthesizeResult = await magpieTtsProvider.synthesize({
           text: text.trim(),
           voiceId: magpieVoice,
@@ -7384,7 +7388,9 @@ function VoiceoverSection() {
         })
       } else if (provider === 'nvidia') {
         const { nvidiaTtsProvider } = await import('@/api/tts/nvidia')
-        if (!nvidiaTtsProvider.isConfigured()) throw new Error('NVIDIA TTS API key not configured. Add it in Settings → NVIDIA TTS.')
+        if (!nvidiaTtsProvider.isConfigured()) {
+          throw new Error('NVIDIA TTS API key not configured. Go to Settings → NVIDIA NIM Voice and enter your API key.')
+        }
         synthesizeResult = await nvidiaTtsProvider.synthesize({ text: text.trim(), voiceId: nvidiaVoice, speed })
       } else {
         const { elevenLabsProvider } = await import('@/api/tts/elevenlabs')
@@ -7455,6 +7461,28 @@ function VoiceoverSection() {
       {/* ── Magpie Controls ── */}
       {provider === 'magpie' && (
         <div className="space-y-2.5 rounded-lg border bg-muted/15 p-2.5">
+          {/* API Key status */}
+          {(() => {
+            const nimKey = config.nvidiaNim?.apiKey?.trim()
+            const ttsKey = config.nvidiaTts?.apiKey?.trim()
+            const hasKey = Boolean(nimKey || ttsKey)
+            return (
+              <div
+                className={[
+                  'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[10px] font-semibold',
+                  hasKey
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20',
+                ].join(' ')}
+              >
+                <span className={['size-1.5 rounded-full shrink-0', hasKey ? 'bg-emerald-500' : 'bg-amber-500'].join(' ')} />
+                {hasKey
+                  ? `API key detected (${ttsKey ? 'NVIDIA NIM Voice' : 'NVIDIA NIM LLM'}) — ready`
+                  : 'No API key — go to Settings → NVIDIA NIM Voice and add your nvapi-… key'}
+              </div>
+            )
+          })()}
+
           <div className="space-y-1">
             <Label className="text-[10px] font-semibold text-muted-foreground">Magpie TTS Model</Label>
             <select
