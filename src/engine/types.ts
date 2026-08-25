@@ -240,7 +240,7 @@ export interface TextOverlay {
   text: string
   fontSize: number
   fontFamily: string
-  fontWeight: 'normal' | 'bold'
+  fontWeight: 'normal' | 'bold' | string
   fontStyle: 'normal' | 'italic'
   color: string
   backgroundColor: string
@@ -261,6 +261,14 @@ export interface TextOverlay {
   shadowBlur?: number
   shadowOffsetX?: number
   shadowOffsetY?: number
+  /** Letter spacing in pixels (tracking). Default 0. */
+  letterSpacing?: number
+  /** Line height multiplier (e.g. 1.2). Default 1.2. */
+  lineHeight?: number
+  /** Text capitalization transform. */
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+  /** Text decoration styling. */
+  textDecoration?: 'none' | 'underline' | 'line-through'
 }
 
 export const TEXT_ANIMATIONS: TextAnimation[] = [

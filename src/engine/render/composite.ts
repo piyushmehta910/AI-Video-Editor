@@ -3,6 +3,7 @@ import { computeEffects, transitionAlpha } from './filters'
 import { drawCaptions, type CaptionRender } from '@/engine/captions/render'
 import { type CropWindow, type CropKeyframe } from '@/engine/reframing'
 import { interpolatePropertyKeyframe } from '@/lib/keyframes'
+import { loadGoogleFont } from '@/lib/fonts'
 
 export interface CompositeMedia {
   /** Return a drawable source for a video asset positioned at `srcTime`, or null if not ready. */
@@ -501,19 +502,32 @@ export async function compositeFrame(
     if (anim.scale !== 1) ctx.scale(anim.scale, anim.scale)
     if (anim.offsetX !== 0 || anim.offsetY !== 0) ctx.translate(anim.offsetX, anim.offsetY)
 
-    const fontWeight = t.fontWeight === 'bold' ? 'bold ' : ''
+    loadGoogleFont(t.fontFamily)
+
+    const fontWeight = t.fontWeight === 'bold' ? 'bold ' : typeof t.fontWeight === 'string' && /^\d+$/.test(t.fontWeight) ? `${t.fontWeight} ` : ''
     const fontStyle = t.fontStyle === 'italic' ? 'italic ' : ''
     ctx.font = `${fontStyle}${fontWeight}${t.fontSize}px ${t.fontFamily}`
     ctx.textAlign = t.textAlign
     ctx.textBaseline = 'middle'
+    if (typeof (ctx as any).letterSpacing !== 'undefined' && t.letterSpacing) {
+      ;(ctx as any).letterSpacing = `${t.letterSpacing}px`
+    }
 
     let text = t.text
+    if (t.textTransform === 'uppercase') {
+      text = text.toUpperCase()
+    } else if (t.textTransform === 'lowercase') {
+      text = text.toLowerCase()
+    } else if (t.textTransform === 'capitalize') {
+      text = text.replace(/\b\w/g, (c) => c.toUpperCase())
+    }
+
     if (anim.reveal < 1) {
       const visibleChars = Math.floor(text.length * anim.reveal)
       text = text.slice(0, visibleChars)
     }
     const lines = text.split('\n')
-    const lineHeight = t.fontSize * 1.2
+    const lineHeight = t.fontSize * (t.lineHeight ?? 1.2)
     const totalHeight = lines.length * lineHeight
     const startY = -totalHeight / 2 + lineHeight / 2
 
@@ -535,6 +549,7 @@ export async function compositeFrame(
 
     for (let i = 0; i < lines.length; i++) {
       const y = startY + i * lineHeight
+      const lineText = lines[i]
       if (t.shadow) {
         ctx.shadowColor = t.shadowColor ?? 'rgba(0,0,0,0.7)'
         ctx.shadowBlur = t.shadowBlur ?? 6
@@ -546,14 +561,25 @@ export async function compositeFrame(
         ctx.miterLimit = 2
         ctx.lineWidth = t.stroke.width * 2
         ctx.strokeStyle = t.stroke.color
-        ctx.strokeText(lines[i], 0, y)
+        ctx.strokeText(lineText, 0, y)
       }
       ctx.fillStyle = t.color
-      ctx.fillText(lines[i], 0, y)
+      ctx.fillText(lineText, 0, y)
+      if (t.textDecoration === 'underline' || t.textDecoration === 'line-through') {
+        const lineMetrics = ctx.measureText(lineText)
+        const lineW = lineMetrics.width
+        const lineX = t.textAlign === 'center' ? -lineW / 2 : t.textAlign === 'right' ? -lineW : 0
+        const decoY = t.textDecoration === 'underline' ? y + t.fontSize * 0.45 : y
+        ctx.fillStyle = t.color
+        ctx.fillRect(lineX, decoY, lineW, Math.max(2, t.fontSize * 0.06))
+      }
       ctx.shadowColor = 'transparent'
       ctx.shadowBlur = 0
       ctx.shadowOffsetX = 0
       ctx.shadowOffsetY = 0
+    }
+    if (typeof (ctx as any).letterSpacing !== 'undefined') {
+      ;(ctx as any).letterSpacing = '0px'
     }
     ctx.restore()
   }

@@ -7,14 +7,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-
-const FONT_FAMILIES = [
-  'Inter, system-ui, sans-serif',
-  'Arial, Helvetica, sans-serif',
-  'Georgia, serif',
-  '"Courier New", monospace',
-  'Verdana, Geneva, sans-serif',
-]
+import { GOOGLE_FONTS, loadGoogleFont } from '@/lib/fonts'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -98,11 +91,15 @@ export function CaptionsPanel() {
             <select
               className="w-full rounded-md border bg-background px-1 py-0.5 text-xs"
               value={captions.style.fontFamily}
-              onChange={(e) => setStyle({ fontFamily: e.target.value })}
+              onChange={(e) => {
+                const f = e.target.value
+                loadGoogleFont(f)
+                setStyle({ fontFamily: f })
+              }}
             >
-              {FONT_FAMILIES.map((f) => (
-                <option key={f} value={f}>
-                  {f.split(',')[0].replace(/"/g, '')}
+              {GOOGLE_FONTS.map((f) => (
+                <option key={f.family} value={f.family}>
+                  {f.name} ({f.category})
                 </option>
               ))}
             </select>

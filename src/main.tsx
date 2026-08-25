@@ -5,9 +5,11 @@ import './index.css'
 import { router } from './router'
 import { useApiConfigStore } from '@/api/config/store'
 import { initTheme } from '@/lib/theme'
+import { preloadEssentialFonts } from '@/lib/fonts'
 
 await useApiConfigStore.getState().hydrate()
 initTheme()
+preloadEssentialFonts()
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

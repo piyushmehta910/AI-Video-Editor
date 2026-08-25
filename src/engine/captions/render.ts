@@ -3,6 +3,7 @@ import { defaultCaptionsConfig } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { StoredOcr, StoredTranscript } from '@/engine/analysis/types'
 import { activeWordIndex, assetTimeAt, buildCaptionCues, captionAnchor, cueAt, type FrameBox } from './captions'
+import { loadGoogleFont } from '@/lib/fonts'
 
 export interface CaptionRenderInput {
   /** Timeline time of the frame being rendered. */
@@ -103,6 +104,8 @@ export function drawCaptions(
 ): void {
   const { text, words, activeWordIndex: active, style, position, protectedRegions, maxWidth, alpha } = render
   const displayText = style.uppercase ? text.toUpperCase() : text
+
+  loadGoogleFont(style.fontFamily)
 
   ctx.save()
   ctx.globalAlpha = alpha
