@@ -5,7 +5,9 @@ import {
   CheckCircle2,
   Circle,
   Clapperboard,
+  Code,
   Cpu,
+  Globe,
   GripHorizontal,
   HelpCircle,
   ListChecks,
@@ -50,7 +52,7 @@ import {
 import { loadAskedQuestions, rememberAskedQuestion } from '@/api/llm/askedQuestions'
 import { Button } from '@/components/ui/button'
 import { useAIStore } from '@/stores/aiStore'
-import { DEFAULT_VIDEO_BRIEF, VIDEO_BRIEF_QUESTIONS, applyBriefAnswer, isVideoCreationPrompt } from '@/ai/videoBrief'
+import { DEFAULT_VIDEO_BRIEF, VIDEO_BRIEF_QUESTIONS, applyBriefAnswer, extractCleanTopic, isVideoCreationPrompt } from '@/ai/videoBrief'
 import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
 
 interface UiMessage {
@@ -628,7 +630,7 @@ export function AIDirector({
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, busy])
+  }, [messages, busy, videoProduction.step, videoProduction.status, videoProduction.message, videoProduction.tasks])
 
   const runQualityCheck = React.useCallback(async () => {
     setChecking(true)
@@ -732,7 +734,7 @@ export function AIDirector({
       setInput('')
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', text: trimmed }])
       if (isVideoCreationPrompt(trimmed)) {
-        startVideoBrief({ ...DEFAULT_VIDEO_BRIEF, topic: trimmed })
+        startVideoBrief({ ...DEFAULT_VIDEO_BRIEF, topic: extractCleanTopic(trimmed) || trimmed })
         return
       }
       setBusy(true)
@@ -1293,7 +1295,7 @@ export function AIDirector({
                 >
                   <Cpu className="size-3 shrink-0" />
                   <span className="truncate max-w-[110px]">
-                    {activeProviderKey === 'nvidia-nim' ? '⚡ NIM' : activeProviderKey === 'opencode-zen' ? '💻 Zen' : '🌐 Router'}:{' '}
+                    {activeProviderKey === 'nvidia-nim' ? 'NIM' : activeProviderKey === 'opencode-zen' ? 'Zen' : 'Router'}:{' '}
                     {activeModel.split('/').pop()?.replace('-instruct', '')}
                   </span>
                 </button>
@@ -1313,7 +1315,7 @@ export function AIDirector({
                           )}
                           title="Filter to only free endpoint models"
                         >
-                          {onlyFreeModels ? '✓ Free Only' : 'Show Free'}
+                          {onlyFreeModels ? 'Free Only' : 'Show Free'}
                         </button>
                         <Link to="/settings" className="text-[9px] text-violet-500 hover:underline font-semibold" onClick={() => setShowModelMenu(false)}>
                           Keys
@@ -1331,7 +1333,8 @@ export function AIDirector({
                           activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        <span>⚡ NIM</span>
+                        <Zap className="size-2.5 shrink-0" />
+                        <span>NIM</span>
                       </button>
                       <button
                         type="button"
@@ -1341,7 +1344,8 @@ export function AIDirector({
                           activeProviderKey === 'openrouter' ? 'bg-card text-violet-600 dark:text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        <span>🌐 Router</span>
+                        <Globe className="size-2.5 shrink-0" />
+                        <span>Router</span>
                       </button>
                       <button
                         type="button"
@@ -1351,7 +1355,8 @@ export function AIDirector({
                           activeProviderKey === 'opencode-zen' ? 'bg-card text-sky-600 dark:text-sky-400 shadow-xs' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        <span>💻 Zen</span>
+                        <Code className="size-2.5 shrink-0" />
+                        <span>Zen</span>
                       </button>
                     </div>
 
