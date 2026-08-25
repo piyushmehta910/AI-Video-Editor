@@ -237,7 +237,7 @@ export function AIDirector({
 
   // Production mode: autopilot = auto-apply all changes; review = stage for approval
   const [productionMode, setProductionMode] = React.useState<'autopilot' | 'review'>(() => {
-    try { return (localStorage.getItem('ai_director_mode') as 'autopilot' | 'review') || 'review' } catch { return 'review' }
+    try { return (localStorage.getItem('ai_director_mode') as 'autopilot' | 'review') || 'autopilot' } catch { return 'autopilot' }
   })
 
   // Viewport resize guard
@@ -678,9 +678,7 @@ export function AIDirector({
         }
 
         const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
-        // Autopilot mode overrides confirmation — always auto-applies.
-        // Review mode uses the per-user settings confirmationLevel.
-        const autoApply = productionMode === 'autopilot' || confirmationLevel === 'none'
+        const autoApply = productionMode === 'autopilot' || confirmationLevel !== 'always'
 
         const baseSystem = getProjectContextSystemPrompt(askedQuestions)
         let understanding = ''

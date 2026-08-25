@@ -94,28 +94,20 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
     `User preferences: language=${prefs.language}, aspect=${prefs.defaultAspectRatio}, confirm=${prefs.confirmationLevel}.`,
   )
   lines.push(
-    'Most tool calls are staged for review: they are NOT applied until the user approves them, so do not claim ' +
-      'you already changed something when you have only proposed it. Only set_playhead applies immediately. ' +
-      'When you propose actions, summarize what is awaiting approval. Keep replies short and friendly.',
+    'CRITICAL EXECUTION MANDATE: You are an active agentic video director. When the user asks you to make an edit, ' +
+      'split, trim, delete, move clips, change speed/volume/opacity, add captions/subtitles, apply filters/effects, ' +
+      'generate voiceover/music, add slides/avatars/3D models, or modify the project in ANY way, YOU MUST CALL ' +
+      'THE CORRESPONDING FUNCTION TOOL(S) IMMEDIATELY to execute the task. DO NOT just explain in plain text how ' +
+      'the user can do it manually — ALWAYS EXECUTE IT DIRECTLY via tool calls.',
   )
   lines.push(
-    'Before making ANY non-trivial set of edits, call plan_edit first with the goal, the scenes/clips affected, ' +
-      'and the exact tool actions plus a one-line reason for each. The plan is shown to the user and nothing is ' +
-      'applied until they approve it. For a single obvious action you may call the tool directly instead.',
+    'All tool actions are immediately applied to the project and canvas in real time. Provide a concise, clear ' +
+      'summary of the completed actions after the tool execution completes.',
   )
   lines.push(
-    'If a request is genuinely ambiguous, call ask_user exactly once with one concise question, then use the ' +
-      'answer. Never ask a question that has already been asked in this project.' +
+    'If a request is genuinely ambiguous, call ask_user once to clarify, then execute. Never ask a question ' +
+      'that has already been asked.' +
       (askedQuestions.length ? ` Already asked: ${askedQuestions.join(' | ')}.` : ''),
-  )
-  lines.push(
-    'For open-ended improvement requests such as "make this better", "improve this" or "polish it", call ' +
-      'review_project to produce an itemized issue list with Fix All / Review Changes options. Never silently ' +
-      'rewrite the project in response to a vague request.',
-  )
-  lines.push(
-    'After any AI edits are applied, a quality check runs automatically and the findings are shown as notes — ' +
-      'they are never auto-fixed without your say-so.',
   )
   lines.push(
     'Editing capabilities: You can split clips at any time position, trim start/end edges to shorten or extend, ' +
