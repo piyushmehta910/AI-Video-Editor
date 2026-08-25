@@ -478,66 +478,66 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         <SeparatorLine />
 
         {/* Clip Edit Tools */}
-        <ToolbarButton label="Split (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
+        <ToolbarButton label="Split Clip (Ctrl+K)" onClick={splitSelected} disabled={!selection.clipIds.length}>
           <Slice className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Cut (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
+        <ToolbarButton label="Cut Clip (Ctrl+X)" onClick={cutSelected} disabled={!selection.clipIds.length}>
           <Scissors className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Duplicate (Ctrl+D)" onClick={duplicateSelected} disabled={!selection.clipIds.length}>
+        <ToolbarButton label="Duplicate Clip (Ctrl+D)" onClick={duplicateSelected} disabled={!selection.clipIds.length}>
           <CopyPlus className="size-4" />
         </ToolbarButton>
-        <ToolbarButton label="Delete (Del)" onClick={deleteSelected} disabled={!selection.clipIds.length}>
+        <ToolbarButton label="Delete Clip (Del)" onClick={deleteSelected} disabled={!selection.clipIds.length}>
           <Trash2 className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
 
         {/* Core Timeline Tools & Generators */}
-        <ToolbarButton label="Add Text (T)" onClick={handleAddText}>
-          <Type className="size-4" />
+        <ToolbarButton label="Text & Titles Studio (T)" onClick={handleAddText}>
+          <Type className="size-4 text-amber-400" />
         </ToolbarButton>
-        <ToolbarButton label="Captions" onClick={() => onOpenTool?.('captions')}>
-          <Captions className="size-4" />
+        <ToolbarButton label="Auto Captions (C)" onClick={() => onOpenTool?.('captions')}>
+          <Captions className="size-4 text-sky-400" />
         </ToolbarButton>
-        <ToolbarButton label="Voiceover & Audio" onClick={() => onOpenTool?.('voiceover')}>
-          <Music className="size-4" />
+        <ToolbarButton label="Voiceover & Audio Studio" onClick={() => onOpenTool?.('voiceover')}>
+          <Music className="size-4 text-emerald-400" />
         </ToolbarButton>
-        <ToolbarButton label="Slides & Keynotes" onClick={() => onOpenTool?.('slide')}>
+        <ToolbarButton label="Slides & Keynotes Studio" onClick={() => onOpenTool?.('slide')}>
           <Presentation className="size-4 text-indigo-400" />
         </ToolbarButton>
-        <ToolbarButton label="AI Avatar Presenter" onClick={() => onOpenTool?.('avatar')}>
+        <ToolbarButton label="AI Avatar Presenter Studio" onClick={() => onOpenTool?.('avatar')}>
           <Clapperboard className="size-4 text-violet-400" />
         </ToolbarButton>
-        <ToolbarButton label="3D Assets & Models" onClick={() => onOpenTool?.('3d')}>
+        <ToolbarButton label="3D Assets & Models Studio" onClick={() => onOpenTool?.('3d')}>
           <Box className="size-4 text-amber-400" />
         </ToolbarButton>
-        <ToolbarButton label="Effects" onClick={() => onOpenTool?.('effects')}>
+        <ToolbarButton label="Visual Effects Studio" onClick={() => onOpenTool?.('effects')}>
           <Sparkles className="size-4 text-pink-400" />
         </ToolbarButton>
-        <ToolbarButton label="Transitions" onClick={() => onOpenTool?.('transitions')}>
+        <ToolbarButton label="Transitions Studio" onClick={() => onOpenTool?.('transitions')}>
           <Zap className="size-4 text-yellow-400" />
         </ToolbarButton>
-        <ToolbarButton label="Giphy Stickers" onClick={() => onOpenTool?.('stickers')}>
+        <ToolbarButton label="Giphy Animated Stickers" onClick={() => onOpenTool?.('stickers')}>
           <Smile className="size-4 text-emerald-400" />
         </ToolbarButton>
-        <ToolbarButton label="Stock Media" onClick={() => onOpenTool?.('images')}>
+        <ToolbarButton label="Stock Media Search" onClick={() => onOpenTool?.('images')}>
           <Image className="size-4 text-cyan-400" />
         </ToolbarButton>
-        <ToolbarButton label="Script Studio" onClick={() => onOpenTool?.('script')}>
+        <ToolbarButton label="Script Studio (AI Teleprompter)" onClick={() => onOpenTool?.('script')}>
           <ScrollText className="size-4 text-blue-400" />
         </ToolbarButton>
         <SeparatorLine />
 
         {/* Snap & Zoom Controls */}
         <ToolbarButton
-          label={snapEnabled ? 'Magnetic snap on (Shift inverts)' : 'Magnetic snap off (Shift inverts)'}
+          label={snapEnabled ? 'Magnetic Snapping: ON (Shift inverts)' : 'Magnetic Snapping: OFF (Shift inverts)'}
           active={snapEnabled}
           onClick={() => useTimelineStore.getState().setSnapEnabled(!snapEnabled)}
         >
           <Magnet className="size-4" />
         </ToolbarButton>
         <SeparatorLine />
-        <ToolbarButton label="Zoom out" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
+        <ToolbarButton label="Zoom Out (Ctrl -)" onClick={() => useTimelineStore.getState().setZoom(zoom * 0.75)}>
           <ZoomOut className="size-4" />
         </ToolbarButton>
         <Slider
@@ -547,14 +547,14 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           step={1}
           value={[Math.round(zoom)]}
           onValueChange={([v]) => useTimelineStore.getState().setZoom(v)}
-          title="Timeline zoom"
+          title="Timeline zoom level"
         />
-        <span className="text-muted-foreground w-11 text-center font-mono text-[10px]">{Math.round(zoom)}px/s</span>
-        <ToolbarButton label="Zoom in" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
+        <span className="text-muted-foreground w-12 text-center font-mono text-[10px] bg-muted/40 px-1 py-0.5 rounded border border-border/40">{Math.round(zoom)}px/s</span>
+        <ToolbarButton label="Zoom In (Ctrl +)" onClick={() => useTimelineStore.getState().setZoom(zoom * 1.333)}>
           <ZoomIn className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          label="Fit timeline (F)"
+          label="Fit Timeline to Screen (F)"
           onClick={() =>
             useTimelineStore
               .getState()
@@ -855,14 +855,19 @@ function ToolbarButton({
           variant="ghost"
           size="sm"
           aria-label={label}
-          className={cn('h-8 w-8 shrink-0 p-0 sm:h-7 sm:w-7', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30')}
+          className={cn(
+            'h-8 w-8 shrink-0 p-0 sm:h-7 sm:w-7 rounded-md transition-all',
+            active
+              ? 'bg-violet-500/20 text-violet-600 dark:text-violet-300 font-bold ring-1 ring-violet-500/40 shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+          )}
           onClick={onClick}
           disabled={disabled}
         >
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent className="text-[11px] font-medium">{label}</TooltipContent>
     </Tooltip>
   )
 }

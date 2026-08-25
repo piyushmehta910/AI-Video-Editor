@@ -146,7 +146,7 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
         )}
       >
         <div
-          className="relative h-4 cursor-pointer"
+          className="group relative h-4 cursor-pointer"
           onPointerDown={(e) => {
             setDragging(true)
             scrub(e.clientX)
@@ -157,13 +157,13 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
           onPointerUp={() => setDragging(false)}
           onPointerLeave={() => setDragging(false)}
         >
-          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15" />
+          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
           <div
-            className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-violet-500"
+            className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 group-hover:h-1.5 transition-all shadow-xs"
             style={{ width: `${Math.min(100, (playhead / (duration || 1)) * 100)}%` }}
           />
           <div
-            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow"
+            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md ring-2 ring-violet-500/50 transition-transform group-hover:scale-125"
             style={{ left: `${Math.min(100, (playhead / (duration || 1)) * 100)}%` }}
           />
         </div>
@@ -197,9 +197,11 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
             <SkipForward className="size-4" />
           </Button>
 
-          <span className="ml-2 font-mono text-xs text-white/80">
-            {formatSeconds(playhead)} / {formatSeconds(duration)}
-          </span>
+          <div className="ml-2 flex items-center gap-1 rounded-md bg-white/10 border border-white/10 px-2 py-1 font-mono text-[11px] text-white/90 shadow-xs">
+            <span className="font-bold text-violet-300">{formatSeconds(playhead)}</span>
+            <span className="text-white/40 font-normal">/</span>
+            <span className="text-white/70">{formatSeconds(duration)}</span>
+          </div>
 
           <div className="ml-auto flex items-center gap-2">
             <Button

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Download, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
+import { Check, Download, FilePlus, History, Home, PanelLeft, Pencil, Save, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -56,7 +56,7 @@ function ToolButton({
         <Button
           variant="ghost"
           size="sm"
-          className={cn('h-8 w-8 p-0', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30')}
+          className={cn('h-8 w-8 p-0 rounded-lg transition-all', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 font-bold')}
           onClick={onClick}
           disabled={disabled}
           data-testid={testId}
@@ -64,7 +64,7 @@ function ToolButton({
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent className="text-[11px] font-medium">{label}</TooltipContent>
     </Tooltip>
   )
 }
@@ -72,6 +72,7 @@ function ToolButton({
 export function TopToolbar() {
   const project = useTimelineStore((s) => s.project)
   const renameProject = useTimelineStore((s) => s.renameProject)
+  const resetProject = useTimelineStore((s) => s.resetProject)
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
 
@@ -85,10 +86,18 @@ export function TopToolbar() {
   const [editingName, setEditingName] = React.useState(false)
   const [nameDraft, setNameDraft] = React.useState(project.name)
   const [exportOpen, setExportOpen] = React.useState(false)
+  const [newProjectOpen, setNewProjectOpen] = React.useState(false)
+  const [justSaved, setJustSaved] = React.useState(false)
 
   const commitName = () => {
     renameProject(nameDraft.trim() || 'Untitled Project')
     setEditingName(false)
+  }
+
+  const handleSave = async () => {
+    await save()
+    setJustSaved(true)
+    setTimeout(() => setJustSaved(false), 2000)
   }
 
   return (
@@ -107,11 +116,11 @@ export function TopToolbar() {
                 CF
               </div>
               <Home className="size-3.5 text-muted-foreground" />
-              <span className="hidden sm:inline text-foreground">ClipForge</span>
+              <span className="hidden sm:inline text-foreground font-bold">ClipForge</span>
             </Link>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Back to Home</TooltipContent>
+        <TooltipContent className="text-[11px]">Back to Home</TooltipContent>
       </Tooltip>
 
       <div className="bg-border/80 mx-0.5 h-4 w-px" />
@@ -128,7 +137,23 @@ export function TopToolbar() {
             <PanelLeft className="size-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Toggle Media Library</TooltipContent>
+        <TooltipContent className="text-[11px]">Toggle Media Library</TooltipContent>
+      </Tooltip>
+
+      {/* New Project Button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setNewProjectOpen(true)}
+            className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-violet-500/40 rounded-lg"
+          >
+            <FilePlus className="size-3.5 text-violet-500" />
+            <span className="hidden md:inline">New</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="text-[11px]">Create New Project</TooltipContent>
       </Tooltip>
 
       {/* Project name (editable) */}
@@ -145,7 +170,7 @@ export function TopToolbar() {
               setEditingName(false)
             }
           }}
-          className="h-7 w-44 rounded-lg border border-violet-500/50 bg-muted/60 px-2.5 text-xs font-bold outline-none ring-2 ring-violet-500/30"
+          className="h-7 w-44 rounded-lg border border-violet-500/50 bg-muted/60 px-2.5 text-xs font-bold outline-none ring-2 ring-violet-500/30 text-foreground"
         />
       ) : (
         <button
@@ -154,7 +179,7 @@ export function TopToolbar() {
             setNameDraft(project.name)
             setEditingName(true)
           }}
-          title="Rename project"
+          title="Click to rename project"
           className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-foreground hover:bg-muted/60 transition"
         >
           <span className="max-w-48 truncate">{project.name}</span>
@@ -228,27 +253,47 @@ export function TopToolbar() {
         <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
         </ToolButton>
-        <ToolButton label={saving ? 'Saving…' : 'Save project'} onClick={() => void save()} disabled={saving}>
-          <Save className={cn('size-4', saving && 'animate-pulse text-violet-500')} />
-        </ToolButton>
+
+        {/* Save button with feedback */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn('h-8 gap-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all', justSaved && 'text-emerald-500 bg-emerald-500/10')}
+              onClick={() => void handleSave()}
+              disabled={saving}
+            >
+              {saving ? (
+                <Save className="size-3.5 animate-pulse text-violet-500" />
+              ) : justSaved ? (
+                <Check className="size-3.5 text-emerald-500" />
+              ) : (
+                <Save className="size-3.5 text-muted-foreground" />
+              )}
+              <span className="hidden sm:inline">{saving ? 'Saving…' : justSaved ? 'Saved' : 'Save'}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px] font-medium">Save Project (Ctrl+S)</TooltipContent>
+        </Tooltip>
 
         <div className="bg-border/80 mx-0.5 h-4 w-px" />
 
-        {/* Small Settings icon */}
+        {/* Settings icon */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               asChild
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 rounded-lg"
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
             >
               <Link to="/settings" title="Settings">
                 <Settings className="size-4" />
               </Link>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Settings</TooltipContent>
+          <TooltipContent className="text-[11px]">Settings & Integrations</TooltipContent>
         </Tooltip>
 
         <ThemeToggle />
@@ -266,6 +311,52 @@ export function TopToolbar() {
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
+
+      {/* New Project Confirmation Modal */}
+      {newProjectOpen && (
+        <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5">
+                <FilePlus className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-foreground">Start a New Project?</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  This will reset the timeline for a clean start. Your uploaded media files remain safely in your library.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs text-muted-foreground">
+              Current project: <span className="font-semibold text-foreground font-mono">{project.name}</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setNewProjectOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-violet-600 hover:bg-violet-500 text-white font-semibold"
+                onClick={() => {
+                  resetProject()
+                  setNameDraft('Untitled Project')
+                  setNewProjectOpen(false)
+                }}
+              >
+                <FilePlus className="size-3.5 mr-1.5" />
+                Start New Project
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

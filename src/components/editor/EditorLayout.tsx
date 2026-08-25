@@ -7,7 +7,7 @@ import { MediaBin } from '@/components/media/MediaBin'
 import { PreviewCanvas } from '@/components/editor/PreviewCanvas'
 import { InspectorPanel } from '@/components/inspector/InspectorPanel'
 import { Timeline } from '@/ui/timeline/Timeline'
-import { RightToolPanel, type ToolSection } from '@/ui/common/RightToolPanel'
+import { RightToolPanel, TOOL_SECTIONS, type ToolSection } from '@/ui/common/RightToolPanel'
 import { HistoryPanel } from '@/components/history/HistoryPanel'
 import { HistoryToast } from '@/components/history/HistoryToast'
 import { Button } from '@/components/ui/button'
@@ -215,12 +215,29 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
               aria-label="Close tools"
             />
             <aside className="bg-background absolute inset-y-0 right-0 z-40 flex w-[420px] sm:w-[480px] max-w-[90vw] flex-col border-l shadow-2xl animate-in slide-in-from-right duration-200">
-              <div className="flex h-10 shrink-0 items-center justify-between border-b px-3.5 bg-muted/20">
-                <span className="text-xs font-bold tracking-wide uppercase text-foreground">{toolPanelSection} Studio</span>
-                <Button variant="ghost" size="icon" className="size-7 rounded-lg" onClick={() => setToolPanelSection(null)} aria-label="Close tools" title="Close tools">
-                  <X className="size-4" />
-                </Button>
-              </div>
+              {(() => {
+                const sec = TOOL_SECTIONS.find((s) => s.id === toolPanelSection)
+                const Icon = sec?.icon
+                const title = sec ? sec.label : toolPanelSection
+                return (
+                  <div className="flex h-11 shrink-0 items-center justify-between border-b px-3.5 bg-muted/25">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {Icon && (
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-violet-500/15 text-violet-600 dark:text-violet-400">
+                          <Icon className="size-3.5" />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-xs font-bold tracking-tight text-foreground truncate">{title}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Studio</span>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="size-7 rounded-lg shrink-0 text-muted-foreground hover:text-foreground" onClick={() => setToolPanelSection(null)} aria-label="Close tools" title="Close tools">
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                )
+              })()}
               <div className="min-h-0 flex-1 overflow-hidden">
                 <RightToolPanel section={toolPanelSection as ToolSection} onCollapse={() => setToolPanelSection(null)} />
               </div>

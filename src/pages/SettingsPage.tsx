@@ -1,4 +1,14 @@
-import { ArrowLeft } from 'lucide-react'
+import {
+  ArrowLeft,
+  Activity,
+  Cpu,
+  Mic,
+  Image as ImageIcon,
+  Compass,
+  Sliders,
+  Keyboard,
+  ShieldCheck,
+} from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useApiConfigStore } from '@/api/config/store'
 import { ConnectionOverview } from '@/components/settings/ConnectionOverview'
@@ -20,16 +30,25 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
+function SectionLabel({
+  children,
+  icon: Icon,
+  description,
+  className,
+}: {
+  children: React.ReactNode
+  icon?: React.FC<{ className?: string }>
+  description?: string
+  className?: string
+}) {
   return (
-    <h2
-      className={cn(
-        'text-muted-foreground text-xs font-semibold tracking-widest uppercase',
-        className,
-      )}
-    >
-      {children}
-    </h2>
+    <div className={cn('flex flex-col gap-0.5 border-b border-border/40 pb-2 mb-1', className)}>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="size-4 text-violet-500 shrink-0" />}
+        <h2 className="text-sm font-bold text-foreground tracking-tight">{children}</h2>
+      </div>
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    </div>
   )
 }
 
@@ -49,17 +68,19 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 space-y-6">
+    <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 space-y-8 pb-16">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/80">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-foreground">Settings & Integrations</h1>
-            <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400">
-              Local Storage
+            <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              <ShieldCheck className="size-3" />
+              Local Storage Encrypted
             </span>
           </div>
           <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
-            Configure external AI providers, voice synthesis, and stock media APIs. All keys are encrypted & stored strictly on your local device.
+            Configure external AI providers, voice synthesis, and stock media APIs. All keys are stored strictly on your local device.
           </p>
         </div>
         <Button asChild variant="outline" size="sm" className="gap-1.5 font-semibold shrink-0 shadow-xs">
@@ -76,66 +97,79 @@ export function SettingsPage() {
         </p>
       )}
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-10">
+        {/* 1. Connections Overview */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>Connections</SectionLabel>
+          <SectionLabel icon={Activity} description="Live connectivity status for configured services">
+            Service Connections & Status
+          </SectionLabel>
           <ConnectionOverview />
         </section>
 
+        {/* 2. AI Reasoning Providers */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>AI & Reasoning</SectionLabel>
-          <NvidiaNimCard />
-          <OpenCodeZenCard />
-          <OpenRouterCard />
+          <SectionLabel icon={Cpu} description="Language and reasoning models for AI Director, script generation, and timeline orchestration">
+            AI & LLM Providers
+          </SectionLabel>
+          <div className="flex flex-col gap-3">
+            <NvidiaNimCard />
+            <OpenCodeZenCard />
+            <OpenRouterCard />
+          </div>
         </section>
 
+        {/* 3. Voice & Audio Generation */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>Voice</SectionLabel>
-          <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <SectionLabel icon={Mic} description="Text-to-speech synthesis, zero-shot voice cloning, and AI avatar presenter">
+            Voice & Speech Synthesis
+          </SectionLabel>
+          <div className="rounded-xl border bg-card p-4 shadow-xs">
             <VoiceProviderPicker />
           </div>
-          <ElevenLabsCard />
-          <NvidiaTtsCard />
-          <AvatarCard />
+          <div className="flex flex-col gap-3">
+            <NvidiaTtsCard />
+            <ElevenLabsCard />
+            <AvatarCard />
+          </div>
         </section>
 
+        {/* 4. Stock Media & Creative Assets */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>Stock Images</SectionLabel>
-          <StockImagesCard />
+          <SectionLabel icon={ImageIcon} description="Integrations for free stock imagery, animated stickers, 3D models, and background music">
+            Stock Media & Creative Assets
+          </SectionLabel>
+          <div className="flex flex-col gap-3">
+            <StockImagesCard />
+            <GiphyCard />
+            <SketchfabCard />
+            <MusicCard />
+          </div>
         </section>
 
+        {/* 5. Web Research & Intelligence */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>Stickers</SectionLabel>
-          <GiphyCard />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <SectionLabel>3D Models</SectionLabel>
-          <SketchfabCard />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <SectionLabel>Web Research</SectionLabel>
+          <SectionLabel icon={Compass} description="Scrape web articles and search facts for automated video scripting">
+            Web Research & Scraping
+          </SectionLabel>
           <FirecrawlCard />
         </section>
 
+        {/* 6. AI Preferences & Engine */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>Music & Audio</SectionLabel>
-          <MusicCard />
+          <SectionLabel icon={Sliders} description="Global editor defaults, aspect ratios, auto-captions, and in-browser render engine">
+            Preferences & Engine
+          </SectionLabel>
+          <div className="flex flex-col gap-3">
+            <PreferencesCard />
+            <EngineCard />
+          </div>
         </section>
 
+        {/* 7. Keyboard Shortcuts */}
         <section className="flex flex-col gap-3">
-          <SectionLabel>AI Preferences</SectionLabel>
-          <PreferencesCard />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <SectionLabel>Engine</SectionLabel>
-          <EngineCard />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <SectionLabel>Keyboard Shortcuts</SectionLabel>
+          <SectionLabel icon={Keyboard} description="Complete reference for timeline navigation, clip editing, and zoom shortcuts">
+            Keyboard Shortcuts Reference
+          </SectionLabel>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <p className="text-muted-foreground mb-4 text-xs">
               Shortcuts work when the editor has focus.
