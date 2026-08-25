@@ -102,21 +102,14 @@ Visit `http://localhost:5173` to launch ClipForge AI Studio.
 
 ---
 
-## Documentation Index
+## Documentation
 
-- [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) — Mission, principles, and user personas
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — End-to-end client-side system architecture
-- [DATABASE.md](./DATABASE.md) — IndexedDB schema and OPFS storage lifecycle
-- [API.md](./API.md) — External provider integrations and proxy specifications
-- [CODING_RULES.md](./CODING_RULES.md) — TypeScript, React 19, and architectural rules
-- [UI_GUIDELINES.md](./UI_GUIDELINES.md) — Design system, layout, and interaction patterns
-- [PERFORMANCE.md](./PERFORMANCE.md) — WebCodecs tuning, memory budgets, and lazy loading
-- [SECURITY.md](./SECURITY.md) — Web Crypto AES-256-GCM encryption and threat model
-- [SEO.md](./SEO.md) — Metadata, structured data, and OpenGraph configuration
-- [DEPLOYMENT.md](./DEPLOYMENT.md) — Vercel serverless deployment and COOP/COEP headers
-- [TESTING.md](./TESTING.md) — Test suites, quality checks, and verification plans
-- [CHANGELOG.md](./CHANGELOG.md) — Version history and release notes
-- [TASK.md](./TASK.md) — Roadmap and pending engineering tasks
+This `README.md` is the single source of project documentation. Detailed specs were consolidated and removed as part of repository cleanup (commit `c326c74`):
+
+- **Architecture & data flow** — see the `Project Structure` section above and the `src/` tree (`api/`, `engine/`, `stores/`, `workers/`).
+- **External providers** — providers, auth, and CORS behavior live alongside their client code in `src/api/` and the proxy in `server/proxy.ts` / `api/proxy.ts`.
+- **Testing** — `npm test`, `npm run lint`, and `npm run check:hooks`.
+- **Deployment** — see `vercel.json` and `.github/workflows/`.
 
 ---
 

@@ -22,6 +22,7 @@ import {
   Trash2,
   Type,
   Undo2,
+  X,
   Zap,
   ZoomIn,
   ZoomOut,
@@ -58,6 +59,13 @@ interface DragState {
   zoom: number
   snapping: boolean
   moved: boolean
+}
+
+interface MarqueeState {
+  startX: number
+  startY: number
+  currentX: number
+  currentY: number
 }
 
 function snapTo(value: number, zoom: number, candidates: number[]): number {
@@ -131,6 +139,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
   const [dragActive, setDragActive] = React.useState(false)
+  const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
   const trimMode = useEditorStore((s) => s.trimMode)
   const setTrimMode = useEditorStore((s) => s.setTrimMode)
   const tool = useEditorStore((s) => s.tool)
@@ -298,15 +307,32 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     }
 
     const store = useTimelineStore.getState()
-    const clipIds = selection.clipIds.includes(clip.id) ? selection.clipIds : [clip.id]
+    let clipIds: string[]
+    if (e.ctrlKey || e.metaKey) {
+      // Toggle selection of this clip
+      if (selection.clipIds.includes(clip.id)) {
+        clipIds = selection.clipIds.filter((id) => id !== clip.id)
+      } else {
+        clipIds = [...selection.clipIds, clip.id]
+      }
+    } else if (e.shiftKey) {
+      // Add to multi-selection
+      clipIds = Array.from(new Set([...selection.clipIds, clip.id]))
+    } else {
+      // Keep multi-selection if clicking on an already selected clip (to drag together), otherwise single-select
+      clipIds = selection.clipIds.includes(clip.id) ? selection.clipIds : [clip.id]
+    }
     store.select(clipIds, clip.trackId)
+
     // One undo step per drag: snapshot now, mutations stream inside the group,
     // endDrag closes it.
     store.beginHistoryGroup({
       type: 'move',
       description:
         mode === 'move'
-          ? `Moved '${clip.name}'`
+          ? clipIds.length > 1
+            ? `Moved ${clipIds.length} clips`
+            : `Moved '${clip.name}'`
           : `Trimmed '${clip.name}'`,
       clipId: clip.id,
     })
@@ -344,9 +370,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
       if (!orig) return
       const minDuration = 0.1
       if (drag.mode === 'trim-start') {
-        // Trimming start (left edge):
-        // Moving right (dt > 0) increases startTime & sourceStart, decreases duration.
-        // Moving left (dt < 0) decreases startTime & sourceStart, increases duration.
         const maxDelta = orig.duration - minDuration
         const safeDelta = Math.min(dt, maxDelta)
         const newSourceStart = Math.max(0, orig.sourceStart + safeDelta)
@@ -359,9 +382,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           sourceStart: newSourceStart,
         })
       } else {
-        // Trimming end (right edge):
-        // Moving right (dt > 0) extends duration & sourceEnd.
-        // Moving left (dt < 0) cuts duration & sourceEnd.
         const newDuration = Math.max(minDuration, orig.duration + dt)
         const durDiff = newDuration - orig.duration
         const newSourceEnd = Math.max(orig.sourceStart + minDuration, orig.sourceEnd + durDiff)
@@ -399,13 +419,19 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
       if (playheadTime > 0) candidates.push(playheadTime)
     }
 
+    // Clamp dt so no clip is moved to negative time
+    const minStart = Math.min(...Array.from(drag.originals.values()).map((c) => c.startTime))
+    const clampedDt = Math.max(-minStart, dt)
+
     for (const id of drag.clipIds) {
       const orig = drag.originals.get(id)
       if (!orig) continue
-      let newStart = orig.startTime + dt
-      if (drag.snapping) newStart = snapTo(newStart, drag.zoom, candidates)
+      let newStart = orig.startTime + clampedDt
+      if (drag.snapping && drag.clipIds.length === 1) {
+        newStart = snapTo(newStart, drag.zoom, candidates)
+      }
       newStart = Math.max(0, newStart)
-      store.moveClip(id, newStart - orig.startTime, trackId)
+      store.moveClip(id, newStart - orig.startTime, drag.clipIds.length === 1 ? trackId : undefined)
     }
   }
 
@@ -434,7 +460,12 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
 
   const deleteSelected = () => {
     const store = useTimelineStore.getState()
-    if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds)
+    if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds, false)
+  }
+
+  const rippleDeleteSelected = () => {
+    const store = useTimelineStore.getState()
+    if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds, true)
   }
 
   const duplicateSelected = () => {
@@ -597,8 +628,12 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             }
           }}
           onScroll={handleViewportScroll}
-          onClick={(e) => {
+          onPointerDown={(e) => {
             const el = e.target as HTMLElement
+            if (el.closest('[data-clip-id]')) return
+            if (el.closest('[data-header-gutter]')) return
+            if (el.closest('[data-ruler-area]')) return
+            if (el.closest('button')) return
 
             // Text tool places a text clip wherever the timeline is clicked.
             if (useEditorStore.getState().tool === 'text') {
@@ -609,16 +644,65 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
               return
             }
 
-            if (el.closest('[data-clip-id]')) return
-            if (el.closest('[data-header-gutter]')) return
-            if (el.closest('[data-ruler-area]')) return
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            const scrollLeft = viewportRef.current?.scrollLeft ?? 0
-            const maxTime = duration > 0 ? duration : 0
-            const rawTime = (e.clientX - rect.left - HEADER_WIDTH + scrollLeft) / zoom
-            const time = Math.max(0, Math.min(rawTime, maxTime))
-            useTimelineStore.getState().setPlayhead(time)
-            useTimelineStore.getState().select([], null)
+            const vp = viewportRef.current
+            if (!vp) return
+            const rect = vp.getBoundingClientRect()
+            const x = e.clientX - rect.left
+            const y = e.clientY - rect.top
+
+            setMarquee({ startX: x, startY: y, currentX: x, currentY: y })
+            ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+            if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+              useTimelineStore.getState().select([], null)
+            }
+          }}
+          onPointerMove={(e) => {
+            if (!marquee || !viewportRef.current) return
+            const rect = viewportRef.current.getBoundingClientRect()
+            const currentX = e.clientX - rect.left
+            const currentY = e.clientY - rect.top
+            setMarquee((m) => (m ? { ...m, currentX, currentY } : null))
+
+            const scrollLeft = viewportRef.current.scrollLeft
+            const minX = Math.min(marquee.startX, currentX)
+            const maxX = Math.max(marquee.startX, currentX)
+            const startTime = Math.max(0, (minX - HEADER_WIDTH + scrollLeft) / zoom)
+            const endTime = Math.max(0, (maxX - HEADER_WIDTH + scrollLeft) / zoom)
+
+            if (Math.abs(maxX - minX) > 5) {
+              const store = useTimelineStore.getState()
+              const hitClipIds: string[] = []
+              for (const track of store.project.tracks) {
+                if (track.hidden) continue
+                for (const clip of track.clips) {
+                  const clipEnd = clip.startTime + clip.duration
+                  if (Math.max(startTime, clip.startTime) < Math.min(endTime, clipEnd)) {
+                    hitClipIds.push(clip.id)
+                  }
+                }
+              }
+              if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                const merged = Array.from(new Set([...selection.clipIds, ...hitClipIds]))
+                store.select(merged, null)
+              } else {
+                store.select(hitClipIds, null)
+              }
+            }
+          }}
+          onPointerUp={(e) => {
+            if (marquee) {
+              const minX = Math.min(marquee.startX, marquee.currentX)
+              const maxX = Math.max(marquee.startX, marquee.currentX)
+              if (Math.abs(maxX - minX) <= 5 && viewportRef.current) {
+                const rect = viewportRef.current.getBoundingClientRect()
+                const scrollLeft = viewportRef.current.scrollLeft
+                const maxTime = duration > 0 ? duration : 0
+                const rawTime = (e.clientX - rect.left - HEADER_WIDTH + scrollLeft) / zoom
+                const time = Math.max(0, Math.min(rawTime, maxTime))
+                useTimelineStore.getState().setPlayhead(time)
+              }
+              setMarquee(null)
+            }
           }}
         >
           <div
@@ -739,6 +823,19 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           </div>
         </div>
 
+        {/* Marquee Drag Selection Overlay */}
+        {marquee && (
+          <div
+            className="pointer-events-none absolute z-40 border border-violet-500 bg-violet-500/15 rounded-xs shadow-xs"
+            style={{
+              left: Math.min(marquee.startX, marquee.currentX),
+              top: Math.min(marquee.startY, marquee.currentY),
+              width: Math.abs(marquee.currentX - marquee.startX),
+              height: Math.abs(marquee.currentY - marquee.startY),
+            }}
+          />
+        )}
+
         {/* Playhead (fixed overlay, never escapes the timeline) */}
         <div
           ref={playheadRef}
@@ -754,8 +851,75 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
         {/* Announces the playhead position (throttled) for screen readers. */}
         <PlayheadAnnouncer />
 
+        {/* ── Multi-Clip Floating Action Bar ── */}
+        {selection.clipIds.length > 1 && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 rounded-xl border border-violet-500/40 bg-card/95 p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 border-r border-border text-xs font-bold text-foreground">
+              <span className="flex size-5 items-center justify-center rounded-full bg-violet-600 text-[10px] text-white font-bold">
+                {selection.clipIds.length}
+              </span>
+              <span className="hidden sm:inline">Clips Selected</span>
+            </div>
+
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 px-2.5 text-xs font-semibold gap-1 shadow-xs"
+              onClick={deleteSelected}
+              title="Delete selected clips (Delete / Backspace)"
+            >
+              <Trash2 className="size-3.5" />
+              Delete ({selection.clipIds.length})
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2.5 text-xs font-semibold gap-1 border-border hover:border-violet-500/40 hover:bg-violet-500/10 shadow-xs"
+              onClick={rippleDeleteSelected}
+              title="Ripple delete selected clips (Shift+Delete)"
+            >
+              <ArrowLeftRight className="size-3.5 text-sky-400" />
+              <span className="hidden sm:inline">Ripple Delete</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2.5 text-xs font-semibold gap-1 border-border hover:border-violet-500/40 hover:bg-violet-500/10 shadow-xs"
+              onClick={duplicateSelected}
+              title="Duplicate selected clips (Ctrl+D)"
+            >
+              <CopyPlus className="size-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Duplicate</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2.5 text-xs font-semibold gap-1 border-border hover:border-violet-500/40 hover:bg-violet-500/10 shadow-xs"
+              onClick={splitSelected}
+              title="Split selected clips at playhead (Ctrl+K)"
+            >
+              <Scissors className="size-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Split</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => useTimelineStore.getState().select([])}
+              title="Clear selection (Esc)"
+            >
+              <X className="size-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Deselect</span>
+            </Button>
+          </div>
+        )}
+
         {/* Contextual audio-clip action bar */}
-        {selectedClipInfo && selectedClipInfo.track.type === 'audio' && (
+        {selectedClipInfo && selectedClipInfo.track.type === 'audio' && selection.clipIds.length === 1 && (
           <div
             ref={audioBarRef}
             data-audio-bar

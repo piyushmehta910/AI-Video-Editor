@@ -101,6 +101,8 @@ export interface TimelineState {
   trimClip: (clipId: string, edge: 'start' | 'end', delta: number) => void
   splitClip: (clipId: string, atTime: number) => void
   joinClips: (clipId1: string, clipId2: string) => void
+  shiftClips: (clipIds: string[], delta: number) => void
+  alignClipsToTime: (clipIds: string[], targetTime: number) => void
   /** Toggle a ruler marker at (or within half a frame of) the given time. */
   toggleMarker: (time: number) => void
   deleteClips: (clipIds: string[], ripple?: boolean) => void
@@ -1012,6 +1014,46 @@ export const useTimelineStore = create<TimelineState>()(
             .map((c) => (c.id === left.id ? merged : c))
           track.clips.sort((a, b) => a.startTime - b.startTime)
           break
+        }
+        return p
+      })
+      commitHistory()
+    },
+
+    shiftClips: (clipIds, delta) => {
+      const ids = new Set(clipIds)
+      get().begin({
+        type: 'move',
+        description: `Shifted ${clipIds.length} ${clipIds.length === 1 ? 'clip' : 'clips'} by ${delta > 0 ? '+' : ''}${delta.toFixed(1)}s`,
+      })
+      mutate((p) => {
+        for (const track of p.tracks) {
+          if (track.locked) continue
+          track.clips = track.clips.map((c) => {
+            if (!ids.has(c.id)) return c
+            return { ...c, startTime: Math.max(0, c.startTime + delta) }
+          })
+          track.clips.sort((a, b) => a.startTime - b.startTime)
+        }
+        return p
+      })
+      commitHistory()
+    },
+
+    alignClipsToTime: (clipIds, targetTime) => {
+      const ids = new Set(clipIds)
+      get().begin({
+        type: 'move',
+        description: `Aligned ${clipIds.length} ${clipIds.length === 1 ? 'clip' : 'clips'} to ${targetTime.toFixed(1)}s`,
+      })
+      mutate((p) => {
+        for (const track of p.tracks) {
+          if (track.locked) continue
+          track.clips = track.clips.map((c) => {
+            if (!ids.has(c.id)) return c
+            return { ...c, startTime: Math.max(0, targetTime) }
+          })
+          track.clips.sort((a, b) => a.startTime - b.startTime)
         }
         return p
       })

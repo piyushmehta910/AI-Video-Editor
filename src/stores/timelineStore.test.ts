@@ -326,5 +326,54 @@ describe('human-readable log', () => {
     // clipC must be clamped at 4 (the end of clipA) or placed on non-colliding track without overlap
     expect(updatedC.startTime).toBeGreaterThanOrEqual(4)
   })
+
+  it('supports multi-clip batch selection, property adjustments, shifting, and batch deletion', () => {
+    const s = useTimelineStore.getState()
+    const trackId = s.project.tracks[0].id
+
+    const c1 = makeClip('c1', trackId, 0)
+    c1.duration = 3
+    const c2 = makeClip('c2', trackId, 4)
+    c2.duration = 3
+    const c3 = makeClip('c3', trackId, 8)
+    c3.duration = 2
+
+    s.addClipToTrack(c1)
+    s.addClipToTrack(c2)
+    s.addClipToTrack(c3)
+
+    // Select all 3 clips
+    s.select(['c1', 'c2', 'c3'])
+    expect(useTimelineStore.getState().selection.clipIds).toEqual(['c1', 'c2', 'c3'])
+
+    // Batch update opacity and volume
+    s.updateClips(['c1', 'c2', 'c3'], { opacity: 0.8, volume: 0.5 })
+    const allClips = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
+    expect(allClips.find((c) => c.id === 'c1')?.opacity).toBe(0.8)
+    expect(allClips.find((c) => c.id === 'c2')?.volume).toBe(0.5)
+
+    // Batch shift all clips by +2.0s
+    s.shiftClips(['c1', 'c2', 'c3'], 2.0)
+    const shifted = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
+    expect(shifted.find((c) => c.id === 'c1')?.startTime).toBe(2.0)
+    expect(shifted.find((c) => c.id === 'c2')?.startTime).toBe(6.0)
+    expect(shifted.find((c) => c.id === 'c3')?.startTime).toBe(10.0)
+
+    // Batch align clips to playhead (e.g. 5.0s)
+    s.alignClipsToTime(['c1', 'c2'], 5.0)
+    const aligned = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
+    expect(aligned.find((c) => c.id === 'c1')?.startTime).toBe(5.0)
+    expect(aligned.find((c) => c.id === 'c2')?.startTime).toBe(5.0)
+
+    // Batch delete 2 clips
+    s.deleteClips(['c1', 'c2'])
+    expect(clipCount()).toBe(1)
+    expect(useTimelineStore.getState().selection.clipIds).toEqual([])
+
+    // Undo batch delete
+    s.undo()
+    expect(clipCount()).toBe(3)
+  })
 })
+
 

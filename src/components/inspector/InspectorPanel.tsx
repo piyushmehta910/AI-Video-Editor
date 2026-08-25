@@ -20,6 +20,7 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { useInspector } from '@/hooks/useInspector'
 import { Button } from '@/components/ui/button'
 import { CaptionsPanel } from '@/ui/inspector/CaptionsPanel'
+import { MultiClipInspector } from './MultiClipInspector'
 import { cn } from '@/lib/utils'
 import { LabeledSlider, NumInput, Row, Section, SelectInput } from './controls'
 import { TransformSection } from './TransformSection'
@@ -71,6 +72,7 @@ export function InspectorPanel({
   const insp = useInspector()
   const target = insp.target
   const clip = target?.clip
+  const selection = useTimelineStore((s) => s.selection)
   const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
   const splitClip = useTimelineStore((s) => s.splitClip)
@@ -88,6 +90,16 @@ export function InspectorPanel({
       useTimelineStore.getState().updateClip(target.clip.id, { text: defaultTextOverlay() })
     }
   }, [target])
+
+  // Multi-selection mode
+  if (selection.clipIds.length > 1) {
+    return (
+      <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
+        <PanelHeader title={`Multi-Clip Inspector (${selection.clipIds.length})`} onCollapse={onCollapse} />
+        <MultiClipInspector />
+      </div>
+    )
+  }
 
   if (!target || !clip) {
     const totalClips = project.tracks.reduce((sum, t) => sum + t.clips.length, 0)
