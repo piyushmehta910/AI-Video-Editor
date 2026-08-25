@@ -2908,7 +2908,12 @@ function TextSection() {
     return TEXT_TYPOGRAPHY_PRESETS.filter((p) => p.category === category)
   }, [category])
 
+  const lastAddRef = React.useRef<number>(0)
+
   const handleApplyPreset = (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number]) => {
+    const now = Date.now()
+    if (now - lastAddRef.current < 300) return  // debounce: ignore duplicate fires within 300ms
+    lastAddRef.current = now
     const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
     if (!textTrack) {
       setNotice({ kind: 'error', text: 'No track available for text' })
@@ -2953,6 +2958,9 @@ function TextSection() {
   }
 
   const handleAddCustomText = () => {
+    const now = Date.now()
+    if (now - lastAddRef.current < 300) return
+    lastAddRef.current = now
     const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
     if (!textTrack) {
       setNotice({ kind: 'error', text: 'No track available for text' })
@@ -3093,7 +3101,7 @@ function TextSection() {
                   </div>
                   <p className="mt-0.5 text-[10px] text-muted-foreground">{preset.description}</p>
                 </div>
-                <Button
+              <Button
                   size="sm"
                   variant="ghost"
                   className="size-7 p-0 opacity-0 group-hover:opacity-100 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition"

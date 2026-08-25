@@ -448,14 +448,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   }
 
   const handleAddText = React.useCallback(() => {
-    const s = useTimelineStore.getState()
-    const targetTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks.find((t) => t.type === 'video')
-    if (targetTrack) {
-      const clip = s.addTextClip('Your Heading Here', targetTrack.id, s.playhead)
-      if (clip) {
-        s.select([clip.id], targetTrack.id)
-      }
-    }
     onOpenTool?.('text')
   }, [onOpenTool])
 
