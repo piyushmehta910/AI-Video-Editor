@@ -1864,6 +1864,8 @@ export async function applyTool(
       const language = args.language != null ? String(args.language) : undefined
       const presetId = args.presetId != null ? String(args.presetId) : undefined
       const style = args.style as import('@/engine/avatar/lipsync').LipsyncStyle | undefined
+      const placement = String(args.placement ?? (role === 'presenter' || role === 'narrator' ? 'bottom-right' : 'fullscreen'))
+      const shape = String(args.shape ?? (placement !== 'fullscreen' ? 'circle' : 'rectangle'))
       try {
         const { generateAvatarVideo } = await import('@/api/llm/avatarGenerator')
         const result = await generateAvatarVideo({ role, topic, scriptText, durationSeconds, language, presetId, style })
@@ -1871,8 +1873,14 @@ export async function applyTool(
         const imported = await s.importFiles([file])
         const asset = imported.imported[0]
         if (!asset) return { ok: false, message: 'Avatar video could not be imported.' }
-        const videoTrack = s.project.tracks.find((t) => t.type === 'video')
-        if (!videoTrack) return { ok: false, message: 'No video track available.' }
+
+        const videoTracks = s.project.tracks.filter((t) => t.type === 'video')
+        const targetTrack =
+          placement !== 'fullscreen' && videoTracks.length > 1
+            ? videoTracks[1]
+            : (videoTracks[0] || s.project.tracks.find((t) => t.type === 'video'))
+        if (!targetTrack) return { ok: false, message: 'No video track available.' }
+
         let insertTime = 0
         if (role === 'intro') {
           insertTime = 0
@@ -1882,7 +1890,50 @@ export async function applyTool(
         } else {
           insertTime = s.playhead ?? 0
         }
-        const newClip = s.addClip(asset.id, videoTrack.id, insertTime)
+
+        const w = s.project.width || 1920
+        const h = s.project.height || 1080
+        let posX = 0
+        let posY = 0
+        let scaleX = 1
+        let scaleY = 1
+
+        if (placement === 'bottom-right') {
+          posX = Math.round(w * 0.32)
+          posY = Math.round(h * 0.28)
+          scaleX = 0.35
+          scaleY = 0.35
+        } else if (placement === 'bottom-left') {
+          posX = Math.round(-w * 0.32)
+          posY = Math.round(h * 0.28)
+          scaleX = 0.35
+          scaleY = 0.35
+        } else if (placement === 'top-right') {
+          posX = Math.round(w * 0.32)
+          posY = Math.round(-h * 0.28)
+          scaleX = 0.35
+          scaleY = 0.35
+        } else if (placement === 'top-left') {
+          posX = Math.round(-w * 0.32)
+          posY = Math.round(-h * 0.28)
+          scaleX = 0.35
+          scaleY = 0.35
+        } else if (placement === 'split-left') {
+          posX = Math.round(-w * 0.25)
+          posY = 0
+          scaleX = 0.5
+          scaleY = 0.5
+        } else if (placement === 'split-right') {
+          posX = Math.round(w * 0.25)
+          posY = 0
+          scaleX = 0.5
+          scaleY = 0.5
+        }
+
+        const border = shape === 'circle' ? { width: 4, color: '#8b5cf6', radius: 9999 } : undefined
+        const dropShadow = shape === 'circle' ? { offsetX: 0, offsetY: 8, blur: 24, color: 'rgba(0,0,0,0.6)' } : undefined
+
+        const newClip = s.addClip(asset.id, targetTrack.id, insertTime)
         if (newClip) {
           s.updateClip(newClip.id, {
             duration: result.duration,
@@ -1890,9 +1941,16 @@ export async function applyTool(
             avatarRole: role,
             clipType: 'avatar',
             autoLipsync: true,
+            position: { x: posX, y: posY },
+            scale: { x: scaleX, y: scaleY },
+            border,
+            dropShadow,
           })
         }
-        return { ok: true, message: `${desc} — generated ${role} avatar (${result.duration.toFixed(1)}s) with babble lip-sync and inserted at ${insertTime.toFixed(1)}s.` }
+        return {
+          ok: true,
+          message: `${desc} — generated ${role} avatar (${result.duration.toFixed(1)}s) placed as ${placement} overlay on ${targetTrack.name} at ${insertTime.toFixed(1)}s.`,
+        }
       } catch (err) {
         return { ok: false, message: `Avatar ${role} generation failed: ${err instanceof Error ? err.message : String(err)}` }
       }

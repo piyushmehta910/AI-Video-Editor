@@ -36,6 +36,7 @@ import {
   SlidersHorizontal,
   User,
   ScanFace,
+  Scan,
   Maximize2,
   Video,
   RotateCcw,
@@ -1201,7 +1202,9 @@ function AvatarSection() {
   const [style, setStyle] = React.useState<LipsyncStyle>('realistic')
   const [resolution, setResolution] = React.useState<string>('auto')
   const [fps, setFps] = React.useState(avatarConfig.fps || 30)
-  const [background, setBackground] = React.useState<string>(avatarConfig.background || 'solid')
+  const [background, setBackground] = React.useState<string>(avatarConfig.background || 'transparent')
+  const [avatarPlacement, setAvatarPlacement] = React.useState<string>('bottom-right')
+  const [avatarShape, setAvatarShape] = React.useState<'circle' | 'rectangle'>('circle')
   const [mouth, setMouth] = React.useState<AvatarMouth>({
     x: avatarConfig.mouthX || 0.5,
     y: avatarConfig.mouthY || 0.72,
@@ -1386,6 +1389,10 @@ function AvatarSection() {
         imageFile = await renderPresetFaceToBlob(preset, width, height)
       }
 
+      let videoBlob: Blob
+      let durationSec: number
+      let insertTime = useTimelineStore.getState().playhead
+
       if (inputMode === 'timeline') {
         // Animate avatar using selected timeline audio clip
         const targetClip = timelineAudioClips.find((c) => c.clipId === selectedTimelineClipId)
@@ -1415,30 +1422,9 @@ function AvatarSection() {
           signal: controller.signal,
           onProgress: (done, total) => setProgress({ done, total }),
         })
-
-        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, {
-          type: 'video/webm',
-        })
-        const { imported, errors } = await importFiles([file])
-        if (imported.length) {
-          const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
-          if (!videoTrack) throw new Error('No video track available on the timeline')
-          const clip = useTimelineStore.getState().addClip(imported[0].id, videoTrack.id, targetClip.startTime)
-          if (clip) {
-            useTimelineStore.getState().updateClip(clip.id, {
-              duration: result.duration,
-              sourceEnd: result.duration,
-              avatarRole: role,
-              clipType: 'avatar',
-              autoLipsync: true,
-            })
-            setSuccess(
-              `Generated ${result.duration.toFixed(1)}s Wav2Lip avatar synchronized with timeline audio at ${targetClip.startTime.toFixed(1)}s!`,
-            )
-          }
-        } else {
-          setError(errors[0] ?? 'Could not import avatar video')
-        }
+        videoBlob = result.blob
+        durationSec = result.duration
+        insertTime = targetClip.startTime
       } else if (inputMode === 'script') {
         // Generate speech via TTS / Procedural Voice & animate avatar
         const result = await generateAvatarVideo({
@@ -1450,27 +1436,8 @@ function AvatarSection() {
           style,
           language: scriptLanguage === 'hindi' ? 'hi' : 'en',
         })
-        const file = new File([result.videoBlob], `avatar-${role}-${Date.now()}.webm`, { type: 'video/webm' })
-        const { imported, errors } = await importFiles([file])
-        if (imported.length) {
-          const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
-          if (!videoTrack) throw new Error('No video track available on the timeline')
-          const clip = useTimelineStore
-            .getState()
-            .addClip(imported[0].id, videoTrack.id, useTimelineStore.getState().playhead)
-          if (clip) {
-            useTimelineStore.getState().updateClip(clip.id, {
-              duration: result.duration,
-              sourceEnd: result.duration,
-              avatarRole: role,
-              clipType: 'avatar',
-              autoLipsync: true,
-            })
-            setSuccess(`Created ${result.duration.toFixed(1)}s lip-sync avatar presenter on timeline!`)
-          }
-        } else {
-          setError(errors[0] ?? 'Could not import avatar video')
-        }
+        videoBlob = result.videoBlob
+        durationSec = result.duration
       } else {
         // Animate avatar using selected audio asset
         const audioAsset = assets.find((a) => a.id === audioAssetId)
@@ -1491,30 +1458,93 @@ function AvatarSection() {
           signal: controller.signal,
           onProgress: (done, total) => setProgress({ done, total }),
         })
+        videoBlob = result.blob
+        durationSec = result.duration
+      }
 
-        const file = new File([result.blob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, {
-          type: 'video/webm',
-        })
-        const { imported, errors } = await importFiles([file])
-        if (imported.length) {
-          const videoTrack = useTimelineStore.getState().project.tracks.find((t) => t.type === 'video')
-          if (!videoTrack) throw new Error('No video track available on the timeline')
-          const clip = useTimelineStore
-            .getState()
-            .addClip(imported[0].id, videoTrack.id, useTimelineStore.getState().playhead)
-          if (clip) {
-            useTimelineStore.getState().updateClip(clip.id, {
-              duration: result.duration,
-              sourceEnd: result.duration,
-              avatarRole: role,
-              clipType: 'avatar',
-              autoLipsync: true,
-            })
-            setSuccess(`Generated ${result.duration.toFixed(1)}s lip-sync avatar and added to timeline!`)
+      const file = new File([videoBlob], `avatar-${selectedPresetId || 'custom'}-${Date.now()}.webm`, {
+        type: 'video/webm',
+      })
+      const { imported, errors } = await importFiles([file])
+      if (imported.length) {
+        const computePlacementProps = () => {
+          const w = project.width || 1920
+          const h = project.height || 1080
+          let posX = 0
+          let posY = 0
+          let scaleX = 1
+          let scaleY = 1
+
+          if (avatarPlacement === 'bottom-right') {
+            posX = Math.round(w * 0.32)
+            posY = Math.round(h * 0.28)
+            scaleX = 0.35
+            scaleY = 0.35
+          } else if (avatarPlacement === 'bottom-left') {
+            posX = Math.round(-w * 0.32)
+            posY = Math.round(h * 0.28)
+            scaleX = 0.35
+            scaleY = 0.35
+          } else if (avatarPlacement === 'top-right') {
+            posX = Math.round(w * 0.32)
+            posY = Math.round(-h * 0.28)
+            scaleX = 0.35
+            scaleY = 0.35
+          } else if (avatarPlacement === 'top-left') {
+            posX = Math.round(-w * 0.32)
+            posY = Math.round(-h * 0.28)
+            scaleX = 0.35
+            scaleY = 0.35
+          } else if (avatarPlacement === 'split-left') {
+            posX = Math.round(-w * 0.25)
+            posY = 0
+            scaleX = 0.5
+            scaleY = 0.5
+          } else if (avatarPlacement === 'split-right') {
+            posX = Math.round(w * 0.25)
+            posY = 0
+            scaleX = 0.5
+            scaleY = 0.5
           }
-        } else {
-          setError(errors[0] ?? 'Could not import avatar video')
+
+          const border =
+            avatarShape === 'circle'
+              ? { width: 4, color: '#8b5cf6', radius: 9999 }
+              : { width: 0, color: 'transparent', radius: 12 }
+          const dropShadow = { offsetX: 0, offsetY: 8, blur: 24, color: 'rgba(0,0,0,0.6)' }
+
+          return {
+            position: { x: posX, y: posY },
+            scale: { x: scaleX, y: scaleY },
+            border,
+            dropShadow,
+          }
         }
+
+        const placementProps = computePlacementProps()
+        const videoTracks = useTimelineStore.getState().project.tracks.filter((t) => t.type === 'video')
+        const targetVideoTrack =
+          avatarPlacement !== 'center' && videoTracks.length > 1
+            ? videoTracks[1]
+            : videoTracks[0] || project.tracks.find((t) => t.type === 'video')
+        if (!targetVideoTrack) throw new Error('No video track available on the timeline')
+
+        const clip = useTimelineStore.getState().addClip(imported[0].id, targetVideoTrack.id, insertTime)
+        if (clip) {
+          useTimelineStore.getState().updateClip(clip.id, {
+            duration: durationSec,
+            sourceEnd: durationSec,
+            avatarRole: role,
+            clipType: 'avatar',
+            autoLipsync: true,
+            ...placementProps,
+          })
+          setSuccess(
+            `Generated ${durationSec.toFixed(1)}s lip-sync avatar placed as ${avatarPlacement} overlay on ${targetVideoTrack.name}!`,
+          )
+        }
+      } else {
+        setError(errors[0] ?? 'Could not import avatar video')
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1983,7 +2013,70 @@ function AvatarSection() {
         )}
       </div>
 
-      {/* ─── 4. Full Wav2Lip & Viseme Synthesis Options ─── */}
+      {/* ─── 4. Screen Placement & PiP Shape Preset ─── */}
+      <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <Scan className="size-3.5 text-violet-500" />
+            <span>Screen Placement & PiP Layout</span>
+          </Label>
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5">
+            <button
+              type="button"
+              onClick={() => setAvatarShape('circle')}
+              className={cn(
+                'px-2 py-0.5 rounded-md text-[10px] font-bold transition',
+                avatarShape === 'circle' ? 'bg-violet-600 text-white shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Circle Bubble
+            </button>
+            <button
+              type="button"
+              onClick={() => setAvatarShape('rectangle')}
+              className={cn(
+                'px-2 py-0.5 rounded-md text-[10px] font-bold transition',
+                avatarShape === 'rectangle' ? 'bg-violet-600 text-white shadow-xs' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Rectangle
+            </button>
+          </div>
+        </div>
+
+        {/* 6 Placement Presets */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+          {[
+            { id: 'bottom-right', label: 'Bottom Right', icon: '↘', desc: 'Webcam PiP' },
+            { id: 'bottom-left', label: 'Bottom Left', icon: '↙', desc: 'Streamer PiP' },
+            { id: 'top-right', label: 'Top Right', icon: '↗', desc: 'Corner Overlay' },
+            { id: 'top-left', label: 'Top Left', icon: '↖', desc: 'Corner Overlay' },
+            { id: 'split-left', label: 'Split Left', icon: '◧', desc: 'Side-by-Side' },
+            { id: 'center', label: 'Center Stage', icon: '⦿', desc: 'Full Screen' },
+          ].map((p) => {
+            const isSelected = avatarPlacement === p.id
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setAvatarPlacement(p.id)}
+                className={cn(
+                  'flex flex-col items-center justify-center p-2 rounded-xl border text-center transition',
+                  isSelected
+                    ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-300 font-bold shadow-xs ring-1 ring-violet-500'
+                    : 'border-border/60 bg-card text-muted-foreground hover:text-foreground hover:border-border',
+                )}
+              >
+                <span className="text-sm font-mono leading-none mb-1 text-violet-500">{p.icon}</span>
+                <span className="text-[10px] font-bold truncate w-full">{p.label}</span>
+                <span className="text-[8px] opacity-70 truncate w-full">{p.desc}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ─── 5. Full Wav2Lip & Viseme Synthesis Options ─── */}
       <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/10 p-3">
         <Label className="text-xs font-bold text-foreground flex items-center justify-between">
           <span>Wav2Lip & Viseme Modulation</span>
@@ -2082,7 +2175,7 @@ function AvatarSection() {
         </div>
       </div>
 
-      {/* ─── 5. Real-Time Progress & Generation Action ─── */}
+      {/* ─── 6. Real-Time Progress & Generation Action ─── */}
       {progress && (
         <div className="space-y-1.5 rounded-xl border border-violet-500/40 bg-violet-500/10 p-3">
           <div className="flex justify-between text-xs font-bold text-violet-700 dark:text-violet-300">

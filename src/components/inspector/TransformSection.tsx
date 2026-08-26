@@ -21,6 +21,7 @@ import {
   ChevronUp,
   ChevronDown,
   Sparkles,
+  User,
 } from 'lucide-react'
 import type { InspectorApi } from '@/hooks/useInspector'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -168,6 +169,23 @@ export function TransformSection({ insp }: { insp: InspectorApi }) {
       <Row label="Staging Presets" stack>
         <div className="grid grid-cols-3 gap-1 pt-0.5">
           {[
+            {
+              id: 'webcam-circle',
+              label: 'Webcam Circle',
+              icon: User,
+              fn: () => {
+                const p = useTimelineStore.getState().project
+                insp.update(
+                  {
+                    position: { x: Math.round((p.width || 1920) * 0.32), y: Math.round((p.height || 1080) * 0.28) },
+                    scale: { x: 0.35, y: 0.35 },
+                    border: { width: 4, color: '#8b5cf6', radius: 9999 },
+                    dropShadow: { offsetX: 0, offsetY: 8, blur: 24, color: 'rgba(0,0,0,0.6)' },
+                  },
+                  `Webcam Circle '${clip.name}'`,
+                )
+              },
+            },
             {
               id: 'pip',
               label: 'PiP Corner',

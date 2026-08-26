@@ -10,6 +10,12 @@ import {
   Scan,
   Repeat,
   Undo2,
+  Move,
+  CircleDot,
+  ArrowDownRight,
+  ArrowDownLeft,
+  ArrowUpRight,
+  X,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
@@ -34,6 +40,9 @@ export function PreviewCanvas({
   const updateClip = useTimelineStore((s) => s.updateClip)
   const importFiles = useTimelineStore((s) => s.importFiles)
   const addClip = useTimelineStore((s) => s.addClip)
+  const selectedClipId = useTimelineStore((s) => s.selection.clipIds[0])
+  const assets = useTimelineStore((s) => s.assets)
+  const select = useTimelineStore((s) => s.select)
 
   const containerRef = React.useRef<HTMLDivElement>(null)
   const areaRef = React.useRef<HTMLDivElement>(null)
@@ -42,6 +51,213 @@ export function PreviewCanvas({
   const [isLooping, setIsLooping] = React.useState(false)
   const [canvasCssSize, setCanvasCssSize] = React.useState<{ w: number; h: number } | null>(null)
   const [isDragOver, setIsDragOver] = React.useState(false)
+
+  // Find the selected visual clip (if on a video/visual track)
+  const selectedClip = React.useMemo(() => {
+    if (!selectedClipId) return null
+    for (const t of project.tracks) {
+      if (t.type === 'video') {
+        const found = t.clips.find((c) => c.id === selectedClipId)
+        if (found) return found
+      }
+    }
+    return null
+  }, [project.tracks, selectedClipId])
+
+  // Dragging & resizing state
+  const [dragState, setDragState] = React.useState<{
+    isDragging: boolean
+    isResizing: boolean
+    corner?: 'nw' | 'ne' | 'se' | 'sw'
+    startX: number
+    startY: number
+    startPosX: number
+    startPosY: number
+    startScaleX: number
+    startScaleY: number
+    boxW: number
+    boxH: number
+    centerX: number
+    centerY: number
+    currentPosX: number
+    currentPosY: number
+    currentScale: number
+  } | null>(null)
+
+  // Calculate on-canvas bounding box for selected clip
+  const clipTransform = React.useMemo(() => {
+    if (!selectedClip || !canvasCssSize) return null
+    const asset = assets.find((a) => a.id === selectedClip.assetId)
+    const scaleFactor = canvasCssSize.w / (project.width || 1920)
+    const assetW = asset?.width || project.width || 1920
+    const assetH = asset?.height || project.height || 1080
+
+    let fitW = assetW
+    let fitH = assetH
+    if (selectedClip.fitMode === 'contain') {
+      const s = Math.min((project.width || 1920) / assetW, (project.height || 1080) / assetH)
+      fitW = assetW * s
+      fitH = assetH * s
+    } else if (selectedClip.fitMode === 'fill') {
+      fitW = project.width || 1920
+      fitH = project.height || 1080
+    } else if (selectedClip.fitMode === 'none') {
+      fitW = assetW
+      fitH = assetH
+    } else {
+      // cover
+      const s = Math.max((project.width || 1920) / assetW, (project.height || 1080) / assetH)
+      fitW = assetW * s
+      fitH = assetH * s
+    }
+
+    const currentScaleX = Math.abs(selectedClip.scale?.x ?? 1)
+    const currentScaleY = Math.abs(selectedClip.scale?.y ?? 1)
+    const boxW = Math.max(32, fitW * currentScaleX * scaleFactor)
+    const boxH = Math.max(32, fitH * currentScaleY * scaleFactor)
+
+    const posX = selectedClip.position?.x ?? 0
+    const posY = selectedClip.position?.y ?? 0
+
+    const centerX = canvasCssSize.w / 2 + posX * scaleFactor
+    const centerY = canvasCssSize.h / 2 + posY * scaleFactor
+
+    const left = centerX - boxW / 2
+    const top = centerY - boxH / 2
+
+    const isCircle = (selectedClip.border?.radius ?? 0) >= 100 || (selectedClip.clipType === 'avatar' && (selectedClip.border?.radius ?? 0) > 20)
+
+    return {
+      left,
+      top,
+      width: boxW,
+      height: boxH,
+      centerX,
+      centerY,
+      posX,
+      posY,
+      scale: currentScaleX,
+      isCircle,
+      scaleFactor,
+    }
+  }, [selectedClip, canvasCssSize, assets, project.width, project.height])
+
+  // Drag handlers
+  const handleBoxPointerDown = (e: React.PointerEvent) => {
+    if (!selectedClip || !clipTransform) return
+    e.stopPropagation()
+    e.preventDefault()
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    setDragState({
+      isDragging: true,
+      isResizing: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: selectedClip.position?.x ?? 0,
+      startPosY: selectedClip.position?.y ?? 0,
+      startScaleX: selectedClip.scale?.x ?? 1,
+      startScaleY: selectedClip.scale?.y ?? 1,
+      boxW: clipTransform.width,
+      boxH: clipTransform.height,
+      centerX: clipTransform.centerX,
+      centerY: clipTransform.centerY,
+      currentPosX: selectedClip.position?.x ?? 0,
+      currentPosY: selectedClip.position?.y ?? 0,
+      currentScale: selectedClip.scale?.x ?? 1,
+    })
+  }
+
+  const handleHandlePointerDown = (e: React.PointerEvent, corner: 'nw' | 'ne' | 'se' | 'sw') => {
+    if (!selectedClip || !clipTransform) return
+    e.stopPropagation()
+    e.preventDefault()
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    setDragState({
+      isDragging: false,
+      isResizing: true,
+      corner,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: selectedClip.position?.x ?? 0,
+      startPosY: selectedClip.position?.y ?? 0,
+      startScaleX: selectedClip.scale?.x ?? 1,
+      startScaleY: selectedClip.scale?.y ?? 1,
+      boxW: clipTransform.width,
+      boxH: clipTransform.height,
+      centerX: clipTransform.centerX,
+      centerY: clipTransform.centerY,
+      currentPosX: selectedClip.position?.x ?? 0,
+      currentPosY: selectedClip.position?.y ?? 0,
+      currentScale: selectedClip.scale?.x ?? 1,
+    })
+  }
+
+  const handleBoxPointerMove = (e: React.PointerEvent) => {
+    if (!dragState || !selectedClip || !clipTransform) return
+    e.stopPropagation()
+    e.preventDefault()
+
+    if (dragState.isDragging) {
+      const dx = (e.clientX - dragState.startX) / clipTransform.scaleFactor
+      const dy = (e.clientY - dragState.startY) / clipTransform.scaleFactor
+      const nextX = Math.round(dragState.startPosX + dx)
+      const nextY = Math.round(dragState.startPosY + dy)
+      setDragState((s) => (s ? { ...s, currentPosX: nextX, currentPosY: nextY } : null))
+      updateClip(selectedClip.id, { position: { x: nextX, y: nextY } })
+    } else if (dragState.isResizing) {
+      const origRadius = Math.hypot(dragState.boxW / 2, dragState.boxH / 2)
+      const rect = playback.canvasRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const currentMouseX = e.clientX - rect.left
+      const currentMouseY = e.clientY - rect.top
+      const currentDist = Math.hypot(currentMouseX - dragState.centerX, currentMouseY - dragState.centerY)
+      const ratio = currentDist / Math.max(10, origRadius)
+      const nextScale = Math.max(0.1, Math.min(3.5, parseFloat((dragState.startScaleX * ratio).toFixed(2))))
+      setDragState((s) => (s ? { ...s, currentScale: nextScale } : null))
+      updateClip(selectedClip.id, { scale: { x: nextScale, y: nextScale } })
+    }
+  }
+
+  const handleBoxPointerUp = (e: React.PointerEvent) => {
+    if (!dragState) return
+    e.stopPropagation()
+    e.preventDefault()
+    setDragState(null)
+  }
+
+  // Quick Preset Alignments
+  const applyPresetPlacement = (posPreset: 'center' | 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'circle-webcam') => {
+    if (!selectedClip) return
+    const w = project.width || 1920
+    const h = project.height || 1080
+    if (posPreset === 'center') {
+      updateClip(selectedClip.id, { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 } })
+    } else if (posPreset === 'circle-webcam' || posPreset === 'bottom-right') {
+      updateClip(selectedClip.id, {
+        position: { x: Math.round(w * 0.32), y: Math.round(h * 0.28) },
+        scale: { x: 0.35, y: 0.35 },
+        border: posPreset === 'circle-webcam' ? { width: 4, color: '#8b5cf6', radius: 9999 } : selectedClip.border,
+        dropShadow: { offsetX: 0, offsetY: 8, blur: 24, color: 'rgba(0,0,0,0.6)' },
+      })
+    } else if (posPreset === 'bottom-left') {
+      updateClip(selectedClip.id, {
+        position: { x: Math.round(-w * 0.32), y: Math.round(h * 0.28) },
+        scale: { x: 0.35, y: 0.35 },
+        border: { width: 4, color: '#8b5cf6', radius: 9999 },
+        dropShadow: { offsetX: 0, offsetY: 8, blur: 24, color: 'rgba(0,0,0,0.6)' },
+      })
+    } else if (posPreset === 'top-right') {
+      updateClip(selectedClip.id, {
+        position: { x: Math.round(w * 0.32), y: Math.round(-h * 0.28) },
+        scale: { x: 0.35, y: 0.35 },
+      })
+    } else if (posPreset === 'top-left') {
+      updateClip(selectedClip.id, {
+        position: { x: Math.round(-w * 0.32), y: Math.round(-h * 0.28) },
+        scale: { x: 0.35, y: 0.35 },
+      })
+    }
+  }
 
   React.useEffect(() => {
     const onFullscreenChange = () => setFullscreen(Boolean(document.fullscreenElement))
@@ -58,7 +274,7 @@ export function PreviewCanvas({
       const availW = rect.width - 24
       const availH = rect.height - 48
       if (availW <= 0 || availH <= 0) return
-      const aspect = project.width / project.height
+      const aspect = (project.width || 1920) / (project.height || 1080)
       let w: number, h: number
       if (availW / availH >= aspect) {
         h = availH
@@ -132,10 +348,132 @@ export function PreviewCanvas({
             )}
             style={{ width: canvasCssSize.w, height: canvasCssSize.h }}
             onClick={() => {
-              if (!empty) playback.toggle()
+              if (!empty && !dragState) playback.toggle()
             }}
           >
             <canvas ref={playback.canvasRef} className="block size-full" />
+
+            {/* Interactive On-Canvas Selection & Drag/Transform Bounding Box */}
+            {selectedClip && clipTransform && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${clipTransform.left}px`,
+                  top: `${clipTransform.top}px`,
+                  width: `${clipTransform.width}px`,
+                  height: `${clipTransform.height}px`,
+                  transform: `rotate(${selectedClip.rotation ?? 0}deg)`,
+                }}
+                className={cn(
+                  'group/bbox z-30 touch-none select-none cursor-move transition-shadow',
+                  clipTransform.isCircle
+                    ? 'rounded-full border-2 border-violet-500 ring-2 ring-violet-400/40 shadow-lg shadow-violet-500/20'
+                    : 'rounded-xl border-2 border-violet-500 ring-2 ring-violet-400/40 shadow-lg shadow-violet-500/20',
+                  dragState?.isDragging ? 'border-dashed border-cyan-400 ring-cyan-400/50' : '',
+                )}
+                onPointerDown={handleBoxPointerDown}
+                onPointerMove={handleBoxPointerMove}
+                onPointerUp={handleBoxPointerUp}
+                onClick={(e) => e.stopPropagation()}
+                title="Drag to place anywhere on screen"
+              >
+                {/* Center Move Target Icon */}
+                <div className="absolute inset-0 m-auto flex size-7 items-center justify-center rounded-full bg-violet-600/80 text-white shadow-md backdrop-blur-sm pointer-events-none opacity-80 group-hover/bbox:opacity-100 transition-opacity">
+                  <Move className="size-3.5" />
+                </div>
+
+                {/* Corner Resize Handles */}
+                <div
+                  className="absolute -top-1.5 -left-1.5 size-3.5 cursor-nwse-resize rounded-full bg-white border-2 border-violet-600 shadow-sm hover:scale-125 transition-transform"
+                  onPointerDown={(e) => handleHandlePointerDown(e, 'nw')}
+                  onPointerMove={handleBoxPointerMove}
+                  onPointerUp={handleBoxPointerUp}
+                  title="Drag corner to scale"
+                />
+                <div
+                  className="absolute -top-1.5 -right-1.5 size-3.5 cursor-nesw-resize rounded-full bg-white border-2 border-violet-600 shadow-sm hover:scale-125 transition-transform"
+                  onPointerDown={(e) => handleHandlePointerDown(e, 'ne')}
+                  onPointerMove={handleBoxPointerMove}
+                  onPointerUp={handleBoxPointerUp}
+                  title="Drag corner to scale"
+                />
+                <div
+                  className="absolute -bottom-1.5 -right-1.5 size-3.5 cursor-nwse-resize rounded-full bg-white border-2 border-violet-600 shadow-sm hover:scale-125 transition-transform"
+                  onPointerDown={(e) => handleHandlePointerDown(e, 'se')}
+                  onPointerMove={handleBoxPointerMove}
+                  onPointerUp={handleBoxPointerUp}
+                  title="Drag corner to scale"
+                />
+                <div
+                  className="absolute -bottom-1.5 -left-1.5 size-3.5 cursor-nesw-resize rounded-full bg-white border-2 border-violet-600 shadow-sm hover:scale-125 transition-transform"
+                  onPointerDown={(e) => handleHandlePointerDown(e, 'sw')}
+                  onPointerMove={handleBoxPointerMove}
+                  onPointerUp={handleBoxPointerUp}
+                  title="Drag corner to scale"
+                />
+
+                {/* Floating Coordinate & Scale Badge */}
+                <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/85 border border-white/20 px-2 py-0.5 text-[9px] font-mono text-white shadow-lg backdrop-blur-md pointer-events-none whitespace-nowrap">
+                  <span className="text-violet-400 font-bold">{selectedClip.name}</span>
+                  <span className="text-white/40">•</span>
+                  <span>
+                    X: {dragState?.isDragging ? dragState.currentPosX : clipTransform.posX}px, Y:{' '}
+                    {dragState?.isDragging ? dragState.currentPosY : clipTransform.posY}px
+                  </span>
+                  <span className="text-white/40">•</span>
+                  <span className="text-cyan-300 font-bold">
+                    {Math.round((dragState?.isResizing ? dragState.currentScale : clipTransform.scale) * 100)}%
+                  </span>
+                </div>
+
+                {/* Floating Quick Action Placement Capsule above the box */}
+                <div
+                  className="absolute -top-9 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-black/85 border border-white/20 p-0.5 shadow-xl backdrop-blur-md opacity-0 group-hover/bbox:opacity-100 transition-opacity z-40"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => applyPresetPlacement('center')}
+                    className="flex size-6 items-center justify-center rounded-full hover:bg-white/20 text-white transition"
+                    title="Center Stage (Full)"
+                  >
+                    <CircleDot className="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetPlacement('circle-webcam')}
+                    className="flex size-6 items-center justify-center rounded-full bg-violet-600/40 hover:bg-violet-600 text-violet-200 hover:text-white transition"
+                    title="Bottom-Right PiP Circle Webcam"
+                  >
+                    <ArrowDownRight className="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetPlacement('bottom-left')}
+                    className="flex size-6 items-center justify-center rounded-full hover:bg-white/20 text-white transition"
+                    title="Bottom-Left PiP Circle"
+                  >
+                    <ArrowDownLeft className="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetPlacement('top-right')}
+                    className="flex size-6 items-center justify-center rounded-full hover:bg-white/20 text-white transition"
+                    title="Top-Right Corner"
+                  >
+                    <ArrowUpRight className="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => select([])}
+                    className="flex size-6 items-center justify-center rounded-full hover:bg-rose-500/40 text-white/70 hover:text-white transition ml-0.5"
+                    title="Deselect clip"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Safe Zone Guides Overlay */}
             {showSafeZones && (
