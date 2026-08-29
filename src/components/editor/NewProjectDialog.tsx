@@ -133,6 +133,20 @@ export function NewProjectDialog({ open, onClose }: NewProjectDialogProps) {
     }
   }, [open])
 
+  // Escape closes this dialog while open; capture phase prevents the global
+  // cancelOperation shortcut from also firing.
+  React.useEffect(() => {
+    if (!open) return
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') {
+        e.stopImmediatePropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleEsc, { capture: true })
+    return () => window.removeEventListener('keydown', handleEsc, { capture: true })
+  }, [open, onClose])
+
   if (!open) return null
 
   const isCustom = selectedPresetId === 'custom'

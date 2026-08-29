@@ -12,7 +12,6 @@ export interface TTSSynthesizeOptions {
 
 export interface TTSResult {
   blob: Blob
-  url: string
   duration?: number
 }
 

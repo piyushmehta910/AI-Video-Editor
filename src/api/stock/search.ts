@@ -44,7 +44,9 @@ async function searchUnsplash(query: string, limit: number): Promise<StockImageR
       width: p.width,
       height: p.height,
     }))
-  } catch {
+  } catch (err) {
+    // Surface the failure instead of silently reporting "no results".
+    console.warn('[stock] Unsplash search failed:', err instanceof Error ? err.message : err)
     return []
   }
 }
@@ -68,7 +70,8 @@ async function searchPexels(query: string, limit: number): Promise<StockImageRes
       width: p.width,
       height: p.height,
     }))
-  } catch {
+  } catch (err) {
+    console.warn('[stock] Pexels search failed:', err instanceof Error ? err.message : err)
     return []
   }
 }
@@ -97,7 +100,8 @@ async function searchPixabay(query: string, limit: number): Promise<StockImageRe
       width: p.imageWidth,
       height: p.imageHeight,
     }))
-  } catch {
+  } catch (err) {
+    console.warn('[stock] Pixabay search failed:', err instanceof Error ? err.message : err)
     return []
   }
 }

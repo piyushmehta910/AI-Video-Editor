@@ -101,7 +101,7 @@ async function searchMusicBrainz(query: string, limit: number): Promise<MusicTra
   try {
     const data = (await fetchJson(
       `${base}/ws/2/recording?query=${encodeURIComponent(query)}&fmt=json&limit=${limit}`,
-      { headers: { Accept: 'application/json' } },
+      { headers: { Accept: 'application/json', 'User-Agent': 'ClipForge/1.0 (https://github.com/piyushmehta910/AI-Video-Editor)' } },
       30000,
     )) as {
       recordings?: Array<{

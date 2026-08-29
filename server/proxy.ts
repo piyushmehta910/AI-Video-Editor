@@ -8,6 +8,8 @@
  * proxy and are called directly.
  */
 
+import { isAllowedProxyUrl } from '../src/lib/proxyHosts.ts'
+
 export interface ProxyPayload {
   url?: string
   method?: string
@@ -24,41 +26,18 @@ export interface ProxyResult {
   body: ReadableStream<Uint8Array> | Uint8Array
 }
 
-/**
- * Provider hosts the client may call through this proxy. This keeps API keys
- * out of CORS preflight failures without turning the endpoint into an open
- * proxy. Keep this list in sync with src/api/proxy.ts.
- */
-const ALLOWED_HOSTS = [
-  'integrate.api.nvidia.com',
-  'opencode.ai',
-  'api.deezer.com',
-  'api.elevenlabs.io',
-  'openrouter.ai',
-  'api.firecrawl.dev',
-  'api.sketchfab.com',
-  'api.giphy.com',
-  'musicbrainz.org',
-  'api.unsplash.com',
-  'api.pexels.com',
-  'pixabay.com',
-  'api.polyhaven.com',
-]
-
-export function isAllowedProxyUrl(url: string): boolean {
-  try {
-    return ALLOWED_HOSTS.includes(new URL(url).hostname)
-  } catch {
-    return false
-  }
-}
-
 async function doFetch(url: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
+  const signal = timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined
   try {
-    return await fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
-  } catch {
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    return fetch(url, { ...init, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined })
+    return await fetch(url, { ...init, signal })
+  } catch (err) {
+    // Retry transient network failures exactly once. Timeouts are never
+    // retried — that would double worst-case latency past platform limits.
+    if (err instanceof TypeError && !signal?.aborted) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      return fetch(url, { ...init, signal })
+    }
+    throw err
   }
 }
 

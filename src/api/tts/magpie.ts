@@ -49,7 +49,7 @@ export const magpieTtsProvider: TtsProvider = {
 
   isConfigured() {
     const nimCfg = nvidiaNimConfig()
-    return Boolean(nimCfg.apiKey?.trim())
+    return Boolean(nimCfg.enabled && nimCfg.apiKey?.trim())
   },
 
   async synthesize(options) {
@@ -80,7 +80,7 @@ export const magpieTtsProvider: TtsProvider = {
 
     const timeoutMs = nimCfg.timeoutMs ?? 90000
     const res = needsProxy(url)
-      ? await proxyFetch(url, { ...init, signal: undefined }, timeoutMs)
+      ? await proxyFetch(url, init, timeoutMs)
       : await fetch(url, init)
 
     if (!res.ok) {
@@ -88,6 +88,6 @@ export const magpieTtsProvider: TtsProvider = {
       throw new Error(`Magpie TTS error ${res.status}: ${text.slice(0, 300)}`)
     }
     const blob = await res.blob()
-    return { blob, url: URL.createObjectURL(blob) }
+    return { blob }
   },
 }

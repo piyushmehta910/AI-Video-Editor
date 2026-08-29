@@ -6,6 +6,7 @@ import { router } from './router'
 import { useApiConfigStore } from '@/api/config/store'
 import { initTheme } from '@/lib/theme'
 import { preloadEssentialFonts } from '@/lib/fonts'
+import { PassphraseGate } from '@/components/common/PassphraseGate'
 
 await useApiConfigStore.getState().hydrate()
 initTheme()
@@ -25,6 +26,8 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <PassphraseGate>
+      <RouterProvider router={router} />
+    </PassphraseGate>
   </StrictMode>,
 )

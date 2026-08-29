@@ -7086,15 +7086,29 @@ function VoiceoverSection() {
   const [speed, setSpeed] = React.useState(1.0)
   const [busy, setBusy] = React.useState(false)
   const [audioUrl, setAudioUrl] = React.useState<string | null>(null)
+  const audioBlobRef = React.useRef<Blob | null>(null)
+  const audioUrlRef = React.useRef<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+
+  // This component owns the preview URL's lifecycle — revoke on replace/unmount.
+  React.useEffect(() => () => {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+  }, [])
+
+  const setPreviewAudio = (blob: Blob) => {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+    const url = URL.createObjectURL(blob)
+    audioUrlRef.current = url
+    audioBlobRef.current = blob
+    setAudioUrl(url)
+  }
 
   const generate = async () => {
     if (!text.trim()) return
     setBusy(true)
     setError(null)
-    setAudioUrl(null)
     try {
-      let synthesizeResult: { blob: Blob; url: string }
+      let synthesizeResult: { blob: Blob }
       if (provider === 'nvidia') {
         const { magpieTtsProvider } = await import('@/api/tts/magpie')
         if (!magpieTtsProvider.isConfigured()) {
@@ -7119,7 +7133,7 @@ function VoiceoverSection() {
           speed,
         })
       }
-      setAudioUrl(synthesizeResult.url)
+      setPreviewAudio(synthesizeResult.blob)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -7128,10 +7142,9 @@ function VoiceoverSection() {
   }
 
   const addToTimeline = async () => {
-    if (!audioUrl) return
+    const blob = audioBlobRef.current
+    if (!blob) return
     const store = useTimelineStore.getState()
-    const res = await fetch(audioUrl)
-    const blob = await res.blob()
     const voiceTag = provider === 'nvidia' ? magpieVoice : elevenVoice
     const fname = `voiceover_${voiceTag}_${Date.now()}.wav`
     const file = new File([blob], fname, { type: blob.type || 'audio/wav' })

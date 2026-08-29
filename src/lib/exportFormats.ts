@@ -4,7 +4,7 @@
  */
 
 export type ExportFormatId = 'mp4' | 'webm' | 'frames'
-export type QualityId = 'high' | 'medium' | 'low'
+export type QualityId = 'high' | 'medium' | 'low' | 'very_high'
 export type ResolutionId = '1080p' | '720p' | '360p'
 
 export interface ResolutionOption {
@@ -65,6 +65,7 @@ const QUALITY_BITRATES_1080P: Record<QualityId, number> = {
   high: 12_000_000,
   medium: 8_000_000,
   low: 4_500_000,
+  very_high: 35_000_000,
 }
 
 export function bitrateFor(quality: QualityId, width: number, height: number): number {

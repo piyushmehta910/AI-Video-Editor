@@ -85,7 +85,13 @@ export function NvidiaNimCard() {
   const [refreshMessage, setRefreshMessage] = React.useState<string | null>(null)
   const [testingVoice, setTestingVoice] = React.useState(false)
   const [voiceAudioUrl, setVoiceAudioUrl] = React.useState<string | null>(null)
+  const voiceUrlRef = React.useRef<string | null>(null)
   const [voiceTestError, setVoiceTestError] = React.useState<string | null>(null)
+
+  // This card owns the voice-preview URL — revoke on replace/unmount.
+  React.useEffect(() => () => {
+    if (voiceUrlRef.current) URL.revokeObjectURL(voiceUrlRef.current)
+  }, [])
 
   const set = (patch: Partial<NvidiaNimConfig>) => {
     update((draft) => ({ ...draft, nvidiaNim: { ...draft.nvidiaNim, ...patch } }))
@@ -120,7 +126,10 @@ export function NvidiaNimCard() {
         model: voiceModel,
         speed: voiceSpeed,
       })
-      setVoiceAudioUrl(result.url)
+      if (voiceUrlRef.current) URL.revokeObjectURL(voiceUrlRef.current)
+      const url = URL.createObjectURL(result.blob)
+      voiceUrlRef.current = url
+      setVoiceAudioUrl(url)
     } catch (err) {
       setVoiceTestError(err instanceof Error ? err.message : String(err))
     } finally {

@@ -139,18 +139,25 @@ export function ScriptStudioModal({ open, onClose, initialLayout }: ScriptStudio
     }
   }, [isPlaying, scrollSpeed])
 
-  // Spacebar toggle playback shortcut
+  // Keyboard shortcuts scoped to this modal — runs in capture phase so the
+  // global useKeyboardShortcuts listener never sees Space/Escape while open.
   React.useEffect(() => {
     if (!open) return
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') {
+        e.stopImmediatePropagation()
+        onClose()
+        return
+      }
       if (e.code === 'Space' && (e.target as HTMLElement)?.tagName !== 'INPUT' && (e.target as HTMLElement)?.tagName !== 'TEXTAREA') {
         e.preventDefault()
+        e.stopImmediatePropagation()
         setIsPlaying((p) => !p)
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open])
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [open, onClose])
 
   if (!open || !script) return null
 

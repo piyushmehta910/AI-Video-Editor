@@ -19,7 +19,7 @@ export const nvidiaTtsProvider: TtsProvider = {
 
   isConfigured() {
     const cfg = getNvidiaNimConfig()
-    return Boolean(cfg.apiKey?.trim())
+    return Boolean(cfg.enabled && cfg.apiKey?.trim())
   },
 
   async synthesize(options) {
@@ -45,13 +45,13 @@ export const nvidiaTtsProvider: TtsProvider = {
     }
     const timeoutMs = cfg.timeoutMs ?? 60000
     const res = needsProxy(url)
-      ? await proxyFetch(url, { ...init, signal: undefined }, timeoutMs)
+      ? await proxyFetch(url, init, timeoutMs)
       : await fetch(url, init)
     if (!res.ok) {
       const text = await res.text().catch(() => '')
       throw new Error(`NVIDIA Voice error ${res.status}: ${text.slice(0, 250)}`)
     }
     const blob = await res.blob()
-    return { blob, url: URL.createObjectURL(blob) }
+    return { blob }
   },
 }

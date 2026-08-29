@@ -185,7 +185,7 @@ export async function chatCompletion(
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const res = needsProxy(url)
-          ? await proxyFetch(url, { ...init, signal: undefined }, provider.config.timeoutMs)
+          ? await proxyFetch(url, init, provider.config.timeoutMs)
           : await fetch(url, init)
         if (!res.ok) {
           const text = await res.text().catch(() => '')

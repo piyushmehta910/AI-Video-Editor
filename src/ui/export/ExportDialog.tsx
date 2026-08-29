@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
+import { bitrateFor, type QualityId } from '@/lib/exportFormats'
 import {
   X,
   Loader2,
@@ -17,7 +18,7 @@ import {
 import { useTimelineStore } from '@/stores/timelineStore'
 import { exportProject } from '@/engine/export/exportVideo'
 import { exportMp4 } from '@/engine/export/exportMp4'
-import { setExportActive } from '@/engine/export/exportSession'
+import { beginExportSession } from '@/engine/export/exportSession'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,15 +34,14 @@ type Format = 'webm' | 'mp4' | 'wav'
 
 interface QualityPreset {
   label: string
-  bitrate: number
   description: string
 }
 
 const QUALITY_PRESETS: Record<string, QualityPreset> = {
-  low: { label: 'Low (Fastest)', bitrate: 2_000_000, description: 'Smaller file size, quick export' },
-  medium: { label: 'Medium (Balanced)', bitrate: 5_000_000, description: 'Recommended for YouTube & Web' },
-  high: { label: 'High (Crisp 1080p)', bitrate: 10_000_000, description: 'High fidelity for production' },
-  very_high: { label: 'Ultra (4K / Master)', bitrate: 35_000_000, description: 'Maximum bitrate for 4K archiving' },
+  low: { label: 'Low (Fastest)', description: 'Smaller file size, quick export' },
+  medium: { label: 'Medium (Balanced)', description: 'Recommended for YouTube & Web' },
+  high: { label: 'High (Crisp 1080p)', description: 'High fidelity for production' },
+  very_high: { label: 'Ultra (4K / Master)', description: 'Maximum bitrate for 4K archiving' },
 }
 
 const CODEC_INFO: Record<Codec, string> = {
@@ -105,15 +105,31 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     }
   }, [open, resultUrl])
 
+  // Escape closes this dialog while open; capture phase prevents the global
+  // cancelOperation shortcut from also firing.
+  React.useEffect(() => {
+    if (!open) return
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') {
+        e.stopImmediatePropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleEsc, { capture: true })
+    return () => window.removeEventListener('keydown', handleEsc, { capture: true })
+  }, [open, onClose])
+
   if (!open) return null
 
-  const preset = QUALITY_PRESETS[quality] || QUALITY_PRESETS.medium
   const selectedRes = resolutions.find((r) => r.label === resolution) ?? resolutions[0]
   const width = Math.round(selectedRes?.w ?? project.width ?? 1920)
   const height = Math.round(selectedRes?.h ?? project.height ?? 1080)
+  // Resolution-aware bitrate — replaces the old fixed-quality presets that
+  // ignored whether the user picked 360p or 4K.
+  const effectiveBitrate = bitrateFor(quality as QualityId, width, height)
 
-  // Estimated file size calculation: (bitrate bits/sec * duration secs) / 8 / 1024 / 1024
-  const estimatedSizeMb = Math.max(0.5, ((preset.bitrate * Math.max(1, duration)) / 8 / 1024 / 1024)).toFixed(1)
+  // Estimated file size: (bitrate bits/sec × duration secs) / 8 / 1024 / 1024
+  const estimatedSizeMb = Math.max(0.5, ((effectiveBitrate * Math.max(1, duration)) / 8 / 1024 / 1024)).toFixed(1)
 
   const applyPresetProfile = (type: 'youtube' | 'reel' | 'webm_hq' | '4k' | 'audio_only') => {
     if (type === 'youtube') {
@@ -156,14 +172,14 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     abortRef.current = controller
     // Pause the live preview so playback compositing does not compete with
     // the export loop for CPU/GPU (see exportSession.ts / usePlayback).
-    setExportActive(true)
+    const releaseExport = beginExportSession()
     lastProgressAtRef.current = 0
     try {
       const shared = {
         width,
         height,
         fps,
-        bitrate: preset.bitrate,
+        bitrate: effectiveBitrate,
         onProgress: (done: number, totalFrames: number) => {
           const now = performance.now()
           if (now - lastProgressAtRef.current >= 120 || done >= totalFrames) {
@@ -192,7 +208,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       setStatus('error')
       setError(e instanceof Error ? e.message : 'Export failed')
     } finally {
-      setExportActive(false)
+      releaseExport()
     }
   }
 
@@ -387,7 +403,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               <Label className="text-[11px] font-semibold text-foreground flex items-center justify-between">
                 <span>Quality & Bitrate</span>
                 <span className="font-mono text-[10px] text-violet-500 font-bold">
-                  {(preset.bitrate / 1_000_000).toFixed(0)} Mbps
+                  {(effectiveBitrate / 1_000_000).toFixed(0)} Mbps
                 </span>
               </Label>
               <Select value={quality} onValueChange={setQuality}>
@@ -395,16 +411,19 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[10050]">
-                  {Object.entries(QUALITY_PRESETS).map(([key, q]) => (
-                    <SelectItem key={key} value={key}>
-                      <div className="flex items-center justify-between w-full gap-4">
-                        <span className="font-semibold">{q.label}</span>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {(q.bitrate / 1_000_000).toFixed(0)} Mbps · {q.description}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {Object.entries(QUALITY_PRESETS).map(([key, q]) => {
+                    const optBitrate = bitrateFor(key as QualityId, width, height)
+                    return (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center justify-between w-full gap-4">
+                          <span className="font-semibold">{q.label}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {(optBitrate / 1_000_000).toFixed(0)} Mbps · {q.description}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>

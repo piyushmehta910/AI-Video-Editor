@@ -1,4 +1,4 @@
-import { readMediaFile } from '@/engine/storage/opfs'
+﻿import { readMediaFile } from '@/engine/storage/opfs'
 import { wrapSourceTime } from '@/engine/media/sourceTime'
 import type { Asset, Project } from '@/engine/types'
 import { projectDuration } from '@/engine/types'
@@ -7,7 +7,7 @@ import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { WebMMuxer } from './webm-muxer'
 import { createEncoderGuard, waitForDrain } from './encoderGuard'
-import { setExportActive } from './exportSession'
+import { beginExportSession } from './exportSession'
 import { deviceSafetyGuard } from '@/engine/safety/DeviceSafetyGuard'
 
 export interface ExportOptions {
@@ -157,14 +157,14 @@ export async function exportProject(
     throw new Error('WebCodecs VideoEncoder is not supported in this browser')
   }
 
-  setExportActive(true)
+  const releaseExport = beginExportSession()
 
   const canvas = document.createElement('canvas')
   canvas.width = opts.width
   canvas.height = opts.height
   const ctx = canvas.getContext('2d')
   if (!ctx) {
-    setExportActive(false)
+    releaseExport()
     throw new Error('Canvas 2D context unavailable')
   }
 
@@ -195,7 +195,7 @@ export async function exportProject(
     encoderConfig.framerate = undefined
     const retry = await VideoEncoder.isConfigSupported(encoderConfig)
     if (!retry.supported) {
-      setExportActive(false)
+      releaseExport()
       throw new Error(`Encoder config not supported: ${opts.codec}`)
     }
   }
@@ -287,7 +287,7 @@ export async function exportProject(
     await Promise.race([encoder.flush(), guard.failure])
     if (mixedAudio) await encodeAudio(muxer, mixedAudio, opts.signal, guard)
   } finally {
-    setExportActive(false)
+    releaseExport()
     if (encoder.state !== 'closed') encoder.close()
     for (const el of mediaElements.values()) {
       try {

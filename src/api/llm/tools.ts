@@ -992,6 +992,31 @@ export function isStagedTool(name: string): boolean {
   return STAGED_TOOLS.has(ALIASES[name] ?? name) || STAGED_TOOLS.has(name)
 }
 
+/** Tools that destroy or overwrite existing timeline state (delete/trim/move/split/join/reframe). */
+export function isDestructiveTool(name: string): boolean {
+  const canonical = ALIASES[name] ?? name
+  return DIRECTOR_TOOLS.some((t) => t.function.name === canonical && t.function.destructive === true)
+}
+
+/** Tools that kick off long-running, resource-heavy generation or render jobs. */
+const EXPENSIVE_TOOLS = new Set<string>([
+  'render_preview',
+  'remove_background',
+  'smart_reframe',
+  'generate_motion_graphics',
+  'generate_slides',
+  'generate_avatar_intro',
+  'generate_avatar_outro',
+  'generate_avatar_presenter',
+  'generate_avatar_narrator',
+  'execute_autonomous_video_plan',
+  'dispatch_subagent_task',
+])
+
+export function isExpensiveTool(name: string): boolean {
+  return EXPENSIVE_TOOLS.has(ALIASES[name] ?? name)
+}
+
 export function canonicalTool(name: string): string {
   return ALIASES[name] ?? name
 }
@@ -1398,7 +1423,16 @@ export async function applyTool(
       const clip = findClip(String(args.assetName ?? ''))
       if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
       const property = String(args.property)
+      // Only the four numeric properties are accepted here — writing a
+      // coerced NaN (or a string property like "name") would corrupt the clip.
+      const NUMERIC_PROPERTIES = ['opacity', 'volume', 'speed', 'rotation'] as const
+      if (!(NUMERIC_PROPERTIES as readonly string[]).includes(property)) {
+        return { ok: false, message: `"${property}" is not a settable clip property (use: ${NUMERIC_PROPERTIES.join(', ')}).` }
+      }
       const value = Number(args.value)
+      if (!Number.isFinite(value)) {
+        return { ok: false, message: `Invalid value for ${property}: ${String(args.value)}.` }
+      }
       s.updateClip(clip.id, { [property]: value } as never)
       return { ok: true, message: desc }
     }
@@ -1769,12 +1803,52 @@ export async function applyTool(
       if (!transcript) {
         transcript = await transcribeAsset(asset)
       }
-      if (!transcript) {
+      if (!transcript?.sentences?.length) {
         return { ok: false, message: `Could not transcribe "${targetClip.name}" (audio may be silent or the model could not load).` }
       }
-      const next = useTimelineStore.getState()
-      if (!next.project.captions?.enabled) next.setCaptions({ enabled: true })
-      return { ok: true, message: `${desc} — captions enabled for "${targetClip.name}"` }
+      // Place real caption clips from the transcript — same timing math as
+      // auto_generate_captions, scoped to this one clip.
+      const targetTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks.find((t) => t.type === 'video')
+      if (!targetTrack) return { ok: false, message: 'No track available for captions.' }
+      const c = targetClip
+      let placed = 0
+      for (const st of transcript.sentences) {
+        const start = Math.max(c.startTime, c.startTime + (st.start - c.sourceStart) / c.speed)
+        const end = Math.min(c.startTime + c.duration, c.startTime + (st.end - c.sourceStart) / c.speed)
+        if (end > start && st.text.trim()) {
+          const tc = s.addTextClip(st.text.trim(), targetTrack.id, start)
+          if (tc) {
+            const dur = Math.max(1, end - start)
+            s.updateClip(tc.id, {
+              name: st.text.slice(0, 20),
+              duration: dur,
+              sourceEnd: dur,
+              textType: 'caption',
+              text: {
+                text: st.text.trim(),
+                fontSize: 44,
+                color: '#ffffff',
+                backgroundColor: '#000000bb',
+                textAlign: 'center',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontWeight: 'bold',
+                fontStyle: 'normal',
+                paddingTop: 8,
+                paddingBottom: 8,
+                paddingLeft: 16,
+                paddingRight: 16,
+                borderRadius: 6,
+                shadow: true,
+                animation: 'pop',
+                animationDuration: 0.3,
+              },
+            })
+            placed++
+          }
+        }
+      }
+      if (!placed) return { ok: false, message: `"${targetClip.name}" has a transcript but no caption fit on the timeline.` }
+      return { ok: true, message: `${desc} — added ${placed} caption${placed !== 1 ? 's' : ''} to "${targetClip.name}"` }
     }
     case 'generate_motion_graphics': {
       const concept = String(args.concept ?? '')
@@ -1829,25 +1903,32 @@ export async function applyTool(
         const files: File[] = deck.pngs.map(
           (png, i) => new File([png], `slide-${i + 1}-${Date.now()}.png`, { type: 'image/png' }),
         )
-        const imported = await s.importFiles(files)
-        const assets = imported.imported
-        const slideTrack = s.project.tracks.find((t) => t.type === 'video' && (t.name.toLowerCase().includes('slide') || t.name.toLowerCase().includes('presentation'))) ||
-          s.project.tracks.find((t) => t.type === 'video' && t.clips.every((c) => c.clipType === 'slide')) ||
-          s.project.tracks.find((t) => t.type === 'video')
-        if (!slideTrack) return { ok: false, message: 'No video/slide track available.' }
-        for (let i = 0; i < assets.length; i++) {
-          const asset = assets[i]
-          const clip = s.addClip(asset.id, slideTrack.id)
-          if (clip) {
-            s.updateClip(clip.id, {
-              duration: perSlide,
-              sourceEnd: perSlide,
-              clipType: 'slide',
-              name: `Slide ${i + 1}: ${deck.title}`,
-            })
+        // The whole deck lands as ONE undo step instead of 12+ entries.
+        const st = useTimelineStore.getState()
+        st.beginHistoryGroup({ type: 'edit', description: desc })
+        try {
+          const imported = await s.importFiles(files)
+          const assets = imported.imported
+          const slideTrack = s.project.tracks.find((t) => t.type === 'video' && (t.name.toLowerCase().includes('slide') || t.name.toLowerCase().includes('presentation'))) ||
+            s.project.tracks.find((t) => t.type === 'video' && t.clips.every((c) => c.clipType === 'slide')) ||
+            s.project.tracks.find((t) => t.type === 'video')
+          if (!slideTrack) return { ok: false, message: 'No video/slide track available.' }
+          for (let i = 0; i < assets.length; i++) {
+            const asset = assets[i]
+            const clip = s.addClip(asset.id, slideTrack.id)
+            if (clip) {
+              s.updateClip(clip.id, {
+                duration: perSlide,
+                sourceEnd: perSlide,
+                clipType: 'slide',
+                name: `Slide ${i + 1}: ${deck.title}`,
+              })
+            }
           }
+          return { ok: true, message: `${desc} — rendered ${assets.length} Marp slides ("${deck.title}", ${marpTheme} theme) onto the timeline.` }
+        } finally {
+          st.endHistoryGroup()
         }
-        return { ok: true, message: `${desc} — rendered ${assets.length} Marp slides ("${deck.title}", ${marpTheme} theme) onto the timeline.` }
       } catch (err) {
         return { ok: false, message: `Slide generation failed: ${err instanceof Error ? err.message : String(err)}` }
       }
@@ -2046,7 +2127,7 @@ export async function applyTool(
       a.href = url
       a.download = `${name}.webm`
       a.click()
-      window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
+      window.setTimeout(() => URL.revokeObjectURL(url), 600_000)
       return { ok: true, message: `${desc} (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${frames} frames)` }
     }
     case 'apply_filter': {
@@ -2112,7 +2193,56 @@ export async function applyTool(
     case 'denoise_audio': {
       const clip = findClip(String(args.assetName ?? ''))
       if (!clip) return { ok: false, message: `Clip "${String(args.assetName)}" no longer exists.` }
-      return { ok: true, message: desc }
+      const asset = s.assets.find((a) => a.id === clip.assetId)
+      if (!asset || (asset.type !== 'audio' && asset.type !== 'video')) {
+        return { ok: false, message: 'Denoise works on audio or video clips that contain audio.' }
+      }
+      try {
+        const { readMediaFile } = await import('@/engine/storage/opfs')
+        const { RNNoiseEngine } = await import('@/engine/denoise/rnnoise-engine')
+        const { float32ToWav } = await import('@/engine/audio/wav')
+        const file = await readMediaFile(asset.filePath)
+        const arrayBuffer = await file.arrayBuffer()
+        const audioContext = new (window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ sampleRate: 48000 })
+        let channelData: Float32Array
+        let sampleRate: number
+        try {
+          const decoded = await audioContext.decodeAudioData(arrayBuffer)
+          channelData = decoded.getChannelData(0)
+          sampleRate = decoded.sampleRate
+        } finally {
+          void audioContext.close()
+        }
+        const engine = new RNNoiseEngine()
+        await engine.initialize()
+        let denoised: Float32Array
+        try {
+          const res = await engine.denoise(channelData, sampleRate)
+          denoised = res.denoisedAudio
+          sampleRate = res.sampleRate
+        } finally {
+          engine.destroy()
+        }
+        const wav = float32ToWav(denoised, sampleRate)
+        const outFile = new File([wav], `${asset.name}-denoised.wav`, { type: 'audio/wav' })
+        const { imported, errors } = await s.importFiles([outFile])
+        if (!imported.length) return { ok: false, message: errors[0] ?? 'Could not import the denoised audio.' }
+        const st = useTimelineStore.getState()
+        const audioTrack =
+          st.project.tracks.find((t) => t.type === 'audio') ?? st.project.tracks.find((t) => t.type === 'video')
+        if (!audioTrack) return { ok: false, message: 'No track available for the denoised audio.' }
+        const targetStart = Math.round(clip.startTime * 10) / 10
+        const newClip = st.addClip(imported[0].id, audioTrack.id, targetStart)
+        return {
+          ok: true,
+          message: newClip
+            ? `${desc} — RNNoise-cleaned "${asset.name}" placed at ${targetStart}s (original kept).`
+            : `${desc} — cleaned audio imported as "${imported[0].name}" (timeline was full — drag it in manually).`,
+        }
+      } catch (err) {
+        return { ok: false, message: `Denoise failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
     }
     case 'set_snap_enabled': {
       const enabled = Boolean(args.enabled)
@@ -2200,40 +2330,61 @@ export async function applyTool(
   }
 }
 
+/** Background removal is memory-bound — hard caps keep it from OOM-ing the tab. */
+const BG_REMOVAL_MAX_FRAMES = 240
+
 async function extractFramesFromAsset(asset: Asset): Promise<ImageData[]> {
   const { readMediaFile } = await import('@/engine/storage/opfs')
   const blob = await readMediaFile(asset.filePath)
   const url = URL.createObjectURL(blob)
-  const video = document.createElement('video')
-  video.preload = 'metadata'
-  video.muted = true
-  video.playsInline = true
-  video.crossOrigin = 'anonymous'
-  video.src = url
-  await new Promise<void>((resolve, reject) => {
-    video.onloadedmetadata = () => resolve()
-    video.onerror = () => reject(new Error('Failed to load video'))
-    setTimeout(() => reject(new Error('Video load timeout')), 10000)
-  })
-  const canvas = document.createElement('canvas')
-  canvas.width = video.videoWidth
-  canvas.height = video.videoHeight
-  const ctx = canvas.getContext('2d')!
-  const frames: ImageData[] = []
-  const duration = video.duration
-  const frameCount = Math.floor(duration * 30)
-  const step = duration / frameCount
-  for (let i = 0; i < frameCount; i++) {
-    video.currentTime = i * step
-    await new Promise<void>((resolve) => {
-      video.onseeked = () => {
-        ctx.drawImage(video, 0, 0)
-        frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
-        video.onseeked = null
-        resolve()
-      }
+  try {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    video.crossOrigin = 'anonymous'
+    video.src = url
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve()
+      video.onerror = () => reject(new Error('Failed to load video'))
+      setTimeout(() => reject(new Error('Video load timeout')), 10000)
     })
+    const duration = video.duration
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error('Video has no readable duration')
+    const rawFrameCount = Math.floor(duration * 30)
+    if (rawFrameCount > BG_REMOVAL_MAX_FRAMES) {
+      throw new Error(
+        `Background removal supports clips up to ${Math.round(BG_REMOVAL_MAX_FRAMES / 30)} seconds (this one is ${duration.toFixed(1)}s) — trim it first.`,
+      )
+    }
+    const canvas = document.createElement('canvas')
+    // The segmentation model runs at 512px — extracting full-resolution
+    // frames only wastes hundreds of MB of memory.
+    const scale = Math.min(1, 480 / Math.max(1, video.videoWidth, video.videoHeight))
+    canvas.width = Math.max(2, Math.round(video.videoWidth * scale))
+    canvas.height = Math.max(2, Math.round(video.videoHeight * scale))
+    const ctx = canvas.getContext('2d')!
+    const frames: ImageData[] = []
+    const frameCount = rawFrameCount
+    const step = duration / frameCount
+    for (let i = 0; i < frameCount; i++) {
+      video.currentTime = i * step
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          video.onseeked = null
+          reject(new Error(`Frame ${i + 1}/${frameCount}: seek timed out`))
+        }, 5000)
+        video.onseeked = () => {
+          clearTimeout(timer)
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
+          video.onseeked = null
+          resolve()
+        }
+      })
+    }
+    return frames
+  } finally {
+    URL.revokeObjectURL(url)
   }
-  URL.revokeObjectURL(url)
-  return frames
 }

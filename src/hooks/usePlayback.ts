@@ -276,7 +276,7 @@ React.useEffect(() => {
   const syncAudio = React.useCallback(
     (time: number, playing: boolean) => {
       const { project } = storeRef.current
-      const { audio } = activeClipsAt(time)
+      const { audio, video } = activeClipsAt(time)
       const anySolo = project.tracks.some((t) => t.type === 'audio' && t.soloed)
       const soloGain = (track: Track) => (anySolo ? (track.soloed ? 1 : 0) : 1)
 
@@ -319,7 +319,7 @@ React.useEffect(() => {
       }
 
       for (const ref of videoPool.current) {
-        const active = activeClipsAt(time).video.find((v) => v.clip.assetId === ref.assetId)
+        const active = video.find((v) => v.clip.assetId === ref.assetId)
         if (!active) {
           if (!ref.element.paused) ref.element.pause()
           ref.clipId = null

@@ -2,7 +2,6 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { applyTool } from '@/api/llm/tools'
 import { aiContextManager } from '@/ai/context/AIContextManager'
 import type { VideoBrief } from '@/ai/videoBrief'
-import { getScript } from '@/stores/scriptStore'
 import { validateBriefProviders } from './providerPreflight'
 import { runSceneSequence, SCENE_SEQUENCE_TOOL } from './scriptToPlan'
 import { SUBAGENT_REGISTRY } from './subagentsRegistry'
@@ -59,7 +58,8 @@ export class SubagentOrchestrator {
   public abort() {
     if (this.abortController) {
       this.abortController.abort()
-      this.isExecuting = false
+      // isExecuting stays true until executePlan's finally block runs, so a
+      // retry cannot start a second pipeline while the old one is unwinding.
     }
   }
 
@@ -222,20 +222,28 @@ export class SubagentOrchestrator {
           }
 
           const args = { ...task.arguments }
-          if (args.text === '__generated_script__') {
-            const script = getScript()
-            args.text = script ? [script.hook, ...script.scenes.map((scene) => scene.text), script.cta].filter(Boolean).join(' ') : ''
-          }
           const res = await applyTool(task.tool, args, { undoStep: false })
           task.status = res.ok ? 'completed' : 'failed'
           task.resultMessage = res.message
 
           // Background music must sit under the narration, never over it.
+          // Duck level follows the brief's style: driving genres stay a bit
+          // louder, calm/cinematic mixes duck deeper.
           if (task.tool === 'search_music' && res.ok) {
             const st = useTimelineStore.getState()
             const musicClips = st.project.tracks.flatMap((t) => t.clips).filter((c) => c.clipType === 'music')
             const latest = musicClips[musicClips.length - 1]
-            if (latest) st.updateClip(latest.id, { volume: 0.15 })
+            if (latest) {
+              const duckByStyle: Record<VideoBrief['style'], number> = {
+                energetic: 0.25,
+                tech: 0.2,
+                educational: 0.18,
+                minimalist: 0.15,
+                cinematic: 0.12,
+              }
+              const volume = plan.brief ? duckByStyle[plan.brief.style] ?? 0.18 : 0.18
+              st.updateClip(latest.id, { volume })
+            }
           }
 
           results.push({

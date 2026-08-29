@@ -357,6 +357,9 @@ export async function runSceneSequence(options: SceneSequenceOptions): Promise<S
         voicedScenes++
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
+        // Keep the audio cursor in lockstep with the visual cursor even when
+        // this scene goes silent, or every later voiceover lands misaligned.
+        audioCursor = round1(audioCursor + sceneDuration)
         results.push({
           taskId: `scene-${i + 1}-vo`,
           role: 'audio_producer',

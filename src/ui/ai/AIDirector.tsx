@@ -47,6 +47,8 @@ import {
   applyTool,
   canonicalTool,
   describeTool,
+  isDestructiveTool,
+  isExpensiveTool,
   isStagedTool,
 } from '@/api/llm/tools'
 import { buildDirectorContext, collectTimelineScenes } from '@/api/llm/context'
@@ -246,9 +248,12 @@ export function AIDirector({
 }) {
   const [internalOpen, setOpen] = React.useState(false)
   const open = controlledOpen ?? internalOpen
+  // Set once cancelPendingQuestion exists below; invoked when the panel closes.
+  const cancelQuestionRef = React.useRef<(() => void) | null>(null)
   const changeOpen = (value: boolean | ((o: boolean) => boolean)) => {
     const current = controlledOpen ?? internalOpen
     const next = typeof value === 'function' ? value(current) : value
+    if (!next) cancelQuestionRef.current?.()
     setOpen(next)
     onOpenChange?.(next)
   }
@@ -709,6 +714,17 @@ export function AIDirector({
     resolve(answer)
   }
 
+  /** Resolve any pending question with '' so awaited tool loops never hang when the panel closes or chat is cleared. */
+  const cancelPendingQuestion = React.useCallback(() => {
+    if (!pendingAnswerRef.current) return
+    const resolve = pendingAnswerRef.current
+    pendingAnswerRef.current = null
+    setPendingQuestion(null)
+    setQuestionAnswer('')
+    resolve('')
+  }, [])
+  cancelQuestionRef.current = cancelPendingQuestion
+
   const runVideoProduction = React.useCallback(async (brief: typeof DEFAULT_VIDEO_BRIEF) => {
     setVideoProduction({ status: 'executing', progressPercent: 1, message: 'Creating your production plan…', tasks: [], error: undefined })
     let lastMessage = ''
@@ -801,7 +817,16 @@ export function AIDirector({
         }
 
         const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
-        const autoApply = productionMode === 'autopilot' || confirmationLevel !== 'always'
+        // Per-tool auto-apply policy: 'always' stages everything for review;
+        // 'destructive' / 'expensive' only stage tools of that class;
+        // 'none' (and autopilot mode) applies everything immediately.
+        const shouldAutoApply = (toolName: string): boolean => {
+          if (productionMode === 'autopilot') return true
+          if (confirmationLevel === 'none') return true
+          if (confirmationLevel === 'destructive') return !isDestructiveTool(toolName)
+          if (confirmationLevel === 'expensive') return !isExpensiveTool(toolName)
+          return false
+        }
 
         const baseSystem = getProjectContextSystemPrompt(askedQuestions)
         let understanding = ''
@@ -870,7 +895,13 @@ export function AIDirector({
                 const next = rememberAskedQuestion(projectId, q)
                 setAskedQuestions(next)
                 const answer = await promptQuestion(q, rawOptions.length > 0 ? rawOptions : undefined)
-                apiMessages.push({ role: 'tool', content: `User answered: ${answer}`, tool_call_id: tc.id })
+                apiMessages.push({
+                  role: 'tool',
+                  content: answer
+                    ? `User answered: ${answer}`
+                    : 'User dismissed the question without answering — proceed with your best judgment.',
+                  tool_call_id: tc.id,
+                })
                 asked = true
               } else {
                 apiMessages.push({
@@ -890,7 +921,7 @@ export function AIDirector({
                 : 'The project looks clean — no improvements needed right now.'
               apiMessages.push({ role: 'tool', content: msg, tool_call_id: tc.id })
             } else if (isStagedTool(name)) {
-              if (autoApply) {
+              if (shouldAutoApply(name)) {
                 const result = await applyTool(name, tc.arguments)
                 appliedThisTurn = true
                 usedTools.push(name)
@@ -988,7 +1019,7 @@ export function AIDirector({
                 : usedTools.length
                   ? usedTools
                   : undefined,
-            proposed: isPlan || (!autoApply && proposedTools.length > 0),
+            proposed: isPlan || proposedTools.length > 0,
             followups,
             review: reviewIssues,
           },
@@ -1058,20 +1089,21 @@ export function AIDirector({
     }, { type: 'edit', description: `AI: ${target.name}` })
   }
 
-  const applyAll = () => {
+  const applyAll = async () => {
     const pending = proposals.filter((p) => p.status === 'pending')
     if (!pending.length) return
     const store = useTimelineStore.getState()
-    store.withTransaction(() => {
+    // Apply sequentially: tools like search_music duck the latest music clip
+    // and voiceover measures durations — concurrent execution interleaves
+    // timeline mutations and produces out-of-order placements.
+    await store.withTransaction(async () => {
       for (const target of pending) {
-        void (async () => {
-          const result = await applyTool(target.name, target.args, { undoStep: false })
-          setProposals((prev) =>
-            prev.map((p) =>
-              p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
-            ),
-          )
-        })()
+        const result = await applyTool(target.name, target.args, { undoStep: false })
+        setProposals((prev) =>
+          prev.map((p) =>
+            p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
+          ),
+        )
       }
       void refreshQualityAfterEdit()
     }, { type: 'edit', description: `AI: applied ${pending.length} proposal${pending.length !== 1 ? 's' : ''}` })
@@ -1391,6 +1423,7 @@ export function AIDirector({
                 <button
                   type="button"
                   onClick={() => {
+                    cancelPendingQuestion()
                     setMessages([])
                     setProposals([])
                     setPlan(null)

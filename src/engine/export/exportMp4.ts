@@ -5,9 +5,10 @@ import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
 import { mixProjectAudio, type MixedAudio } from './audioMix'
 import { loadMediaElement, seekTo } from './exportVideo'
+import { wrapSourceTime } from '@/engine/media/sourceTime'
 import type { ExportOptions, ExportResult } from './exportVideo'
 import { createEncoderGuard, waitForDrain, yieldToBrowser } from './encoderGuard'
-import { setExportActive } from './exportSession'
+import { beginExportSession } from './exportSession'
 import { deviceSafetyGuard } from '@/engine/safety/DeviceSafetyGuard'
 import {
   BufferTarget,
@@ -107,14 +108,14 @@ export async function exportMp4(
     throw new Error('WebCodecs VideoEncoder is not supported in this browser')
   }
 
-  setExportActive(true)
+  const releaseExport = beginExportSession()
 
   const canvas = document.createElement('canvas')
   canvas.width = opts.width
   canvas.height = opts.height
   const ctx = canvas.getContext('2d')
   if (!ctx) {
-    setExportActive(false)
+    releaseExport()
     throw new Error('Canvas 2D context unavailable')
   }
 
@@ -130,10 +131,22 @@ export async function exportMp4(
       ? null
       : await mixProjectAudio(project, assets, { masterVolume: opts.masterVolume ?? 1, muted: opts.muted ?? false }, opts.signal)
 
+  // Only declare an audio track when we can actually encode AAC — a declared
+  // track with zero packets produces a malformed MP4.
   let audioSource: EncodedAudioPacketSource | null = null
-  if (mixedAudio) {
-    audioSource = new EncodedAudioPacketSource('aac')
-    output.addAudioTrack(audioSource)
+  if (mixedAudio && typeof AudioEncoder !== 'undefined') {
+    const aacSupported = await AudioEncoder.isConfigSupported({
+      codec: 'mp4a.40.2',
+      sampleRate: mixedAudio.sampleRate,
+      numberOfChannels: Math.min(2, mixedAudio.buffer.numberOfChannels),
+      bitrate: 128_000,
+    })
+      .then((s) => s.supported)
+      .catch(() => false)
+    if (aacSupported) {
+      audioSource = new EncodedAudioPacketSource('aac')
+      output.addAudioTrack(audioSource)
+    }
   }
   await output.start()
 
@@ -216,7 +229,9 @@ export async function exportMp4(
               el = await loadMediaElement(asset, blobUrls)
               mediaElements.set(asset.id, el)
             }
-            const elTime = Math.min(Math.max(0, srcTime), Math.max(0, (asset.duration ?? srcTime) - 0.05))
+            // Match the WebM pipeline: loop short sources (stickers/GIFs)
+            // instead of freezing on the final frame.
+            const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration)
             await seekTo(el, elTime)
             return el.videoWidth > 0 ? el : null
           },
@@ -252,7 +267,7 @@ export async function exportMp4(
     await Promise.race([encoder.flush(), guard.failure])
     if (audioEncoder && mixedAudio) await encodeAudioAac(audioEncoder, mixedAudio, opts.signal)
   } finally {
-    setExportActive(false)
+    releaseExport()
     if (encoder.state !== 'closed') encoder.close()
     if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close()
     for (const el of mediaElements.values()) {

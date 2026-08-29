@@ -11,9 +11,18 @@ import {
   ShieldCheck,
   Search,
   Key,
+  Lock,
+  Unlock,
+  RotateCcw,
+  Trash2,
+  Loader2,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useApiConfigStore } from '@/api/config/store'
+import { getMasterKeyState, verifyMasterPassphrase } from '@/api/config/crypto'
 import { ConnectionOverview } from '@/components/settings/ConnectionOverview'
 import { NvidiaNimCard } from '@/components/settings/cards/NvidiaNimCard'
 import { OpenCodeZenCard } from '@/components/settings/cards/OpenCodeZenCard'
@@ -30,9 +39,10 @@ import { PreferencesCard } from '@/components/settings/cards/PreferencesCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-type SettingsTab = 'all' | 'ai' | 'voice' | 'web' | 'media' | 'engine' | 'shortcuts'
+type SettingsTab = 'all' | 'ai' | 'voice' | 'web' | 'media' | 'engine' | 'shortcuts' | 'security'
 
 function SectionLabel({
   children,
@@ -172,6 +182,7 @@ export function SettingsPage() {
             { id: 'media', label: 'Stock & 3D', icon: ImageIcon },
             { id: 'engine', label: 'Preferences', icon: Sliders },
             { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
+            { id: 'security', label: 'Security', icon: ShieldCheck },
           ].map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -361,6 +372,321 @@ export function SettingsPage() {
             </div>
           </section>
         )}
+
+        {/* 8. Security & Encryption */}
+        {(activeTab === 'all' || activeTab === 'security') && (match('security') || match('encryption') || match('passphrase') || match('master')) && (
+          <section className="flex flex-col gap-3">
+            <SectionLabel icon={ShieldCheck} description="Manage local encryption passphrase for API key storage">
+              Security & Encryption
+            </SectionLabel>
+            <SecuritySection />
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SecuritySection() {
+  const { clearMasterKey } = useApiConfigStore()
+  const [masterKeyState, setMasterKeyState] = React.useState<Awaited<ReturnType<typeof getMasterKeyState>> | null>(null)
+  const [showChangePassphrase, setShowChangePassphrase] = React.useState(false)
+  const [currentPassphrase, setCurrentPassphrase] = React.useState('')
+  const [newPassphrase, setNewPassphrase] = React.useState('')
+  const [confirmPassphrase, setConfirmPassphrase] = React.useState('')
+  const [showCurrent, setShowCurrent] = React.useState(false)
+  const [showNew, setShowNew] = React.useState(false)
+  const [showConfirm, setShowConfirm] = React.useState(false)
+  const [isChanging, setIsChanging] = React.useState(false)
+  const [isRemoving, setIsRemoving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [success, setSuccess] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    getMasterKeyState().then(setMasterKeyState)
+  }, [])
+
+  const handleChangePassphrase = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
+
+    if (newPassphrase.length < 8) {
+      setError('New passphrase must be at least 8 characters')
+      return
+    }
+    if (newPassphrase !== confirmPassphrase) {
+      setError('Passphrases do not match')
+      return
+    }
+
+    setIsChanging(true)
+    try {
+      // Verify current passphrase
+      const verified = await verifyMasterPassphrase(currentPassphrase)
+      if (!verified) {
+        setError('Current passphrase is incorrect')
+        return
+      }
+
+      // Remove old and set new
+      await clearMasterKey()
+      const { setMasterPassphrase } = await import('@/api/config/crypto')
+      await setMasterPassphrase(newPassphrase)
+
+      // Re-encrypt config with new passphrase
+      const { useApiConfigStore: store } = await import('@/api/config/store')
+      const config = store.getState().config
+      const { encryptConfig } = await import('@/api/config/crypto')
+      const STORAGE_KEY = 'clipforge-api-config'
+      const encrypted = await encryptConfig(config as unknown as Record<string, unknown>, newPassphrase)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(encrypted))
+
+      setSuccess('Passphrase changed successfully')
+      setShowChangePassphrase(false)
+      setCurrentPassphrase('')
+      setNewPassphrase('')
+      setConfirmPassphrase('')
+      getMasterKeyState().then(setMasterKeyState)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change passphrase')
+    } finally {
+      setIsChanging(false)
+    }
+  }
+
+  const handleRemovePassphrase = async () => {
+    setError(null)
+    setSuccess(null)
+
+    if (!confirm('This will remove encryption from your API keys. They will be stored in plaintext. Continue?')) {
+      return
+    }
+
+    setIsRemoving(true)
+    try {
+      await clearMasterKey()
+      // Save config unencrypted
+      const { useApiConfigStore: store } = await import('@/api/config/store')
+      const config = store.getState().config
+      localStorage.setItem('clipforge-api-config', JSON.stringify(config))
+      setSuccess('Encryption removed. API keys are now stored in plaintext.')
+      getMasterKeyState().then(setMasterKeyState)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove encryption')
+    } finally {
+      setIsRemoving(false)
+    }
+  }
+
+  if (!masterKeyState) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  const isEncryptedV2 = masterKeyState.version === 2 && masterKeyState.hasPassphrase
+  const isEncryptedV1 = masterKeyState.version === 1 && masterKeyState.hasPassphrase
+
+  return (
+    <div className="space-y-4">
+      {/* Current Status */}
+      <div className="rounded-xl border bg-card p-4 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              'flex size-10 items-center justify-center rounded-full',
+              isEncryptedV2 ? 'bg-emerald-500/10 text-emerald-600'
+                : isEncryptedV1 ? 'bg-amber-500/10 text-amber-600'
+                : 'bg-muted text-muted-foreground'
+            )}>
+              {isEncryptedV2 ? (
+                <Lock className="size-5" />
+              ) : isEncryptedV1 ? (
+                <AlertCircle className="size-5" />
+              ) : (
+                <Unlock className="size-5" />
+              )}
+            </div>
+            <div>
+              <h4 className="font-medium text-foreground">
+                {isEncryptedV2 ? 'AES-256 Encryption Active' : isEncryptedV1 ? 'Legacy Encryption (Auto-Generated Key)' : 'No Encryption'}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {isEncryptedV2
+                  ? 'Your API keys are encrypted with a passphrase you created. The passphrase is never stored.'
+                  : isEncryptedV1
+                    ? 'Your API keys are encrypted with an auto-generated key stored in localStorage. Consider upgrading to a personal passphrase.'
+                    : 'API keys are stored in plaintext. Set a passphrase to enable encryption.'}
+              </p>
+            </div>
+          </div>
+          {isEncryptedV1 && !showChangePassphrase && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowChangePassphrase(true)}
+              className="shrink-0"
+            >
+              <Lock className="mr-1.5 size-3.5" />
+              Upgrade to Personal Passphrase
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Change Passphrase Form */}
+      {showChangePassphrase && (
+        <div className="rounded-xl border bg-card p-4 shadow-xs animate-in slide-in-from-top-2 duration-200">
+          <h4 className="mb-3 font-medium text-foreground">Change Master Passphrase</h4>
+          <form onSubmit={handleChangePassphrase} className="space-y-3">
+            {error && (
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+            )}
+            {success && (
+              <div className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-600">{success}</div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="current-passphrase" className="text-sm font-medium">Current Passphrase</Label>
+              <div className="relative">
+                <Input
+                  id="current-passphrase"
+                  type={showCurrent ? 'text' : 'password'}
+                  value={currentPassphrase}
+                  onChange={(e) => setCurrentPassphrase(e.target.value)}
+                  placeholder="Enter current passphrase"
+                  autoComplete="off"
+                  disabled={isChanging}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrent(!showCurrent)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showCurrent ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="new-passphrase" className="text-sm font-medium">New Passphrase (min 8 chars)</Label>
+              <div className="relative">
+                <Input
+                  id="new-passphrase"
+                  type={showNew ? 'text' : 'password'}
+                  value={newPassphrase}
+                  onChange={(e) => setNewPassphrase(e.target.value)}
+                  placeholder="Enter new passphrase"
+                  autoComplete="off"
+                  disabled={isChanging}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showNew ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-passphrase" className="text-sm font-medium">Confirm New Passphrase</Label>
+              <div className="relative">
+                <Input
+                  id="confirm-passphrase"
+                  type={showConfirm ? 'text' : 'password'}
+                  value={confirmPassphrase}
+                  onChange={(e) => setConfirmPassphrase(e.target.value)}
+                  placeholder="Confirm new passphrase"
+                  autoComplete="off"
+                  disabled={isChanging}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" disabled={isChanging || newPassphrase.length < 8}>
+                {isChanging ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Updating…
+                  </>
+                ) : (
+                  'Change Passphrase'
+                )}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setShowChangePassphrase(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-3">
+        {masterKeyState.version === 2 && masterKeyState.hasPassphrase && !showChangePassphrase && (
+          <Button variant="outline" size="sm" onClick={() => setShowChangePassphrase(true)}>
+            <RotateCcw className="mr-1.5 size-3.5" />
+            Change Passphrase
+          </Button>
+        )}
+        {(isEncryptedV2 || isEncryptedV1) ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleRemovePassphrase}
+            disabled={isRemoving}
+          >
+            {isRemoving ? (
+              <>
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                Removing…
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-1.5 size-3.5" />
+                Remove Encryption
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowChangePassphrase(true)}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            <Lock className="mr-1.5 size-3.5" />
+            Set Passphrase & Enable Encryption
+          </Button>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+        <p className="font-medium mb-1">How it works:</p>
+        <ul className="list-disc list-inside space-y-1">
+          <li>Your passphrase is used with PBKDF2 (100,000 iterations) to derive an AES-256-GCM encryption key.</li>
+          <li>The passphrase is <strong>never stored</strong> — it's only used in memory during your session.</li>
+          <li>Only the salt (random per session) and version are stored in localStorage.</li>
+          <li>If you forget your passphrase, <strong>your encrypted API keys cannot be recovered</strong>.</li>
+          <li>Legacy auto-generated keys are vulnerable to XSS — upgrading to a personal passphrase is recommended.</li>
+        </ul>
       </div>
     </div>
   )

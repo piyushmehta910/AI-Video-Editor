@@ -45,14 +45,14 @@ export const elevenLabsProvider: TtsProvider = {
     const timeoutMs = cfg.timeoutMs ?? 60000
     const url = `${base}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${encodeURIComponent(format)}`
     const res = needsProxy(url)
-      ? await proxyFetch(url, { ...init, signal: undefined }, timeoutMs)
+      ? await proxyFetch(url, init, timeoutMs)
       : await fetch(url, init)
     if (!res.ok) {
       const text = await res.text().catch(() => '')
       throw new Error(`ElevenLabs TTS error ${res.status}: ${text.slice(0, 200)}`)
     }
     const blob = await res.blob()
-    return { blob, url: URL.createObjectURL(blob) }
+    return { blob }
   },
 }
 

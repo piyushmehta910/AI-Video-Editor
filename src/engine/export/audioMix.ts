@@ -27,10 +27,13 @@ export async function mixProjectAudio(
   const audioClips: Array<{ clip: Clip; track: Track; asset: Asset }> = []
   for (const track of project.tracks) {
     if (track.hidden || track.locked) continue
+    // Both dedicated audio tracks AND video tracks count: footage clips carry
+    // embedded audio that must reach the export mix.
+    if (track.type !== 'audio' && track.type !== 'video') continue
     for (const clip of track.clips) {
-      if (track.type !== 'audio') continue
       const asset = assets.find((a) => a.id === clip.assetId)
       if (!asset) continue
+      if (asset.type === 'image') continue // images are silent
       audioClips.push({ clip, track, asset })
     }
   }
@@ -43,7 +46,9 @@ export async function mixProjectAudio(
 
   const ctx = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate)
 
-  const anySolo = project.tracks.some((t) => t.type === 'audio' && t.soloed)
+  const anySolo = project.tracks.some(
+    (t) => (t.type === 'audio' || t.type === 'video') && (t as Track & { soloed?: boolean }).soloed,
+  )
 
   for (const { clip, track, asset } of audioClips) {
     if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
@@ -56,7 +61,7 @@ export async function mixProjectAudio(
       continue
     }
 
-    const soloed = anySolo && track.type === 'audio' ? (track.soloed ? 1 : 0) : 1
+    const soloed = anySolo ? ((track as Track & { soloed?: boolean }).soloed ? 1 : 0) : 1
     const baseGain = clip.volume * (clip.muted ? 0 : 1) * (track.muted ? 0 : 1) * soloed * masterVolume * (muted ? 0 : 1)
     if (baseGain <= 0) continue
 
@@ -68,6 +73,9 @@ export async function mixProjectAudio(
     const source = ctx.createBufferSource()
     source.buffer = audioBuffer
     source.playbackRate.value = clip.speed
+    // Match preview playback: pitch stays constant unless the user asked for a shift.
+    const preservesPitch = (clip as Clip & { preservePitch?: boolean }).preservePitch !== false
+    ;(source as AudioBufferSourceNode & { preservesPitch?: boolean }).preservesPitch = preservesPitch
 
     // Three-band EQ inserted between the source and the gain stage.
     let head: AudioNode = source
@@ -93,9 +101,12 @@ export async function mixProjectAudio(
     }
 
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(baseGain, when)
     if (clip.fadeIn > 0 && clip.duration > 0) {
+      // Fade in from silence — ramping baseGain→baseGain would be a no-op.
+      gain.gain.setValueAtTime(0, when)
       gain.gain.linearRampToValueAtTime(baseGain, Math.min(end, when + clip.fadeIn))
+    } else {
+      gain.gain.setValueAtTime(baseGain, when)
     }
     if (clip.fadeOut > 0 && clip.duration > 0) {
       const fadeStart = Math.max(when, end - clip.fadeOut)

@@ -134,7 +134,7 @@ export interface TimelineState {
 }
 
 function cloneProject(p: Project): Project {
-  return JSON.parse(JSON.stringify(p)) as Project
+  return structuredClone(p) as Project
 }
 
 const PATCH_DESCRIPTIONS: Array<[keyof Clip, string, HistoryType]> = [
@@ -292,6 +292,12 @@ export const useTimelineStore = create<TimelineState>()(
         Math.max(start, c.startTime) < Math.min(start + duration, c.startTime + c.duration) - 0.01,
     )
 
+  /**
+   * Pure track resolver: never mutates `project` (mutating live state here
+   * would leak untracked tracks into history snapshots). When no free track
+   * exists it returns a fresh candidate — callers must insert it inside their
+   * mutate() callback if absent.
+   */
   const findNonCollidingTrack = (
     project: Project,
     requestedTrack: Track,
@@ -318,7 +324,6 @@ export const useTimelineStore = create<TimelineState>()(
       hidden: false,
       clips: [],
     }
-    project.tracks.push(newTrack)
     return newTrack
   }
 
@@ -414,6 +419,9 @@ export const useTimelineStore = create<TimelineState>()(
           hydrated: true,
           welcomeLoaded,
         })
+        // A later successful hydrate re-enables autosave even if an earlier
+        // attempt failed transiently.
+        hydrateFailed = false
       } catch (err) {
         console.error('Hydrate failed', err)
         // Block autosave: writing now would overwrite the stored project with a blank one.
@@ -470,6 +478,8 @@ export const useTimelineStore = create<TimelineState>()(
       pendingPast = null
       pendingMeta = null
       pendingUi = null
+      // The stored project loaded fine, so autosave is safe again.
+      hydrateFailed = false
       set({
         project: migrateProjectTracks(stored),
         assets,
@@ -559,12 +569,16 @@ export const useTimelineStore = create<TimelineState>()(
     deleteAsset: async (assetId) => {
       const asset = get().assets.find((a) => a.id === assetId)
       if (!asset) return
+      // Removing the asset also removes its clips — make that undoable so the
+      // timeline side of the deletion can be reversed.
+      get().begin({ type: 'remove', description: `Removed clips of '${asset.name}'` })
       mutate((p) => {
         for (const track of p.tracks) {
           track.clips = track.clips.filter((c) => c.assetId !== assetId)
         }
         return p
       })
+      commitHistory()
       await deleteRecord('assets', assetId)
       await deleteMediaFile(assetId)
       set((state) => ({ assets: state.assets.filter((a) => a.id !== assetId) }))
@@ -804,10 +818,12 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     addClipToTrack: (clip) => {
-      clip.startTime = Math.max(0, clip.startTime)
-      clip.sourceStart = Math.max(0, clip.sourceStart)
       get().begin({ type: 'add', description: `Added '${clip.name}'`, clipId: clip.id })
       mutate((p) => {
+        // Clamp inside the draft stage so the caller's object is never touched
+        // before it becomes part of the document.
+        clip.startTime = Math.max(0, clip.startTime)
+        clip.sourceStart = Math.max(0, clip.sourceStart)
         let t = p.tracks.find((tr) => tr.id === clip.trackId)
         if (!t) {
           t = p.tracks[0]
@@ -853,9 +869,14 @@ export const useTimelineStore = create<TimelineState>()(
             const targetTrack = isTrackOverlapping(dest, updated.startTime, updated.duration, clipId)
               ? findNonCollidingTrack(p, dest, updated.startTime, updated.duration, clipId)
               : dest
-            updated.trackId = targetTrack.id
-            targetTrack.clips.push(updated)
-            targetTrack.clips.sort((a, b) => a.startTime - b.startTime)
+            let insertDest = p.tracks.find((t) => t.id === targetTrack.id)
+            if (!insertDest) {
+              p.tracks.push(targetTrack)
+              insertDest = targetTrack
+            }
+            updated.trackId = insertDest.id
+            insertDest.clips.push(updated)
+            insertDest.clips.sort((a, b) => a.startTime - b.startTime)
             return p
           }
         }
@@ -866,9 +887,14 @@ export const useTimelineStore = create<TimelineState>()(
             const targetTrack = findNonCollidingTrack(p, track, updated.startTime, updated.duration, clipId)
             if (targetTrack.id !== track.id) {
               track.clips = track.clips.filter((c) => c.id !== clipId)
-              updated.trackId = targetTrack.id
-              targetTrack.clips.push(updated)
-              targetTrack.clips.sort((a, b) => a.startTime - b.startTime)
+              let moveInsert = p.tracks.find((t) => t.id === targetTrack.id)
+              if (!moveInsert) {
+                p.tracks.push(targetTrack)
+                moveInsert = targetTrack
+              }
+              updated.trackId = moveInsert.id
+              moveInsert.clips.push(updated)
+              moveInsert.clips.sort((a, b) => a.startTime - b.startTime)
               return p
             }
           }
@@ -954,11 +980,16 @@ export const useTimelineStore = create<TimelineState>()(
         if (stillColliding) {
           destTrack = findNonCollidingTrack(p, destTrack, nextStart, duration, clipId)
         }
+        let moveDest = p.tracks.find((t) => t.id === destTrack.id)
+        if (!moveDest) {
+          p.tracks.push(destTrack)
+          moveDest = destTrack
+        }
 
         movingClip.startTime = nextStart
-        movingClip.trackId = destTrack.id
-        destTrack.clips.push(movingClip)
-        destTrack.clips.sort((a, b) => a.startTime - b.startTime)
+        movingClip.trackId = moveDest.id
+        moveDest.clips.push(movingClip)
+        moveDest.clips.sort((a, b) => a.startTime - b.startTime)
         return p
       })
       commitHistory()
@@ -981,27 +1012,28 @@ export const useTimelineStore = create<TimelineState>()(
           const prevClips = otherClips.filter((other) => other.startTime + other.duration <= c.startTime + 0.01)
           const minPossibleStart = prevClips.length > 0 ? Math.max(...prevClips.map((other) => other.startTime + other.duration)) : 0
 
-          const newStart = Math.max(0, c.sourceStart + delta)
-          const applied = Math.min(newStart, c.sourceEnd - frame)
-          const deltaApplied = applied - c.sourceStart
-          let newClipStart = c.startTime + deltaApplied
-          newClipStart = Math.max(minPossibleStart, newClipStart)
-          const actualDelta = newClipStart - c.startTime
+          // `delta` arrives in TIMELINE seconds; source space moves by delta×speed.
+          const requestedSourceStart = c.sourceStart + delta * c.speed
+          const appliedSourceStart = Math.min(Math.max(0, requestedSourceStart), c.sourceEnd - frame)
+          let newClipStart = c.startTime + (appliedSourceStart - c.sourceStart) / c.speed
+          newClipStart = Math.max(0, minPossibleStart, newClipStart)
+          const timelineDelta = newClipStart - c.startTime
 
           c.startTime = newClipStart
-          c.duration = Math.max(frame, c.duration - actualDelta)
-          c.sourceStart = Math.max(0, c.sourceStart + actualDelta)
+          c.duration = Math.max(frame, c.duration - timelineDelta)
+          c.sourceStart = Math.max(0, c.sourceStart + timelineDelta * c.speed)
         } else {
           const nextClips = otherClips.filter((other) => other.startTime >= c.startTime + c.duration - 0.01)
           const maxPossibleEnd = nextClips.length > 0 ? Math.min(...nextClips.map((other) => other.startTime)) : c.startTime + 3600
 
-          const newEnd = Math.min(c.sourceEnd + delta, c.sourceStart + 3600)
-          const desiredDuration = Math.max(frame, c.duration + (newEnd - c.sourceEnd))
+          const requestedSourceEnd = c.sourceEnd + delta * c.speed
+          const newSourceEnd = Math.min(Math.max(requestedSourceEnd, c.sourceStart + frame), c.sourceStart + 3600)
+          const growthTimeline = (newSourceEnd - c.sourceEnd) / c.speed
           const maxDuration = Math.max(frame, maxPossibleEnd - c.startTime)
-          const clampedDuration = Math.min(desiredDuration, maxDuration)
+          const clampedDuration = Math.max(frame, Math.min(c.duration + growthTimeline, maxDuration))
 
           c.duration = clampedDuration
-          c.sourceEnd = c.sourceStart + clampedDuration
+          c.sourceEnd = c.sourceStart + clampedDuration * c.speed
         }
         return p
       })
@@ -1021,7 +1053,9 @@ export const useTimelineStore = create<TimelineState>()(
           const idx = track.clips.findIndex((c) => c.id === clipId)
           if (idx === -1) continue
           const original = track.clips[idx]
-          const sourceCut = original.sourceStart + splitTime
+          // `splitTime` is a TIMELINE offset — the cut lands splitTime×speed
+          // into the source media.
+          const sourceCut = original.sourceStart + splitTime * original.speed
           const left: Clip = { ...original, duration: splitTime, sourceEnd: sourceCut }
           const right: Clip = {
             ...original,
@@ -1147,7 +1181,9 @@ export const useTimelineStore = create<TimelineState>()(
             const minStart = Math.min(...removed.map((c) => c.startTime))
             const removedLength = removed.reduce((sum, c) => sum + c.duration, 0)
             track.clips = remaining.map((c) =>
-              c.startTime >= minStart ? { ...c, startTime: c.startTime - removedLength } : c,
+              c.startTime >= minStart
+                ? { ...c, startTime: Math.max(0, Math.round((c.startTime - removedLength) * 100) / 100) }
+                : c,
             )
           } else {
             track.clips = remaining
@@ -1170,12 +1206,19 @@ export const useTimelineStore = create<TimelineState>()(
             // Find a non-colliding placement: on an empty track or after c
             const targetTrack = findNonCollidingTrack(p, track, c.startTime, c.duration)
             const dupStartTime = targetTrack.id === track.id ? c.startTime + c.duration : c.startTime
-            const finalTrack = isTrackOverlapping(targetTrack, dupStartTime, c.duration)
+            let finalTrack = isTrackOverlapping(targetTrack, dupStartTime, c.duration)
               ? findNonCollidingTrack(p, targetTrack, dupStartTime, c.duration)
               : targetTrack
+            let dupDest = p.tracks.find((t) => t.id === finalTrack.id)
+            if (!dupDest) {
+              p.tracks.push(finalTrack)
+              dupDest = finalTrack
+            } else {
+              finalTrack = dupDest
+            }
 
             const dup: Clip = {
-              ...(JSON.parse(JSON.stringify(c)) as Clip),
+              ...(structuredClone(c) as Clip),
               id: crypto.randomUUID(),
               trackId: finalTrack.id,
               startTime: dupStartTime,
@@ -1197,7 +1240,7 @@ export const useTimelineStore = create<TimelineState>()(
       const copied: Clip[] = []
       for (const track of get().project.tracks) {
         for (const c of track.clips) {
-          if (ids.has(c.id)) copied.push(JSON.parse(JSON.stringify(c)) as Clip)
+          if (ids.has(c.id)) copied.push(structuredClone(c) as Clip)
         }
       }
       set({ clipboard: copied })
@@ -1209,7 +1252,7 @@ export const useTimelineStore = create<TimelineState>()(
       const copied: Clip[] = []
       for (const track of s.project.tracks) {
         for (const c of track.clips) {
-          if (ids.has(c.id)) copied.push(JSON.parse(JSON.stringify(c)) as Clip)
+          if (ids.has(c.id)) copied.push(structuredClone(c) as Clip)
         }
       }
       set({ clipboard: copied })
@@ -1231,7 +1274,7 @@ export const useTimelineStore = create<TimelineState>()(
           const pasteStart = playhead + (src.startTime - minStart)
           const targetTrack = findNonCollidingTrack(p, track, pasteStart, src.duration)
           const paste: Clip = {
-            ...(JSON.parse(JSON.stringify(src)) as Clip),
+            ...(structuredClone(src) as Clip),
             id: crypto.randomUUID(),
             trackId: targetTrack.id,
             startTime: pasteStart,

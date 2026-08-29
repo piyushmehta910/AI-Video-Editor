@@ -1,23 +1,19 @@
 // Provider APIs are proxied so valid keys do not fail because of browser CORS
-// policies. Keep this list in sync with the server-side allowlist.
-const PROXIED_HOSTS = [
-  'integrate.api.nvidia.com',
-  'opencode.ai',
-  'api.deezer.com',
-  'api.elevenlabs.io',
-]
+// policies. The allowlist lives in shared/proxyHosts.ts — the single source of
+// truth shared with the server-side proxies.
+import { isAllowedProxyUrl } from '@/lib/proxyHosts'
 
 export function needsProxy(url: string): boolean {
-  try {
-    return PROXIED_HOSTS.includes(new URL(url).hostname)
-  } catch {
-    return false
-  }
+  return isAllowedProxyUrl(url)
 }
 
 export async function proxyFetch(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  // Propagate caller cancellation (e.g. the Director's stop button) into this
+  // request instead of letting it run to the full timeout.
+  const onOuterAbort = () => controller.abort()
+  init.signal?.addEventListener('abort', onOuterAbort)
   try {
     const headers: Record<string, string> = {}
     const source = init.headers instanceof Headers ? init.headers : new Headers(init.headers)
@@ -37,5 +33,6 @@ export async function proxyFetch(url: string, init: RequestInit, timeoutMs: numb
     return res
   } finally {
     clearTimeout(timer)
+    init.signal?.removeEventListener('abort', onOuterAbort)
   }
 }
