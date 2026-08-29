@@ -144,5 +144,6 @@ const RESERVE_PREVENT = new Set<CommandId>([
   'zoomOut',
   'zoomReset',
   'showShortcuts',
+  'commandPalette',
   'cancelOperation',
 ] as CommandId[])

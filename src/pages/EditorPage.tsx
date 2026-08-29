@@ -17,6 +17,7 @@ import { AIDirector } from '@/ui/ai/AIDirector'
 import { Button } from '@/components/ui/button'
 import { EditorLayout } from '@/components/editor/EditorLayout'
 import { ShortcutsModal } from '@/components/shortcuts/ShortcutsModal'
+import { CommandPalette } from '@/components/editor/CommandPalette'
 import { ShortcutKeystrokeOverlay } from '@/components/shortcuts/ShortcutHelp'
 import { OnboardingTour, TOUR_DISMISSED_KEY } from '@/components/onboarding/OnboardingTour'
 import { cn } from '@/lib/utils'
@@ -76,6 +77,7 @@ export function EditorPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Global shortcut UI (both layouts) */}
       <ShortcutsModal />
+      <CommandPalette />
       <ShortcutKeystrokeOverlay />
       {isMobile ? (
         <>

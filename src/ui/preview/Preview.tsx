@@ -1,6 +1,7 @@
 import * as React from 'react'
-import { Captions, Film, Maximize, Pause, Play, SkipBack, SkipForward, StepBack, StepForward, Volume2, VolumeX } from 'lucide-react'
+import { Captions, Film, Grid3X3, Maximize, Pause, Play, SkipBack, SkipForward, StepBack, StepForward, Volume2, VolumeX } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useEditorStore } from '@/stores/editorStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { formatSeconds } from '@/engine/types'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,10 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
   const duration = useTimelineStore((s) => s.duration())
   const captionsEnabled = useTimelineStore((s) => s.project.captions?.enabled ?? false)
   const setCaptions = useTimelineStore((s) => s.setCaptions)
+  const guidesEnabled = useEditorStore((s) => s.guidesEnabled)
+  const setGuidesEnabled = useEditorStore((s) => s.setGuidesEnabled)
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const barRef = React.useRef<HTMLDivElement>(null)
   const previewAreaRef = React.useRef<HTMLDivElement>(null)
   const hideTimer = React.useRef<number | undefined>(undefined)
   const [fullscreen, setFullscreen] = React.useState(false)
@@ -86,7 +90,7 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
   }
 
   const scrub = (clientX: number) => {
-    const rect = containerRef.current?.getBoundingClientRect()
+    const rect = barRef.current?.getBoundingClientRect()
     if (!rect) return
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
     playback.seek(ratio * (duration || 1))
@@ -109,6 +113,19 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
             style={{ width: canvasCssSize.w, height: canvasCssSize.h }}
           >
             <canvas ref={playback.canvasRef} className="block size-full" />
+
+            {guidesEnabled && (
+              <div className="pointer-events-none absolute inset-0">
+                {/* Center cross */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/25" />
+                <div className="absolute top-1/2 right-0 left-0 h-px bg-white/25" />
+                {/* Rule of thirds */}
+                <div className="absolute top-0 bottom-0 left-1/3 w-px bg-white/15" />
+                <div className="absolute top-0 bottom-0 right-1/3 w-px bg-white/15" />
+                <div className="absolute top-1/3 right-0 left-0 h-px bg-white/15" />
+                <div className="absolute bottom-1/3 right-0 left-0 h-px bg-white/15" />
+              </div>
+            )}
           </div>
         )}
 
@@ -146,6 +163,7 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
         )}
       >
         <div
+          ref={barRef}
           className="group relative h-4 cursor-pointer"
           onPointerDown={(e) => {
             setDragging(true)
@@ -212,6 +230,16 @@ export function Preview({ playback, onOpenMedia }: { playback: PlaybackApi; onOp
               title="Toggle captions"
             >
               <Captions className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('size-8 hover:bg-white/10 hover:text-white', guidesEnabled ? 'text-violet-400' : 'text-white/60')}
+              onClick={() => setGuidesEnabled(!guidesEnabled)}
+              title="Toggle safety guides (rule of thirds / center)"
+              data-testid="guides-toggle"
+            >
+              <Grid3X3 className="size-4" />
             </Button>
             <div className="hidden items-center gap-2 sm:flex">
               <Button

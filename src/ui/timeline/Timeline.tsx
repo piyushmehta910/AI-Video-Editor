@@ -164,7 +164,11 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const playheadRef = React.useRef<HTMLDivElement>(null)
   const audioBarRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
+// Cached track bounding rects during drag — avoids per-frame querySelectorAll
+// on the entire viewport which would force per-frame layout recalc.
+const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: number }>>([])
   const [isScrubbingRuler, setIsScrubbingRuler] = React.useState(false)
+  const [clipMenu, setClipMenu] = React.useState<{ x: number; y: number; clipId: string } | null>(null)
 
   const assetById = React.useCallback(
     (id: string) => assets.find((a) => a.id === id),
@@ -229,6 +233,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const handleViewportScroll = React.useCallback(() => {
     movePlayheadDom(useTimelineStore.getState().playhead, useTimelineStore.getState().zoom)
     layoutAudioBar()
+    setClipMenu(null)
   }, [movePlayheadDom, layoutAudioBar])
 
   const groups = React.useMemo(() => {
@@ -335,6 +340,14 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
           : `Trimmed '${clip.name}'`,
       clipId: clip.id,
     })
+    // Snapshot track rects once so handleDragMove avoids per-frame DOM reads.
+    const trackEls = viewportRef.current?.querySelectorAll<HTMLElement>('[data-timeline-track]')
+    trackRectsRef.current = trackEls
+      ? Array.from(trackEls).map((el, i) => {
+          const r = el.getBoundingClientRect()
+          return { id: project.tracks[i]?.id ?? '', top: r.top, bottom: r.bottom }
+        })
+      : []
     const originals = new Map<string, Clip>()
     for (const id of clipIds) {
       for (const t of store.project.tracks) {
@@ -394,12 +407,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
 
     const vp = viewportRef.current
     if (!vp) return
-    const rows = vp.querySelectorAll<HTMLElement>('[data-timeline-track]')
-    let targetTrackIndex = -1
-    rows.forEach((el, i) => {
-      const r = el.getBoundingClientRect()
-      if (e.clientY >= r.top && e.clientY <= r.bottom) targetTrackIndex = i
-    })
+    const targetTrackIndex = trackRectsRef.current.findIndex(
+      (r) => e.clientY >= r.top && e.clientY <= r.bottom,
+    )
     const targetTrack = targetTrackIndex >= 0 ? project.tracks[targetTrackIndex] : undefined
     const firstOriginal = drag.originals.get(drag.clipIds[0])
     const origTrackType = firstOriginal ? project.tracks.find((t) => t.id === firstOriginal.trackId)?.type : undefined
@@ -457,6 +467,27 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     }
   }
 
+  const openClipMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-clip-id]')
+    const vpRect = viewportRef.current?.getBoundingClientRect()
+    if (!el || !vpRect) {
+      if (el === null) setClipMenu(null)
+      return
+    }
+    const id = el.dataset.clipId
+    if (!id) return
+    const store = useTimelineStore.getState()
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !store.selection.clipIds.includes(id)) {
+      store.select([id], null)
+    }
+    // Keep the menu on-screen regardless of where the click landed.
+    const estW = 224
+    const x = Math.max(4, Math.min(e.clientX, vpRect.right - estW - 4))
+    const y = Math.max(4, Math.min(e.clientY, vpRect.bottom - 220))
+    setClipMenu({ x, y, clipId: id })
+  }
+
   const deleteSelected = () => {
     const store = useTimelineStore.getState()
     if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds, false)
@@ -481,9 +512,12 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
     onOpenTool?.('text')
   }, [onOpenTool])
 
-  const { step, labelEvery } = computeTicks(duration, zoom)
-  const tickCount = Math.min(5000, Math.floor(duration / step) + 1)
-  const ticks = Array.from({ length: tickCount }, (_, i) => i * step)
+  const { step, labelEvery } = React.useMemo(() => computeTicks(duration, zoom), [duration, zoom])
+  const ticks = React.useMemo(() => {
+    // Hard cap prevents 5000+ DOM nodes for long projects while staying readable.
+    const count = Math.min(600, Math.floor(duration / step) + 1)
+    return Array.from({ length: count }, (_, i) => i * step)
+  }, [duration, step])
 
   return (
     <div
@@ -495,6 +529,9 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
       onPointerMove={handleDragMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onPointerDown={(e) => {
+        if (!(e.target as HTMLElement).closest('[data-clip-menu]')) setClipMenu(null)
+      }}
     >
       {/* Toolbar */}
       <div className="relative flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b px-1.5 sm:h-9 sm:gap-1 sm:px-2">
@@ -624,6 +661,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             }
           }}
           onScroll={handleViewportScroll}
+          onContextMenu={openClipMenu}
           onPointerDown={(e) => {
             const el = e.target as HTMLElement
             if (el.closest('[data-clip-id]')) return
@@ -951,8 +989,134 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
             </span>
           </div>
         )}
+      {/* Clip right-click context menu */}
+        {clipMenu && (
+          <TimelineClipMenu
+            x={clipMenu.x}
+            y={clipMenu.y}
+            clipId={clipMenu.clipId}
+            onClose={() => setClipMenu(null)}
+          />
+        )}
       </div>
     </div>
+  )
+}
+
+function TimelineClipMenu({
+  x,
+  y,
+  clipId,
+  onClose,
+}: {
+  x: number
+  y: number
+  clipId: string
+  onClose: () => void
+}) {
+  const store = useTimelineStore.getState()
+  let clip: Clip | null = null
+  for (const t of store.project.tracks) {
+    const c = t.clips.find((cc) => cc.id === clipId)
+    if (c) {
+      clip = c
+      break
+    }
+  }
+  if (!clip) return null
+
+  const seek = (t: number) => useTimelineStore.getState().setPlayhead(t)
+
+  return (
+    <div
+      data-clip-menu
+      className="bg-card fixed z-[60] flex min-w-[208px] flex-col gap-0.5 rounded-lg border border-border/70 p-1 shadow-2xl animate-in fade-in zoom-in-95 duration-100"
+      style={{ left: x, top: y }}
+      role="menu"
+    >
+      <div className="flex max-w-[240px] items-center gap-2 border-b border-border/40 px-2 py-1.5">
+        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">{clip.name}</span>
+        <span className="shrink-0 font-mono text-[9px] text-muted-foreground">{clip.duration.toFixed(1)}s</span>
+      </div>
+
+      <MenuItem label="Split at playhead" onClick={() => {
+        const s = useTimelineStore.getState()
+        const t = s.playhead
+        if (t > clip!.startTime + 0.05 && t < clip!.startTime + clip!.duration - 0.05) s.splitClip(clip!.id, t)
+        onClose()
+      }}>
+        <Slice className="size-3.5" />
+      </MenuItem>
+      <MenuItem label="Duplicate" onClick={() => {
+        useTimelineStore.getState().duplicateClips([clip!.id])
+        onClose()
+      }}>
+        <CopyPlus className="size-3.5" />
+      </MenuItem>
+      <MenuItem label="Cut" onClick={() => {
+        useTimelineStore.getState().cutClips([clip!.id])
+        onClose()
+      }}>
+        <Scissors className="size-3.5" />
+      </MenuItem>
+      <MenuItem label="Ripple delete" onClick={() => {
+        useTimelineStore.getState().deleteClips([clip!.id], true)
+        onClose()
+      }}>
+        <ArrowLeftRight className="size-3.5" />
+      </MenuItem>
+      <MenuItem label={`Speed: ${clip.speed}× (click to cycle)`} onClick={() => {
+        cycleRateTool(clip!.id)
+        onClose()
+      }}>
+        <Zap className="size-3.5" />
+      </MenuItem>
+      <div className="border-t border-border/40 my-1" />
+      <MenuItem label="Go to clip start" onClick={() => { seek(clip!.startTime); onClose() }}>
+        <ChevronRight className="size-3.5" />
+      </MenuItem>
+      <MenuItem label="Go to clip end" onClick={() => { seek(clip!.startTime + clip!.duration); onClose() }}>
+        <ChevronDown className="size-3.5" />
+      </MenuItem>
+      <MenuItem label="Delete" variant="danger" onClick={() => {
+        useTimelineStore.getState().deleteClips([clip!.id], false)
+        onClose()
+      }}>
+        <Trash2 className="size-3.5" />
+      </MenuItem>
+    </div>
+  )
+}
+
+function MenuItem({
+  label,
+  onClick,
+  children,
+  variant,
+}: {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+  variant?: 'danger'
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-medium transition-colors',
+        variant === 'danger'
+          ? 'text-destructive hover:bg-destructive/10'
+          : 'text-foreground hover:bg-violet-500/10 hover:text-violet-700 dark:hover:text-violet-300',
+      )}
+    >
+      <span className={cn(variant === 'danger' ? 'text-destructive' : 'text-muted-foreground')}>{children}</span>
+      <span className="flex-1">{label}</span>
+    </button>
   )
 }
 

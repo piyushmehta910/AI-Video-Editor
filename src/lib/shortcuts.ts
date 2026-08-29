@@ -51,6 +51,7 @@ export type CommandId =
   | 'zoomReset'
   | 'fitToScreen'
   | 'showShortcuts'
+  | 'commandPalette'
   | 'cancelOperation'
 
 export interface ShortcutDef {
@@ -114,6 +115,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'zoomReset', combos: ['mod+0'], keys: ['Ctrl 0'], category: 'View', description: 'Reset zoom' },
   { id: 'fitToScreen', combos: ['f'], keys: ['F'], category: 'View', description: 'Fit timeline to screen' },
   { id: 'showShortcuts', combos: ['?'], keys: ['?'], category: 'View', description: 'Keyboard shortcuts cheat sheet' },
+  { id: 'commandPalette', combos: ['mod+shift+p'], keys: ['Ctrl Shift P'], category: 'View', description: 'Command palette' },
   { id: 'cancelOperation', combos: ['escape'], keys: ['Esc'], category: 'View', description: 'Cancel tool / close dialog' },
 ]
 
@@ -473,6 +475,7 @@ export function createCommandMap(ctx: ShortcutContext): Record<CommandId, () => 
     zoomReset: () => tl().setZoom(90),
     fitToScreen: () => fitTimelineToScreen(),
     showShortcuts: () => ed().setShortcutsOpen(!ed().shortcutsOpen),
+    commandPalette: () => ed().setCommandPaletteOpen(!ed().commandPaletteOpen),
     cancelOperation: () => {
       if (ed().shortcutsOpen) {
         ed().setShortcutsOpen(false)

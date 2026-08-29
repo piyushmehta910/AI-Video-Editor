@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Clapperboard, Download, FilePlus, FolderOpen, History, Home, PanelLeft, Pencil, Save, Settings, Sparkles } from 'lucide-react'
+import { Check, Clapperboard, Download, FilePlus, FolderOpen, History, Home, PanelLeft, Pencil, Save, Search, Settings, Sparkles } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { DIALOG_EVENTS } from '@/lib/uiEvents'
 
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2', '2:3'] as const
 const FPS_OPTIONS = [24, 25, 30, 48, 50, 60]
@@ -88,6 +89,8 @@ export function TopToolbar() {
   const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
   const toggleAIDirector = useEditorStore((s) => s.toggleAIDirector)
   const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
+  const commandPaletteOpen = useEditorStore((s) => s.commandPaletteOpen)
+  const toggleCommandPalette = () => useEditorStore.setState({ commandPaletteOpen: !useEditorStore.getState().commandPaletteOpen })
 
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
 
@@ -96,6 +99,24 @@ export function TopToolbar() {
   const [exportOpen, setExportOpen] = React.useState(false)
   const [newProjectOpen, setNewProjectOpen] = React.useState(false)
   const [openProjectOpen, setOpenProjectOpen] = React.useState(false)
+
+  // Command palette and other surfaces (TopToolbar owns the project dialogs)
+  // can open them through window events without prop drilling.
+  React.useEffect(() => {
+    const onEvent = (kind: keyof typeof DIALOG_EVENTS) => {
+      if (kind === 'export') setExportOpen(true)
+      else if (kind === 'newProject') setNewProjectOpen(true)
+      else if (kind === 'openProject') setOpenProjectOpen(true)
+    }
+    const listeners = (Object.entries(DIALOG_EVENTS) as Array<[keyof typeof DIALOG_EVENTS, string]>).map(
+      ([kind, name]) => {
+        const handler = () => onEvent(kind)
+        window.addEventListener(name, handler)
+        return () => window.removeEventListener(name, handler)
+      },
+    )
+    return () => listeners.forEach((remove) => remove())
+  }, [])
   const [justSaved, setJustSaved] = React.useState(false)
 
   const commitName = () => {
@@ -296,6 +317,10 @@ export function TopToolbar() {
 
         <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
+        </ToolButton>
+
+        <ToolButton label="Command Palette (Ctrl Shift P)" onClick={toggleCommandPalette} active={commandPaletteOpen} testId="command-palette-button">
+          <Search className="size-4" />
         </ToolButton>
 
         {/* Save button with feedback */}

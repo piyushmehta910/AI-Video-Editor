@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useEditorStore } from '@/stores/editorStore'
+import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { TopToolbar } from '@/components/editor/TopToolbar'
 import { MediaBin } from '@/components/media/MediaBin'
@@ -61,6 +62,19 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   )
 
   const openMedia = React.useCallback(() => setLeftOpen(true), [setLeftOpen])
+
+  // Selection-driven inspector: picking a clip surfaces its properties, even if
+  // the panel was collapsed. Clearing the selection leaves it as-is (user choice).
+  React.useEffect(() => {
+    const unsub = useTimelineStore.subscribe((state, prev) => {
+      const hasClip = state.selection.clipIds.length > 0
+      const hadClip = prev.selection.clipIds.length > 0
+      if (hasClip && !hadClip && !useEditorStore.getState().inspectorOpen) {
+        useEditorStore.getState().toggleInspector()
+      }
+    })
+    return unsub
+  }, [])
 
   const onLeftResizeStart = (e: React.PointerEvent) => {
     e.preventDefault()

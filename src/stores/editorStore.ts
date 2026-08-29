@@ -36,6 +36,10 @@ export interface EditorUIState {
   trimMode: TrimMode
   /** Keyboard-shortcuts cheat sheet modal visibility. */
   shortcutsOpen: boolean
+  /** Command palette (Mod+Shift+P) visibility. */
+  commandPaletteOpen: boolean
+  /** Rule-of-thirds / center guide overlay in the preview. */
+  guidesEnabled: boolean
   /** Last unrecognized key combo, shown briefly as a hint overlay. */
   keysHint: string | null
 
@@ -58,6 +62,8 @@ export interface EditorUIState {
   toggleTrimMode: () => void
   setTrimMode: (open: boolean) => void
   setShortcutsOpen: (open: boolean) => void
+  setCommandPaletteOpen: (open: boolean) => void
+  setGuidesEnabled: (enabled: boolean) => void
   setKeysHint: (hint: string | null) => void
 }
 
@@ -94,6 +100,8 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   tool: 'select',
   trimMode: false,
   shortcutsOpen: false,
+  commandPaletteOpen: false,
+  guidesEnabled: persisted('clipforge-guides-enabled', false),
   keysHint: null,
 
   toggleLeft: () =>
@@ -145,5 +153,10 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   toggleTrimMode: () => set((s) => ({ trimMode: !s.trimMode })),
   setTrimMode: (open) => set({ trimMode: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
+  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  setGuidesEnabled: (enabled) => {
+    persist('clipforge-guides-enabled', enabled)
+    set({ guidesEnabled: enabled })
+  },
   setKeysHint: (hint) => set({ keysHint: hint }),
 }))
