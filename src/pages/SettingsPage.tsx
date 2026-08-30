@@ -235,9 +235,9 @@ export function SettingsPage() {
               AI & LLM Reasoning Engines
             </SectionLabel>
             <div className="flex flex-col gap-3">
-              {(match('nvidia') || match('nim') || match('ai')) && <NvidiaNimCard />}
               {(match('openrouter') || match('ai') || match('free')) && <OpenRouterCard />}
               {(match('opencode') || match('zen') || match('deepseek')) && <OpenCodeZenCard />}
+              {(match('nvidia') || match('nim') || match('legacy')) && <NvidiaNimCard />}
             </div>
           </section>
         )}

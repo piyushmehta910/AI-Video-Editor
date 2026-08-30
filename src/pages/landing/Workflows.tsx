@@ -22,7 +22,7 @@ const WORKFLOWS = [
     trigger: 'Make a 1-min Hindi video from this PDF',
     steps: [
       'Extract text from the PDF',
-      'Generate script with NVIDIA NIM',
+      'Generate script with AI reasoning (OpenRouter / Local)',
       'Voiceover with ElevenLabs',
       'Avatar + lip-sync on presentation slides',
     ],

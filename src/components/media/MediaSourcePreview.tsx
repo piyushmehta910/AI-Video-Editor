@@ -155,6 +155,7 @@ export function MediaSourcePreview({
               onClick={() => onPopout(asset)}
               className="size-5 rounded flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               title="Pop out preview"
+              aria-label="Pop out preview"
             >
               <Maximize2 className="size-3" />
             </button>
@@ -164,6 +165,7 @@ export function MediaSourcePreview({
             onClick={onClose}
             className="size-5 rounded flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-white transition-colors"
             title="Close preview"
+            aria-label="Close preview"
           >
             <X className="size-3" />
           </button>
@@ -244,6 +246,7 @@ export function MediaSourcePreview({
             onClick={togglePlay}
             className="absolute size-9 rounded-full bg-violet-600/90 text-white flex items-center justify-center shadow-lg hover:scale-105 hover:bg-violet-500 transition-all"
             title="Play Preview"
+            aria-label="Play Preview"
           >
             <Play className="size-4 fill-white ml-0.5" />
           </button>
@@ -270,6 +273,7 @@ export function MediaSourcePreview({
             value={currentTime}
             onChange={(e) => handleSeek(parseFloat(e.target.value))}
             className="h-1 w-full accent-violet-500 cursor-pointer rounded bg-muted"
+            aria-label="Seek preview timeline"
           />
 
           <div className="flex items-center justify-between text-[9px] font-mono text-muted-foreground">
@@ -289,6 +293,7 @@ export function MediaSourcePreview({
               className="size-6 text-foreground hover:bg-violet-500/20"
               onClick={togglePlay}
               title={isPlaying ? 'Pause' : 'Play'}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5 fill-current" />}
             </Button>
@@ -300,6 +305,7 @@ export function MediaSourcePreview({
                 className="size-6 text-muted-foreground hover:text-foreground"
                 onClick={toggleMute}
                 title={isMuted ? 'Unmute' : 'Mute'}
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted ? <VolumeX className="size-3" /> : <Volume2 className="size-3" />}
               </Button>
@@ -312,6 +318,7 @@ export function MediaSourcePreview({
                 onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                 className="w-10 h-1 accent-violet-500 cursor-pointer hidden group-hover/vol:block rounded"
                 title={`Volume ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+                aria-label="Adjust preview volume"
               />
             </div>
 
@@ -320,6 +327,7 @@ export function MediaSourcePreview({
               onClick={cyclePlaybackRate}
               className="rounded px-1 py-0.5 font-mono text-[9px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition"
               title="Cycle playback speed"
+              aria-label={`Playback speed ${playbackRate}x`}
             >
               {playbackRate}×
             </button>
@@ -332,6 +340,7 @@ export function MediaSourcePreview({
                 isLooping ? 'text-violet-500 bg-violet-500/20 font-bold' : 'text-muted-foreground hover:text-foreground',
               )}
               title={isLooping ? 'Looping enabled' : 'Enable loop'}
+              aria-label={isLooping ? 'Looping enabled' : 'Enable loop'}
             >
               <Repeat className="size-3" />
             </button>

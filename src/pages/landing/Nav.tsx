@@ -35,14 +35,14 @@ export function Nav() {
       )}
     >
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-4 sm:px-6">
-        <a href="#" className="flex items-center gap-2.5">
+        <Link to="/" className="flex items-center gap-2.5">
           <div className="bg-gradient-to-br from-violet-600 to-fuchsia-500 flex size-8 items-center justify-center rounded-lg text-sm font-bold text-white shadow-lg shadow-violet-500/30">
             CF
           </div>
           <span className="text-base font-bold tracking-tight">
             ClipForge <span className="text-muted-foreground font-medium">AI Studio</span>
           </span>
-        </a>
+        </Link>
 
         <nav className="ml-4 hidden items-center gap-1 lg:flex">
           {LINKS.map((link) => (
@@ -71,7 +71,7 @@ export function Nav() {
 
         <button
           type="button"
-          className="text-muted-foreground ml-auto flex size-9 items-center justify-center rounded-md sm:hidden"
+          className="text-muted-foreground ml-auto flex size-9 items-center justify-center rounded-md lg:hidden"
           onClick={() => setOpen((o) => !o)}
           aria-label="Toggle menu"
         >
@@ -80,7 +80,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <div className="border-t bg-background/95 backdrop-blur-xl sm:hidden">
+        <div className="border-t bg-background/95 backdrop-blur-xl lg:hidden">
           <nav className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-4 py-3">
             {LINKS.map((link) => (
               <a

@@ -457,6 +457,7 @@ export function MultiClipInspector() {
                     className="size-6 text-destructive hover:bg-destructive/10"
                     onClick={() => deleteClips([clip.id])}
                     title="Delete this clip"
+                    aria-label="Delete this clip"
                   >
                     <Trash2 className="size-3" />
                   </Button>
@@ -466,6 +467,7 @@ export function MultiClipInspector() {
                     className="size-6 text-muted-foreground hover:text-foreground"
                     onClick={() => handleDeselectClip(clip.id)}
                     title="Remove from selection"
+                    aria-label="Remove clip from selection"
                   >
                     <X className="size-3" />
                   </Button>

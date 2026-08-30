@@ -56,6 +56,7 @@ export function LipSyncTimelineIntegration() {
         size="sm"
         onClick={handleAddLipSync}
         className="gap-2"
+        aria-label="Add Lip Sync"
       >
         <Sparkles className="size-4" />
         <span className="hidden sm:inline">Add Lip Sync</span>

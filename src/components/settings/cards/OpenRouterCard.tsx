@@ -88,7 +88,7 @@ export function OpenRouterCard() {
             <SelectTrigger id="or-model" className="w-full"><SelectValue placeholder="Select free model" /></SelectTrigger>
             <SelectContent>{models.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh free models from OpenRouter">
+          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh free models from OpenRouter" aria-label="Refresh free models from OpenRouter">
             <RefreshCcw className={refreshing ? 'animate-spin' : ''} />
           </Button>
         </div>

@@ -5,10 +5,11 @@
 export interface ModelOption {
   id: string
   name: string
-  provider: 'nvidia-nim' | 'openrouter' | 'opencode-zen'
+  provider: 'openrouter' | 'opencode-zen' | 'nvidia-nim'
   tag?: string
   description?: string
   isFree?: boolean
+  deprecated?: boolean
   contextWindow?: string
 }
 
@@ -204,65 +205,73 @@ export const NVIDIA_NIM_MODELS: ModelOption[] = [
     id: 'meta/llama-3.3-70b-instruct',
     name: 'Llama 3.3 70B Instruct',
     provider: 'nvidia-nim',
-    tag: 'Recommended',
-    description: 'Fast, high-fidelity reasoning and viral script generation',
+    tag: 'Legacy NIM',
+    description: 'Fast reasoning via NVIDIA NIM (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'deepseek-ai/deepseek-r1',
     name: 'DeepSeek R1 Reasoning',
     provider: 'nvidia-nim',
-    tag: 'Deep Reasoning',
-    description: 'Advanced chain-of-thought planning and structured output',
+    tag: 'Legacy NIM',
+    description: 'Advanced reasoning via NVIDIA NIM (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'nvidia/llama-3.1-nemotron-70b-instruct',
     name: 'Nemotron 70B Instruct',
     provider: 'nvidia-nim',
-    tag: 'NVIDIA Optimized',
-    description: 'Fine-tuned by NVIDIA for structured instructions & code',
+    tag: 'Legacy NIM',
+    description: 'Fine-tuned by NVIDIA (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'nvidia/nemotron-3.5-lightning-30b-a3b',
     name: 'Nemotron 3.5 Lightning 30B',
     provider: 'nvidia-nim',
-    tag: 'Lightning Fast',
-    description: 'Sub-second response time for rapid timeline operations',
+    tag: 'Legacy NIM',
+    description: 'Lightweight logic via NVIDIA NIM (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'deepseek-ai/deepseek-v4-flash-0731',
     name: 'DeepSeek V4 Flash',
     provider: 'nvidia-nim',
-    tag: 'High Speed',
-    description: 'Optimized inference speed for real-time scripting',
+    tag: 'Legacy NIM',
+    description: 'Inference speed model (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'mistralai/mixtral-8x22b-instruct-v0.1',
     name: 'Mixtral 8x22B',
     provider: 'nvidia-nim',
-    tag: 'Multilingual',
-    description: 'Powerful MoE architecture for diverse languages',
+    tag: 'Legacy NIM',
+    description: 'MoE architecture via NVIDIA NIM (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'qwen/qwen2.5-72b-instruct',
     name: 'Qwen 2.5 72B',
     provider: 'nvidia-nim',
-    tag: 'High Precision',
-    description: 'Exceptional creative writing and technical precision',
+    tag: 'Legacy NIM',
+    description: 'High precision writing (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
   {
     id: 'meta/llama-3.1-8b-instruct',
     name: 'Llama 3.1 8B Instruct',
     provider: 'nvidia-nim',
-    tag: 'Lightweight',
-    description: 'Fast lightweight model for short edits',
+    tag: 'Legacy NIM',
+    description: 'Fast lightweight model (Deprecated - use OpenRouter)',
     isFree: true,
+    deprecated: true,
   },
 ]
 

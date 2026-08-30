@@ -27,6 +27,7 @@ import { analyzeProject } from '@/api/llm/analysis'
 import { exportProject } from '@/engine/export/exportVideo'
 import { computeReframingKeyframes } from '@/engine/reframing'
 import { renderFramesToVideo } from '@/hooks/useLipSync'
+import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
 
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5', '21:9'] as const
 type Aspect = (typeof ASPECTS)[number]
@@ -2251,7 +2252,6 @@ export async function applyTool(
     }
     case 'execute_autonomous_video_plan': {
       try {
-        const { subagentOrchestrator } = await import('@/ai/subagents/SubagentOrchestrator')
         const goal = String(args.goal ?? '').trim()
         const topic = String(args.topic ?? goal).trim() || 'an interesting topic'
         const duration = Number(args.targetDurationSeconds)

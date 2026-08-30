@@ -139,16 +139,16 @@ export function NvidiaNimCard() {
 
   return (
     <ProviderCard
-      icon={<Bot className="size-4.5" />}
-      title="NVIDIA NIM (Unified AI & Voice)"
-      description="Single API key & route for both LLM Chat Reasoning and Zero-Shot Voice Synthesis"
+      icon={<Bot className="size-4.5 text-amber-500" />}
+      title="NVIDIA NIM (Legacy / Deprecated)"
+      description="Deprecated — OpenRouter is recommended for all free reasoning models"
       enabled={cfg.enabled}
       status={<ProviderStatusBadge status={cfg.status ?? 'disabled'} />}
       onToggleEnabled={(enabled) => set({ enabled, status: enabled ? cfg.status ?? 'disconnected' : 'disabled' })}
       onReset={() => update((draft) => ({ ...draft, nvidiaNim: { ...defaultNvidiaNimConfig } }))}
     >
-      <div className="rounded-md border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs text-violet-600 dark:text-violet-400 md:col-span-2">
-        <span className="font-semibold">Unified Provider:</span> One NVIDIA key powers both the <strong>AI Director</strong> and <strong>Voice Over Studio</strong>. Just select your chat model and voice model below.
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400 md:col-span-2">
+        <span className="font-semibold">Notice:</span> NVIDIA NIM hosted endpoints are deprecated. Please use <strong>OpenRouter</strong> (first card above) for free reasoning & Nemotron models.
       </div>
 
       <FieldRow label="NVIDIA API Key" htmlFor="nim-api-key" className="md:col-span-2">
@@ -173,7 +173,7 @@ export function NvidiaNimCard() {
             <SelectTrigger id="nim-model" className="w-full"><SelectValue placeholder="Select model" /></SelectTrigger>
             <SelectContent>{models.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh chat models from NVIDIA catalog">
+          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh chat models from NVIDIA catalog" aria-label="Refresh chat models from NVIDIA catalog">
             <RefreshCcw className={refreshing ? 'animate-spin' : ''} />
           </Button>
         </div>

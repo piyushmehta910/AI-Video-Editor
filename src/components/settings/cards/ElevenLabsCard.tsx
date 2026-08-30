@@ -110,7 +110,7 @@ export function ElevenLabsCard() {
             <SelectTrigger id="eleven-model" className="w-full"><SelectValue placeholder="Model" /></SelectTrigger>
             <SelectContent>{models.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh models from your ElevenLabs account">
+          <Button type="button" variant="outline" size="icon" onClick={() => void refresh()} disabled={refreshing} title="Refresh models from your ElevenLabs account" aria-label="Refresh models from your ElevenLabs account">
             <RefreshCcw className={refreshing ? 'animate-spin' : ''} />
           </Button>
         </div>
