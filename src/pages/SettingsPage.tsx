@@ -1,6 +1,5 @@
 import * as React from 'react'
 import {
-  ArrowLeft,
   Activity,
   Cpu,
   Mic,
@@ -20,7 +19,7 @@ import {
   EyeOff,
   AlertCircle,
 } from 'lucide-react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { useIsFromEditor } from '@/hooks/useIsFromEditor'
 import { useApiConfigStore } from '@/api/config/store'
 import { getMasterKeyState, verifyMasterPassphrase } from '@/api/config/crypto'
@@ -123,23 +122,6 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 space-y-6 pb-16">
-      {/* Top Back Navigation Bar — only shown when entered from editor */}
-      {isFromEditor && (
-        <div className="flex items-center justify-between pb-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleBack}
-            className="gap-2 font-semibold text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg px-2.5 h-8 -ml-1 transition cursor-pointer"
-            title="Back to Editor"
-          >
-            <ArrowLeft className="size-4 text-violet-500" />
-            <span>Back to Editor</span>
-          </Button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/80">
         <div>
@@ -153,34 +135,6 @@ export function SettingsPage() {
           <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
             Organized management for AI reasoning models, voice synthesis, live web research, and stock media.
           </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {isFromEditor ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleBack}
-              className="gap-1.5 font-semibold shadow-xs cursor-pointer"
-              title="Return to the video editor"
-            >
-              <ArrowLeft className="size-3.5 text-violet-500" />
-              Back to Editor
-            </Button>
-          ) : (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="gap-1.5 font-semibold shadow-xs cursor-pointer"
-              title="Return to Home"
-            >
-              <Link to="/">
-                <ArrowLeft className="size-3.5 text-violet-500" />
-                Back to Home
-              </Link>
-            </Button>
-          )}
         </div>
       </div>
 
