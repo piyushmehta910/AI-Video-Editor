@@ -1476,6 +1476,7 @@ export function AIDirector({
               {/* Settings Link */}
               <Link
                 to="/settings"
+                search={{ from: 'editor' }}
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
                 title="Configure AI provider API keys"
               >
@@ -1562,6 +1563,7 @@ export function AIDirector({
                   </button>
                   <Link
                     to="/settings"
+                    search={{ from: 'editor' }}
                     className="rounded-md px-2 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-bold border border-violet-500/30 transition"
                     onClick={() => setShowModelMenu(false)}
                   >

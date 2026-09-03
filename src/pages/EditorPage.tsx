@@ -73,6 +73,15 @@ export function EditorPage() {
     }
   }, [welcomeLoaded, isMobile])
 
+  // Track editor as last visited app view for contextual settings navigation
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem('clipforge_origin', 'editor')
+    } catch {
+      // ignore
+    }
+  }, [])
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Global shortcut UI (both layouts) */}

@@ -1288,7 +1288,7 @@ export function SlideStudioModal({
                     </div>
 
                     {!firecrawlAvailable && (
-                      <Link to="/settings" className="shrink-0 text-[10px] font-bold text-violet-400 hover:underline">
+                      <Link to="/settings" search={{ from: 'editor' }} className="shrink-0 text-[10px] font-bold text-violet-400 hover:underline">
                         Setup
                       </Link>
                     )}
@@ -1430,7 +1430,7 @@ export function SlideStudioModal({
                         <Cpu className="size-3 text-violet-400" />
                         AI Model Engine
                       </Label>
-                      <Link to="/settings" className="text-[9px] text-violet-400 hover:underline">
+                      <Link to="/settings" search={{ from: 'editor' }} className="text-[9px] text-violet-400 hover:underline">
                         API Settings
                       </Link>
                     </div>

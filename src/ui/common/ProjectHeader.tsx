@@ -143,7 +143,7 @@ export function ProjectHeader() {
           size="icon"
           className="size-8"
         >
-          <Link to="/settings" title="Settings">
+          <Link to="/settings" search={{ from: 'editor' }} title="Settings">
             <Settings className="size-3.5" />
           </Link>
         </Button>

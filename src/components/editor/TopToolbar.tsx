@@ -281,7 +281,7 @@ export function TopToolbar() {
               size="sm"
               className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
             >
-              <Link to="/settings" title="Settings">
+              <Link to="/settings" search={{ from: 'editor' }} title="Settings">
                 <Settings className="size-4" />
               </Link>
             </Button>

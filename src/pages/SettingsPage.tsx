@@ -20,7 +20,8 @@ import {
   EyeOff,
   AlertCircle,
 } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useIsFromEditor } from '@/hooks/useIsFromEditor'
 import { useApiConfigStore } from '@/api/config/store'
 import { getMasterKeyState, verifyMasterPassphrase } from '@/api/config/crypto'
 import { ConnectionOverview } from '@/components/settings/ConnectionOverview'
@@ -70,6 +71,7 @@ export function SettingsPage() {
   const { config, hydrated, error } = useApiConfigStore()
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('all')
   const [searchQuery, setSearchQuery] = React.useState('')
+  const isFromEditor = useIsFromEditor()
 
   const navigate = useNavigate()
 
@@ -77,9 +79,9 @@ export function SettingsPage() {
     if (typeof window !== 'undefined' && window.history.length > 1) {
       window.history.back()
     } else {
-      void navigate({ to: '/editor' })
+      void navigate({ to: isFromEditor ? '/editor' : '/' })
     }
-  }, [navigate])
+  }, [navigate, isFromEditor])
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -121,20 +123,22 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 space-y-6 pb-16">
-      {/* Top Back Navigation Bar */}
-      <div className="flex items-center justify-between pb-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleBack}
-          className="gap-2 font-semibold text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg px-2.5 h-8 -ml-1 transition cursor-pointer"
-          title="Back to previous page (or Editor)"
-        >
-          <ArrowLeft className="size-4 text-violet-500" />
-          <span>Back</span>
-        </Button>
-      </div>
+      {/* Top Back Navigation Bar — only shown when entered from editor */}
+      {isFromEditor && (
+        <div className="flex items-center justify-between pb-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleBack}
+            className="gap-2 font-semibold text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg px-2.5 h-8 -ml-1 transition cursor-pointer"
+            title="Back to Editor"
+          >
+            <ArrowLeft className="size-4 text-violet-500" />
+            <span>Back to Editor</span>
+          </Button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/80">
@@ -151,17 +155,32 @@ export function SettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleBack}
-            className="gap-1.5 font-semibold shadow-xs cursor-pointer"
-            title="Return to the video editor"
-          >
-            <ArrowLeft className="size-3.5 text-violet-500" />
-            Back to Editor
-          </Button>
+          {isFromEditor ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleBack}
+              className="gap-1.5 font-semibold shadow-xs cursor-pointer"
+              title="Return to the video editor"
+            >
+              <ArrowLeft className="size-3.5 text-violet-500" />
+              Back to Editor
+            </Button>
+          ) : (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-semibold shadow-xs cursor-pointer"
+              title="Return to Home"
+            >
+              <Link to="/">
+                <ArrowLeft className="size-3.5 text-violet-500" />
+                Back to Home
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
