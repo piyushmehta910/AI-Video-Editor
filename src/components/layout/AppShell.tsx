@@ -1,9 +1,10 @@
-import { Home, Settings } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Home, Settings } from 'lucide-react'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 
 const NAV_ITEMS = [
+  { to: '/editor', label: 'Editor', icon: Clapperboard },
   { to: '/', label: 'Home', icon: Home },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
@@ -52,6 +53,17 @@ export function AppShell() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              asChild
+              variant="default"
+              size="sm"
+              className="gap-1.5 font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded-lg shadow-xs h-8 text-xs shrink-0"
+            >
+              <Link to="/editor" title="Back to Video Editor">
+                <ArrowLeft className="size-3.5" />
+                <span>Back to Editor</span>
+              </Link>
+            </Button>
             <ThemeToggle />
           </div>
         </div>

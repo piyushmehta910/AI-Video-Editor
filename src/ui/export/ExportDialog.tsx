@@ -7,12 +7,7 @@ import {
   Download,
   FileVideo,
   AlertTriangle,
-  Film,
-  Sparkles,
   CheckCircle2,
-  Tv,
-  Smartphone,
-  Gauge,
   Sliders,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -131,39 +126,6 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   // Estimated file size: (bitrate bits/sec × duration secs) / 8 / 1024 / 1024
   const estimatedSizeMb = Math.max(0.5, ((effectiveBitrate * Math.max(1, duration)) / 8 / 1024 / 1024)).toFixed(1)
 
-  const applyPresetProfile = (type: 'youtube' | 'reel' | 'webm_hq' | '4k' | 'audio_only') => {
-    if (type === 'youtube') {
-      setFormat('mp4')
-      setCodec('h264')
-      setResolution('1080p Full HD')
-      setFps(30)
-      setQuality('high')
-    } else if (type === 'reel') {
-      setFormat('mp4')
-      setCodec('h264')
-      setResolution('9:16 Vertical Reel')
-      setFps(30)
-      setQuality('high')
-    } else if (type === 'webm_hq') {
-      setFormat('webm')
-      setCodec('vp9')
-      setResolution('1080p Full HD')
-      setFps(60)
-      setQuality('high')
-    } else if (type === '4k') {
-      setFormat('mp4')
-      setCodec('h264')
-      setResolution('4K UHD')
-      setFps(60)
-      setQuality('very_high')
-    } else if (type === 'audio_only') {
-      setFormat('webm')
-      setCodec('vp9')
-      setResolution('Match Project')
-      setQuality('low')
-    }
-  }
-
   const handleExport = async () => {
     setStatus('running')
     setProgress(0)
@@ -250,48 +212,6 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
         {/* Body Content (Scrollable if screen is small) */}
         <div className="flex-1 overflow-y-auto space-y-3.5 sm:space-y-4 px-3.5 sm:px-5 py-3 sm:py-4 text-xs">
-          {/* Quick Platform Presets */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-              <Sparkles className="size-3 text-violet-500" />
-              Quick Export Profiles
-            </Label>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => applyPresetProfile('youtube')}
-                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
-              >
-                <Tv className="size-3 text-red-500" />
-                1080p MP4 (YouTube)
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPresetProfile('reel')}
-                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
-              >
-                <Smartphone className="size-3 text-pink-500" />
-                9:16 Reel (TikTok)
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPresetProfile('webm_hq')}
-                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
-              >
-                <Film className="size-3 text-cyan-500" />
-                WebM (VP9 60fps)
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPresetProfile('4k')}
-                className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-1 text-[11px] font-medium text-foreground hover:border-violet-500/60 hover:bg-violet-500/10 transition"
-              >
-                <Gauge className="size-3 text-amber-500" />
-                4K Cinema Master
-              </button>
-            </div>
-          </div>
-
           {/* Filename Input */}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold text-foreground">File Name</Label>
