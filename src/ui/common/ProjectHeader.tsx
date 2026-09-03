@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/select'
 
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2', '2:3'] as const
-const FPS_OPTIONS = [24, 25, 30, 48, 50, 60]
 
 function dimsForAspect(current: { width: number; height: number }, ratio: number): { width: number; height: number } {
   const max = Math.max(current.width, current.height)
@@ -125,23 +124,6 @@ export function ProjectHeader() {
           ))}
         </SelectContent>
       </Select>
-
-      {/* FPS */}
-      <div className="hidden sm:flex shrink-0">
-        <Select
-          value={String(project.fps)}
-          onValueChange={(v) => setProjectSettings({ fps: Number(v) })}
-        >
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[10050]">
-            {FPS_OPTIONS.map((f) => (
-              <SelectItem key={f} value={String(f)}>{f} fps</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="ml-auto flex items-center gap-1 shrink-0">
         <ThemeToggle />
