@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Download, FolderOpen, Home, Pencil, Settings, FilePlus } from 'lucide-react'
+import { Download, Home, Pencil, Settings, FilePlus } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { Button } from '@/components/ui/button'
@@ -17,14 +17,6 @@ import {
 
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2', '2:3'] as const
 const FPS_OPTIONS = [24, 25, 30, 48, 50, 60]
-const RESOLUTIONS = [
-  { label: '360p', w: 640, h: 360 },
-  { label: '480p', w: 854, h: 480 },
-  { label: '720p', w: 1280, h: 720 },
-  { label: '1080p', w: 1920, h: 1080 },
-  { label: '1440p', w: 2560, h: 1440 },
-  { label: '4K', w: 3840, h: 2160 },
-]
 
 function dimsForAspect(current: { width: number; height: number }, ratio: number): { width: number; height: number } {
   const max = Math.max(current.width, current.height)
@@ -100,17 +92,6 @@ export function ProjectHeader() {
         </button>
       )}
 
-      {/* Open Project Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1.5 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border/40 rounded-md shrink-0 transition-colors"
-        onClick={() => setOpenProjectOpen(true)}
-        title="Open a saved project"
-      >
-        <FolderOpen className="size-3.5 text-violet-500" />
-      </Button>
-
       {/* New Project / Reset Button */}
       <Button
         variant="ghost"
@@ -152,41 +133,11 @@ export function ProjectHeader() {
           onValueChange={(v) => setProjectSettings({ fps: Number(v) })}
         >
           <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
-            <SelectValue /> <span className="text-muted-foreground">fps</span>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent className="z-[10050]">
             {FPS_OPTIONS.map((f) => (
               <SelectItem key={f} value={String(f)}>{f} fps</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Resolution */}
-      <div className="hidden md:flex shrink-0">
-        <Select
-          value={`${project.width}x${project.height}`}
-          onValueChange={(v) => {
-            const [w, h] = v.split('x').map(Number)
-            const ratio = w / h
-            let bestLabel = project.aspectRatio
-            let bestDiff = Infinity
-            for (const a of ASPECT_RATIOS) {
-              const [aw, ah] = a.split(':').map(Number)
-              const diff = Math.abs(aw / ah - ratio)
-              if (diff < bestDiff) { bestDiff = diff; bestLabel = a }
-            }
-            setProjectSettings({ width: w, height: h, aspectRatio: bestLabel })
-          }}
-        >
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs font-mono hover:bg-muted">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[10050]">
-            {RESOLUTIONS.map((r) => (
-              <SelectItem key={r.label} value={`${r.w}x${r.h}`}>
-                {r.label} · {r.w}×{r.h}
-              </SelectItem>
             ))}
           </SelectContent>
         </Select>

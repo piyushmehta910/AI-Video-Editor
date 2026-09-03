@@ -16,7 +16,6 @@ const STEPS: TourStep[] = [
   { target: '[data-testid="timeline-root"]', title: 'This is your timeline', body: 'Media lives on tracks — video on V, audio on A, text on T, effects on FX. The sample project already has clips on every type.' },
   { target: '[data-testid="playhead"]', title: 'Scrub through time', body: 'Click and drag the red playhead to move around. Click the preview to play or pause.' },
   { target: '[data-clip-id]', title: 'Select a clip to edit it', body: 'Click any clip — the Inspector on the right shows its transform, audio and text properties.' },
-  { target: '[data-testid="ai-director-button"]', title: 'Let the AI Director edit for you', body: 'Describe what you want in plain language and the AI Director proposes cuts, structure and fixes you can apply with one click.' },
   { target: '[data-testid="export-button"]', title: 'Export when ready', body: 'Render your timeline to a video file entirely on your machine — nothing is uploaded.' },
 ]
 

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Clapperboard, Download, FilePlus, FolderOpen, History, Home, PanelLeft, Pencil, Save, Search, Settings, Sparkles } from 'lucide-react'
+import { Check, Download, FilePlus, History, Home, PanelLeft, Pencil, Save, Search, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -21,12 +21,6 @@ import { DIALOG_EVENTS } from '@/lib/uiEvents'
 
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2', '2:3'] as const
 const FPS_OPTIONS = [24, 25, 30, 48, 50, 60]
-const RESOLUTIONS = [
-  { label: '720p', w: 1280, h: 720 },
-  { label: '1080p', w: 1920, h: 1080 },
-  { label: '1440p', w: 2560, h: 1440 },
-  { label: '4K', w: 3840, h: 2160 },
-]
 
 function dimsForAspect(current: { width: number; height: number }, ratio: number): { width: number; height: number } {
   const max = Math.max(current.width, current.height)
@@ -86,9 +80,6 @@ export function TopToolbar() {
   const leftOpen = useEditorStore((s) => s.leftOpen)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
-  const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
-  const toggleAIDirector = useEditorStore((s) => s.toggleAIDirector)
-  const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
   const commandPaletteOpen = useEditorStore((s) => s.commandPaletteOpen)
   const toggleCommandPalette = () => useEditorStore.setState({ commandPaletteOpen: !useEditorStore.getState().commandPaletteOpen })
 
@@ -186,22 +177,6 @@ export function TopToolbar() {
         <TooltipContent className="text-[11px]">Create New Project (All Options)</TooltipContent>
       </Tooltip>
 
-      {/* Open Project Button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpenProjectOpen(true)}
-            className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-violet-500/40 rounded-lg"
-          >
-            <FolderOpen className="size-3.5 text-violet-500" />
-            <span className="hidden sm:inline">Open</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="text-[11px]">Open a Saved Project</TooltipContent>
-      </Tooltip>
-
       {/* Project name (editable) */}
       {editingName ? (
         <input
@@ -233,7 +208,7 @@ export function TopToolbar() {
         </button>
       )}
 
-      {/* Project settings (aspect / fps / resolution) — compact, desktop only */}
+      {/* Project settings (aspect / fps) — compact, desktop only */}
       <div className="hidden items-center gap-1 lg:flex">
         <Select
           value={project.aspectRatio}
@@ -258,7 +233,7 @@ export function TopToolbar() {
 
         <Select value={String(project.fps)} onValueChange={(v) => setProjectSettings({ fps: Number(v) })}>
           <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 font-mono text-xs hover:bg-muted rounded-md">
-            <SelectValue /> <span className="text-muted-foreground">fps</span>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent className="z-[10050]">
             {FPS_OPTIONS.map((f) => (
@@ -266,55 +241,9 @@ export function TopToolbar() {
             ))}
           </SelectContent>
         </Select>
-
-        <Select
-          value={`${project.width}x${project.height}`}
-          onValueChange={(v) => {
-            const [w, h] = v.split('x').map(Number)
-            const ratio = w / h
-            let bestLabel = project.aspectRatio
-            let bestDiff = Infinity
-            for (const a of ASPECT_RATIOS) {
-              const [aw, ah] = a.split(':').map(Number)
-              const diff = Math.abs(aw / ah - ratio)
-              if (diff < bestDiff) { bestDiff = diff; bestLabel = a }
-            }
-            setProjectSettings({ width: w, height: h, aspectRatio: bestLabel })
-          }}
-        >
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 font-mono text-xs hover:bg-muted rounded-md">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[10050]">
-            {RESOLUTIONS.map((r) => (
-              <SelectItem key={r.label} value={`${r.w}x${r.h}`}>
-                {r.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
-        <Button
-          variant={aiDirectorOpen ? "secondary" : "ghost"}
-          size="sm"
-          onClick={toggleAIDirector}
-          onDoubleClick={() => setAIDirectorOpen(true)}
-          className={cn(
-            "h-8 gap-1.5 px-2.5 rounded-lg text-xs font-bold transition-all border",
-            aiDirectorOpen
-              ? "bg-violet-600/15 border-violet-500/50 text-violet-600 dark:text-violet-300 shadow-xs"
-              : "border-violet-500/30 hover:border-violet-500/60 text-foreground hover:text-violet-600 hover:bg-violet-500/10 bg-violet-500/5"
-          )}
-          title="Open AI Director Studio (Click or double-click)"
-          data-testid="ai-director-button"
-        >
-          <Clapperboard className="size-3.5 text-violet-500 shrink-0" />
-          <span className="hidden sm:inline">AI Director</span>
-          <Sparkles className="size-3 text-amber-500 fill-amber-500 shrink-0" />
-        </Button>
-
         <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
         </ToolButton>
