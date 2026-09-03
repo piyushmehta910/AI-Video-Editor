@@ -1,6 +1,6 @@
-﻿import { readMediaFile } from '@/engine/storage/opfs'
+import { readMediaFile } from '@/engine/storage/opfs'
 import { wrapSourceTime } from '@/engine/media/sourceTime'
-import type { Asset, Project } from '@/engine/types'
+import type { Asset, Project, AssetType } from '@/engine/types'
 import { projectDuration } from '@/engine/types'
 import { compositeFrame } from '@/engine/render/composite'
 import { makeCaptionsProvider } from '@/engine/captions/render'
@@ -39,8 +39,12 @@ function codecString(codec: ExportOptions['codec']): string {
   }
 }
 
-export function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
-  return new Promise((resolve) => {
+export function seekTo(el: HTMLVideoElement, time: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Export aborted', 'AbortError'))
+      return
+    }
     if (el.readyState >= 1 && Math.abs(el.currentTime - time) < 0.02) {
       resolve()
       return
@@ -51,10 +55,21 @@ export function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
       settled = true
       el.removeEventListener('seeked', onSeeked)
       window.clearTimeout(timeout)
+      signal?.removeEventListener('abort', onAbort)
       resolve()
     }
+    const fail = () => {
+      if (settled) return
+      settled = true
+      el.removeEventListener('seeked', onSeeked)
+      window.clearTimeout(timeout)
+      signal?.removeEventListener('abort', onAbort)
+      reject(new DOMException('Export aborted', 'AbortError'))
+    }
     const onSeeked = () => finish()
+    const onAbort = () => fail()
     el.addEventListener('seeked', onSeeked, { once: true })
+    if (signal) signal.addEventListener('abort', onAbort)
     const timeout = window.setTimeout(finish, 1500)
     try {
       el.currentTime = time
@@ -64,7 +79,37 @@ export function seekTo(el: HTMLVideoElement, time: number): Promise<void> {
   })
 }
 
-export async function loadMediaElement(asset: Asset, urlSink?: string[]): Promise<HTMLVideoElement> {
+// LRU cache for media elements per asset type (max 10 each)
+const mediaElementCacheOrder: Record<AssetType, string[]> = {
+  video: [],
+  image: [],
+  audio: [],
+};
+
+function evictLRUIfNeeded(type: AssetType, mediaElements: Map<string, HTMLVideoElement>) {
+  const order = mediaElementCacheOrder[type];
+  while (order.length > 10) {
+    const evictId = order.shift();
+    if (evictId) {
+      const el = mediaElements.get(evictId);
+      if (el) {
+        try {
+          el.pause();
+          // Revoke blob URL if applicable
+          if (el.src.startsWith('blob:')) {
+            URL.revokeObjectURL(el.src);
+          }
+          el.removeAttribute('src');
+          el.load();
+        } catch {}
+        mediaElements.delete(evictId);
+      }
+    }
+  }
+}
+
+export async function loadMediaElement(asset: Asset, urlSink?: string[], signal?: AbortSignal): Promise<HTMLVideoElement> {
+  if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError');
   const el = document.createElement('video')
   el.preload = 'auto'
   el.muted = true
@@ -245,17 +290,27 @@ export async function exportProject(
         time,
         {
           video: async (_clip, asset, srcTime) => {
-            let el = mediaElements.get(asset.id)
+            let el = mediaElements.get(asset.id);
             if (!el) {
-              el = await loadMediaElement(asset, blobUrls)
-              mediaElements.set(asset.id, el)
+              el = await loadMediaElement(asset, blobUrls, opts.signal);
+              mediaElements.set(asset.id, el);
+              // Add to LRU order for this asset type
+              const order = mediaElementCacheOrder[asset.type];
+              order.push(asset.id);
+              evictLRUIfNeeded(asset.type, mediaElements);
+            } else {
+              // Update LRU order: move accessed id to the end
+              const order = mediaElementCacheOrder[asset.type];
+              const idx = order.indexOf(asset.id);
+              if (idx !== -1) order.splice(idx, 1);
+              order.push(asset.id);
             }
             // Loop short sources when the clip runs past their end (stickers).
-            const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration)
-            await seekTo(el, elTime)
-            return el.videoWidth > 0 ? el : null
+            const elTime = wrapSourceTime(srcTime, asset.duration ?? el.duration);
+            await seekTo(el, elTime);
+            return el.videoWidth > 0 ? el : null;
           },
-          image: (asset) => loadImage(asset),
+          image: async (asset) => { if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError'); return loadImage(asset); },
           captions: makeCaptionsProvider(project),
         },
         { width: opts.width, height: opts.height },

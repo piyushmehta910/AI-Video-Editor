@@ -21,6 +21,7 @@ import { useMediaImport } from '@/hooks/useMediaImport'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/onboarding/EmptyState'
 import { cn } from '@/lib/utils'
+import { VirtualList } from '@/components/common/VirtualList'
 import { DragPreviewLayer } from './DragPreview'
 import { applyAssetDropRules } from './afterAdd'
 import { isGenerated, generatedCategory } from './generatedAssets'
@@ -471,12 +472,17 @@ export function MediaBin() {
           </div>
         )}
 
-        {/* Asset Grid / List */}
+        {/* Asset Grid / List — virtualized so 500+ assets don't kill the DOM */}
         {view === 'grid' ? (
-          <div className="grid grid-cols-2 gap-2" data-testid="media-grid">
-            {visibleAssets.map((asset) => (
+          <VirtualList
+            items={visibleAssets}
+            itemHeight={140}
+            itemKey={(a) => a.id}
+            className="relative"
+            innerClassName="grid grid-cols-2 gap-2 px-0"
+            emptyState={null}
+            renderItem={(asset) => (
               <MediaItem
-                key={asset.id}
                 asset={asset}
                 view="grid"
                 generated={tab === 'generated' || isGenerated(asset)}
@@ -490,13 +496,18 @@ export function MediaBin() {
                 }}
                 onDuplicate={() => void duplicateAsset(asset)}
               />
-            ))}
-          </div>
+            )}
+          />
         ) : (
-          <div className="flex flex-col gap-1" data-testid="media-list">
-            {visibleAssets.map((asset) => (
+          <VirtualList
+            items={visibleAssets}
+            itemHeight={56}
+            itemKey={(a) => a.id}
+            className="relative"
+            innerClassName="flex flex-col gap-1"
+            emptyState={null}
+            renderItem={(asset) => (
               <MediaItem
-                key={asset.id}
                 asset={asset}
                 view="list"
                 generated={tab === 'generated' || isGenerated(asset)}
@@ -510,8 +521,8 @@ export function MediaBin() {
                 }}
                 onDuplicate={() => void duplicateAsset(asset)}
               />
-            ))}
-          </div>
+            )}
+          />
         )}
       </div>
 

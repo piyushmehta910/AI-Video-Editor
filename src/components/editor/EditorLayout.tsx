@@ -11,6 +11,7 @@ import { Timeline } from '@/ui/timeline/Timeline'
 import { RightToolPanel, TOOL_SECTIONS, type ToolSection } from '@/ui/common/RightToolPanel'
 import { HistoryPanel } from '@/components/history/HistoryPanel'
 import { HistoryToast } from '@/components/history/HistoryToast'
+import { PanelErrorBoundary } from '@/components/editor/PanelErrorBoundary'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_TIMELINE_HEIGHT = 224
@@ -149,7 +150,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
             data-testid="media-bin-panel"
           >
             <aside className="w-full h-full border-r overflow-hidden">
-              <MediaBin />
+              <PanelErrorBoundary panelName="Media Library">
+                <MediaBin />
+              </PanelErrorBoundary>
             </aside>
             <div
               className="group absolute -right-1 top-0 bottom-0 z-20 w-2 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 transition"
@@ -169,7 +172,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
         )}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <PreviewCanvas playback={playback} onOpenMedia={openMedia} />
+          <PanelErrorBoundary panelName="Preview">
+            <PreviewCanvas playback={playback} onOpenMedia={openMedia} />
+          </PanelErrorBoundary>
           <div
             className="group relative hidden h-2 shrink-0 cursor-row-resize items-center justify-center border-y bg-muted/50 hover:bg-violet-500/20 md:flex"
             onPointerDown={onResizeStart}
@@ -178,7 +183,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
           >
             <div className="bg-border group-hover:bg-violet-500 h-0.5 w-8 rounded-full" />
           </div>
-          <Timeline height={timelineHeight} onOpenTool={setToolPanelSection} />
+          <PanelErrorBoundary panelName="Timeline">
+            <Timeline height={timelineHeight} onOpenTool={setToolPanelSection} />
+          </PanelErrorBoundary>
         </div>
 
         {/* History sidebar */}
@@ -207,7 +214,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
                   </Button>
                 </div>
                 <div className="min-h-0 flex-1">
-                  <InspectorPanel onOpenMedia={openMedia} />
+                  <PanelErrorBoundary panelName="Inspector">
+                    <InspectorPanel onOpenMedia={openMedia} />
+                  </PanelErrorBoundary>
                 </div>
               </div>
             </aside>

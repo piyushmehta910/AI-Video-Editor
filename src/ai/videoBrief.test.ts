@@ -10,6 +10,10 @@ describe('video creation brief', () => {
     expect(isVideoCreationPrompt('Trim the first clip by two seconds')).toBe(false)
     expect(isVideoCreationPrompt('Split clip at 5 seconds')).toBe(false)
     expect(isVideoCreationPrompt('Mute audio on track 2')).toBe(false)
+    expect(isVideoCreationPrompt('Make the video louder')).toBe(false)
+    expect(isVideoCreationPrompt('Turn this clip into a circle')).toBe(false)
+    expect(isVideoCreationPrompt('Can you adjust the video opacity to 50%?')).toBe(false)
+    expect(isVideoCreationPrompt('Make this clip faster')).toBe(false)
   })
 
   it('extracts clean semantic topics from conversational commands', () => {

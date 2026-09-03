@@ -1,4 +1,4 @@
-﻿import * as ort from 'onnxruntime-web'
+import type * as ort from 'onnxruntime-web'
 
 export interface Wav2LipConfig {
   modelUrl: string
@@ -41,6 +41,12 @@ export class Wav2LipEngine {
   private faceDetector: ort.InferenceSession | null = null
   private config: Wav2LipConfig
   private initialized = false
+  private ortModule?: typeof ort;
+
+  private get ort(): typeof ort {
+    if (!this.ortModule) throw new Error('ONNX runtime not loaded');
+    return this.ortModule;
+  }
 
   constructor(config: Partial<Wav2LipConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -50,6 +56,7 @@ export class Wav2LipEngine {
     if (this.initialized) return
 
     try {
+      const ort = await import('onnxruntime-web')
       this.session = await ort.InferenceSession.create(this.config.modelUrl, {
         executionProviders: ['wasm', 'webgl', 'webgpu'],
         graphOptimizationLevel: 'all',
@@ -102,7 +109,7 @@ export class Wav2LipEngine {
         data[dstIdx + 2] = frame.data[idx + 2] / 255
       }
     }
-    return new ort.Tensor('float32', data, [1, 3, h, w])
+    return new this.ort.Tensor('float32', data, [1, 3, h, w])
   }
 
   private parseFaceBoxes(results: ort.InferenceSession.OnnxValueMapType, imgW: number, imgH: number): FaceBox[] {
@@ -161,7 +168,7 @@ export class Wav2LipEngine {
       data[i + h * w] = frame.data[i * 4 + 1] / 255
       data[i + 2 * h * w] = frame.data[i * 4 + 2] / 255
     }
-    return new ort.Tensor('float32', data, [1, 3, h, w])
+    return new this.ort.Tensor('float32', data, [1, 3, h, w])
   }
 
   private melSpectrogram(audio: Float32Array, sampleRate: number): Float32Array {
@@ -278,14 +285,14 @@ export class Wav2LipEngine {
       const croppedFaces = batchFrames.map((frame, i) => this.cropAndResizeFace(frame, faceBoxes[i][0]))
       const faceTensors = croppedFaces.map(f => this.imageDataToTensor(f))
 
-      const melTensor = new ort.Tensor('float32', batchMel, [batchFrames.length, 80, 16])
+      const melTensor = new this.ort.Tensor('float32', batchMel, [batchFrames.length, 80, 16])
       const faceData = new Float32Array(faceTensors.reduce((sum, t) => sum + t.data.length, 0))
       let faceOffset = 0
       for (const t of faceTensors) {
         faceData.set(t.data as Float32Array, faceOffset)
         faceOffset += t.data.length
       }
-      const faceTensor = new ort.Tensor('float32', faceData, [batchFrames.length, 3, 96, 96])
+      const faceTensor = new this.ort.Tensor('float32', faceData, [batchFrames.length, 3, 96, 96])
 
       const results = await this.session!.run({
         face: faceTensor,

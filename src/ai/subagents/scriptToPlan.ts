@@ -1,7 +1,7 @@
 import { useTimelineStore } from '@/stores/timelineStore'
 import { getScript, type ScriptScene } from '@/stores/scriptStore'
 import { getActiveTtsProvider } from '@/api/tts'
-import { searchStockImages, downloadStockImage } from '@/api/stock/search'
+import { searchStockImages, downloadStockImage, searchStockVideos, downloadStockVideo } from '@/api/stock/search'
 import { aspectToSize, type Asset, type Clip, type TextOverlay } from '@/engine/types'
 import type { VideoBrief } from '@/ai/videoBrief'
 import type { SubagentExecutionResult } from './types'
@@ -256,26 +256,39 @@ export async function runSceneSequence(options: SceneSequenceOptions): Promise<S
     clipType: 'voice',
   })
 
-  const makeVisualClip = (asset: Asset, start: number, duration: number, fadeIn: number): Omit<Clip, 'id'> => ({
-    assetId: asset.id,
-    trackId: videoTrack.id,
-    startTime: start,
-    duration,
-    sourceStart: 0,
-    sourceEnd: asset.type === 'image' ? duration : Math.min(asset.duration || duration, duration),
-    speed: 1,
-    name: asset.name,
-    position: { x: 0, y: 0 },
-    scale: { x: 1, y: 1 },
-    rotation: 0,
-    opacity: 1,
-    volume: 1,
-    fadeIn,
-    fadeOut: 0.25,
-    effects: [],
-    transitions: {},
-    clipType: asset.type === 'image' ? 'image' : 'video',
-  })
+  const makeVisualClip = (asset: Asset, start: number, duration: number, fadeIn: number): Omit<Clip, 'id'> => {
+    const isImage = asset.type === 'image'
+    return {
+      assetId: asset.id,
+      trackId: videoTrack.id,
+      startTime: start,
+      duration,
+      sourceStart: 0,
+      sourceEnd: isImage ? duration : Math.min(asset.duration || duration, duration),
+      speed: 1,
+      name: asset.name,
+      position: { x: 0, y: 0 },
+      scale: { x: 1, y: 1 },
+      rotation: 0,
+      opacity: 1,
+      volume: 1,
+      fadeIn,
+      fadeOut: 0.25,
+      effects: [],
+      transitions: {},
+      clipType: isImage ? 'image' : 'video',
+      keyframes: isImage
+        ? [
+            { id: crypto.randomUUID(), prop: 'scale.x', time: 0, value: 1.0 },
+            { id: crypto.randomUUID(), prop: 'scale.y', time: 0, value: 1.0 },
+            { id: crypto.randomUUID(), prop: 'scale.x', time: duration, value: 1.15 },
+            { id: crypto.randomUUID(), prop: 'scale.y', time: duration, value: 1.15 },
+            { id: crypto.randomUUID(), prop: 'position.y', time: 0, value: 0 },
+            { id: crypto.randomUUID(), prop: 'position.y', time: duration, value: -6 },
+          ]
+        : [],
+    }
+  }
 
   const makeTextClip = (
     overlay: TextOverlay,
@@ -312,14 +325,24 @@ export async function runSceneSequence(options: SceneSequenceOptions): Promise<S
     plan: VideoScenePlan,
     sceneIndex: number,
   ): Promise<{ asset: Asset; note?: string }> => {
-    // 1. Stock imagery when available.
+    // 1. Stock video footage or imagery when available.
     if (plan.visualKind === 'stock') {
+      try {
+        onStage(`Scene ${sceneIndex + 1}/${total}: sourcing stock video footage...`)
+        const foundVideos = await searchStockVideos(plan.visualQuery, { maxResults: 2 })
+        if (foundVideos.length) {
+          const file = await downloadStockVideo(foundVideos[0])
+          return { asset: await importAsset(file), note: 'stock video' }
+        }
+      } catch {
+        /* fall through to stock image */
+      }
       try {
         onStage(`Scene ${sceneIndex + 1}/${total}: sourcing stock visuals...`)
         const found = await searchStockImages(plan.visualQuery, { maxResults: 3 })
         if (found.length) {
           const file = await downloadStockImage(found[0])
-          return { asset: await importAsset(file) }
+          return { asset: await importAsset(file), note: 'stock image' }
         }
       } catch {
         /* fall through to user media / card */

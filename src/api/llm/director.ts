@@ -2,6 +2,7 @@ import { useApiConfigStore } from '@/api/config/store'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { needsProxy, proxyFetch } from '@/api/proxy'
 import type { LLMConfig } from '@/api/config/types'
+import { checkRateLimit } from '@/lib/rateLimiter'
 import { VIDEO_EDITING_MANUAL } from './videoEditingManual'
 
 export interface ChatMessage {
@@ -64,12 +65,17 @@ export function getDirectorProvider(override?: DirectorProviderOverride): Direct
 }
 
 export function getProjectContextSystemPrompt(askedQuestions: string[] = []): string {
-  const { project, assets } = useTimelineStore.getState()
+  const { project, assets, playhead, selection } = useTimelineStore.getState()
   const prefs = useApiConfigStore.getState().config.preferences
+  const selectedClips = project.tracks.flatMap((t) => t.clips.filter((c) => selection.clipIds.includes(c.id)))
   const lines: string[] = [
     'You are the AI Director inside ClipForge, a browser-native video editor.',
     'You help the user edit their project. You can call tools to perform edits.',
     `Project: "${project.name}" ${project.width}×${project.height} @ ${project.fps}fps (${project.aspectRatio}).`,
+    `Current Playhead Scrubber: ${playhead.toFixed(2)}s. When the user says "here", "at playhead", or omits time, use this position.`,
+    selectedClips.length > 0
+      ? `Currently Selected Clip(s): ${selectedClips.map((c) => `"${c.name}" (id: ${c.id}, ${c.startTime.toFixed(1)}s→${(c.startTime + c.duration).toFixed(1)}s, vol:${Math.round(c.volume * 100)}%, spd:${c.speed}x)`).join(', ')}. When the user says "this", "it", or "selected", target these.`
+      : 'Currently Selected Clip(s): None.',
     'Tracks:',
   ]
   for (const track of project.tracks) {
@@ -79,7 +85,14 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
       continue
     }
     const clips = track.clips
-      .map((c) => `"${c.name}" ${c.startTime.toFixed(1)}s→${(c.startTime + c.duration).toFixed(1)}s`)
+      .map((c) => {
+        const details: string[] = [`"${c.name}" ${c.startTime.toFixed(1)}s→${(c.startTime + c.duration).toFixed(1)}s`]
+        if (c.volume !== 1) details.push(`vol:${Math.round(c.volume * 100)}%`)
+        if (c.speed !== 1) details.push(`spd:${c.speed}x`)
+        if (c.opacity !== 1) details.push(`op:${Math.round(c.opacity * 100)}%`)
+        if (selection.clipIds.includes(c.id)) details.push('[SELECTED]')
+        return details.join(' ')
+      })
       .join(', ')
     lines.push(`  - ${label} (${track.type}): ${clips}`)
   }
@@ -143,6 +156,19 @@ export async function chatCompletion(
   messages: ChatMessage[],
   tools?: Array<Record<string, unknown>>,
 ): Promise<ChatMessage> {
+  // Map human-readable provider name to rate-limiter key
+  const rateLimitKey =
+    provider.name === 'OpenRouter' ? 'openRouter'
+    : provider.name === 'OpenCode Zen' ? 'opencodeZen'
+    : provider.name === 'NVIDIA NIM' ? 'nvidiaNim'
+    : provider.name
+  const rateLimit = checkRateLimit(rateLimitKey)
+  if (!rateLimit.allowed) {
+    throw new Error(
+      `Rate limit exceeded for ${provider.name}. Try again in ${Math.ceil(rateLimit.retryAfterMs / 1000)}s.`,
+    )
+  }
+
   const body: Record<string, unknown> = {
     model: provider.config.model,
     temperature: provider.config.temperature,

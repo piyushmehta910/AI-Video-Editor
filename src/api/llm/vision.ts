@@ -52,26 +52,32 @@ export async function blobToDataUrl(blob: Blob | File): Promise<string> {
 }
 
 /**
- * Perform Image-to-Text / Multimodal Vision analysis using NVIDIA NIM.
- * Defaults to `nemotron-3-nano-omni-30b-a3b-reasoning`.
+ * Perform Image-to-Text / Multimodal Vision analysis using OpenRouter or NVIDIA NIM.
+ * Defaults to active provider (e.g. OpenRouter Gemini Flash or NVIDIA Nemotron).
  */
-export async function analyzeImageWithNvidiaVision(
+export async function analyzeImageWithVision(
   imageInput: Blob | File | string,
   options: VisionAnalysisOptions = {},
 ): Promise<VisionAnalysisResult> {
   const { config } = useApiConfigStore.getState()
+  const openRouterCfg = config.openRouter
   const nimCfg = config.nvidiaNim
-  const ttsCfg = config.nvidiaTts
-  const apiKey = nimCfg.apiKey || ttsCfg.apiKey
 
-  if (!apiKey) {
-    throw new Error(
-      'NVIDIA API key not found. Please add your NVIDIA API key in Settings → NVIDIA NIM to use Nemotron Vision.',
-    )
+  let url: string
+  let apiKey: string
+  let model: string
+
+  if (openRouterCfg.apiKey) {
+    url = `${(openRouterCfg.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/$/, '')}/chat/completions`
+    apiKey = openRouterCfg.apiKey
+    model = options.model || openRouterCfg.model || 'google/gemini-2.0-flash-exp:free'
+  } else if (nimCfg.apiKey) {
+    url = `${(nimCfg.baseUrl || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')}/chat/completions`
+    apiKey = nimCfg.apiKey
+    model = options.model || DEFAULT_NVIDIA_VISION_MODEL
+  } else {
+    throw new Error('No Vision AI provider configured. Please add an OpenRouter or NVIDIA NIM API key in Settings.')
   }
-
-  const base = (nimCfg.baseUrl || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')
-  const url = `${base}/chat/completions`
 
   // Format data URL
   let dataUrl: string
@@ -81,7 +87,6 @@ export async function analyzeImageWithNvidiaVision(
     dataUrl = await blobToDataUrl(imageInput)
   }
 
-  const model = options.model || DEFAULT_NVIDIA_VISION_MODEL
   const prompt =
     options.prompt ||
     'Analyze this video frame / image in detail for a professional video editor. Describe the main subject, background setting, lighting and mood, color palette, camera framing/angle, and any visible text or logos.'
@@ -119,14 +124,14 @@ export async function analyzeImageWithNvidiaVision(
     signal: options.signal,
   }
 
-  const timeoutMs = nimCfg.timeoutMs ?? 60000
+  const timeoutMs = 60000
   const res = needsProxy(url)
     ? await proxyFetch(url, { ...init, signal: undefined }, timeoutMs)
     : await fetch(url, init)
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => '')
-    throw new Error(`NVIDIA Vision Error (${res.status}): ${errorText.slice(0, 300)}`)
+    throw new Error(`Vision Error (${res.status}): ${errorText.slice(0, 300)}`)
   }
 
   const json = (await res.json()) as {
@@ -140,6 +145,17 @@ export async function analyzeImageWithNvidiaVision(
     modelUsed: model,
     usage: json.usage,
   }
+}
+
+/**
+ * Perform Image-to-Text / Multimodal Vision analysis using NVIDIA NIM.
+ * Maintained for backward compatibility.
+ */
+export async function analyzeImageWithNvidiaVision(
+  imageInput: Blob | File | string,
+  options: VisionAnalysisOptions = {},
+): Promise<VisionAnalysisResult> {
+  return analyzeImageWithVision(imageInput, options)
 }
 
 /**

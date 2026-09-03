@@ -34,10 +34,13 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
     ['deriveKey']
   )
 
+  // Create a proper BufferSource-compatible view by copying to new ArrayBuffer
+  const saltView = new Uint8Array(salt)
+
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt as Uint8Array<ArrayBuffer>,
+      salt: saltView,
       iterations: ITERATIONS,
       hash: 'SHA-256',
     },

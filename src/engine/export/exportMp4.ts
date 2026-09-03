@@ -224,9 +224,11 @@ export async function exportMp4(
         time,
         {
           video: async (_clip, asset, srcTime) => {
+                      // Abort check before heavy work.
+                      if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError');
             let el = mediaElements.get(asset.id)
             if (!el) {
-              el = await loadMediaElement(asset, blobUrls)
+              el = await loadMediaElement(asset, blobUrls, opts.signal)
               mediaElements.set(asset.id, el)
             }
             // Match the WebM pipeline: loop short sources (stickers/GIFs)
@@ -235,7 +237,10 @@ export async function exportMp4(
             await seekTo(el, elTime)
             return el.videoWidth > 0 ? el : null
           },
-          image: (asset) => loadImage(asset),
+          image: async (asset) => {
+                      if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError');
+                      return loadImage(asset);
+                    },
           captions: makeCaptionsProvider(project),
         },
         { width: opts.width, height: opts.height },

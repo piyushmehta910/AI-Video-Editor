@@ -8,6 +8,8 @@
  *   reject the surrounding async function — it becomes an uncaught exception
  *   that can take down the page. The guard converts callback errors into a
  *   promise rejection that races the export loop instead.
+ * - Abort: every awaitable accepts an `AbortSignal` so user cancellation
+ *   propagates instantly instead of waiting for a frame loop or drain poll.
  */
 
 interface DrainableEncoder {
@@ -16,10 +18,20 @@ interface DrainableEncoder {
   removeEventListener(type: 'dequeue', listener: () => void): void
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException('Export aborted', 'AbortError')
+}
+
 /** Resolves once the encoder queue has drained below `maxQueued`. */
-export function waitForDrain(encoder: DrainableEncoder, maxQueued: number, timeoutMs = 8000): Promise<void> {
+export function waitForDrain(
+  encoder: DrainableEncoder,
+  maxQueued: number,
+  timeoutMs = 8000,
+  signal?: AbortSignal,
+): Promise<void> {
+  throwIfAborted(signal)
   if (encoder.encodeQueueSize < maxQueued) return Promise.resolve()
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let timer: number | null = null
     let pollInterval: number | null = null
     let settled = false
@@ -30,30 +42,37 @@ export function waitForDrain(encoder: DrainableEncoder, maxQueued: number, timeo
       encoder.removeEventListener('dequeue', onDequeue)
       if (timer !== null) window.clearTimeout(timer)
       if (pollInterval !== null) window.clearInterval(pollInterval)
+      if (signal) signal.removeEventListener('abort', onAbort)
     }
 
+    const settle = (error?: Error) => {
+      cleanup()
+      if (error) reject(error)
+      else resolve()
+    }
+
+    const onAbort = () => settle(new DOMException('Export aborted', 'AbortError'))
+
     const onDequeue = () => {
-      if (encoder.encodeQueueSize < maxQueued) {
-        cleanup()
-        resolve()
-      }
+      if (encoder.encodeQueueSize < maxQueued) settle()
     }
 
     encoder.addEventListener('dequeue', onDequeue)
+    if (signal) {
+      if (signal.aborted) {
+        settle(new DOMException('Export aborted', 'AbortError'))
+        return
+      }
+      signal.addEventListener('abort', onAbort)
+    }
 
     // Polling fallback in case dequeue event was dropped or delayed by the browser engine
     pollInterval = window.setInterval(() => {
-      if (encoder.encodeQueueSize < maxQueued) {
-        cleanup()
-        resolve()
-      }
+      if (encoder.encodeQueueSize < maxQueued) settle()
     }, 12)
 
     // Safety timeout prevents indefinite hang
-    timer = window.setTimeout(() => {
-      cleanup()
-      resolve()
-    }, timeoutMs)
+    timer = window.setTimeout(() => settle(), timeoutMs)
   })
 }
 
@@ -62,11 +81,32 @@ export function waitForDrain(encoder: DrainableEncoder, maxQueued: number, timeo
  * run between frames. When `needBreather` is true, yields a brief macrotask delay (4ms)
  * to prevent thermal throttling, GC pressure, and 100% CPU lockup.
  */
-export function yieldToBrowser(needBreather = false): Promise<void> {
+export function yieldToBrowser(needBreather = false, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal)
   if (needBreather) {
-    return new Promise((resolve) => setTimeout(resolve, 4))
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }, 4)
+      const onAbort = () => {
+        clearTimeout(t)
+        reject(new DOMException('Export aborted', 'AbortError'))
+      }
+      if (signal) signal.addEventListener('abort', onAbort)
+    })
   }
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, 0)
+    const onAbort = () => {
+      clearTimeout(t)
+      reject(new DOMException('Export aborted', 'AbortError'))
+    }
+    if (signal) signal.addEventListener('abort', onAbort)
+  })
 }
 
 export interface EncoderGuard {
@@ -106,4 +146,9 @@ export function createEncoderGuard(): EncoderGuard {
     },
     failure,
   }
+}
+
+/** Helper used throughout the export pipeline to bail out instantly. */
+export function checkAborted(signal?: AbortSignal): void {
+  throwIfAborted(signal)
 }

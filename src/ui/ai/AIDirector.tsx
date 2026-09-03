@@ -21,6 +21,7 @@ import {
   Minimize2,
   Music,
   Palette,
+  PanelRight,
   Play,
   RotateCcw,
   Scissors,
@@ -66,6 +67,7 @@ import { useAIStore } from '@/stores/aiStore'
 import { DEFAULT_VIDEO_BRIEF, VIDEO_BRIEF_QUESTIONS, applyBriefAnswer, extractCleanTopic, isVideoCreationPrompt } from '@/ai/videoBrief'
 import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
 import { getProviderKeyStatus } from '@/ai/subagents/providerPreflight'
+import { matchAndExecuteLocalIntent } from '@/api/llm/localIntentRouter'
 
 const TOOL_METADATA: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   generate_script: { label: 'Narration Script', icon: FileText },
@@ -259,11 +261,19 @@ export function AIDirector({
   }
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
   const [size, setSize] = React.useState<PanelSize>(getInitialSize)
-  const [isDragging, setIsDragging] = React.useState(false)
+  const [_isDragging, setIsDragging] = React.useState(false)
   const [isResizing, setIsResizing] = React.useState(false)
   const [isMinimized, setIsMinimized] = React.useState(false)
   const [isMaximized, setIsMaximized] = React.useState(false)
   const preMaximizeRef = React.useRef<{ position: Position; size: PanelSize } | null>(null)
+  const panelRef = React.useRef<HTMLDivElement>(null)
+  const minimizedDragRef = React.useRef<{
+    mouseX: number
+    mouseY: number
+    startX: number
+    startY: number
+    hasMoved: boolean
+  } | null>(null)
 
   const dragStartRef = React.useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null)
   const resizeStartRef = React.useRef<{
@@ -275,21 +285,156 @@ export function AIDirector({
     startX: number
     startY: number
   } | null>(null)
-  const panelRef = React.useRef<HTMLDivElement>(null)
 
-  // Dedicated drag ref for the minimized pill (independent from full-panel drag)
-  const minimizedDragRef = React.useRef<{
-    mouseX: number
-    mouseY: number
-    startX: number
-    startY: number
-    hasMoved: boolean
-  } | null>(null)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    if (isMaximized) return
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('a') || target.closest('input')) return
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startX: position.x,
+      startY: position.y,
+    }
+    setIsDragging(true)
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current) return
+    const dx = e.clientX - dragStartRef.current.mouseX
+    const dy = e.clientY - dragStartRef.current.mouseY
+    const width = size.width || 440
+    const height = size.height || 580
+    const maxX = Math.max(10, window.innerWidth - width - 10)
+    const maxY = Math.max(10, window.innerHeight - height - 10)
+    const nextX = Math.min(Math.max(10, dragStartRef.current.startX + dx), maxX)
+    const nextY = Math.min(Math.max(10, dragStartRef.current.startY + dy), maxY)
+    setPosition({ x: nextX, y: nextY })
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current) return
+    dragStartRef.current = null
+    setIsDragging(false)
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
+    } catch {
+      // ignore
+    }
+  }
+
+  const toggleMaximize = () => {
+    if (!isMaximized) {
+      preMaximizeRef.current = { position: { ...position }, size: { ...size } }
+      setIsMaximized(true)
+      setIsMinimized(false)
+    } else {
+      if (preMaximizeRef.current) {
+        setPosition(preMaximizeRef.current.position)
+        setSize(preMaximizeRef.current.size)
+      }
+      setIsMaximized(false)
+    }
+  }
+
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>, direction: ResizeDirection) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    if (isMaximized) return
+    e.stopPropagation()
+    resizeStartRef.current = {
+      direction,
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      startWidth: size.width,
+      startHeight: size.height,
+      startX: position.x,
+      startY: position.y,
+    }
+    setIsResizing(true)
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizeStartRef.current) return
+    const dx = e.clientX - resizeStartRef.current.mouseX
+    const dy = e.clientY - resizeStartRef.current.mouseY
+    const { direction, startWidth, startHeight, startX, startY } = resizeStartRef.current
+
+    let newWidth = startWidth
+    let newHeight = startHeight
+    let newX = startX
+    let newY = startY
+
+    const minWidth = 320
+    const minHeight = 380
+    const maxWidth = Math.max(minWidth, window.innerWidth - 20)
+    const maxHeight = Math.max(minHeight, window.innerHeight - 20)
+
+    if (direction.includes('e')) newWidth = Math.min(Math.max(minWidth, startWidth + dx), maxWidth)
+    if (direction.includes('s')) newHeight = Math.min(Math.max(minHeight, startHeight + dy), maxHeight)
+    if (direction.includes('w')) {
+      const candidateW = Math.min(Math.max(minWidth, startWidth - dx), maxWidth)
+      newX = startX + (startWidth - candidateW)
+      newWidth = candidateW
+    }
+    if (direction.includes('n')) {
+      const candidateH = Math.min(Math.max(minHeight, startHeight - dy), maxHeight)
+      newY = startY + (startHeight - candidateH)
+      newHeight = candidateH
+    }
+
+    setSize({ width: newWidth, height: newHeight })
+    setPosition({ x: newX, y: newY })
+  }
+
+  const handleResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizeStartRef.current) return
+    resizeStartRef.current = null
+    setIsResizing(false)
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(size))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
+    } catch {
+      // ignore
+    }
+  }
 
   // Production mode: autopilot = auto-apply all changes; review = stage for approval
   const [productionMode, setProductionMode] = React.useState<'autopilot' | 'review'>(() => {
     try { return (localStorage.getItem('ai_director_mode') as 'autopilot' | 'review') || 'autopilot' } catch { return 'autopilot' }
-  })
+  });
+
+  const [isDocked, setIsDocked] = React.useState<boolean>(() => {
+    try { return localStorage.getItem('clipforge_ai_director_docked') === 'true' } catch { return false }
+  });
+
+  const toggleDock = () => {
+    setIsDocked((d) => {
+      const next = !d
+      try { localStorage.setItem('clipforge_ai_director_docked', String(next)) } catch { /* ignore */ }
+      return next
+    })
+  };
 
   // Viewport resize guard
   React.useEffect(() => {
@@ -307,148 +452,7 @@ export function AIDirector({
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [size.width, size.height])
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || isMaximized) return
-    const target = e.target as HTMLElement
-    if (target.closest('button') || target.closest('a') || target.closest('input')) return
-
-    dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      startX: position.x,
-      startY: position.y,
-    }
-    setIsDragging(true)
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !dragStartRef.current) return
-    const dx = e.clientX - dragStartRef.current.mouseX
-    const dy = e.clientY - dragStartRef.current.mouseY
-    const width = size.width || 440
-    const height = size.height || 580
-    const maxX = Math.max(10, window.innerWidth - width - 10)
-    const maxY = Math.max(10, window.innerHeight - height - 10)
-
-    const nextX = Math.min(Math.max(10, dragStartRef.current.startX + dx), maxX)
-    const nextY = Math.min(Math.max(10, dragStartRef.current.startY + dy), maxY)
-
-    setPosition({ x: nextX, y: nextY })
-  }
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return
-    setIsDragging(false)
-    dragStartRef.current = null
-    try {
-      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
-    } catch {
-      // ignore
-    }
-  }
-
-  const handleResizePointerDown = (e: React.PointerEvent, direction: ResizeDirection) => {
-    e.stopPropagation()
-    e.preventDefault()
-    if (e.button !== 0 || isMaximized) return
-
-    resizeStartRef.current = {
-      direction,
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      startWidth: size.width,
-      startHeight: size.height,
-      startX: position.x,
-      startY: position.y,
-    }
-    setIsResizing(true)
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const handleResizePointerMove = (e: React.PointerEvent) => {
-    if (!isResizing || !resizeStartRef.current) return
-    const { direction, mouseX, mouseY, startWidth, startHeight, startX, startY } = resizeStartRef.current
-    const dx = e.clientX - mouseX
-    const dy = e.clientY - mouseY
-
-    const minWidth = 320
-    const minHeight = 380
-    const maxWidth = Math.max(minWidth, window.innerWidth - 20)
-    const maxHeight = Math.max(minHeight, window.innerHeight - 20)
-
-    let newWidth = startWidth
-    let newHeight = startHeight
-    let newX = startX
-    let newY = startY
-
-    if (direction.includes('e')) {
-      newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + dx))
-    }
-    if (direction.includes('w')) {
-      const desiredWidth = startWidth - dx
-      newWidth = Math.min(maxWidth, Math.max(minWidth, desiredWidth))
-      newX = startX + (startWidth - newWidth)
-    }
-    if (direction.includes('s')) {
-      newHeight = Math.min(maxHeight, Math.max(minHeight, startHeight + dy))
-    }
-    if (direction.includes('n')) {
-      const desiredHeight = startHeight - dy
-      newHeight = Math.min(maxHeight, Math.max(minHeight, desiredHeight))
-      newY = startY + (startHeight - newHeight)
-    }
-
-    newX = Math.max(10, Math.min(newX, window.innerWidth - newWidth - 10))
-    newY = Math.max(10, Math.min(newY, window.innerHeight - newHeight - 10))
-
-    const updatedSize = { width: Math.round(newWidth), height: Math.round(newHeight) }
-    const updatedPos = { x: Math.round(newX), y: Math.round(newY) }
-    setSize(updatedSize)
-    setPosition(updatedPos)
-  }
-
-  const handleResizePointerUp = (e: React.PointerEvent) => {
-    if (!isResizing) return
-    setIsResizing(false)
-    resizeStartRef.current = null
-    try {
-      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(size))
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
-    } catch {
-      // ignore
-    }
-  }
-
-  const toggleMaximize = () => {
-    if (isMaximized) {
-      if (preMaximizeRef.current) {
-        setPosition(preMaximizeRef.current.position)
-        setSize(preMaximizeRef.current.size)
-      }
-      setIsMaximized(false)
-    } else {
-      preMaximizeRef.current = { position, size }
-      setPosition({ x: 16, y: 16 })
-      setSize({
-        width: Math.max(320, window.innerWidth - 32),
-        height: Math.max(380, window.innerHeight - 32),
-      })
-      setIsMaximized(true)
-    }
-  }
+  }, [size.width, size.height]);
 
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<UiMessage[]>([])
@@ -800,6 +804,26 @@ export function AIDirector({
         startVideoBrief({ ...DEFAULT_VIDEO_BRIEF, topic: extractCleanTopic(trimmed) || trimmed })
         return
       }
+
+      // Check for zero-latency local client-side intent execution (no API key needed)
+      try {
+        const localResult = await matchAndExecuteLocalIntent(trimmed)
+        if (localResult) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: 'ai',
+              text: localResult.message,
+              tools: [],
+            },
+          ])
+          return
+        }
+      } catch (localErr) {
+        console.warn('[AIDirector] Local intent execution error, falling back to LLM:', localErr)
+      }
+
       setBusy(true)
       try {
         const provider = getDirectorProvider()
@@ -809,7 +833,7 @@ export function AIDirector({
             {
               id: crypto.randomUUID(),
               role: 'ai',
-              text: 'No AI provider is configured yet. Add an API key for NVIDIA NIM, OpenCode Zen or OpenRouter in Settings, then I can help you edit.',
+              text: 'No AI provider is configured yet. Add a free API key for OpenRouter or OpenCode Zen in Settings → API Keys to unlock advanced reasoning.',
               tools: [],
             },
           ])
@@ -854,7 +878,7 @@ export function AIDirector({
         let pendingPlan: EditPlan | null = null
         let planned = false
         let loops = 0
-        while (loops < 6) {
+        while (loops < 8) {
           loops++
           const reply = await chatCompletion(provider, apiMessages, DIRECTOR_TOOLS)
           apiMessages.push(reply)
@@ -863,7 +887,6 @@ export function AIDirector({
               finalText = reply.content
               break
             }
-            loops++
             continue
           }
 
@@ -963,7 +986,6 @@ export function AIDirector({
           if (planned) break
           if (asked) continue
           if (reviewDone) break
-          loops++
         }
 
         if (pendingPlan) {
@@ -1310,29 +1332,44 @@ export function AIDirector({
       {open && !isMinimized && (
         <div
           ref={panelRef}
-          style={{
-            transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-            width: isMaximized ? 'calc(100vw - 32px)' : `${size.width}px`,
-            height: isMaximized ? 'calc(100vh - 32px)' : `${size.height}px`,
-            maxWidth: 'calc(100vw - 20px)',
-            maxHeight: 'calc(100vh - 20px)',
-          }}
-          className={`fixed top-0 left-0 z-50 flex flex-col rounded-2xl border border-white/30 dark:border-white/15 bg-background/75 dark:bg-slate-950/75 shadow-[0_16px_48px_0_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all ${
-            isResizing ? 'select-none' : ''
-          }`}
+          style={
+            isDocked
+              ? {
+                  width: `${Math.min(480, Math.max(340, size.width))}px`,
+                }
+              : {
+                  transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                  width: isMaximized ? 'calc(100vw - 32px)' : `${size.width}px`,
+                  height: isMaximized ? 'calc(100vh - 32px)' : `${size.height}px`,
+                  maxWidth: 'calc(100vw - 20px)',
+                  maxHeight: 'calc(100vh - 20px)',
+                }
+          }
+          className={
+            isDocked
+              ? 'fixed top-14 right-3 bottom-3 z-50 flex flex-col rounded-2xl border border-white/30 dark:border-white/15 bg-background/95 dark:bg-slate-950/95 shadow-2xl backdrop-blur-2xl transition-all'
+              : `fixed top-0 left-0 z-50 flex flex-col rounded-2xl border border-white/30 dark:border-white/15 bg-background/75 dark:bg-slate-950/75 shadow-[0_16px_48px_0_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all ${
+                  isResizing ? 'select-none' : ''
+                }`
+          }
         >
           {/* Draggable Header Bar with Glassmorphism */}
           <div
-            className="relative flex cursor-grab active:cursor-grabbing select-none items-center gap-2.5 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-4 py-2.5 backdrop-blur-xl rounded-t-2xl touch-none"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onDoubleClick={toggleMaximize}
-            title="Drag header to move • Double-click to maximize or restore"
+            className={cn(
+              'relative flex select-none items-center gap-2.5 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-4 py-2.5 backdrop-blur-xl rounded-t-2xl touch-none',
+              isDocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
+            )}
+            onPointerDown={isDocked ? undefined : handlePointerDown}
+            onPointerMove={isDocked ? undefined : handlePointerMove}
+            onPointerUp={isDocked ? undefined : handlePointerUp}
+            onDoubleClick={isDocked ? undefined : toggleMaximize}
+            title={isDocked ? 'AI Director (Docked to Sidebar)' : 'Drag header to move • Double-click to maximize or restore'}
           >
-            <div className="flex items-center text-muted-foreground hover:text-foreground transition">
-              <GripHorizontal className="size-4 opacity-75" />
-            </div>
+            {!isDocked && (
+              <div className="flex items-center text-muted-foreground hover:text-foreground transition">
+                <GripHorizontal className="size-4 opacity-75" />
+              </div>
+            )}
             <div className="flex size-7 items-center justify-center rounded-xl bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30 shadow-xs">
               <Clapperboard className="size-4" />
             </div>
@@ -1445,6 +1482,22 @@ export function AIDirector({
                 <Settings className="size-3.5" />
               </Link>
 
+              {/* Dock to Right Sidebar */}
+              <button
+                type="button"
+                onClick={toggleDock}
+                className={cn(
+                  'rounded-lg p-1.5 transition',
+                  isDocked
+                    ? 'bg-violet-500/20 text-violet-500 dark:text-violet-400 border border-violet-500/30'
+                    : 'text-muted-foreground hover:bg-white/15 hover:text-foreground',
+                )}
+                title={isDocked ? 'Undock to floating window' : 'Dock to right sidebar'}
+                aria-label={isDocked ? 'Undock AI Director' : 'Dock AI Director to side'}
+              >
+                <PanelRight className="size-3.5" />
+              </button>
+
               {/* Maximize / Restore */}
               <button
                 type="button"
@@ -1529,19 +1582,6 @@ export function AIDirector({
               <div className="grid grid-cols-3 gap-1 bg-muted/40 p-1 rounded-xl border border-border/60 shrink-0">
                 <button
                   type="button"
-                  onClick={() => handleSelectDirectorModel('nvidia-nim', apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')}
-                  className={cn(
-                    'flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition truncate',
-                    activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs border border-border/40' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                  title={keyStatus.nvidiaNim ? 'NVIDIA NIM: API key configured' : 'NVIDIA NIM: No key added yet'}
-                >
-                  <span className={cn('size-2 rounded-full shrink-0', keyStatus.nvidiaNim ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-muted-foreground/40')} />
-                  <Zap className="size-3 shrink-0" />
-                  <span>NIM</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleSelectDirectorModel('openrouter', apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free')}
                   className={cn(
                     'flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition truncate',
@@ -1565,6 +1605,19 @@ export function AIDirector({
                   <span className={cn('size-2 rounded-full shrink-0', keyStatus.opencodeZen ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-muted-foreground/40')} />
                   <Code className="size-3 shrink-0" />
                   <span>Zen</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectDirectorModel('nvidia-nim', apiConfig.nvidiaNim.model || 'meta/llama-3.3-70b-instruct')}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition truncate',
+                    activeProviderKey === 'nvidia-nim' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs border border-border/40' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={keyStatus.nvidiaNim ? 'NVIDIA NIM: API key configured' : 'NVIDIA NIM (Legacy): No key added yet'}
+                >
+                  <span className={cn('size-2 rounded-full shrink-0', keyStatus.nvidiaNim ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-muted-foreground/40')} />
+                  <Zap className="size-3 shrink-0" />
+                  <span>NIM</span>
                 </button>
               </div>
 

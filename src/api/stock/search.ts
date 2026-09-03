@@ -143,3 +143,129 @@ export async function downloadStockImage(result: StockImageResult): Promise<File
     clearTimeout(timer)
   }
 }
+
+export interface StockVideoResult {
+  id: string
+  thumb: string
+  url: string
+  duration: number
+  author: string
+  source: string
+  width?: number
+  height?: number
+}
+
+export async function searchPexelsVideos(query: string, limit: number): Promise<StockVideoResult[]> {
+  const cfg = useApiConfigStore.getState().config.stockImages.pexels
+  if (!cfg.apiKey) return []
+  const timeout = cfg.timeoutMs ?? 30000
+  try {
+    const data = (await fetchJson(
+      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${limit}`,
+      { headers: { Authorization: cfg.apiKey } },
+      timeout,
+    )) as {
+      videos?: Array<{
+        id?: number
+        image?: string
+        duration?: number
+        user?: { name?: string }
+        width?: number
+        height?: number
+        video_files?: Array<{ quality?: string; link?: string; width?: number; height?: number; file_type?: string }>
+      }>
+    }
+    const list: StockVideoResult[] = []
+    for (const v of data.videos ?? []) {
+      const files = v.video_files ?? []
+      const file =
+        files.find((f) => f.quality === 'hd' && f.file_type?.includes('mp4')) ||
+        files.find((f) => f.file_type?.includes('mp4') && (f.width ?? 0) >= 1280) ||
+        files[0]
+      if (file?.link) {
+        list.push({
+          id: String(v.id ?? crypto.randomUUID()),
+          thumb: v.image ?? '',
+          url: file.link,
+          duration: v.duration ?? 5,
+          author: v.user?.name ?? 'Pexels Creator',
+          source: 'Pexels',
+          width: file.width ?? v.width,
+          height: file.height ?? v.height,
+        })
+      }
+    }
+    return list
+  } catch (err) {
+    console.warn('[stock] Pexels video search failed:', err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+export async function searchPixabayVideos(query: string, limit: number): Promise<StockVideoResult[]> {
+  const cfg = useApiConfigStore.getState().config.stockImages.pixabay
+  if (!cfg.apiKey) return []
+  const timeout = cfg.timeoutMs ?? 30000
+  try {
+    const params = new URLSearchParams({
+      key: cfg.apiKey,
+      q: query,
+      per_page: String(limit),
+      safesearch: String(cfg.safeSearch ?? true),
+    })
+    const data = (await fetchJson(`https://pixabay.com/api/videos/?${params}`, {}, timeout)) as {
+      hits?: Array<{
+        id?: number
+        duration?: number
+        user?: string
+        videos?: {
+          large?: { url?: string; width?: number; height?: number }
+          medium?: { url?: string; width?: number; height?: number }
+          tiny?: { url?: string; width?: number; height?: number }
+        }
+      }>
+    }
+    const list: StockVideoResult[] = []
+    for (const hit of data.hits ?? []) {
+      const file = hit.videos?.large || hit.videos?.medium || hit.videos?.tiny
+      if (file?.url) {
+        list.push({
+          id: String(hit.id ?? crypto.randomUUID()),
+          thumb: '',
+          url: file.url,
+          duration: hit.duration ?? 5,
+          author: hit.user ?? 'Pixabay Creator',
+          source: 'Pixabay',
+          width: file.width,
+          height: file.height,
+        })
+      }
+    }
+    return list
+  } catch (err) {
+    console.warn('[stock] Pixabay video search failed:', err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+export async function searchStockVideos(query: string, options: { maxResults?: number } = {}): Promise<StockVideoResult[]> {
+  const limit = options.maxResults ?? 4
+  const pexelsResults = await searchPexelsVideos(query, limit)
+  if (pexelsResults.length >= limit) return pexelsResults.slice(0, limit)
+  const pixabayResults = await searchPixabayVideos(query, limit - pexelsResults.length)
+  return [...pexelsResults, ...pixabayResults].slice(0, limit)
+}
+
+export async function downloadStockVideo(result: StockVideoResult): Promise<File> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 60000)
+  try {
+    const res = needsProxy(result.url)
+      ? await proxyFetch(result.url, {}, 60000)
+      : await fetch(result.url, { signal: controller.signal })
+    const blob = await res.blob()
+    return new File([blob], `stock-video-${result.source.toLowerCase()}-${result.id}.mp4`, { type: 'video/mp4' })
+  } finally {
+    clearTimeout(timer)
+  }
+}

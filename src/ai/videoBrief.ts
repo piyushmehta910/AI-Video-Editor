@@ -74,13 +74,46 @@ export function extractCleanTopic(text: string): string {
  */
 export function isVideoCreationPrompt(text: string): boolean {
   const trimmed = text.trim()
-  if (/^(trim|cut|split|delete|remove|speed up|slow down|mute|join|duplicate|grade|color grade|transcribe|reframe)\b/i.test(trimmed)) {
+  // Immediate exclusion for timeline and clip property edits
+  if (
+    /^(trim|cut|split|delete|remove|speed up|slow down|mute|unmute|louder|quieter|join|duplicate|grade|color grade|transcribe|reframe)\b/i.test(
+      trimmed,
+    )
+  ) {
     return false
   }
-  if (/\b(make|create|generate|produce|build|turn|want|compose)\b[\s\S]{0,80}\b(video|reel|short|youtube|film|clip|presentation)\b/i.test(trimmed)) {
+  // Exclude property, audio, volume, or styling instructions on existing clips
+  if (
+    /\b(louder|quieter|volume|opacity|faster|slower|speed|circle|webcam|bubble|pip|crop|zoom|scale|move|position|color|grade|filter|transition|audio|sound|speech|captions?|subtitles?)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return false
+  }
+  // Exclude operations targeting existing clips
+  if (/\b(this clip|selected clip|current clip|the clip|first clip|last clip|audio track|video track)\b/i.test(trimmed)) {
+    return false
+  }
+
+  // Explicit whole video generation phrases
+  if (
+    /\b(?:make|create|generate|produce|build|compose)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:new\s+|full\s+|whole\s+)?(?:\d+\s*(?:sec|seconds?|s|min|minutes?)\s+)?(?:video|reel|short|youtube(?:\s+short)?|film|presentation)\b/i.test(
+      trimmed,
+    )
+  ) {
     return true
   }
-  if (/^(?:a\s+)?(?:video|reel|short|film|clip|presentation)\s+(?:about|on|explaining|for|regarding)\b/i.test(trimmed)) {
+  if (
+    /\b(?:i\s+want\s+(?:a\s+|an\s+)?(?:video|reel|short|film|presentation)\s+(?:about|on|explaining|for|regarding|showcasing)\b)/i.test(
+      trimmed,
+    )
+  ) {
+    return true
+  }
+  if (/^(?:a\s+)?(?:video|reel|short|film|presentation)\s+(?:about|on|explaining|for|regarding)\b/i.test(trimmed)) {
+    return true
+  }
+  if (/^(?:create|make|generate)\s+(?:a\s+)?video$/i.test(trimmed)) {
     return true
   }
   return false

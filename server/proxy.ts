@@ -41,42 +41,110 @@ async function doFetch(url: string, init: RequestInit, timeoutMs?: number): Prom
   }
 }
 
+const ALLOWED_FORWARD_HEADERS = ['content-type', 'authorization', 'accept', 'user-agent'] as const;
+
+function isPrivateIp(hostname: string): boolean {
+  // Simple IPv4 private ranges detection.
+  const ipv4 = hostname.match(/^\d+\.\d+\.\d+\.\d+$/);
+  if (ipv4) {
+    const parts = hostname.split('.').map(Number);
+    const [a, b] = parts;
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    return false;
+  }
+  // IPv6 localhost ::1
+  if (hostname === '::1') return true;
+  // IPv6 unique local addresses fc00::/7
+  if (hostname.startsWith('fc') || hostname.startsWith('fd')) return true;
+  return false;
+}
+
 export async function forwardProxyRequest(payload: ProxyPayload): Promise<ProxyResult> {
-  const url = payload.url
-  if (!url || !isAllowedProxyUrl(url)) {
+  const url = payload.url;
+  // Basic URL validation: must be HTTPS and not a private IP.
+  if (!url) {
     return {
       status: 403,
       statusText: 'Forbidden',
       headers: { 'content-type': 'application/json' },
       body: new TextEncoder().encode(JSON.stringify({ error: 'Host not allowed by proxy' })),
-    }
+    };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'content-type': 'application/json' },
+      body: new TextEncoder().encode(JSON.stringify({ error: 'Invalid URL' })),
+    };
+  }
+  if (parsed.protocol !== 'https:') {
+    return {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'content-type': 'application/json' },
+      body: new TextEncoder().encode(JSON.stringify({ error: 'Only HTTPS targets are allowed' })),
+    };
+  }
+  if (isPrivateIp(parsed.hostname) || !isAllowedProxyUrl(url)) {
+    return {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'content-type': 'application/json' },
+      body: new TextEncoder().encode(JSON.stringify({ error: 'Host not allowed by proxy' })),
+    };
+  }
+  // Reject disallowed URI schemes.
+  if (['file:', 'javascript:', 'data:'].includes(parsed.protocol)) {
+    return {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'content-type': 'application/json' },
+      body: new TextEncoder().encode(JSON.stringify({ error: 'Scheme not allowed' })),
+    };
   }
   try {
+    // Filter forwarded headers.
+    const forwardHeaders: Record<string, string> = {};
+    if (payload.headers) {
+      for (const [k, v] of Object.entries(payload.headers)) {
+        const lower = k.toLowerCase();
+        if (ALLOWED_FORWARD_HEADERS.includes(lower as any)) {
+          forwardHeaders[k] = v;
+        }
+      }
+    }
     const res = await doFetch(
       url,
       {
         method: payload.method ?? 'GET',
-        headers: payload.headers,
+        headers: forwardHeaders,
         body: payload.body,
       },
       payload.timeoutMs,
-    )
-    const headers: Record<string, string> = {}
+    );
+    const headers: Record<string, string> = {};
     res.headers.forEach((value, key) => {
-      const lower = key.toLowerCase()
+      const lower = key.toLowerCase();
       if (lower === 'content-type' || lower === 'content-length') {
-        headers[key] = value
+        headers[key] = value;
       }
-    })
+    });
     // Pass the upstream stream straight through instead of buffering the whole
     // response — required for SSE/token streaming and large downloads.
-    return { status: res.status, statusText: res.statusText, headers, body: res.body ?? new Uint8Array(0) }
+    return { status: res.status, statusText: res.statusText, headers, body: res.body ?? new Uint8Array(0) };
   } catch (err) {
     return {
       status: 502,
       statusText: 'Bad Gateway',
       headers: { 'content-type': 'application/json' },
       body: new TextEncoder().encode(JSON.stringify({ error: err instanceof Error ? err.message : String(err) })),
-    }
+    };
   }
 }

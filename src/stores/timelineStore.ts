@@ -218,6 +218,9 @@ export const useTimelineStore = create<TimelineState>()(
   // Set when hydrate could not read the stored project; autosave must stand down
   // so a failed load never clobbers good data with a blank project.
   let hydrateFailed = false
+  // Hydration lock — prevents concurrent hydrate() calls from racing each other
+  // and corrupting state. Returns the in-flight promise if a hydrate is active.
+  let hydrationLock: Promise<void> | null = null
 
   const captureUi = (): UiCheckpoint => {
     const s = get()
@@ -245,20 +248,27 @@ export const useTimelineStore = create<TimelineState>()(
     if (!beforeProject) return
     if (beforeProject === get().project) return // no-op drag/click: don't pollute history
     const t = useTimelineStore.temporal.getState()
-    // Snapshots must match the partialized shape ({ project }) so zundo's
-    // undo()/redo() can feed them straight back into setState.
-    t.pastStates.push({ project: beforeProject })
-    if (t.pastStates.length > HISTORY_LIMIT) t.pastStates.shift()
-    t.futureStates.length = 0 // new action clears the redo stack
-    useHistoryStore.getState().pushEntry({
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      type: meta?.type ?? 'edit',
-      description: meta?.description ?? 'Edit',
-      clipId: meta?.clipId,
-      before: beforeUi ?? {},
-      after: captureUi(),
-    })
+    try {
+      // Snapshots must match the partialized shape ({ project }) so zundo's
+      // undo()/redo() can feed them straight back into setState.
+      t.pastStates.push({ project: beforeProject })
+      if (t.pastStates.length > HISTORY_LIMIT) t.pastStates.shift()
+      t.futureStates.length = 0 // new action clears the redo stack
+      useHistoryStore.getState().pushEntry({
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        type: meta?.type ?? 'edit',
+        description: meta?.description ?? 'Edit',
+        clipId: meta?.clipId,
+        before: beforeUi ?? {},
+        after: captureUi(),
+      })
+    } catch (err) {
+      // If the history store throws (e.g. quota exceeded), don't lose user data.
+      // Roll back the partial push so undo stays consistent.
+      console.error('commitHistory failed, rolling back snapshot:', err)
+      t.pastStates.pop()
+    }
   }
 
   /** Stage pre-mutation state. Skipped inside groups or suppressed batches. */
@@ -344,6 +354,10 @@ export const useTimelineStore = create<TimelineState>()(
     ocr: {},
 
     hydrate: async () => {
+      // If a hydration is already in flight, return the existing promise to
+      // prevent concurrent calls from racing and corrupting state.
+      if (hydrationLock) return hydrationLock
+      hydrationLock = (async () => {
       try {
         // Most-recent project wins (keyed by id, sorted by modifiedAt).
         const projects = await getAllRecords<Project>('projects')
@@ -428,6 +442,12 @@ export const useTimelineStore = create<TimelineState>()(
         hydrateFailed = true
         set({ hydrated: true })
       }
+      })()
+      // Release lock when done (success or failure)
+      hydrationLock.finally(() => {
+        hydrationLock = null
+      })
+      return hydrationLock
     },
 
     save: async () => {
@@ -626,8 +646,14 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     endHistoryGroup: () => {
-      if (groupDepth === 0) return
-      groupDepth--
+      if (groupDepth === 0) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn('[history] endHistoryGroup called with no matching begin — bug')
+        }
+        return
+      }
+      groupDepth = Math.max(0, groupDepth - 1)
       if (groupDepth === 0 && suppressDepth === 0) commitHistory()
     },
 

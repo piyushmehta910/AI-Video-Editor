@@ -1,8 +1,10 @@
-﻿import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@xenova/transformers'
+import type { AutomaticSpeechRecognitionPipeline } from '@xenova/transformers'
+// NOTE: Heavy AI dependencies are loaded dynamically to improve startup performance.
+// The `pipeline` function and `env` configuration are imported via dynamic `import()` when needed.
+
 import { groupWordsIntoSentences } from './transcript'
 
-env.allowLocalModels = false
-env.useBrowserCache = true
+// Environment configuration moved to dynamic import in initialize()
 
 export interface WhisperConfig {
   modelId: 'Xenova/whisper-tiny' | 'Xenova/whisper-base' | 'Xenova/whisper-small' | 'Xenova/whisper-medium' | 'Xenova/whisper-large-v3'
@@ -71,6 +73,12 @@ export class WhisperEngine {
     if (this.initialized) return
 
     try {
+      // Dynamically import heavy transformer library only when needed.
+      const { pipeline, env } = await import('@xenova/transformers');
+      // Configure environment settings.
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+
       this.pipe = await pipeline(
         'automatic-speech-recognition',
         this.config.modelId,
@@ -78,15 +86,15 @@ export class WhisperEngine {
           quantized: true,
           progress_callback: (p: PipelineProgress) => {
             // Model download/load maps to 0.05..0.12 of the total job.
-            const prog = typeof p?.progress === 'number' ? p.progress : 0
-            onProgress?.(0.05 + prog * 0.07)
+            const prog = typeof p?.progress === 'number' ? p.progress : 0;
+            onProgress?.(0.05 + prog * 0.07);
           },
         },
-      )
-      this.initialized = true
+      );
+      this.initialized = true;
     } catch (err) {
-      console.error('Failed to initialize Whisper:', err)
-      throw new Error(`Whisper initialization failed: ${err}`)
+      console.error('Failed to initialize Whisper:', err);
+      throw new Error(`Whisper initialization failed: ${err}`);
     }
   }
 

@@ -1,4 +1,5 @@
 import { useTimelineStore } from '@/stores/timelineStore'
+import { validateToolArgs } from './toolSchemas'
 import { aspectToSize } from '@/engine/types'
 import type { Asset, Clip, TextAnimation } from '@/engine/types'
 import { DEFAULT_VIDEO_BRIEF, type VideoAspectRatio, type VideoStyle } from '@/ai/videoBrief'
@@ -1345,14 +1346,24 @@ async function applyScriptEdit(
   }
 }
 
+export type ToolResult = { ok: boolean; message: string }
+
 export async function applyTool(
   name: string,
   args: Record<string, unknown>,
   opts: ApplyToolOptions = {},
-): Promise<{ ok: boolean; message: string }> {
+): Promise<ToolResult> {
   const requestedName = name
   name = canonicalTool(name)
-  const desc = describeTool(name, args)
+  // Validate arguments using Zod schemas before any state changes.
+  const validation = validateToolArgs(name, args)
+  if (!validation.ok) {
+    return { ok: false, message: `Invalid args: ${validation.error}` }
+  }
+  const cleanedArgs = validation.cleaned ?? args
+  // Use the cleaned / validated arguments for the rest of the function.
+  args = cleanedArgs as any
+  const desc = describeTool(name, cleanedArgs)
   if (!desc) return { ok: false, message: 'This action is no longer valid, so it was not applied.' }
 
   const s = useTimelineStore.getState()
@@ -2302,13 +2313,13 @@ export async function applyTool(
       if (!asset) return { ok: false, message: `Asset "${assetName}" not found.` }
       try {
         const { readMediaFile } = await import('@/engine/storage/opfs')
-        const { analyzeImageWithNvidiaVision } = await import('@/api/llm/vision')
+        const { analyzeImageWithVision } = await import('@/api/llm/vision')
         const file = await readMediaFile(asset.filePath)
         const customPrompt = args.prompt ? String(args.prompt) : undefined
-        const result = await analyzeImageWithNvidiaVision(file, { prompt: customPrompt })
-        return { ok: true, message: `Nemotron Vision Analysis for "${asset.name}":\n\n${result.text}` }
+        const result = await analyzeImageWithVision(file, { prompt: customPrompt })
+        return { ok: true, message: `Vision Analysis for "${asset.name}":\n\n${result.text}` }
       } catch (err) {
-        return { ok: false, message: `Nemotron Vision failed: ${err instanceof Error ? err.message : String(err)}` }
+        return { ok: false, message: `Vision failed: ${err instanceof Error ? err.message : String(err)}` }
       }
     }
     case 'extract_image_text': {
