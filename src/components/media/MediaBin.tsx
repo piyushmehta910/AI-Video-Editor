@@ -8,6 +8,7 @@ import {
   Search,
   Sparkles,
   Square,
+  UploadCloud,
   Video,
   X,
   Check,
@@ -56,6 +57,7 @@ export function MediaBin() {
     useMediaImport()
 
   const [dragOver, setDragOver] = React.useState(false)
+  const [browseDragOver, setBrowseDragOver] = React.useState(false)
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [previewAsset, setPreviewAsset] = React.useState<{ asset: Asset; url: string } | null>(null)
   const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null)
@@ -314,15 +316,54 @@ export function MediaBin() {
               </div>
             </div>
 
-            {/* Browse Files Button / Quick Upload */}
+            {/* Browse & Drag Files Dropzone Area */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border/80 bg-muted/20 py-1.5 text-xs font-medium text-muted-foreground hover:border-violet-500/60 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setBrowseDragOver(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setBrowseDragOver(false)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setBrowseDragOver(false)
+                if (e.dataTransfer.files?.length) {
+                  void handleFiles(e.dataTransfer.files)
+                }
+              }}
+              className={cn(
+                'flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-3.5 px-3 text-xs font-medium transition-all duration-150 cursor-pointer shadow-xs select-none',
+                browseDragOver
+                  ? 'border-violet-500 bg-violet-500/15 text-violet-300 scale-[1.01] ring-2 ring-violet-500/30'
+                  : 'border-border/80 bg-muted/20 text-muted-foreground hover:border-violet-500/60 hover:bg-violet-500/5 hover:text-foreground',
+              )}
               data-testid="browse-files-button"
             >
-              <FolderOpen className="size-3.5 text-violet-500" />
-              <span>Browse Files</span>
+              <div
+                className={cn(
+                  'flex size-8 items-center justify-center rounded-lg transition-colors',
+                  browseDragOver
+                    ? 'bg-violet-500/20 text-violet-400'
+                    : 'bg-violet-500/10 text-violet-500',
+                )}
+              >
+                <UploadCloud className={cn('size-4 transition-transform', browseDragOver && 'scale-110')} />
+              </div>
+              <div className="flex items-center gap-1 text-[11px]">
+                <span className="font-semibold text-foreground">
+                  {browseDragOver ? 'Drop files to import' : 'Browse files'}
+                </span>
+                {!browseDragOver && (
+                  <span className="text-muted-foreground">or drag here</span>
+                )}
+              </div>
             </button>
           </div>
 
