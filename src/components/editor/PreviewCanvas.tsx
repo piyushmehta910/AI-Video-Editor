@@ -1,6 +1,5 @@
 import * as React from 'react'
 import {
-  Film,
   Maximize,
   Minimize,
   Pause,
@@ -20,7 +19,6 @@ import {
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { formatSeconds } from '@/engine/types'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /**
@@ -29,7 +27,7 @@ import { cn } from '@/lib/utils'
  */
 export function PreviewCanvas({
   playback,
-  onOpenMedia,
+  onOpenMedia: _onOpenMedia,
 }: {
   playback: PlaybackApi
   onOpenMedia?: () => void
@@ -522,25 +520,8 @@ export function PreviewCanvas({
 
         {/* Empty state */}
         {empty && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-            <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-black/60 px-6 py-4 text-center backdrop-blur-md shadow-2xl">
-              <Film className="size-8 text-violet-400 opacity-80" />
-              <p className="text-sm font-bold text-white">Timeline is Empty</p>
-              <p className="text-xs text-white/60 max-w-xs">Drag and drop media files or click below to import and start editing</p>
-              {onOpenMedia && (
-                <Button
-                  size="sm"
-                  className="mt-2 gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold text-white hover:from-violet-500 hover:to-indigo-500 shadow-md"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onOpenMedia()
-                  }}
-                >
-                  <Film className="size-3.5" />
-                  Browse Media Bin
-                </Button>
-              )}
-            </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <p className="text-sm font-medium text-white/50 select-none">Timeline is empty</p>
           </div>
         )}
 
