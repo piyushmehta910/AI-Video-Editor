@@ -1766,113 +1766,33 @@ export function AIDirector({
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !busy && (
-              <div className="space-y-3.5 pt-1">
-                {/* Standout Create Full Video Hero Card */}
-                <div className="relative overflow-hidden rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-600/15 via-purple-600/10 to-indigo-600/15 p-4 shadow-sm backdrop-blur-xl">
-                  <div className="flex items-start justify-between gap-3 mb-2.5">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-500/25 shrink-0">
-                      <Sparkles className="size-4.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-xs sm:text-sm font-bold text-foreground">
-                          Create Full Video with AI
-                        </h4>
-                        <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
-                          Autonomous Engine
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                        Answer a 6-step creative brief, and the AI Director will script, generate visuals, synthesize narration, and compose your complete timeline.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void send('Create a video')}
-                    className="mt-1 flex items-center justify-center gap-2 w-full py-2 px-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-violet-500/20 transition-all cursor-pointer active:scale-[0.98]"
-                  >
-                    <Video className="size-3.5" />
-                    <span>Start Video Creation Brief</span>
-                  </button>
+              <div className="flex h-full min-h-[300px] flex-col items-center justify-center px-4 py-8 text-center space-y-3.5 animate-in fade-in duration-200">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/25">
+                  <Clapperboard className="size-5.5" />
                 </div>
-
-                {/* 1-Click Quick Action Capabilities */}
-                <div>
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Smart Timeline Actions
-                    </span>
-                    <span className="text-[10px] text-muted-foreground/80 font-medium">1-Click Edits</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {[
-                      {
-                        icon: Sparkles,
-                        title: 'Auto-Polish Project',
-                        desc: 'Analyze pacing, transitions & balance',
-                        prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.',
-                        color: 'border-violet-500/25 bg-violet-500/5 hover:border-violet-500/50 hover:bg-violet-500/10 text-violet-500',
-                      },
-                      {
-                        icon: Scissors,
-                        title: 'Cut Silent Pauses',
-                        desc: 'Remove dead air & tighten pacing',
-                        prompt: 'Remove all silent parts and gaps longer than 1.2 seconds from the timeline clips to tighten the pacing.',
-                        color: 'border-rose-500/25 bg-rose-500/5 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-500',
-                      },
-                      {
-                        icon: Subtitles,
-                        title: 'Generate Captions',
-                        desc: 'Dynamic animated karaoke text',
-                        prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips on the timeline.',
-                        color: 'border-cyan-500/25 bg-cyan-500/5 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-500',
-                      },
-                      {
-                        icon: Palette,
-                        title: 'Cinematic Colors',
-                        desc: 'Teal & Orange film grading',
-                        prompt: 'Apply a cinematic Teal & Orange color grade preset across all video clips on the timeline.',
-                        color: 'border-amber-500/25 bg-amber-500/5 hover:border-amber-500/50 hover:bg-amber-500/10 text-amber-500',
-                      },
-                      {
-                        icon: Smartphone,
-                        title: 'Reframe to Reel (9:16)',
-                        desc: 'Format for TikTok & Shorts',
-                        prompt: 'Reframe this project to a vertical 9:16 aspect ratio suitable for TikTok and Instagram Reels.',
-                        color: 'border-emerald-500/25 bg-emerald-500/5 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-500',
-                      },
-                      {
-                        icon: Mic,
-                        title: 'Synthesize Voiceover',
-                        desc: 'AI studio narration from text',
-                        prompt: 'Generate an energetic, high-quality voiceover narration for this video using TTS.',
-                        color: 'border-indigo-500/25 bg-indigo-500/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 text-indigo-500',
-                      },
-                    ].map((act, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => void send(act.prompt)}
-                        className={cn(
-                          'flex items-start gap-2.5 p-2.5 rounded-xl border transition-all text-left group bg-card/40 backdrop-blur-sm cursor-pointer hover:scale-[1.01] shadow-xs',
-                          act.color,
-                        )}
-                      >
-                        <div className="flex size-7 items-center justify-center rounded-lg bg-white/10 border border-current/20 shrink-0 mt-0.5">
-                          <act.icon className="size-3.5 text-current" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-foreground group-hover:text-violet-500 transition-colors truncate">
-                            {act.title}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground leading-tight truncate">
-                            {act.desc}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                <div className="space-y-1 max-w-xs">
+                  <h4 className="text-xs sm:text-sm font-bold text-foreground">How can I help with your video?</h4>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Ask me to cut silences, generate captions, grade colors, or produce an entire video.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1 max-w-xs">
+                  {[
+                    { label: 'Create Full Video', icon: Video, prompt: 'Create a video' },
+                    { label: 'Cut Silences', icon: Scissors, prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
+                    { label: 'Add Captions', icon: Subtitles, prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
+                    { label: 'Cinematic Colors', icon: Palette, prompt: 'Apply a cinematic Teal & Orange color grade preset across all video clips.' },
+                  ].map((chip, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => void send(chip.prompt)}
+                      className="flex items-center gap-1.5 rounded-full border border-border/70 bg-card/60 hover:bg-violet-500/10 hover:border-violet-500/40 hover:text-violet-600 dark:hover:text-violet-400 px-3 py-1.5 text-[11px] font-medium text-muted-foreground transition-all cursor-pointer shadow-2xs"
+                    >
+                      <chip.icon className="size-3 shrink-0" />
+                      <span>{chip.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -1993,7 +1913,7 @@ export function AIDirector({
                   )}
                   {m.followups && m.followups.length > 0 && (
                     <div className={cn('flex flex-wrap gap-1 pt-0.5', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-                      {m.followups.map((f) => (
+                      {m.followups.slice(0, 2).map((f) => (
                         <button
                           key={f}
                           type="button"
@@ -2483,31 +2403,7 @@ export function AIDirector({
           )}
 
           {/* Bottom Action & Input Bar with Glassmorphism */}
-          <div className="border-t border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 p-3 backdrop-blur-xl space-y-2 rounded-b-2xl shrink-0">
-            {/* Quick Action Pills — only displayed during active conversation to avoid empty state duplication */}
-            {messages.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-                {[
-                  { label: 'Auto-Polish', icon: Sparkles, prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.' },
-                  { label: 'Subtitles', icon: Subtitles, prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
-                  { label: 'Cut Silence', icon: Scissors, prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
-                  { label: 'Teal & Orange', icon: Palette, prompt: 'Apply a Hollywood Teal & Orange cinematic color grade preset to all video clips.' },
-                  { label: 'Reel 9:16', icon: Smartphone, prompt: 'Reframe this project to a vertical 9:16 Reel/Shorts format.' },
-                ].map((p, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => void send(p.prompt)}
-                    disabled={busy}
-                    className="flex items-center gap-1.5 rounded-full border border-border/70 bg-card/80 hover:bg-muted hover:border-violet-500/50 px-2.5 py-1 text-[10px] font-semibold text-foreground transition-all shadow-xs shrink-0 disabled:opacity-50 cursor-pointer"
-                  >
-                    <p.icon className="size-3 text-muted-foreground" />
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
+          <div className="border-t border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 p-3 backdrop-blur-xl rounded-b-2xl shrink-0">
             {/* Input Field & Send Button */}
             <div className="flex gap-2 items-center">
               <div className="relative flex-1">
