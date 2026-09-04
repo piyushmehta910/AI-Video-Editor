@@ -1788,6 +1788,11 @@ export function AIDirector({
                                 PRO
                               </span>
                             )}
+                            {m.contextWindow && (
+                              <span className="rounded-full bg-violet-500/15 border border-violet-500/30 px-1.5 py-0.2 text-[9px] font-mono font-bold text-violet-600 dark:text-violet-400">
+                                {m.contextWindow}
+                              </span>
+                            )}
                             {m.tag && (
                               <span className="rounded-full bg-muted border border-border px-1.5 py-0.2 text-[9px] text-muted-foreground">
                                 {m.tag}
@@ -2449,90 +2454,112 @@ export function AIDirector({
 
           {/* Bottom Action & Input Bar with Glassmorphism */}
           <div className="border-t border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 p-3 backdrop-blur-xl rounded-b-2xl shrink-0 space-y-2">
-            {/* Mode Dropdown Selector Bar */}
-            <div className="flex items-center justify-between px-0.5">
-              <div className="relative">
+            {/* Mode & Model Dropdown Selector Bar */}
+            <div className="flex items-center justify-between px-0.5 gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowModeMenu((s) => !s)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs',
+                      productionMode === 'autopilot'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20',
+                    )}
+                    title="Choose execution mode: Autopilot (direct) or Review (approval required)"
+                  >
+                    <span
+                      className={cn(
+                        'size-1.5 rounded-full',
+                        productionMode === 'autopilot' ? 'bg-emerald-500' : 'bg-amber-500',
+                      )}
+                    />
+                    <span>{productionMode === 'autopilot' ? 'Autopilot Mode' : 'Review Mode'}</span>
+                    <ChevronDown className="size-3 opacity-60" />
+                  </button>
+
+                  {showModeMenu && (
+                    <div
+                      ref={modeMenuRef}
+                      className="absolute bottom-full left-0 mb-1.5 z-50 w-60 rounded-xl border border-border/80 bg-background/98 dark:bg-slate-950/98 p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-1"
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectProductionMode('autopilot')
+                          setShowModeMenu(false)
+                        }}
+                        className={cn(
+                          'flex w-full items-start gap-2.5 rounded-lg p-2 text-left transition cursor-pointer',
+                          productionMode === 'autopilot'
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold'
+                            : 'hover:bg-muted text-foreground',
+                        )}
+                      >
+                        <span className="size-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold">Autopilot Mode</div>
+                          <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                            Edits and cuts are applied directly to the timeline.
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectProductionMode('review')
+                          setShowModeMenu(false)
+                        }}
+                        className={cn(
+                          'flex w-full items-start gap-2.5 rounded-lg p-2 text-left transition cursor-pointer',
+                          productionMode === 'review'
+                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
+                            : 'hover:bg-muted text-foreground',
+                        )}
+                      >
+                        <span className="size-2 rounded-full bg-amber-500 mt-1 shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold">Review Mode</div>
+                          <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                            Edits are staged as proposals for your approval before applying.
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Model Selector Button */}
                 <button
                   type="button"
-                  onClick={() => setShowModeMenu((s) => !s)}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs',
-                    productionMode === 'autopilot'
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                      : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20',
-                  )}
-                  title="Choose execution mode: Autopilot (direct) or Review (approval required)"
+                  onClick={() => {
+                    setShowModelMenu((s) => !s)
+                    setShowModeMenu(false)
+                  }}
+                  className="flex items-center gap-1 rounded-lg border border-border/70 bg-card/60 hover:bg-muted/70 px-2 py-1 text-[11px] font-semibold text-foreground transition cursor-pointer shadow-2xs min-w-0"
+                  title="Switch AI Director Model (OpenRouter Free / Zen / NIM)"
                 >
-                  <span
-                    className={cn(
-                      'size-1.5 rounded-full',
-                      productionMode === 'autopilot' ? 'bg-emerald-500' : 'bg-amber-500',
-                    )}
-                  />
-                  <span>{productionMode === 'autopilot' ? 'Autopilot Mode' : 'Review Mode'}</span>
-                  <ChevronDown className="size-3 opacity-60" />
+                  <Cpu className="size-3 text-violet-500 shrink-0" />
+                  <span className="truncate max-w-[85px] sm:max-w-[120px]">{shortModelName}</span>
+                  {(activeModel.endsWith(':free') || activeModel === 'openrouter/free' || activeModel.includes('free')) && (
+                    <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1 py-0 text-[8px] font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                      FREE
+                    </span>
+                  )}
+                  <ChevronDown className="size-2.5 opacity-60 shrink-0" />
                 </button>
-
-                {showModeMenu && (
-                  <div
-                    ref={modeMenuRef}
-                    className="absolute bottom-full left-0 mb-1.5 z-50 w-60 rounded-xl border border-border/80 bg-background/98 dark:bg-slate-950/98 p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-1"
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        selectProductionMode('autopilot')
-                        setShowModeMenu(false)
-                      }}
-                      className={cn(
-                        'flex w-full items-start gap-2.5 rounded-lg p-2 text-left transition cursor-pointer',
-                        productionMode === 'autopilot'
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold'
-                          : 'hover:bg-muted text-foreground',
-                      )}
-                    >
-                      <span className="size-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
-                      <div>
-                        <div className="text-xs font-bold">Autopilot Mode</div>
-                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                          Edits and cuts are applied directly to the timeline.
-                        </div>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        selectProductionMode('review')
-                        setShowModeMenu(false)
-                      }}
-                      className={cn(
-                        'flex w-full items-start gap-2.5 rounded-lg p-2 text-left transition cursor-pointer',
-                        productionMode === 'review'
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
-                          : 'hover:bg-muted text-foreground',
-                      )}
-                    >
-                      <span className="size-2 rounded-full bg-amber-500 mt-1 shrink-0" />
-                      <div>
-                        <div className="text-xs font-bold">Review Mode</div>
-                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                          Edits are staged as proposals for your approval before applying.
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                )}
               </div>
 
-              <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1.5 shrink-0">
                 {pendingCount > 0 && (
                   <span className="rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold">
                     {pendingCount} awaiting permission
                   </span>
                 )}
-                <span>{productionMode === 'autopilot' ? 'Direct execution' : 'Approval required'}</span>
+                <span>{productionMode === 'autopilot' ? 'Direct' : 'Review'}</span>
               </span>
             </div>
 

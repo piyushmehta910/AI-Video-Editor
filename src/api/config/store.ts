@@ -47,9 +47,18 @@ function mergeApiConfig(stored: Partial<ApiConfig>): ApiConfig {
   const config = merged as unknown as ApiConfig
   // Upgrade the app's previous default model for people who already have
   // settings saved, while preserving any model selected intentionally.
-  // One-time flag so repeated loads don't clobber a deliberately-chosen model.
-  if (!modelMigrated && config.nvidiaNim.model === 'nvidia/nemotron-3-super-120b-a12b') {
-    config.nvidiaNim.model = 'meta/llama-3.1-8b-instruct'
+  if (!modelMigrated) {
+    if (config.nvidiaNim.model === 'nvidia/nemotron-3-super-120b-a12b') {
+      config.nvidiaNim.model = 'meta/llama-3.1-8b-instruct'
+    }
+    const defunctOpenRouterModels = [
+      'google/gemini-2.0-flash-exp:free',
+      'openai/gpt-oss-20b:free',
+      'nvidia/nemotron-nano-9b-v2:free',
+    ]
+    if (defunctOpenRouterModels.includes(config.openRouter?.model)) {
+      config.openRouter.model = 'nvidia/nemotron-3.5-lightning:free'
+    }
     modelMigrated = true
   }
   return config

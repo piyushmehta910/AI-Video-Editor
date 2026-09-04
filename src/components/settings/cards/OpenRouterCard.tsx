@@ -15,20 +15,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 const OPENROUTER_FREE_MODELS = [
   'openrouter/free',
-  'google/gemini-2.0-flash-exp:free',
   'nvidia/nemotron-3.5-lightning:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
-  'nvidia/nemotron-nano-9b-v2:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'minimax/minimax-m3:free',
+  'minimax/minimax-m2.7:free',
   'google/gemma-4-31b-it:free',
   'google/gemma-4-26b-a4b-it:free',
-  'cohere/north-mini-code:free',
-  'openai/gpt-oss-20b:free',
-  'liquid/lfm-2.5-2.6b:free',
+  'thinkingmachines/inkling:free',
+  'thinkingmachines/inkling-small:free',
   'z-ai/glm-5.2:free',
+  'cohere/north-mini-code:free',
+  'liquid/lfm-2.5-2.6b:free',
   'poolside/laguna-s-2.1:free',
   'poolside/laguna-xs-2.1:free',
+  'inclusionai/ling-3.0-flash-sante:free',
+  'inclusionai/ling-3.0-flash-fin:free',
   'dots-studio/dots-3-note-preview:free',
+  'nvidia/nemotron-3.5-content-safety:free',
 ]
 
 export function OpenRouterCard() {

@@ -169,8 +169,19 @@ export async function testOpenRouter(apiKey: string, baseUrl: string, timeoutMs:
 export async function fetchOpenRouterFreeModels(baseUrl = 'https://openrouter.ai/api/v1', timeoutMs = 20000): Promise<string[]> {
   const res = await fetchWithTimeout(`${baseUrl.replace(/\/$/, '')}/models`, { headers: { Accept: 'application/json' } }, timeoutMs)
   if (!res.ok) throw new Error(`OpenRouter catalog error ${res.status}`)
-  const data = (await res.json()) as { data?: Array<{ id?: string }> }
-  const free = (data.data ?? []).map((m) => m.id ?? '').filter((id) => id.endsWith(':free')).sort()
+  const data = (await res.json()) as { data?: Array<{ id?: string; pricing?: { prompt?: string; completion?: string } }> }
+  const free = (data.data ?? [])
+    .filter((m) => {
+      const id = m.id ?? ''
+      if (!id) return false
+      const isFreeSuffix = id.endsWith(':free')
+      const isZeroPrice = m.pricing?.prompt === '0' && m.pricing?.completion === '0'
+      const isFreeRouter = id === 'openrouter/free'
+      return isFreeSuffix || isZeroPrice || isFreeRouter
+    })
+    .map((m) => m.id ?? '')
+    .filter(Boolean)
+    .sort()
   if (!free.length) throw new Error('No free models returned by OpenRouter')
   return free
 }

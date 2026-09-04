@@ -70,7 +70,7 @@ export async function analyzeImageWithVision(
   if (openRouterCfg.apiKey) {
     url = `${(openRouterCfg.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/$/, '')}/chat/completions`
     apiKey = openRouterCfg.apiKey
-    model = options.model || openRouterCfg.model || 'google/gemini-2.0-flash-exp:free'
+    model = options.model || openRouterCfg.model || 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
   } else if (nimCfg.apiKey) {
     url = `${(nimCfg.baseUrl || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')}/chat/completions`
     apiKey = nimCfg.apiKey

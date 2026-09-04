@@ -66,7 +66,7 @@ export function ModelSelectField({
             type="button"
             onClick={() => {
               onProviderChange('openrouter')
-              onModelChange('anthropic/claude-3.5-sonnet')
+              onModelChange('nvidia/nemotron-3.5-lightning:free')
             }}
             className={cn(
               'flex items-center justify-center gap-1 rounded py-1 text-[10px] font-bold transition-all',
@@ -87,7 +87,7 @@ export function ModelSelectField({
         >
           {activeModels.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name} {m.tag ? `(${m.tag})` : ''}
+              {m.isFree ? '🎁 [FREE] ' : ''}{m.name}{m.contextWindow ? ` (${m.contextWindow})` : ''} {m.tag && !m.contextWindow ? `(${m.tag})` : ''}
             </option>
           ))}
         </select>
