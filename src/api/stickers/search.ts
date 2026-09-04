@@ -23,12 +23,68 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Pro
   }
 }
 
+export async function searchWikimediaGifs(query: string, limit: number): Promise<StickerResult[]> {
+  const timeout = 20000
+  try {
+    const params = new URLSearchParams({
+      action: 'query',
+      generator: 'search',
+      gsrnamespace: '6',
+      gsrsearch: `${query} animation filetype:bitmap`,
+      gsrlimit: String(limit * 2),
+      prop: 'imageinfo',
+      iiprop: 'url|size',
+      iiurlwidth: '300',
+      format: 'json',
+      origin: '*',
+    })
+    const data = (await fetchJson(`https://commons.wikimedia.org/w/api.php?${params}`, {}, timeout)) as {
+      query?: {
+        pages?: Record<
+          string,
+          {
+            title?: string
+            imageinfo?: Array<{
+              thumburl?: string
+              url?: string
+              width?: number
+              height?: number
+            }>
+          }
+        >
+      }
+    }
+    const pages = Object.values(data.query?.pages ?? {})
+    return pages
+      .map((p) => {
+        const info = p.imageinfo?.[0]
+        if (!info?.url || !info.url.toLowerCase().includes('.gif')) return null
+        const title = (p.title || '').replace(/^File:/i, '').replace(/\.gif$/i, '')
+        return {
+          id: encodeURIComponent(p.title || crypto.randomUUID()),
+          title,
+          preview: info.thumburl || info.url,
+          url: info.url,
+          width: info.width,
+          height: info.height,
+        }
+      })
+      .filter((g): g is StickerResult => g !== null)
+      .slice(0, limit)
+  } catch (err) {
+    console.warn('[stickers] Wikimedia GIF search failed:', err)
+    return []
+  }
+}
+
 export async function searchGiphy(query: string, options: { limit?: number; rating?: string } = {}): Promise<StickerResult[]> {
   const cfg = useApiConfigStore.getState().config.giphy
-  const key = cfg.apiKey
-  if (!key) return []
   const limit = options.limit ?? cfg.limit ?? 24
   const rating = options.rating ?? cfg.rating ?? 'g'
+  const key = cfg.apiKey
+  if (!key) {
+    return searchWikimediaGifs(query, limit)
+  }
   const timeout = cfg.timeoutMs ?? 30000
   try {
     const params = new URLSearchParams({
@@ -44,7 +100,7 @@ export async function searchGiphy(query: string, options: { limit?: number; rati
         images?: Record<string, { url?: string; width?: string; height?: string }>
       }>
     }
-    return (data.data ?? []).map((g) => {
+    const results = (data.data ?? []).map((g) => {
       const preview = g.images?.fixed_width?.url ?? g.images?.preview_gif?.url ?? ''
       const url = g.images?.original?.url ?? preview
       return {
@@ -56,17 +112,23 @@ export async function searchGiphy(query: string, options: { limit?: number; rati
         height: Number(g.images?.original?.height) || undefined,
       }
     })
+    if (results.length === 0) {
+      return searchWikimediaGifs(query, limit)
+    }
+    return results
   } catch {
-    return []
+    return searchWikimediaGifs(query, limit)
   }
 }
 
 export async function searchGiphyTrending(options: { limit?: number; rating?: string } = {}): Promise<StickerResult[]> {
   const cfg = useApiConfigStore.getState().config.giphy
-  const key = cfg.apiKey
-  if (!key) return []
   const limit = options.limit ?? cfg.limit ?? 24
   const rating = options.rating ?? cfg.rating ?? 'g'
+  const key = cfg.apiKey
+  if (!key) {
+    return searchWikimediaGifs('animated sticker', limit)
+  }
   const timeout = cfg.timeoutMs ?? 30000
   try {
     const params = new URLSearchParams({
@@ -81,7 +143,7 @@ export async function searchGiphyTrending(options: { limit?: number; rating?: st
         images?: Record<string, { url?: string; width?: string; height?: string }>
       }>
     }
-    return (data.data ?? []).map((g) => {
+    const results = (data.data ?? []).map((g) => {
       const preview = g.images?.fixed_width?.url ?? g.images?.preview_gif?.url ?? ''
       const url = g.images?.original?.url ?? preview
       return {
@@ -93,8 +155,12 @@ export async function searchGiphyTrending(options: { limit?: number; rating?: st
         height: Number(g.images?.original?.height) || undefined,
       }
     })
+    if (results.length === 0) {
+      return searchWikimediaGifs('animated sticker', limit)
+    }
+    return results
   } catch {
-    return []
+    return searchWikimediaGifs('animated sticker', limit)
   }
 }
 
@@ -106,7 +172,8 @@ export async function downloadGiphy(result: StickerResult): Promise<File> {
       ? await proxyFetch(result.url, {}, 30000)
       : await fetch(result.url, { signal: controller.signal })
     const blob = await res.blob()
-    return new File([blob], `sticker-${result.id}.gif`, { type: blob.type || 'image/gif' })
+    const safeId = result.id.replace(/[^\w-]/g, '').slice(0, 32) || 'sticker'
+    return new File([blob], `sticker-${safeId}.gif`, { type: blob.type || 'image/gif' })
   } finally {
     clearTimeout(timer)
   }

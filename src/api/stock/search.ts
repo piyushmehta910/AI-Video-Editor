@@ -106,6 +106,67 @@ async function searchPixabay(query: string, limit: number): Promise<StockImageRe
   }
 }
 
+export async function searchWikimediaImages(query: string, limit: number): Promise<StockImageResult[]> {
+  const timeout = 20000
+  try {
+    const params = new URLSearchParams({
+      action: 'query',
+      generator: 'search',
+      gsrnamespace: '6',
+      gsrsearch: `${query} filetype:bitmap`,
+      gsrlimit: String(limit),
+      prop: 'imageinfo',
+      iiprop: 'url|size|extmetadata',
+      iiurlwidth: '500',
+      format: 'json',
+      origin: '*',
+    })
+    const data = (await fetchJson(`https://commons.wikimedia.org/w/api.php?${params}`, {}, timeout)) as {
+      query?: {
+        pages?: Record<
+          string,
+          {
+            title?: string
+            imageinfo?: Array<{
+              thumburl?: string
+              url?: string
+              width?: number
+              height?: number
+              extmetadata?: {
+                Artist?: { value?: string }
+                Credit?: { value?: string }
+              }
+            }>
+          }
+        >
+      }
+    }
+    const pages = Object.values(data.query?.pages ?? {})
+    return pages
+      .map((p) => {
+        const info = p.imageinfo?.[0]
+        if (!info?.url) return null
+        const artist =
+          info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') ||
+          info.extmetadata?.Credit?.value?.replace(/<[^>]*>/g, '') ||
+          'Wikimedia Commons'
+        return {
+          id: encodeURIComponent(p.title || crypto.randomUUID()),
+          thumb: info.thumburl || info.url,
+          full: info.url,
+          author: artist.slice(0, 50),
+          source: 'Wikimedia Commons',
+          width: info.width,
+          height: info.height,
+        }
+      })
+      .filter((img): img is StockImageResult => img !== null)
+  } catch (err) {
+    console.warn('[stock] Wikimedia image search failed:', err)
+    return []
+  }
+}
+
 export async function searchStockImages(query: string, options: { maxResults?: number } = {}): Promise<StockImageResult[]> {
   const config = useApiConfigStore.getState().config
   const limit = options.maxResults ?? 8
@@ -126,6 +187,10 @@ export async function searchStockImages(query: string, options: { maxResults?: n
     results.push(...batch)
     if (results.length >= limit) break
   }
+  if (results.length === 0) {
+    const wiki = await searchWikimediaImages(query, limit)
+    results.push(...wiki)
+  }
   return results.slice(0, limit)
 }
 
@@ -137,8 +202,12 @@ export async function downloadStockImage(result: StockImageResult): Promise<File
       ? await proxyFetch(result.full, {}, 30000)
       : await fetch(result.full, { signal: controller.signal })
     const blob = await res.blob()
-    const ext = result.full.includes('.png') ? '.png' : '.jpg'
-    return new File([blob], `stock-${result.source.toLowerCase()}-${result.id}${ext}`, { type: blob.type || 'image/jpeg' })
+    const isPng = result.full.toLowerCase().includes('.png') || blob.type.includes('png')
+    const isWebp = result.full.toLowerCase().includes('.webp') || blob.type.includes('webp')
+    const ext = isPng ? '.png' : isWebp ? '.webp' : '.jpg'
+    const mime = isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg'
+    const safeId = result.id.replace(/[^\w-]/g, '').slice(0, 32) || 'img'
+    return new File([blob], `stock-${result.source.toLowerCase().replace(/\s+/g, '-')}-${safeId}${ext}`, { type: blob.type || mime })
   } finally {
     clearTimeout(timer)
   }
@@ -248,12 +317,79 @@ export async function searchPixabayVideos(query: string, limit: number): Promise
   }
 }
 
+export async function searchWikimediaVideos(query: string, limit: number): Promise<StockVideoResult[]> {
+  const timeout = 20000
+  try {
+    const params = new URLSearchParams({
+      action: 'query',
+      generator: 'search',
+      gsrnamespace: '6',
+      gsrsearch: `${query} filetype:video`,
+      gsrlimit: String(limit),
+      prop: 'imageinfo',
+      iiprop: 'url|size|extmetadata',
+      iiurlwidth: '500',
+      format: 'json',
+      origin: '*',
+    })
+    const data = (await fetchJson(`https://commons.wikimedia.org/w/api.php?${params}`, {}, timeout)) as {
+      query?: {
+        pages?: Record<
+          string,
+          {
+            title?: string
+            imageinfo?: Array<{
+              thumburl?: string
+              url?: string
+              width?: number
+              height?: number
+              extmetadata?: {
+                Artist?: { value?: string }
+                Credit?: { value?: string }
+              }
+            }>
+          }
+        >
+      }
+    }
+    const pages = Object.values(data.query?.pages ?? {})
+    return pages
+      .map((p) => {
+        const info = p.imageinfo?.[0]
+        if (!info?.url) return null
+        const artist =
+          info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') ||
+          info.extmetadata?.Credit?.value?.replace(/<[^>]*>/g, '') ||
+          'Wikimedia Commons'
+        return {
+          id: encodeURIComponent(p.title || crypto.randomUUID()),
+          thumb: info.thumburl || '',
+          url: info.url,
+          duration: 8,
+          author: artist.slice(0, 50),
+          source: 'Wikimedia Commons',
+          width: info.width,
+          height: info.height,
+        }
+      })
+      .filter((v): v is StockVideoResult => v !== null)
+  } catch (err) {
+    console.warn('[stock] Wikimedia video search failed:', err)
+    return []
+  }
+}
+
 export async function searchStockVideos(query: string, options: { maxResults?: number } = {}): Promise<StockVideoResult[]> {
   const limit = options.maxResults ?? 4
   const pexelsResults = await searchPexelsVideos(query, limit)
   if (pexelsResults.length >= limit) return pexelsResults.slice(0, limit)
   const pixabayResults = await searchPixabayVideos(query, limit - pexelsResults.length)
-  return [...pexelsResults, ...pixabayResults].slice(0, limit)
+  const combined = [...pexelsResults, ...pixabayResults]
+  if (combined.length === 0) {
+    const wiki = await searchWikimediaVideos(query, limit)
+    combined.push(...wiki)
+  }
+  return combined.slice(0, limit)
 }
 
 export async function downloadStockVideo(result: StockVideoResult): Promise<File> {
@@ -264,7 +400,11 @@ export async function downloadStockVideo(result: StockVideoResult): Promise<File
       ? await proxyFetch(result.url, {}, 60000)
       : await fetch(result.url, { signal: controller.signal })
     const blob = await res.blob()
-    return new File([blob], `stock-video-${result.source.toLowerCase()}-${result.id}.mp4`, { type: 'video/mp4' })
+    const isWebm = result.url.toLowerCase().includes('.webm') || blob.type.includes('webm')
+    const ext = isWebm ? '.webm' : '.mp4'
+    const mime = isWebm ? 'video/webm' : 'video/mp4'
+    const safeId = result.id.replace(/[^\w-]/g, '').slice(0, 32) || 'vid'
+    return new File([blob], `stock-video-${result.source.toLowerCase().replace(/\s+/g, '-')}-${safeId}${ext}`, { type: blob.type || mime })
   } finally {
     clearTimeout(timer)
   }

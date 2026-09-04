@@ -14,8 +14,11 @@ import {
   AlertCircle,
   Video,
   X,
+  Settings,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useApiConfigStore } from '@/api/config/store'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -48,6 +51,13 @@ interface SearchResultItem {
 export function OnlineAssetSearch() {
   const addAssetToTimeline = useTimelineStore((s) => s.addAssetToTimeline)
   const importFiles = useTimelineStore((s) => s.importFiles)
+  const config = useApiConfigStore((s) => s.config)
+  const hasCommercialKeys = Boolean(
+    config.stockImages.pexels.apiKey ||
+    config.stockImages.unsplash.accessKey ||
+    config.stockImages.unsplash.apiKey ||
+    config.stockImages.pixabay.apiKey
+  )
 
   const [query, setQuery] = React.useState('')
   const [category, setCategory] = React.useState<OnlineCategory>('all')
@@ -185,18 +195,34 @@ export function OnlineAssetSearch() {
       } else if (item.type === 'music') {
         const tr = item.originalData as MusicTrackResult
         if (!tr.previewUrl) throw new Error('No preview audio stream available for this track.')
-        const res = needsProxy(tr.previewUrl)
-          ? await proxyFetch(tr.previewUrl, {}, 30000)
-          : await fetch(tr.previewUrl)
+        let res: Response
+        try {
+          res = needsProxy(tr.previewUrl)
+            ? await proxyFetch(tr.previewUrl, {}, 30000)
+            : await fetch(tr.previewUrl)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        } catch {
+          res = await fetch(tr.previewUrl)
+        }
         const blob = await res.blob()
-        fileToImport = new File([blob], `${tr.title.replace(/[^\w\s-]/g, '') || 'music-track'}.mp3`, {
-          type: blob.type || 'audio/mpeg',
+        const isOgg = tr.previewUrl.toLowerCase().includes('.ogg') || blob.type.includes('ogg')
+        const isWav = tr.previewUrl.toLowerCase().includes('.wav') || blob.type.includes('wav')
+        const isM4a = tr.previewUrl.toLowerCase().includes('.m4a') || blob.type.includes('aac') || blob.type.includes('m4a')
+        const ext = isOgg ? '.ogg' : isWav ? '.wav' : isM4a ? '.m4a' : '.mp3'
+        const mime = isOgg ? 'audio/ogg' : isWav ? 'audio/wav' : isM4a ? 'audio/mp4' : 'audio/mpeg'
+        fileToImport = new File([blob], `${tr.title.replace(/[^\w\s-]/g, '').slice(0, 40) || 'music-track'}${ext}`, {
+          type: blob.type || mime,
         })
       } else if (item.type === 'sticker') {
         const st = item.originalData as StickerResult
         const gifFile = await downloadGiphy(st)
-        const converted = await convertStickerGif(gifFile, st.id)
-        fileToImport = converted.webmFile
+        try {
+          const converted = await convertStickerGif(gifFile, st.id)
+          fileToImport = converted.webmFile
+        } catch {
+          // Fallback: import the raw GIF file directly
+          fileToImport = gifFile
+        }
       }
 
       if (!fileToImport) {
@@ -533,10 +559,21 @@ export function OnlineAssetSearch() {
             </div>
           )
         ) : query.trim() ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-1.5">
+          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-2">
             <Search className="size-6 opacity-40" />
             <p className="text-xs font-semibold">No stock assets found</p>
             <p className="text-[10px] opacity-70">Try searching for broader terms like &quot;city&quot;, &quot;nature&quot;, &quot;ambient&quot;.</p>
+            {!hasCommercialKeys && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-[11px] text-muted-foreground mt-3 max-w-[280px]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Settings className="size-3.5 text-violet-500 shrink-0" />
+                  <span className="truncate">Add free Pexels or Unsplash keys</span>
+                </div>
+                <Link to="/settings" search={{ from: 'editor' }} className="font-bold text-violet-600 dark:text-violet-400 hover:underline shrink-0">
+                  Settings
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground gap-3">
@@ -558,6 +595,17 @@ export function OnlineAssetSearch() {
                 </button>
               ))}
             </div>
+            {!hasCommercialKeys && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-[11px] text-muted-foreground mt-3 max-w-[280px]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Settings className="size-3.5 text-violet-500 shrink-0" />
+                  <span className="truncate">Unlock 5M+ Pexels & Unsplash items</span>
+                </div>
+                <Link to="/settings" search={{ from: 'editor' }} className="font-bold text-violet-600 dark:text-violet-400 hover:underline shrink-0">
+                  Settings
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </div>

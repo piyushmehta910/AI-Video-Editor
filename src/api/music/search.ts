@@ -141,16 +141,47 @@ async function searchMusicBrainz(query: string, limit: number): Promise<MusicTra
   }
 }
 
+async function searchITunesMusic(query: string, limit: number): Promise<MusicTrackResult[]> {
+  try {
+    const data = (await fetchJson(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=${limit}`,
+      {},
+      15000,
+    )) as {
+      results?: Array<{
+        trackId?: number
+        trackName?: string
+        artistName?: string
+        trackTimeMillis?: number
+        previewUrl?: string
+      }>
+    }
+    return (data.results ?? [])
+      .filter((r) => r.previewUrl)
+      .map((r) => ({
+        id: String(r.trackId ?? `${r.trackName}:${r.artistName}`),
+        title: r.trackName ?? 'Unknown Track',
+        artist: r.artistName ?? 'Unknown Artist',
+        duration: Math.round((r.trackTimeMillis ?? 30000) / 1000),
+        previewUrl: r.previewUrl,
+        source: 'deezer',
+      }))
+  } catch {
+    return []
+  }
+}
+
 export async function searchMusic(query: string, options: MusicSearchOptions = {}): Promise<MusicTrackResult[]> {
   const limit = options.maxResults ?? 6
-  const [deezer, musicbrainz, archive] = await Promise.all([
+  const [deezer, itunes, musicbrainz, archive] = await Promise.all([
     searchDeezer(query, limit),
+    searchITunesMusic(query, limit),
     searchMusicBrainz(query, limit),
     searchInternetArchive(query, limit),
   ])
   const seen = new Set<string>()
   const merged: MusicTrackResult[] = []
-  for (const track of [...deezer, ...musicbrainz, ...archive]) {
+  for (const track of [...itunes, ...deezer, ...musicbrainz, ...archive]) {
     const key = `${track.title.toLowerCase()}|${track.artist.toLowerCase()}`
     if (seen.has(key)) continue
     seen.add(key)
