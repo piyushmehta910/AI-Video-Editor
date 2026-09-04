@@ -19,6 +19,7 @@ import {
   Maximize2,
   Mic,
   Minimize2,
+  MoreHorizontal,
   Music,
   Palette,
   PanelRight,
@@ -621,20 +622,37 @@ export function AIDirector({
   const apiConfig = useApiConfigStore((s) => s.config)
   const updateApiConfig = useApiConfigStore((s) => s.update)
   const [showModelMenu, setShowModelMenu] = React.useState(false)
+  const [showMoreMenu, setShowMoreMenu] = React.useState(false)
+  const moreMenuRef = React.useRef<HTMLDivElement>(null)
 
   const [onlyFreeModels, setOnlyFreeModels] = React.useState(false)
   const keyStatus = getProviderKeyStatus()
 
   React.useEffect(() => {
-    if (!showModelMenu) return
+    if (!showModelMenu && !showMoreMenu) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (showModelMenu && modelMenuRef.current && !modelMenuRef.current.contains(target)) {
         setShowModelMenu(false)
+      }
+      if (showMoreMenu && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setShowMoreMenu(false)
       }
     }
     window.addEventListener('mousedown', handleClickOutside)
     return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [showModelMenu])
+  }, [showModelMenu, showMoreMenu])
+
+  React.useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowModelMenu(false)
+        setShowMoreMenu(false)
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [])
 
   const rawProvider = apiConfig.preferences.preferredAiProvider || 'nvidia-nim'
   const activeProviderKey: 'nvidia-nim' | 'openrouter' | 'opencode-zen' =
@@ -650,6 +668,12 @@ export function AIDirector({
       : activeProviderKey === 'opencode-zen'
         ? (apiConfig.opencodeZen.model || 'deepseek-v4-flash-free')
         : (apiConfig.openRouter.model || 'nvidia/nemotron-3.5-lightning:free')
+
+  const shortModelName = React.useMemo(() => {
+    const raw = activeModel.split('/').pop()?.replace(/-instruct$/i, '') || 'Model'
+    const cleaned = raw.replace(/^meta\//i, '').replace(/^nvidia\//i, '').replace(/:free$/i, ' (Free)')
+    return cleaned.length > 15 ? `${cleaned.slice(0, 13)}…` : cleaned
+  }, [activeModel])
 
   const handleSelectDirectorModel = (providerKey: 'nvidia-nim' | 'openrouter' | 'opencode-zen', modelId: string) => {
     updateApiConfig((draft) => {
@@ -1259,20 +1283,20 @@ export function AIDirector({
             changeOpen(true)
             setIsMinimized(false)
           }}
-          title="Double-click or click to open AI Director (Drag anywhere)"
+          title="Click to open AI Director • Drag to move"
           aria-label="AI Director"
         >
-          <div className="relative flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600/80 via-purple-600/75 to-indigo-600/80 text-white shadow-[0_8px_32px_0_rgba(124,58,237,0.4)] backdrop-blur-2xl border border-white/30 ring-1 ring-white/20 hover:scale-105 hover:border-white/50 transition-all">
-            <Clapperboard className="size-7 text-white drop-shadow-md" />
-            <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-amber-400/90 shadow-md ring-1 ring-white/40 backdrop-blur-xs">
-              <Sparkles className="size-2.5 text-amber-950 fill-amber-950" />
+          <div className="relative flex size-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-purple-600 to-indigo-600 text-white shadow-[0_8px_24px_0_rgba(124,58,237,0.45)] backdrop-blur-2xl border border-white/30 ring-1 ring-white/20 hover:scale-105 transition-all cursor-pointer">
+            <Clapperboard className="size-5 text-white drop-shadow-xs" />
+            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-amber-400 shadow-xs ring-1 ring-white/60">
+              <Sparkles className="size-2 text-amber-950 fill-amber-950" />
             </span>
             {busy && (
-              <span className="absolute -bottom-1 -right-1 size-3.5 animate-ping rounded-full bg-emerald-400" />
+              <span className="absolute -bottom-0.5 -right-0.5 size-3 animate-ping rounded-full bg-emerald-400" />
             )}
           </div>
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-xl bg-background/75 dark:bg-slate-950/70 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-xl border border-white/20 backdrop-blur-xl whitespace-nowrap">
-            AI Director <span className="text-muted-foreground font-normal">(Double-click or drag)</span>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-xl bg-background/90 dark:bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-xl border border-border/80 backdrop-blur-xl whitespace-nowrap">
+            AI Director
           </div>
         </div>
       )}
@@ -1281,7 +1305,7 @@ export function AIDirector({
         <div
           ref={panelRef}
           style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
-          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2 rounded-full border border-white/30 dark:border-white/15 bg-background/80 dark:bg-slate-950/80 px-3 py-1.5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-2xl cursor-grab active:cursor-grabbing touch-none ring-1 ring-white/10"
+          className="fixed top-0 left-0 z-50 flex select-none items-center gap-2 rounded-full border border-border/80 bg-background/90 dark:bg-slate-950/90 px-3 py-1.5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-2xl cursor-grab active:cursor-grabbing touch-none ring-1 ring-white/10"
           onPointerDown={handleMinimizedPointerDown}
           onPointerMove={handleMinimizedPointerMove}
           onPointerUp={handleMinimizedPointerUp}
@@ -1297,11 +1321,12 @@ export function AIDirector({
           </div>
           <span className="text-[11px] font-bold text-foreground tracking-tight whitespace-nowrap">AI Director</span>
           {busy && <span className="size-1.5 animate-ping rounded-full bg-violet-400 flex-shrink-0" />}
-          <span className={`text-[9px] font-semibold rounded-full px-1.5 py-0.5 flex-shrink-0 ${
+          <span className={cn(
+            'text-[9px] font-semibold rounded-full px-1.5 py-0.5 flex-shrink-0 border',
             productionMode === 'autopilot'
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-          }`}>
+              ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30'
+              : 'bg-amber-500/20 text-amber-500 border-amber-500/30'
+          )}>
             {productionMode === 'autopilot' ? 'Auto' : 'Review'}
           </span>
           <button
@@ -1310,7 +1335,7 @@ export function AIDirector({
               e.stopPropagation()
               setIsMinimized(false)
             }}
-            className="ml-0.5 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0"
+            className="ml-0.5 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0 cursor-pointer"
             title="Expand AI Director"
           >
             <Maximize2 className="size-3" />
@@ -1321,7 +1346,7 @@ export function AIDirector({
               e.stopPropagation()
               changeOpen(false)
             }}
-            className="rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0"
+            className="rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0 cursor-pointer"
             title="Close AI Director"
           >
             <X className="size-3" />
@@ -1356,7 +1381,7 @@ export function AIDirector({
           {/* Draggable Header Bar with Glassmorphism */}
           <div
             className={cn(
-              'relative flex select-none items-center gap-2.5 border-b border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 px-4 py-2.5 backdrop-blur-xl rounded-t-2xl touch-none',
+              'relative flex select-none items-center justify-between gap-2 border-b border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 px-3.5 py-2.5 backdrop-blur-xl rounded-t-2xl touch-none shrink-0',
               isDocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
             )}
             onPointerDown={isDocked ? undefined : handlePointerDown}
@@ -1365,172 +1390,217 @@ export function AIDirector({
             onDoubleClick={isDocked ? undefined : toggleMaximize}
             title={isDocked ? 'AI Director (Docked to Sidebar)' : 'Drag header to move • Double-click to maximize or restore'}
           >
-            {!isDocked && (
-              <div className="flex items-center text-muted-foreground hover:text-foreground transition">
-                <GripHorizontal className="size-4 opacity-75" />
+            {/* Left: Branding & Status */}
+            <div className="flex items-center gap-2 min-w-0">
+              {!isDocked && (
+                <div className="text-muted-foreground/60 hover:text-foreground transition cursor-grab">
+                  <GripHorizontal className="size-3.5" />
+                </div>
+              )}
+              <div className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xs shrink-0">
+                <Clapperboard className="size-3.5" />
               </div>
-            )}
-            <div className="flex size-7 items-center justify-center rounded-xl bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/30 shadow-xs">
-              <Clapperboard className="size-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-xs font-bold leading-none text-foreground tracking-tight">AI Director</h3>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs font-bold leading-none text-foreground tracking-tight whitespace-nowrap">
+                  AI Director
+                </span>
                 {busy ? (
                   <span className="flex items-center gap-1 rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-semibold text-violet-400 border border-violet-500/30">
                     <Loader2 className="size-2.5 animate-spin" />
-                    Thinking...
+                    <span className="hidden sm:inline">Thinking</span>
                   </span>
                 ) : (
-                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 border border-emerald-500/30">
-                    Active
+                  <span className="relative flex size-2 shrink-0" title="AI Director is ready">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                   </span>
                 )}
               </div>
-              <p className="text-muted-foreground truncate text-[10px] pt-0.5">
-                Drag to move • Drag edges to resize
-              </p>
             </div>
 
-            {/* Header Controls */}
-            {/* Header Controls */}
-            <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
-              {/* AI Model & Provider Selector */}
-              {/* AI Model & Provider Selector Button */}
+            {/* Right: Controls & Actions */}
+            <div className="flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+              {/* AI Model Selector Button */}
               <button
                 type="button"
-                onClick={() => setShowModelMenu((s) => !s)}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
+                onClick={() => {
+                  setShowModelMenu((s) => !s)
+                  setShowMoreMenu(false)
+                }}
+                className={cn(
+                  'flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border shrink-0 cursor-pointer',
                   activeProviderKey === 'nvidia-nim'
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
                     : activeProviderKey === 'opencode-zen'
                       ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
-                      : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
-                }`}
+                      : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20',
+                )}
                 title="Select AI Director Model & Provider"
               >
                 <Cpu className="size-3 shrink-0" />
-                <span className="truncate max-w-[110px]">
-                  {activeProviderKey === 'nvidia-nim' ? 'NIM' : activeProviderKey === 'opencode-zen' ? 'Zen' : 'Router'}:{' '}
-                  {activeModel.split('/').pop()?.replace('-instruct', '')}
-                </span>
+                <span className="truncate max-w-[85px] sm:max-w-[120px]">{shortModelName}</span>
+                <ChevronDown className="size-2.5 opacity-60 shrink-0" />
               </button>
 
-              {/* Autopilot / Review mode toggle */}
+              {/* Autopilot / Review Mode Pill */}
               <button
                 type="button"
                 onClick={toggleProductionMode}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all border ${
+                className={cn(
+                  'flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all border shrink-0 cursor-pointer',
                   productionMode === 'autopilot'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
-                }`}
-                title={productionMode === 'autopilot' ? 'Autopilot mode: changes executed directly. Click to switch to Review mode.' : 'Review mode: changes staged for approval. Click to switch to Autopilot.'}
-              >
-                {productionMode === 'autopilot' ? (
-                  <><Zap className="size-2.5 text-emerald-500" /> Auto</>
-                ) : (
-                  <><ListChecks className="size-2.5 text-amber-500" /> Review</>
+                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25',
                 )}
+                title={
+                  productionMode === 'autopilot'
+                    ? 'Autopilot mode: changes executed directly. Click to switch to Review mode.'
+                    : 'Review mode: changes staged for approval. Click to switch to Autopilot.'
+                }
+              >
+                <span
+                  className={cn(
+                    'size-1.5 rounded-full',
+                    productionMode === 'autopilot' ? 'bg-emerald-500' : 'bg-amber-500',
+                  )}
+                />
+                <span>{productionMode === 'autopilot' ? 'Auto' : 'Review'}</span>
               </button>
 
-              {/* Quality Audit Button with badge */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowQuality((s) => !s)
-                  if (!checking && issues.length === 0) void runQualityCheck()
-                }}
-                className={`relative rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition ${
-                  showQuality ? 'text-violet-600 dark:text-violet-400 bg-white/10' : ''
-                }`}
-                title="Audit Project Timeline Quality"
-                aria-label="Audit Project Quality"
-              >
-                <ListChecks className="size-3.5" />
-                {issues.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white shadow-xs">
-                    {issues.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Clear Chat Button */}
-              {messages.length > 0 && (
+              {/* More Utilities Menu */}
+              <div className="relative">
                 <button
                   type="button"
                   onClick={() => {
-                    cancelPendingQuestion()
-                    setMessages([])
-                    setProposals([])
-                    setPlan(null)
+                    setShowMoreMenu((s) => !s)
+                    setShowModelMenu(false)
                   }}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition"
-                  title="Clear chat history"
-                  aria-label="Clear chat"
+                  className={cn(
+                    'relative flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/15 hover:text-foreground transition cursor-pointer',
+                    showMoreMenu && 'bg-white/15 text-foreground',
+                  )}
+                  title="More options (Quality audit, Clear chat, Settings)"
+                  aria-label="More options"
                 >
-                  <Trash2 className="size-3.5" />
+                  <MoreHorizontal className="size-3.5" />
+                  {issues.length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex size-3 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
+                      {issues.length}
+                    </span>
+                  )}
                 </button>
-              )}
 
-              {/* Settings Link */}
-              <Link
-                to="/settings"
-                search={{ from: 'editor' }}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
-                title="Configure AI provider API keys"
-              >
-                <Settings className="size-3.5" />
-              </Link>
+                {/* More Menu Dropdown */}
+                {showMoreMenu && (
+                  <div
+                    ref={moreMenuRef}
+                    className="absolute right-0 top-8 z-50 w-52 rounded-xl border border-border/80 bg-background/98 dark:bg-slate-950/98 p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-0.5"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false)
+                        setShowQuality((s) => !s)
+                        if (!checking && issues.length === 0) void runQualityCheck()
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition text-left cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ListChecks className="size-3.5 text-violet-500" />
+                        <span>Audit Timeline Quality</span>
+                      </div>
+                      {issues.length > 0 && (
+                        <span className="rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 text-[9px] font-bold">
+                          {issues.length}
+                        </span>
+                      )}
+                    </button>
 
-              {/* Dock to Right Sidebar */}
-              <button
-                type="button"
-                onClick={toggleDock}
-                className={cn(
-                  'rounded-lg p-1.5 transition',
-                  isDocked
-                    ? 'bg-violet-500/20 text-violet-500 dark:text-violet-400 border border-violet-500/30'
-                    : 'text-muted-foreground hover:bg-white/15 hover:text-foreground',
+                    {messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMoreMenu(false)
+                          cancelPendingQuestion()
+                          setMessages([])
+                          setProposals([])
+                          setPlan(null)
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition text-left cursor-pointer"
+                      >
+                        <Trash2 className="size-3.5 text-destructive" />
+                        <span>Clear Chat History</span>
+                      </button>
+                    )}
+
+                    <Link
+                      to="/settings"
+                      search={{ from: 'editor' }}
+                      onClick={() => setShowMoreMenu(false)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition text-left"
+                    >
+                      <Settings className="size-3.5 text-muted-foreground" />
+                      <span>API & Model Settings</span>
+                    </Link>
+                  </div>
                 )}
-                title={isDocked ? 'Undock to floating window' : 'Dock to right sidebar'}
-                aria-label={isDocked ? 'Undock AI Director' : 'Dock AI Director to side'}
-              >
-                <PanelRight className="size-3.5" />
-              </button>
+              </div>
 
-              {/* Maximize / Restore */}
-              <button
-                type="button"
-                onClick={toggleMaximize}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition"
-                title={isMaximized ? 'Restore window' : 'Maximize window'}
-                aria-label={isMaximized ? 'Restore' : 'Maximize'}
-              >
-                {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-              </button>
+              {/* Visual separator */}
+              <div className="h-3.5 w-px bg-white/20 dark:bg-white/10 mx-0.5" />
 
-              {/* Minimize to Pill */}
-              <button
-                type="button"
-                onClick={() => setIsMinimized(true)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition flex items-center justify-center"
-                title="Minimize to floating pill"
-                aria-label="Minimize"
-              >
-                <span className="inline-block w-2.5 h-0.5 bg-current rounded-full" />
-              </button>
+              {/* Window Controls */}
+              <div className="flex items-center gap-0.5">
+                {/* Dock to Right Sidebar */}
+                <button
+                  type="button"
+                  onClick={toggleDock}
+                  className={cn(
+                    'flex size-7 items-center justify-center rounded-lg transition cursor-pointer',
+                    isDocked
+                      ? 'bg-violet-500/25 text-violet-600 dark:text-violet-300 border border-violet-500/30'
+                      : 'text-muted-foreground hover:bg-white/15 hover:text-foreground',
+                  )}
+                  title={isDocked ? 'Undock to floating window' : 'Dock to right sidebar'}
+                  aria-label={isDocked ? 'Undock AI Director' : 'Dock AI Director to side'}
+                >
+                  <PanelRight className="size-3.5" />
+                </button>
 
-              {/* Close */}
-              <button
-                type="button"
-                onClick={() => changeOpen(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition"
-                title="Close AI Director"
-                aria-label="Close"
-              >
-                <X className="size-3.5" />
-              </button>
+                {/* Maximize / Restore */}
+                <button
+                  type="button"
+                  onClick={toggleMaximize}
+                  className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/15 hover:text-foreground transition cursor-pointer"
+                  title={isMaximized ? 'Restore window' : 'Maximize window'}
+                  aria-label={isMaximized ? 'Restore' : 'Maximize'}
+                >
+                  {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                </button>
+
+                {/* Minimize to Pill */}
+                <button
+                  type="button"
+                  onClick={() => setIsMinimized(true)}
+                  className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/15 hover:text-foreground transition cursor-pointer"
+                  title="Minimize to pill"
+                  aria-label="Minimize"
+                >
+                  <span className="inline-block w-2.5 h-0.5 bg-current rounded-full" />
+                </button>
+
+                {/* Close */}
+                <button
+                  type="button"
+                  onClick={() => changeOpen(false)}
+                  className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition cursor-pointer"
+                  title="Close AI Director"
+                  aria-label="Close"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1697,110 +1767,112 @@ export function AIDirector({
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 && !busy && (
               <div className="space-y-3.5 pt-1">
-                {/* Hero Welcome Card */}
-                <div className="relative overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-b from-violet-500/10 via-background to-background p-4 shadow-sm backdrop-blur-md">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <div className="flex size-8 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-500/20">
-                      <Sparkles className="size-4" />
+                {/* Standout Create Full Video Hero Card */}
+                <div className="relative overflow-hidden rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-600/15 via-purple-600/10 to-indigo-600/15 p-4 shadow-sm backdrop-blur-xl">
+                  <div className="flex items-start justify-between gap-3 mb-2.5">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-500/25 shrink-0">
+                      <Sparkles className="size-4.5" />
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-foreground">AI Director Studio</h4>
-                      <p className="text-[10px] text-muted-foreground">Autonomous video editing & creation engine</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-foreground">
+                          Create Full Video with AI
+                        </h4>
+                        <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                          Autonomous Engine
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                        Answer a 6-step creative brief, and the AI Director will script, generate visuals, synthesize narration, and compose your complete timeline.
+                      </p>
                     </div>
-                    <span className="ml-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
-                      Autopilot Ready
-                    </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Ask me to auto-edit, cut pauses, generate captions, apply color grading, synthesize voiceovers, or construct complete videos.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void send('Create a video')}
+                    className="mt-1 flex items-center justify-center gap-2 w-full py-2 px-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-violet-500/20 transition-all cursor-pointer active:scale-[0.98]"
+                  >
+                    <Video className="size-3.5" />
+                    <span>Start Video Creation Brief</span>
+                  </button>
                 </div>
 
-                {/* 1-Click Quick Action Cards */}
+                {/* 1-Click Quick Action Capabilities */}
                 <div>
                   <div className="flex items-center justify-between pb-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Suggested Actions
+                      Smart Timeline Actions
                     </span>
+                    <span className="text-[10px] text-muted-foreground/80 font-medium">1-Click Edits</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       {
                         icon: Sparkles,
-                        title: 'Auto-Edit Project',
-                        desc: 'Analyze media & optimize pacing',
+                        title: 'Auto-Polish Project',
+                        desc: 'Analyze pacing, transitions & balance',
                         prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.',
-                        color: 'text-violet-500 bg-violet-500/10 border-violet-500/30 hover:border-violet-500/60',
+                        color: 'border-violet-500/25 bg-violet-500/5 hover:border-violet-500/50 hover:bg-violet-500/10 text-violet-500',
                       },
                       {
                         icon: Scissors,
                         title: 'Cut Silent Pauses',
-                        desc: 'Remove dead air & trim clips',
+                        desc: 'Remove dead air & tighten pacing',
                         prompt: 'Remove all silent parts and gaps longer than 1.2 seconds from the timeline clips to tighten the pacing.',
-                        color: 'text-rose-500 bg-rose-500/10 border-rose-500/30 hover:border-rose-500/60',
+                        color: 'border-rose-500/25 bg-rose-500/5 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-500',
                       },
                       {
                         icon: Subtitles,
                         title: 'Generate Captions',
-                        desc: 'Dynamic animated subtitles',
+                        desc: 'Dynamic animated karaoke text',
                         prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips on the timeline.',
-                        color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/30 hover:border-cyan-500/60',
+                        color: 'border-cyan-500/25 bg-cyan-500/5 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-500',
                       },
                       {
                         icon: Palette,
                         title: 'Cinematic Colors',
-                        desc: 'Teal & Orange Hollywood grade',
+                        desc: 'Teal & Orange film grading',
                         prompt: 'Apply a cinematic Teal & Orange color grade preset across all video clips on the timeline.',
-                        color: 'text-amber-500 bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60',
+                        color: 'border-amber-500/25 bg-amber-500/5 hover:border-amber-500/50 hover:bg-amber-500/10 text-amber-500',
                       },
                       {
                         icon: Smartphone,
-                        title: 'Reframe for Reels (9:16)',
+                        title: 'Reframe to Reel (9:16)',
                         desc: 'Format for TikTok & Shorts',
                         prompt: 'Reframe this project to a vertical 9:16 aspect ratio suitable for TikTok and Instagram Reels.',
-                        color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60',
+                        color: 'border-emerald-500/25 bg-emerald-500/5 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-500',
                       },
                       {
                         icon: Mic,
-                        title: 'Generate Voiceover',
-                        desc: 'Synthesize AI narration',
+                        title: 'Synthesize Voiceover',
+                        desc: 'AI studio narration from text',
                         prompt: 'Generate an energetic, high-quality voiceover narration for this video using TTS.',
-                        color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/60',
+                        color: 'border-indigo-500/25 bg-indigo-500/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 text-indigo-500',
                       },
                     ].map((act, i) => (
                       <button
                         key={i}
                         type="button"
                         onClick={() => void send(act.prompt)}
-                        className={`flex flex-col text-left p-2.5 rounded-xl border transition-all hover:scale-[1.02] shadow-xs group bg-card/60 backdrop-blur-sm ${act.color}`}
+                        className={cn(
+                          'flex items-start gap-2.5 p-2.5 rounded-xl border transition-all text-left group bg-card/40 backdrop-blur-sm cursor-pointer hover:scale-[1.01] shadow-xs',
+                          act.color,
+                        )}
                       >
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <act.icon className="size-3.5 shrink-0" />
-                          <span className="text-xs font-bold text-foreground group-hover:text-violet-500 transition-colors">
-                            {act.title}
-                          </span>
+                        <div className="flex size-7 items-center justify-center rounded-lg bg-white/10 border border-current/20 shrink-0 mt-0.5">
+                          <act.icon className="size-3.5 text-current" />
                         </div>
-                        <span className="text-[10px] text-muted-foreground leading-tight">
-                          {act.desc}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-foreground group-hover:text-violet-500 transition-colors truncate">
+                            {act.title}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground leading-tight truncate">
+                            {act.desc}
+                          </div>
+                        </div>
                       </button>
                     ))}
                   </div>
-                  {/* Create Full Video — spans full width */}
-                  <button
-                    type="button"
-                    onClick={() => void send('Create a video')}
-                    className="mt-2 flex items-center gap-3 w-full text-left p-3 rounded-xl border border-violet-500/50 bg-gradient-to-r from-violet-600/15 via-purple-600/10 to-indigo-600/15 hover:from-violet-600/25 hover:border-violet-500 transition-all shadow-xs group backdrop-blur-sm"
-                  >
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-500">
-                      <Video className="size-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-foreground group-hover:text-violet-500 transition-colors">Create Full Video from Scratch</div>
-                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">AI Director guides you through a 6-step brief, then auto-produces the complete video</div>
-                    </div>
-                    <Sparkles className="size-3.5 text-violet-400 ml-auto shrink-0" />
-                  </button>
                 </div>
               </div>
             )}
@@ -1866,28 +1938,30 @@ export function AIDirector({
             )}
 
             {messages.map((m) => (
-              <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div key={m.id} className={cn('flex gap-2.5', m.role === 'user' ? 'flex-row-reverse' : 'items-start')}>
                 <div
-                  className={`flex size-7 shrink-0 items-center justify-center rounded-full shadow-xs ${
+                  className={cn(
+                    'flex size-7 shrink-0 items-center justify-center rounded-xl shadow-xs',
                     m.role === 'user'
                       ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white'
-                      : 'bg-violet-600/20 text-violet-700 dark:text-violet-300 border border-violet-500/30'
-                  }`}
+                      : 'bg-violet-600/15 text-violet-600 dark:text-violet-400 border border-violet-500/25',
+                  )}
                 >
                   {m.role === 'user' ? <User className="size-3.5" /> : <Clapperboard className="size-3.5" />}
                 </div>
-                <div className={`max-w-[82%] space-y-1.5 ${m.role === 'user' ? 'text-right' : ''}`}>
+                <div className={cn('max-w-[84%] space-y-1.5', m.role === 'user' ? 'text-right' : '')}>
                   <div
-                    className={`inline-block whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-left text-xs sm:text-sm leading-relaxed shadow-sm transition-all ${
+                    className={cn(
+                      'inline-block whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-left text-xs sm:text-sm leading-relaxed shadow-xs transition-all',
                       m.role === 'user'
-                        ? 'bg-gradient-to-tr from-violet-600/90 to-purple-600/90 text-white backdrop-blur-md border border-white/25 rounded-tr-xs'
-                        : 'bg-white/50 dark:bg-white/10 backdrop-blur-md border border-white/20 dark:border-white/10 text-foreground rounded-tl-xs'
-                    }`}
+                        ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white rounded-tr-xs font-normal shadow-violet-500/10'
+                        : 'bg-card/75 dark:bg-slate-900/75 backdrop-blur-md border border-border/80 text-foreground rounded-tl-xs',
+                    )}
                   >
                     {m.text}
                   </div>
                   {m.tools && m.tools.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                    <div className={cn('flex flex-wrap items-center gap-1 pt-0.5', m.role === 'user' ? 'justify-end' : '')}>
                       <span className="text-[10px] font-semibold text-muted-foreground mr-0.5">
                         {m.proposed ? 'Proposed:' : 'Actions:'}
                       </span>
@@ -1897,7 +1971,7 @@ export function AIDirector({
                         return (
                           <span
                             key={toolName}
-                            className="inline-flex items-center gap-1 rounded-md border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur-xs shadow-2xs"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-card/60 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-2xs"
                           >
                             <Icon className="size-2.5 text-violet-500 shrink-0" />
                             <span>{meta.label}</span>
@@ -1908,24 +1982,24 @@ export function AIDirector({
                   )}
                   {m.review && m.review.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-0.5">
-                      <Button type="button" size="sm" className="h-6 px-2 text-[11px] font-bold bg-violet-600 text-white" onClick={applyAllFixes}>
+                      <Button type="button" size="sm" className="h-6 px-2 text-[11px] font-bold bg-violet-600 text-white cursor-pointer" onClick={applyAllFixes}>
                         <Check className="size-3 mr-1" />
                         Fix All ({m.review.filter((i) => i.fix.kind !== 'none').length})
                       </Button>
-                      <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px] border-white/20 bg-white/10" onClick={() => setShowQuality(true)}>
+                      <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px] border-border/70 bg-card/50 cursor-pointer" onClick={() => setShowQuality(true)}>
                         Review Changes
                       </Button>
                     </div>
                   )}
                   {m.followups && m.followups.length > 0 && (
-                    <div className="flex flex-wrap justify-start gap-1 pt-0.5">
+                    <div className={cn('flex flex-wrap gap-1 pt-0.5', m.role === 'user' ? 'justify-end' : 'justify-start')}>
                       {m.followups.map((f) => (
                         <button
                           key={f}
                           type="button"
                           onClick={() => void send(f)}
                           disabled={busy}
-                          className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[10px] font-semibold text-violet-700 dark:text-violet-300 transition-colors hover:bg-violet-500/20 disabled:opacity-50 backdrop-blur-xs"
+                          className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:text-violet-300 transition-colors hover:bg-violet-500/20 disabled:opacity-50 cursor-pointer backdrop-blur-xs"
                         >
                           {f}
                         </button>
@@ -1935,6 +2009,27 @@ export function AIDirector({
                 </div>
               </div>
             ))}
+
+            {/* Assistant Thinking State in Chat Feed */}
+            {busy && (
+              <div className="flex gap-2.5 items-start animate-in fade-in duration-200">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-violet-600/15 text-violet-600 dark:text-violet-400 border border-violet-500/25 shadow-xs">
+                  <Clapperboard className="size-3.5 animate-pulse" />
+                </div>
+                <div className="rounded-2xl rounded-tl-xs border border-border/80 bg-card/75 dark:bg-slate-900/75 px-3.5 py-2.5 text-xs text-muted-foreground backdrop-blur-md shadow-xs space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex gap-1 items-center">
+                      <span className="size-1.5 rounded-full bg-violet-500 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="size-1.5 rounded-full bg-violet-500 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="size-1.5 rounded-full bg-violet-500 animate-bounce" />
+                    </span>
+                    <span className="text-[11px] font-semibold text-foreground/80">
+                      AI Director is analyzing & directing timeline edits…
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {videoProduction.status === 'briefing' && videoProduction.brief && (() => {
               const question = VIDEO_BRIEF_QUESTIONS[videoProduction.step]
@@ -2388,43 +2483,47 @@ export function AIDirector({
           )}
 
           {/* Bottom Action & Input Bar with Glassmorphism */}
-          <div className="border-t border-white/15 dark:border-white/10 bg-white/20 dark:bg-white/5 p-3 backdrop-blur-xl space-y-2 rounded-b-2xl">
-            {/* Quick Action Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-              {[
-                { label: 'Auto-Edit', icon: Sparkles, prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.' },
-                { label: 'Captions', icon: Subtitles, prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
-                { label: 'Cut Silence', icon: Scissors, prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
-                { label: 'Teal & Orange', icon: Palette, prompt: 'Apply a Hollywood Teal & Orange cinematic color grade preset to all video clips.' },
-                { label: '9:16 Reel', icon: Smartphone, prompt: 'Reframe this project to a vertical 9:16 Reel/Shorts format.' },
-              ].map((p, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => void send(p.prompt)}
-                  disabled={busy}
-                  className="flex items-center gap-1.5 rounded-full border border-border/70 bg-card/80 hover:bg-muted hover:border-violet-500/50 px-2.5 py-1 text-[10px] font-semibold text-foreground transition-all shadow-xs shrink-0 disabled:opacity-50"
-                >
-                  <p.icon className="size-3 text-muted-foreground" />
-                  {p.label}
-                </button>
-              ))}
-            </div>
+          <div className="border-t border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 p-3 backdrop-blur-xl space-y-2 rounded-b-2xl shrink-0">
+            {/* Quick Action Pills — only displayed during active conversation to avoid empty state duplication */}
+            {messages.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                {[
+                  { label: 'Auto-Polish', icon: Sparkles, prompt: 'Auto-pilot: understand media, analyze scenes, remove silence and polish timeline with best pacing and transitions.' },
+                  { label: 'Subtitles', icon: Subtitles, prompt: 'Transcribe speech and generate animated karaoke captions for all spoken audio clips.' },
+                  { label: 'Cut Silence', icon: Scissors, prompt: 'Remove all silent parts and dead gaps longer than 1.2 seconds from the timeline clips.' },
+                  { label: 'Teal & Orange', icon: Palette, prompt: 'Apply a Hollywood Teal & Orange cinematic color grade preset to all video clips.' },
+                  { label: 'Reel 9:16', icon: Smartphone, prompt: 'Reframe this project to a vertical 9:16 Reel/Shorts format.' },
+                ].map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => void send(p.prompt)}
+                    disabled={busy}
+                    className="flex items-center gap-1.5 rounded-full border border-border/70 bg-card/80 hover:bg-muted hover:border-violet-500/50 px-2.5 py-1 text-[10px] font-semibold text-foreground transition-all shadow-xs shrink-0 disabled:opacity-50 cursor-pointer"
+                  >
+                    <p.icon className="size-3 text-muted-foreground" />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Input Field & Send Button */}
             <div className="flex gap-2 items-center">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && input.trim()) void send(input)
-                }}
-                placeholder="Ask the Director to edit, cut, grade, add captions..."
-                className="min-w-0 flex-1 rounded-xl border border-white/25 dark:border-white/15 bg-white/40 dark:bg-white/5 px-3 py-2 text-xs sm:text-sm outline-none placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 backdrop-blur-md text-foreground transition-all"
-              />
+              <div className="relative flex-1">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && input.trim() && !busy) void send(input)
+                  }}
+                  placeholder="Ask AI Director to edit, cut, grade, add captions..."
+                  className="w-full rounded-xl border border-border/80 bg-background/90 dark:bg-slate-900/90 px-3.5 py-2 text-xs sm:text-sm outline-none placeholder:text-muted-foreground focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20 text-foreground transition-all shadow-xs"
+                />
+              </div>
               <Button
                 size="icon"
-                className="size-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-md shrink-0"
+                className="size-9 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-md shadow-violet-500/20 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => void send(input)}
                 disabled={!input.trim() || busy}
                 aria-label="Send message"
