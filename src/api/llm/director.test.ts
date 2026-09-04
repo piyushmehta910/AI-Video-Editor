@@ -99,4 +99,16 @@ describe('AI Director provider selection', () => {
     expect(prompt).toContain('MIDDLE TOOLBAR & TIMELINE FEATURE MAPPING')
     expect(prompt).toContain('PROFESSIONAL KNOWLEDGE & ACTION MANUAL')
   })
+
+  it('includes explicit approval requirements in review mode', () => {
+    const prompt = getProjectContextSystemPrompt([], 'review')
+    expect(prompt).toContain('CURRENT EXECUTION MODE: REVIEW MODE (APPROVAL REQUIRED)')
+    expect(prompt).toContain('IS STAGED FOR USER APPROVAL')
+  })
+
+  it('includes autonomous execution directives in autopilot mode', () => {
+    const prompt = getProjectContextSystemPrompt([], 'autopilot')
+    expect(prompt).toContain('CURRENT EXECUTION MODE: AUTOPILOT MODE (AUTOMATIC EXECUTION)')
+    expect(prompt).toContain('without waiting for manual confirmation')
+  })
 })

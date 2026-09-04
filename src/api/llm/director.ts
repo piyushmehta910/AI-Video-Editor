@@ -64,7 +64,10 @@ export function getDirectorProvider(override?: DirectorProviderOverride): Direct
   return null
 }
 
-export function getProjectContextSystemPrompt(askedQuestions: string[] = []): string {
+export function getProjectContextSystemPrompt(
+  askedQuestions: string[] = [],
+  mode: 'autopilot' | 'review' = 'autopilot',
+): string {
   const { project, assets, playhead, selection } = useTimelineStore.getState()
   const prefs = useApiConfigStore.getState().config.preferences
   const selectedClips = project.tracks.flatMap((t) => t.clips.filter((c) => selection.clipIds.includes(c.id)))
@@ -103,19 +106,21 @@ export function getProjectContextSystemPrompt(askedQuestions: string[] = []): st
     }
   }
   lines.push(
-    `User preferences: language=${prefs.language}, aspect=${prefs.defaultAspectRatio}, confirm=${prefs.confirmationLevel}.`,
+    `User preferences: language=${prefs.language}, aspect=${prefs.defaultAspectRatio}, mode=${mode}.`,
   )
-  lines.push(
-    'CRITICAL EXECUTION MANDATE: You are an active agentic video director. When the user asks you to make an edit, ' +
-      'split, trim, delete, move clips, change speed/volume/opacity, add captions/subtitles, apply filters/effects, ' +
-      'generate voiceover/music, add slides/avatars, or modify the project in ANY way, YOU MUST CALL ' +
-      'THE CORRESPONDING FUNCTION TOOL(S) IMMEDIATELY to execute the task. DO NOT just explain in plain text how ' +
-      'the user can do it manually — ALWAYS EXECUTE IT DIRECTLY via tool calls.',
-  )
-  lines.push(
-    'All tool actions are immediately applied to the project and canvas in real time. Provide a concise, clear ' +
-      'summary of the completed actions after the tool execution completes.',
-  )
+  if (mode === 'review') {
+    lines.push(
+      'CURRENT EXECUTION MODE: REVIEW MODE (APPROVAL REQUIRED).',
+      'In Review Mode, every edit, split, cut, trim, deletion, property change, caption, audio adjustment, or timeline modification you call IS STAGED FOR USER APPROVAL before it takes effect on the canvas.',
+      'You must call the appropriate tools or plan_edit so they are queued as proposals for the user, explain your proposal clearly, and ask for their permission/approval to apply them.',
+    )
+  } else {
+    lines.push(
+      'CURRENT EXECUTION MODE: AUTOPILOT MODE (AUTOMATIC EXECUTION).',
+      'In Autopilot Mode, you have full autonomous authority to decide and apply all edits, cuts, trims, media changes, captions, and improvements to the timeline immediately without waiting for manual confirmation.',
+      'Always call the corresponding tools immediately to execute the requested changes in real-time, then provide a concise summary of what was accomplished.',
+    )
+  }
   lines.push(
     'If a request is genuinely ambiguous, call ask_user once to clarify, then execute. Never ask a question ' +
       'that has already been asked.' +

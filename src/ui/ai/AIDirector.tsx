@@ -49,7 +49,7 @@ import {
   describeTool,
   isDestructiveTool,
   isExpensiveTool,
-  isStagedTool,
+  isMutatingTool,
 } from '@/api/llm/tools'
 import { buildDirectorContext, collectTimelineScenes } from '@/api/llm/context'
 import { checkTimeline, type QualityIssue } from '@/ai/quality/checker'
@@ -66,7 +66,7 @@ import { useAIStore } from '@/stores/aiStore'
 import { DEFAULT_VIDEO_BRIEF, VIDEO_BRIEF_QUESTIONS, applyBriefAnswer, extractCleanTopic, isVideoCreationPrompt } from '@/ai/videoBrief'
 import { subagentOrchestrator } from '@/ai/subagents/SubagentOrchestrator'
 import { getProviderKeyStatus } from '@/ai/subagents/providerPreflight'
-import { matchAndExecuteLocalIntent } from '@/api/llm/localIntentRouter'
+import { parseLocalIntent } from '@/api/llm/localIntentRouter'
 
 const TOOL_METADATA: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   generate_script: { label: 'Narration Script', icon: FileText },
@@ -823,6 +823,12 @@ export function AIDirector({
     if (isFinal) void runVideoProduction(next)
   }, [runVideoProduction, updateVideoBrief])
 
+  const refreshQualityAfterEdit = React.useCallback(async () => {
+    const found = await runQualityReview()
+    setIssues(found)
+    if (found.length) setShowQuality(true)
+  }, [])
+
   const send = React.useCallback(
     async (text: string) => {
       const trimmed = text.trim()
@@ -834,20 +840,48 @@ export function AIDirector({
         return
       }
 
-      // Check for zero-latency local client-side intent execution (no API key needed)
+      // Check for zero-latency local client-side intent matching
       try {
-        const localResult = await matchAndExecuteLocalIntent(trimmed)
-        if (localResult) {
-          setMessages((prev) => [
-            ...prev,
-            {
+        const match = parseLocalIntent(trimmed)
+        if (match.matched && match.toolName) {
+          if (productionMode === 'autopilot') {
+            const localResult = await applyTool(match.toolName, match.toolArgs ?? {}, { undoStep: true })
+            if (localResult) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: crypto.randomUUID(),
+                  role: 'ai',
+                  text: `Done — automatically applied: ${localResult.message}`,
+                  tools: [match.toolName!],
+                },
+              ])
+              void refreshQualityAfterEdit()
+              return
+            }
+          } else {
+            // In Review Mode: Ask permission first! Stage proposal
+            const label = match.explanation || describeTool(match.toolName, match.toolArgs ?? {}) || match.toolName
+            const newProposal: Proposal = {
               id: crypto.randomUUID(),
-              role: 'ai',
-              text: localResult.message,
-              tools: [],
-            },
-          ])
-          return
+              name: match.toolName,
+              args: match.toolArgs ?? {},
+              label,
+              status: 'pending',
+            }
+            setProposals((prev) => [...prev, newProposal])
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'ai',
+                text: `[Review Mode] I want to apply this change: "${label}".\n\nI need your permission first. Please click **Apply** below to execute it, or **Discard** to reject.`,
+                tools: [match.toolName!],
+                proposed: true,
+              },
+            ])
+            return
+          }
         }
       } catch (localErr) {
         console.warn('[AIDirector] Local intent execution error, falling back to LLM:', localErr)
@@ -870,10 +904,10 @@ export function AIDirector({
         }
 
         const confirmationLevel = useApiConfigStore.getState().config.preferences.confirmationLevel
-        // Per-tool auto-apply policy: 'always' stages everything for review;
-        // 'destructive' / 'expensive' only stage tools of that class;
-        // 'none' (and autopilot mode) applies everything immediately.
+        // In review mode: EVERYTHING requires user permission!
+        // In autopilot mode: automatically applied!
         const shouldAutoApply = (toolName: string): boolean => {
+          if (productionMode === 'review') return false
           if (productionMode === 'autopilot') return true
           if (confirmationLevel === 'none') return true
           if (confirmationLevel === 'destructive') return !isDestructiveTool(toolName)
@@ -881,7 +915,7 @@ export function AIDirector({
           return false
         }
 
-        const baseSystem = getProjectContextSystemPrompt(askedQuestions)
+        const baseSystem = getProjectContextSystemPrompt(askedQuestions, productionMode)
         let understanding = ''
         try {
           understanding = await buildDirectorContext()
@@ -926,10 +960,25 @@ export function AIDirector({
             if (name === 'plan_edit') {
               const p = normalizePlan(tc.arguments)
               if (p) {
-                pendingPlan = p
-                setPlan({ plan: p, status: 'pending' })
-                planned = true
-                apiMessages.push({ role: 'tool', content: `Plan staged for approval: ${p.goal}`, tool_call_id: tc.id })
+                if (productionMode === 'autopilot') {
+                  const result = await applyPlan(p)
+                  appliedThisTurn = true
+                  usedTools.push(...p.actions.map((a) => a.tool))
+                  apiMessages.push({
+                    role: 'tool',
+                    content: `Autopilot mode: automatically applied plan "${p.goal}" (${result.applied.length} changes applied).`,
+                    tool_call_id: tc.id,
+                  })
+                } else {
+                  pendingPlan = p
+                  setPlan({ plan: p, status: 'pending' })
+                  planned = true
+                  apiMessages.push({
+                    role: 'tool',
+                    content: `Review mode: Plan staged for user approval: "${p.goal}". Nothing has been changed on the timeline yet. Inform the user of this plan and ask for their approval.`,
+                    tool_call_id: tc.id,
+                  })
+                }
               } else {
                 apiMessages.push({
                   role: 'tool',
@@ -972,33 +1021,25 @@ export function AIDirector({
                 ? found.map((i) => `- [${i.severity}] ${i.message}${i.fix.kind !== 'none' ? ` (${i.fix.label})` : ''}`).join('\n')
                 : 'The project looks clean — no improvements needed right now.'
               apiMessages.push({ role: 'tool', content: msg, tool_call_id: tc.id })
-            } else if (isStagedTool(name)) {
+            } else if (isMutatingTool(name)) {
               if (shouldAutoApply(name)) {
                 const result = await applyTool(name, tc.arguments)
                 appliedThisTurn = true
                 usedTools.push(name)
                 apiMessages.push({ role: 'tool', content: result.message, tool_call_id: tc.id })
               } else if (stagedCount < MAX_PROPOSALS) {
-                const label = describeTool(name, tc.arguments)
-                if (label) {
-                  stagedCount++
-                  proposedTools.push(name)
-                  setProposals((prev) => [
-                    ...prev,
-                    { id: crypto.randomUUID(), name, args: tc.arguments, label, status: 'pending' },
-                  ])
-                  apiMessages.push({
-                    role: 'tool',
-                    content: `Staged for user review (not yet applied): ${label}`,
-                    tool_call_id: tc.id,
-                  })
-                } else {
-                  apiMessages.push({
-                    role: 'tool',
-                    content: 'Invalid arguments for that action; do not call it again.',
-                    tool_call_id: tc.id,
-                  })
-                }
+                const label = describeTool(name, tc.arguments) || `Apply ${name.replace(/_/g, ' ')}`
+                stagedCount++
+                proposedTools.push(name)
+                setProposals((prev) => [
+                  ...prev,
+                  { id: crypto.randomUUID(), name, args: tc.arguments, label, status: 'pending' },
+                ])
+                apiMessages.push({
+                  role: 'tool',
+                  content: `Review mode: Staged for user permission (not yet applied): ${label}. Ask the user for permission to apply this change.`,
+                  tool_call_id: tc.id,
+                })
               } else {
                 apiMessages.push({
                   role: 'tool',
@@ -1018,7 +1059,7 @@ export function AIDirector({
         }
 
         if (pendingPlan) {
-          finalText = `Here's my plan for "${pendingPlan.goal}" — approve it to apply the edits, or tell me what to change.`
+          finalText = `[Review Mode] Here's my plan for "${pendingPlan.goal}" — please approve it to apply the edits, or tell me what to change.`
         }
         if (reviewDone) {
           finalText =
@@ -1027,12 +1068,10 @@ export function AIDirector({
               : 'The project looks clean — no improvements needed right now.'
         }
         if (!finalText && usedTools.length) {
-          finalText = `Done — applied ${usedTools.join(', ')}.`
+          finalText = `Done — automatically applied ${usedTools.join(', ')} to the timeline.`
         }
         if (!finalText && stagedCount > 0) {
-          finalText = `I've proposed ${stagedCount} change${stagedCount > 1 ? 's' : ''} — review ${
-            stagedCount > 1 ? 'them' : 'it'
-          } above before it takes effect.`
+          finalText = `[Review Mode] I've staged ${stagedCount} proposed change${stagedCount > 1 ? 's' : ''} for your review. Please approve them below to apply to the timeline.`
         }
         if (!finalText) finalText = 'I could not complete that request. Please rephrase it.'
 
@@ -1088,7 +1127,7 @@ export function AIDirector({
         setBusy(false)
       }
     },
-    [busy, messages, askedQuestions, projectId, promptQuestion, productionMode, startVideoBrief],
+    [busy, messages, askedQuestions, projectId, promptQuestion, productionMode, startVideoBrief, refreshQualityAfterEdit],
   )
 
   React.useEffect(() => {
@@ -1114,14 +1153,23 @@ export function AIDirector({
         args: target.args,
         onConfirm: async () => {
           const store = useTimelineStore.getState()
-          store.withTransaction(() => {
-            void (async () => {
-              const result = await applyTool(target.name, target.args, { undoStep: false })
-              setProposals((prev) =>
-                prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
-              )
-              void refreshQualityAfterEdit()
-            })()
+          await store.withTransaction(async () => {
+            const result = await applyTool(target.name, target.args, { undoStep: false })
+            setProposals((prev) =>
+              prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
+            )
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'ai',
+                text: result.ok
+                  ? `Permission granted. Applied: ${target.label}`
+                  : `Failed to apply: ${result.message}`,
+                tools: [target.name],
+              },
+            ])
+            void refreshQualityAfterEdit()
           }, { type: 'edit', description: `AI: ${target.name}` })
         },
       })
@@ -1129,14 +1177,23 @@ export function AIDirector({
     }
 
     const store = useTimelineStore.getState()
-    store.withTransaction(() => {
-      void (async () => {
-        const result = await applyTool(target.name, target.args, { undoStep: false })
-        setProposals((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
-        )
-        void refreshQualityAfterEdit()
-      })()
+    await store.withTransaction(async () => {
+      const result = await applyTool(target.name, target.args, { undoStep: false })
+      setProposals((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p)),
+      )
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: result.ok
+            ? `Permission granted. Applied: ${target.label}`
+            : `Failed to apply: ${result.message}`,
+          tools: [target.name],
+        },
+      ])
+      void refreshQualityAfterEdit()
     }, { type: 'edit', description: `AI: ${target.name}` })
   }
 
@@ -1144,27 +1201,29 @@ export function AIDirector({
     const pending = proposals.filter((p) => p.status === 'pending')
     if (!pending.length) return
     const store = useTimelineStore.getState()
-    // Apply sequentially: tools like search_music duck the latest music clip
-    // and voiceover measures durations — concurrent execution interleaves
-    // timeline mutations and produces out-of-order placements.
     await store.withTransaction(async () => {
+      let appliedSuccess = 0
       for (const target of pending) {
         const result = await applyTool(target.name, target.args, { undoStep: false })
+        if (result.ok) appliedSuccess++
         setProposals((prev) =>
           prev.map((p) =>
             p.id === target.id ? { ...p, status: result.ok ? 'applied' : 'failed', message: result.message } : p,
           ),
         )
       }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: `Permission granted. Applied ${appliedSuccess} of ${pending.length} approved change(s) to the timeline.`,
+          tools: pending.map((p) => p.name),
+        },
+      ])
       void refreshQualityAfterEdit()
     }, { type: 'edit', description: `AI: applied ${pending.length} proposal${pending.length !== 1 ? 's' : ''}` })
   }
-
-  const refreshQualityAfterEdit = React.useCallback(async () => {
-    const found = await runQualityReview()
-    setIssues(found)
-    if (found.length) setShowQuality(true)
-  }, [])
 
   const approvePlan = async () => {
     if (!plan || plan.status !== 'pending') return
@@ -1219,11 +1278,33 @@ export function AIDirector({
   }
 
   const discardOne = (id: string) => {
+    const target = proposals.find((p) => p.id === id)
     setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'discarded' } : p)))
+    if (target) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: `Rejected proposal: "${target.label}". No changes made to timeline.`,
+        },
+      ])
+    }
   }
 
   const discardAll = () => {
+    const pending = proposals.filter((p) => p.status === 'pending')
     setProposals((prev) => prev.map((p) => (p.status === 'pending' ? { ...p, status: 'discarded' } : p)))
+    if (pending.length > 0) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: `Rejected all ${pending.length} pending change(s). No changes made to timeline.`,
+        },
+      ])
+    }
   }
 
   const clearResolved = () => {
@@ -2445,8 +2526,13 @@ export function AIDirector({
                 )}
               </div>
 
-              <span className="text-[10px] text-muted-foreground/70">
-                {productionMode === 'autopilot' ? 'Direct execution' : 'Approval required'}
+              <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1.5">
+                {pendingCount > 0 && (
+                  <span className="rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold">
+                    {pendingCount} awaiting permission
+                  </span>
+                )}
+                <span>{productionMode === 'autopilot' ? 'Direct execution' : 'Approval required'}</span>
               </span>
             </div>
 

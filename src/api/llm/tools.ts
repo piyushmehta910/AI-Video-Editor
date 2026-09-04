@@ -962,6 +962,8 @@ const STAGED_TOOLS = new Set<string>([
   'remove_background',
   'execute_autonomous_video_plan',
   'dispatch_subagent_task',
+  'auto_remove_silence',
+  'color_grade_preset',
 ])
 
 /** Tools that never mutate timeline state and therefore need no undo snapshot. */
@@ -988,10 +990,21 @@ const ALIASES: Record<string, string> = {
   add_effect: 'apply_filter',
   filter: 'apply_filter',
   sticker: 'add_sticker',
+  adjust_clip_property: 'set_clip_property',
+  change_clip_property: 'set_clip_property',
+}
+
+export function isNonMutatingTool(name: string): boolean {
+  const canonical = ALIASES[name] ?? name
+  return NON_MUTATING_TOOLS.has(canonical) || NON_MUTATING_TOOLS.has(name)
+}
+
+export function isMutatingTool(name: string): boolean {
+  return !isNonMutatingTool(name)
 }
 
 export function isStagedTool(name: string): boolean {
-  return STAGED_TOOLS.has(ALIASES[name] ?? name) || STAGED_TOOLS.has(name)
+  return isMutatingTool(name) || STAGED_TOOLS.has(ALIASES[name] ?? name) || STAGED_TOOLS.has(name)
 }
 
 /** Tools that destroy or overwrite existing timeline state (delete/trim/move/split/join/reframe). */
@@ -1311,6 +1324,14 @@ export function describeTool(name: string, args: Record<string, unknown>): strin
       const assetName = String(args.assetName ?? '')
       if (!assetName.trim()) return null
       return `Extract text from "${assetName}" with NVIDIA Nemotron OCR`
+    }
+    case 'auto_remove_silence': {
+      const minDur = Number(args.minDurationSeconds || 1.0)
+      return `Remove silent gaps longer than ${minDur.toFixed(1)}s from timeline`
+    }
+    case 'color_grade_preset': {
+      const preset = String(args.preset || 'teal_orange').replace('_', ' ')
+      return `Apply ${preset} color grade preset across video clips`
     }
     default:
       return null
@@ -2334,6 +2355,56 @@ export async function applyTool(
         return { ok: true, message: `Nemotron OCR for "${asset.name}":\n\n${text}` }
       } catch (err) {
         return { ok: false, message: `Nemotron OCR failed: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    case 'auto_remove_silence': {
+      const minDur = Number(args.minDurationSeconds || 1.0)
+      let removedCount = 0
+      for (const track of s.project.tracks) {
+        if (track.clips.length < 2) continue
+        const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime)
+        let offset = 0
+        for (let i = 0; i < sorted.length - 1; i++) {
+          const cur = sorted[i]
+          const next = sorted[i + 1]
+          const gap = next.startTime - (cur.startTime + cur.duration)
+          if (gap >= minDur) {
+            offset += gap
+            s.updateClip(next.id, { startTime: Math.max(0, next.startTime - offset) })
+            removedCount++
+          } else if (offset > 0) {
+            s.updateClip(next.id, { startTime: Math.max(0, next.startTime - offset) })
+          }
+        }
+      }
+      return {
+        ok: true,
+        message:
+          removedCount > 0
+            ? `Removed ${removedCount} silent gap(s) longer than ${minDur}s and compacted the timeline.`
+            : `No silent gaps longer than ${minDur}s were found on the timeline.`,
+      }
+    }
+    case 'color_grade_preset': {
+      const preset = String(args.preset || 'teal_orange')
+      const targetClip = args.assetName ? findClip(String(args.assetName)) : null
+      const videoClips = targetClip
+        ? [targetClip]
+        : s.project.tracks.filter((t) => t.type === 'video').flatMap((t) => t.clips)
+      if (videoClips.length === 0) return { ok: false, message: 'No video clips found on the timeline to color grade.' }
+      for (const clip of videoClips) {
+        const effects = [...clip.effects]
+        effects.push({
+          id: `fx-${Date.now()}-${clip.id}`,
+          type: 'brightness',
+          value: preset === 'noir' ? -0.2 : 0.05,
+          enabled: true,
+        })
+        s.updateClip(clip.id, { effects })
+      }
+      return {
+        ok: true,
+        message: `Applied ${preset.replace('_', ' ')} color grade preset to ${videoClips.length} video clip(s).`,
       }
     }
     default:
