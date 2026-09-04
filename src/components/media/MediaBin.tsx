@@ -1,20 +1,20 @@
 import * as React from 'react'
 import {
-  Film,
   FolderOpen,
-  Image as ImageIcon,
+  FolderUp,
   LayoutGrid,
   List,
-  Mic,
+  LoaderCircle,
   Search,
   Sparkles,
   Square,
+  Video,
   X,
   Check,
   Globe,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import { useEditorStore, type MediaFilter, type MediaSort, type GeneratedSubTab } from '@/stores/editorStore'
+import { useEditorStore, type MediaFilter } from '@/stores/editorStore'
 import type { Asset } from '@/engine/types'
 import { getMediaUrl } from '@/engine/storage/opfs'
 import { useMediaImport } from '@/hooks/useMediaImport'
@@ -25,14 +25,15 @@ import { VirtualList } from '@/components/common/VirtualList'
 import { DragPreviewLayer } from './DragPreview'
 import { applyAssetDropRules } from './afterAdd'
 import { isGenerated, generatedCategory } from './generatedAssets'
-import { ImportButton } from './ImportButton'
 import { MediaItem } from './MediaItem'
 import { MediaSourcePreview } from './MediaSourcePreview'
 import { OnlineAssetSearch } from './OnlineAssetSearch'
 
-const TABS: { value: 'media' | 'generated' | 'online'; label: string; icon: React.ReactNode }[] = [
+const ACCEPTED =
+  '.mp4,.webm,.mov,.avi,.m4v,.mkv,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.aac,.ogg,.m4a,video/*,audio/*,image/*'
+
+const TABS: { value: 'media' | 'online'; label: string; icon: React.ReactNode }[] = [
   { value: 'media', label: 'Project Media', icon: <FolderOpen className="size-3.5" /> },
-  { value: 'generated', label: 'AI Assets', icon: <Sparkles className="size-3.5" /> },
   { value: 'online', label: 'Stock Search', icon: <Globe className="size-3.5" /> },
 ]
 
@@ -41,21 +42,6 @@ const FILTERS: { value: MediaFilter; label: string }[] = [
   { value: 'video', label: 'Videos' },
   { value: 'audio', label: 'Audio' },
   { value: 'image', label: 'Images' },
-]
-
-const SORTS: { value: MediaSort; label: string }[] = [
-  { value: 'dateAdded', label: 'Date Added' },
-  { value: 'name', label: 'Name (A-Z)' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'type', label: 'Type' },
-]
-
-const GENERATED_SUBTABS: { value: GeneratedSubTab; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'All', icon: <Sparkles className="size-3" /> },
-  { value: 'avatars', label: 'Avatars', icon: <Film className="size-3" /> },
-  { value: 'voice', label: 'Voice / TTS', icon: <Mic className="size-3" /> },
-  { value: 'animations', label: 'Slides & FX', icon: <Sparkles className="size-3" /> },
-  { value: 'images', label: 'Images', icon: <ImageIcon className="size-3" /> },
 ]
 
 export function MediaBin() {
@@ -72,9 +58,7 @@ export function MediaBin() {
   const filter = useEditorStore((s) => s.mediaFilter)
   const setFilter = useEditorStore((s) => s.setMediaFilter)
   const sort = useEditorStore((s) => s.mediaSort)
-  const setSort = useEditorStore((s) => s.setMediaSort)
   const genSubTab = useEditorStore((s) => s.generatedSubTab)
-  const setGenSubTab = useEditorStore((s) => s.setGeneratedSubTab)
   const linkAudio = useEditorStore((s) => s.linkAudio)
   const toggleLinkAudio = useEditorStore((s) => s.toggleLinkAudio)
 
@@ -86,6 +70,26 @@ export function MediaBin() {
   const [previewAsset, setPreviewAsset] = React.useState<{ asset: Asset; url: string } | null>(null)
   const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null)
   const recordVideoRef = React.useRef<HTMLVideoElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [recordSeconds, setRecordSeconds] = React.useState(0)
+
+  // Recording timer
+  React.useEffect(() => {
+    if (!recording) {
+      setRecordSeconds(0)
+      return
+    }
+    const timer = window.setInterval(() => {
+      setRecordSeconds((s) => s + 1)
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [recording])
+
+  const formatTimer = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60)
+    const secs = totalSeconds % 60
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
 
   const selectedAsset = React.useMemo(
     () => assets.find((a) => a.id === selectedAssetId) ?? null,
@@ -97,7 +101,7 @@ export function MediaBin() {
     if (recordVideoRef.current && recordingStream) {
       recordVideoRef.current.srcObject = recordingStream
     }
-  }, [recordingStream])
+  }, [recordingStream, recording])
 
   // Count metrics for filters and tabs
   const tabCounts = React.useMemo(() => {
@@ -196,33 +200,66 @@ export function MediaBin() {
     <div className="flex h-full w-full flex-col bg-card/40 select-none" data-testid="media-bin">
       <DragPreviewLayer />
 
-      {/* ── 1. Header & Tabs ── */}
+      {/* ── 1. Top Buttons & Tabs ── */}
       <div className="shrink-0 border-b border-border/80 bg-card/60 p-2 space-y-2">
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-foreground">Media Library</span>
-            <span className="rounded-full bg-violet-500/15 px-1.5 py-0.2 text-[10px] font-mono font-semibold text-violet-600 dark:text-violet-400">
-              {assets.length}
-            </span>
-          </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED}
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) void handleFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
 
-          <div className="flex items-center gap-1">
-            <ImportButton onFiles={(f) => void handleFiles(f)} onRecord={(k) => void startRecording(k)} busy={importing} />
-          </div>
+        {/* Top Two Buttons: Import and Record Video */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+            className="h-8 gap-1.5 text-xs font-semibold hover:bg-violet-500/10 hover:border-violet-500/50 hover:text-violet-600 dark:hover:text-violet-300 transition"
+            data-testid="import-button"
+          >
+            {importing ? <LoaderCircle className="size-3.5 animate-spin text-violet-500" /> : <FolderUp className="size-3.5 text-violet-500" />}
+            Import
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={recording !== null}
+            onClick={() => void startRecording('webcam')}
+            className={cn(
+              'h-8 gap-1.5 text-xs font-semibold transition',
+              recording === 'webcam'
+                ? 'border-red-500 bg-red-500/15 text-red-500 animate-pulse'
+                : 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-500',
+            )}
+            data-testid="record-video-button"
+          >
+            <Video className="size-3.5 text-red-500" />
+            Record Video
+          </Button>
         </div>
 
-        {/* Tab Switcher: Project Media | AI Assets | Stock Search */}
-        <div className="grid grid-cols-3 gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+        {/* Tab Switcher: Project Media | Stock Search */}
+        <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/30 p-0.5">
           {TABS.map(({ value, label, icon }) => {
             const count = tabCounts[value as keyof typeof tabCounts] ?? 0
-            const active = tab === value
+            const active = (tab === 'online' ? 'online' : 'media') === value
             return (
               <button
                 key={value}
                 type="button"
                 onClick={() => setTab(value)}
                 className={cn(
-                  'flex items-center justify-center gap-1 rounded-md py-1 text-[10px] font-semibold transition',
+                  'flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-semibold transition',
                   active
                     ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs ring-1 ring-border/50'
                     : 'text-muted-foreground hover:text-foreground',
@@ -230,10 +267,10 @@ export function MediaBin() {
               >
                 {icon}
                 <span className="truncate">{label}</span>
-                {count > 0 && (
+                {value === 'media' && count > 0 && (
                   <span
                     className={cn(
-                      'rounded-full px-1 text-[8px] font-mono',
+                      'rounded-full px-1.5 py-0.2 text-[9px] font-mono',
                       active ? 'bg-violet-500/20 text-violet-400' : 'bg-muted text-muted-foreground',
                     )}
                   >
@@ -250,69 +287,60 @@ export function MediaBin() {
         <OnlineAssetSearch />
       ) : (
         <>
-          {/* ── 2. Search, Filter Chips & Sort Controls ── */}
+          {/* ── 2. Search, Browse Files & Filter Chips (No Sort) ── */}
           <div className="shrink-0 border-b border-border/60 bg-card/30 p-2 space-y-1.5">
-        {/* Search Bar + Grid/List View */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border bg-background px-2 text-xs">
-            <Search className="size-3.5 text-muted-foreground shrink-0" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${tab === 'generated' ? 'AI assets' : tab === 'recordings' ? 'recordings' : 'media'}…`}
-              data-testid="media-search"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/70 text-foreground"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} aria-label="Clear search" className="text-muted-foreground hover:text-foreground">
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
+            {/* Search Bar + Grid/List View */}
+            <div className="flex items-center gap-1.5">
+              <div className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border bg-background px-2 text-xs">
+                <Search className="size-3.5 text-muted-foreground shrink-0" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search media…"
+                  data-testid="media-search"
+                  className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/70 text-foreground"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} aria-label="Clear search" className="text-muted-foreground hover:text-foreground">
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
 
-          <div className="flex overflow-hidden rounded-md border bg-muted/30 p-0.5">
-            <button
-              onClick={() => setView('grid')}
-              title="Grid view"
-              aria-label="Grid view"
-              className={cn('p-1 rounded transition', view === 'grid' ? 'bg-card text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground')}
-            >
-              <LayoutGrid className="size-3.5" />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              title="List view"
-              aria-label="List view"
-              data-testid="list-view-button"
-              className={cn('p-1 rounded transition', view === 'list' ? 'bg-card text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground')}
-            >
-              <List className="size-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Pills & Sort Dropdown */}
-        <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5">
-          {tab === 'generated' ? (
-            <div className="flex flex-wrap items-center gap-1">
-              {GENERATED_SUBTABS.map((s) => (
+              <div className="flex overflow-hidden rounded-md border bg-muted/30 p-0.5">
                 <button
-                  key={s.value}
-                  onClick={() => setGenSubTab(s.value)}
-                  className={cn(
-                    'flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition',
-                    genSubTab === s.value
-                      ? 'border-violet-500 bg-violet-500/15 text-violet-300 shadow-xs'
-                      : 'border-border/60 text-muted-foreground hover:border-violet-500/40 hover:text-foreground',
-                  )}
+                  onClick={() => setView('grid')}
+                  title="Grid view"
+                  aria-label="Grid view"
+                  className={cn('p-1 rounded transition', view === 'grid' ? 'bg-card text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground')}
                 >
-                  {s.icon}
-                  {s.label}
+                  <LayoutGrid className="size-3.5" />
                 </button>
-              ))}
+                <button
+                  onClick={() => setView('list')}
+                  title="List view"
+                  aria-label="List view"
+                  data-testid="list-view-button"
+                  className={cn('p-1 rounded transition', view === 'list' ? 'bg-card text-violet-400 shadow-xs' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  <List className="size-3.5" />
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-1">
+
+            {/* Browse Files Button / Quick Upload */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border/80 bg-muted/20 py-1.5 text-xs font-medium text-muted-foreground hover:border-violet-500/60 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              data-testid="browse-files-button"
+            >
+              <FolderOpen className="size-3.5 text-violet-500" />
+              <span>Browse Files</span>
+            </button>
+
+            {/* Filter Pills WITHOUT Sort Dropdown */}
+            <div className="flex flex-wrap items-center gap-1 pt-0.5">
               {FILTERS.map((f) => {
                 const count = filterCounts[f.value as keyof typeof filterCounts] ?? 0
                 if (count === 0 && f.value !== 'all') return null
@@ -334,71 +362,77 @@ export function MediaBin() {
                 )
               })}
             </div>
-          )}
-
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto">
-            <span className="font-medium">Sort:</span>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as MediaSort)}
-              className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] outline-none text-foreground"
-              data-testid="media-sort"
-            >
-              {SORTS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
           </div>
-        </div>
-      </div>
 
-      {/* ── 3. Asset Cards & Workspace Content ── */}
-      <div
-        className="relative min-h-0 flex-1 overflow-y-auto p-2"
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragOver(false)
-          void handleFiles(e.dataTransfer.files)
-        }}
-      >
-        {notice && (
+          {/* ── 3. Asset Cards & Workspace Content ── */}
           <div
-            className={cn(
-              'mb-2 rounded-md border px-2.5 py-1.5 text-[11px]',
-              notice.kind === 'error'
-                ? 'border-destructive/40 bg-destructive/10 text-destructive'
-                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-            )}
+            className="relative min-h-0 flex-1 overflow-y-auto p-2"
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOver(true)
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOver(false)
+              void handleFiles(e.dataTransfer.files)
+            }}
           >
-            {notice.text}
-          </div>
-        )}
-
-        {/* Recording bar + live preview */}
-        {recording && (
-          <div className="mb-2 rounded-lg border border-red-500/50 bg-red-500/10 p-2" data-testid="recording-bar">
-            <div className="flex items-center gap-2">
-              <span className="size-2 animate-pulse rounded-full bg-red-500" />
-              <span className="text-xs font-medium text-red-300">
-                Recording {recording === 'screen' ? 'screen' : 'webcam'}…
-              </span>
-              <Button variant="secondary" size="sm" className="ml-auto h-6 gap-1 px-2 text-[11px]" onClick={stopRecording} data-testid="stop-recording-button">
-                <Square className="size-3" /> Stop
-              </Button>
-            </div>
-            {recordingStream && (
-              // eslint-disable-next-line jsx-a11y/media-has-caption -- live recording monitor
-              <video ref={recordVideoRef} autoPlay muted playsInline className="mt-2 max-h-32 w-full rounded-md object-cover" />
+            {notice && (
+              <div
+                className={cn(
+                  'mb-2 rounded-md border px-2.5 py-1.5 text-[11px]',
+                  notice.kind === 'error'
+                    ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+                )}
+              >
+                {notice.text}
+              </div>
             )}
-          </div>
-        )}
+
+            {/* Recording bar + live webcam preview */}
+            {recording && (
+              <div className="mb-3 rounded-xl border border-red-500/50 bg-red-950/25 p-2.5 shadow-md" data-testid="recording-bar">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex size-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
+                    </span>
+                    <span className="text-xs font-semibold text-red-300">
+                      Recording {recording === 'screen' ? 'Screen' : 'Webcam'}
+                    </span>
+                    <span className="rounded bg-black/50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-white">
+                      {formatTimer(recordSeconds)}
+                    </span>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-6 gap-1 px-2.5 text-[11px] font-bold shadow-xs bg-red-600 hover:bg-red-500"
+                    onClick={stopRecording}
+                    data-testid="stop-recording-button"
+                  >
+                    <Square className="size-3 fill-white" /> Stop & Save
+                  </Button>
+                </div>
+                {/* Live Video Preview Stream */}
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black/90 border border-red-500/30">
+                  <video
+                    ref={recordVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="size-full object-cover"
+                  />
+                  <div className="absolute bottom-1.5 left-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-white/90 backdrop-blur-xs">
+                    <Video className="size-2.5 text-red-400" />
+                    <span>Live Camera Feed</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
         {/* Import progress */}
         {jobs.length > 0 && (
