@@ -62,7 +62,7 @@ export function MediaBin() {
   const linkAudio = useEditorStore((s) => s.linkAudio)
   const toggleLinkAudio = useEditorStore((s) => s.toggleLinkAudio)
 
-  const { jobs, importing, recording, recordingStream, importFiles, startRecording, stopRecording } =
+  const { jobs, importing, recording, recordingStream, importFiles, startRecording, stopRecording, cancelRecording } =
     useMediaImport()
 
   const [dragOver, setDragOver] = React.useState(false)
@@ -102,6 +102,19 @@ export function MediaBin() {
       recordVideoRef.current.srcObject = recordingStream
     }
   }, [recordingStream, recording])
+
+  // Release camera / stop recording when switching tabs or unmounting
+  React.useEffect(() => {
+    if (tab !== 'media' && recording) {
+      cancelRecording()
+    }
+  }, [tab, recording, cancelRecording])
+
+  React.useEffect(() => {
+    return () => {
+      cancelRecording()
+    }
+  }, [cancelRecording])
 
   // Count metrics for filters and tabs
   const tabCounts = React.useMemo(() => {
@@ -407,15 +420,26 @@ export function MediaBin() {
                       {formatTimer(recordSeconds)}
                     </span>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="h-6 gap-1 px-2.5 text-[11px] font-bold shadow-xs bg-red-600 hover:bg-red-500"
-                    onClick={stopRecording}
-                    data-testid="stop-recording-button"
-                  >
-                    <Square className="size-3 fill-white" /> Stop & Save
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[11px] font-medium text-muted-foreground hover:text-white"
+                      onClick={cancelRecording}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-6 gap-1 px-2.5 text-[11px] font-bold shadow-xs bg-red-600 hover:bg-red-500"
+                      onClick={stopRecording}
+                      data-testid="stop-recording-button"
+                    >
+                      <Square className="size-3 fill-white" /> Stop & Save
+                    </Button>
+                  </div>
                 </div>
                 {/* Live Video Preview Stream */}
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black/90 border border-red-500/30">
@@ -499,10 +523,6 @@ export function MediaBin() {
             <div className="bg-muted flex size-12 items-center justify-center rounded-xl border border-violet-500/20 text-violet-400">
               <Sparkles className="size-6" />
             </div>
-            <h4 className="text-xs font-semibold text-foreground">No AI Assets Generated Yet</h4>
-            <p className="text-muted-foreground text-[11px] leading-relaxed max-w-[200px]">
-              Clips generated from Avatar Generator, Slides, TTS, and 3D Studio land here automatically.
-            </p>
           </div>
         )}
 

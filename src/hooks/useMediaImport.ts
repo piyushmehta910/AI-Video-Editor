@@ -34,6 +34,7 @@ interface UseMediaImport {
   importFiles: (files: FileList | File[]) => Promise<void>
   startRecording: (kind: RecordingKind) => Promise<void>
   stopRecording: () => void
+  cancelRecording: () => void
 }
 
 const worker = () =>
@@ -203,8 +204,33 @@ export function useMediaImport(): UseMediaImport {
     [updateJob],
   )
 
+  const cancelRecording = React.useCallback(() => {
+    chunksRef.current = []
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+    }
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop()
+    } else {
+      setRecordingStream(null)
+      setRecording(null)
+      recorderRef.current = null
+    }
+  }, [])
+
   const stopRecording = React.useCallback(() => {
-    recorderRef.current?.stop()
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop()
+    } else {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+      }
+      setRecordingStream(null)
+      setRecording(null)
+      recorderRef.current = null
+    }
   }, [])
 
   const startRecording = React.useCallback(
@@ -230,7 +256,10 @@ export function useMediaImport(): UseMediaImport {
         }
         recorder.onstop = () => {
           stream.getTracks().forEach((t) => t.stop())
-          streamRef.current = null
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((t) => t.stop())
+            streamRef.current = null
+          }
           setRecordingStream(null)
           setRecording(null)
           recorderRef.current = null
@@ -246,6 +275,7 @@ export function useMediaImport(): UseMediaImport {
         recorder.start(500)
       } catch (err) {
         streamRef.current?.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
         setRecordingStream(null)
         setRecording(null)
         console.error('Recording failed:', err)
@@ -303,6 +333,7 @@ export function useMediaImport(): UseMediaImport {
     importFiles,
     startRecording,
     stopRecording,
+    cancelRecording,
   }
 }
 

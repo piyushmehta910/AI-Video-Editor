@@ -255,9 +255,10 @@ export function OnlineAssetSearch() {
   const renderItemCard = (item: SearchResultItem) => (
     <div
       key={item.id}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-lg border border-border/80 bg-card p-2 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/20"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-lg border border-border/80 bg-card p-1.5 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/20"
+      title={item.title}
     >
-      {/* Visual Thumbnail or Audio Icon */}
+      {/* Visual Thumbnail or Type Icon */}
       <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted/40 flex items-center justify-center">
         {item.type === 'video' ? (
           item.thumbnailUrl ? (
@@ -268,27 +269,39 @@ export function OnlineAssetSearch() {
               loading="lazy"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-sky-400 gap-1">
-              <Video className="size-6" />
+            <div className="flex flex-col items-center justify-center text-sky-400 p-2">
+              <Video className="size-8" />
             </div>
           )
         ) : item.type === 'image' ? (
-          <img
-            src={item.thumbnailUrl || item.previewUrl}
-            alt={item.title}
-            className="size-full object-cover transition duration-200 group-hover:scale-105"
-            loading="lazy"
-          />
+          item.thumbnailUrl || item.previewUrl ? (
+            <img
+              src={item.thumbnailUrl || item.previewUrl}
+              alt={item.title}
+              className="size-full object-cover transition duration-200 group-hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-emerald-400 p-2">
+              <ImageIcon className="size-8" />
+            </div>
+          )
         ) : item.type === 'sticker' ? (
-          <img
-            src={item.thumbnailUrl || item.previewUrl}
-            alt={item.title}
-            className="size-full object-contain transition duration-200 group-hover:scale-105"
-            loading="lazy"
-          />
+          item.thumbnailUrl || item.previewUrl ? (
+            <img
+              src={item.thumbnailUrl || item.previewUrl}
+              alt={item.title}
+              className="size-full object-contain transition duration-200 group-hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-amber-400 p-2">
+              <Smile className="size-8" />
+            </div>
+          )
         ) : (
-          <div className="flex flex-col items-center justify-center gap-1 text-violet-500">
-            <Music className="size-6" />
+          <div className="flex flex-col items-center justify-center gap-1.5 text-violet-400 p-2">
+            <Music className="size-8" />
             {item.previewUrl && (
               <button
                 type="button"
@@ -308,25 +321,10 @@ export function OnlineAssetSearch() {
             {Math.round(item.duration)}s
           </span>
         )}
-
-        {/* Source Badge */}
-        <span className="absolute top-1 left-1 rounded bg-black/60 backdrop-blur-xs px-1 py-0.2 text-[8px] font-mono text-white/90">
-          {item.source}
-        </span>
-      </div>
-
-      {/* Info Text */}
-      <div className="mt-1.5 min-w-0">
-        <p className="truncate text-[11px] font-bold text-foreground" title={item.title}>
-          {item.title}
-        </p>
-        {item.subtitle && (
-          <p className="truncate text-[9px] text-muted-foreground">{item.subtitle}</p>
-        )}
       </div>
 
       {/* 1-Click Action Buttons */}
-      <div className="mt-2 flex items-center gap-1 pt-1 border-t border-border/40">
+      <div className="mt-1.5 flex items-center gap-1">
         <Button
           size="sm"
           variant="outline"
@@ -544,12 +542,6 @@ export function OnlineAssetSearch() {
           <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground gap-3">
             <div className="flex size-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-500">
               <Sparkles className="size-6" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-foreground">Universal Online Asset Search</p>
-              <p className="text-[10px] text-muted-foreground max-w-[220px] leading-relaxed">
-                Search and download millions of free stock videos, photos, music tracks, and animated stickers directly into your project.
-              </p>
             </div>
             <div className="flex flex-wrap justify-center gap-1 pt-1 max-w-[260px]">
               {['Nature', 'Cyberpunk', 'Lo-Fi Chill', 'City 4K', 'Subscribe', 'Space'].map((keyword) => (

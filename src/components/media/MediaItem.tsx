@@ -1,5 +1,17 @@
 import * as React from 'react'
-import { Copy, Film, Image as ImageIcon, Info, Music2, Play, Plus, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  Film,
+  Image as ImageIcon,
+  Info,
+  Music2,
+  Play,
+  Plus,
+  Presentation,
+  Smile,
+  Trash2,
+  Video,
+} from 'lucide-react'
 import type { Asset } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
 import { cn } from '@/lib/utils'
@@ -17,10 +29,30 @@ function formatBytes(bytes: number): string {
   return `${v >= 100 || u === 0 ? Math.round(v) : Number(v.toFixed(1))} ${units[u]}`
 }
 
-export function AssetIcon({ type }: { type: Asset['type'] }) {
-  if (type === 'video') return <Film className="size-3.5" />
-  if (type === 'audio') return <Music2 className="size-3.5" />
-  return <ImageIcon className="size-3.5" />
+function getAssetMediaKind(type: Asset['type'], name?: string): 'video' | 'audio' | 'slide' | 'sticker' | 'image' {
+  const n = (name ?? '').toLowerCase()
+  if (n.includes('slide') || n.includes('deck') || n.includes('presentation')) return 'slide'
+  if (n.includes('sticker') || n.includes('giphy')) return 'sticker'
+  if (type === 'video') return 'video'
+  if (type === 'audio') return 'audio'
+  return 'image'
+}
+
+export function AssetIcon({
+  type,
+  name,
+  className = 'size-6',
+}: {
+  type: Asset['type']
+  name?: string
+  className?: string
+}) {
+  const kind = getAssetMediaKind(type, name)
+  if (kind === 'slide') return <Presentation className={cn(className, 'text-indigo-400')} />
+  if (kind === 'sticker') return <Smile className={cn(className, 'text-amber-400')} />
+  if (kind === 'video') return <Video className={cn(className, 'text-sky-400')} />
+  if (kind === 'audio') return <Music2 className={cn(className, 'text-violet-400')} />
+  return <ImageIcon className={cn(className, 'text-emerald-400')} />
 }
 
 function describeAsset(asset: Asset): string {
@@ -127,7 +159,7 @@ export function MediaItem({
           <img src={asset.thumbnailUrl} alt="" className="h-8 w-[52px] shrink-0 rounded object-cover" style={{ maxWidth: 52 }} width={52} height={32} />
         ) : (
           <div className="bg-muted flex h-8 w-[52px] shrink-0 items-center justify-center rounded">
-            <AssetIcon type={asset.type} />
+            <AssetIcon type={asset.type} name={asset.name} className="size-4" />
           </div>
         )}
         <span className="min-w-0 flex-1 truncate text-[11px]" title={asset.name}>
@@ -208,16 +240,17 @@ export function MediaItem({
           : 'bg-card hover:border-violet-500/50',
       )}
     >
-      <div className="relative aspect-video w-full overflow-hidden" style={{ maxHeight: 80 }}>
+      {/* Pure Media Preview */}
+      <div className="relative aspect-video w-full overflow-hidden bg-muted/30 flex items-center justify-center">
         {asset.thumbnailUrl ? (
-          <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-cover" width={120} height={80} />
+          <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-cover transition group-hover:scale-105 duration-200" width={120} height={80} />
         ) : (
-          <div className="bg-muted flex h-full w-full items-center justify-center">
-            <AssetIcon type={asset.type} />
+          <div className="bg-muted/40 flex h-full w-full items-center justify-center p-2">
+            <AssetIcon type={asset.type} name={asset.name} className="size-8" />
           </div>
         )}
         {asset.duration != null && (
-          <span className="absolute right-1 bottom-1 rounded bg-black/70 px-1 font-mono text-[9px] text-white">
+          <span className="absolute right-1 bottom-1 rounded bg-black/75 px-1 py-0.2 font-mono text-[9px] text-white">
             {formatSeconds(asset.duration)}
           </span>
         )}
@@ -267,11 +300,6 @@ export function MediaItem({
             <Trash2 className="size-3.5" />
           </button>
         </div>
-      </div>
-      <div className="flex items-center gap-1 px-1.5 py-1">
-        <span className="truncate text-[11px]" title={asset.name}>
-          {asset.name}
-        </span>
       </div>
 
       {menu && (
