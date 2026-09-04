@@ -154,9 +154,6 @@ export function MediaBrowser({ onCollapse }: { onCollapse?: () => void }) {
               <div className="bg-muted flex size-12 items-center justify-center rounded-xl">
                 <Plus className="text-muted-foreground size-6" />
               </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                Import video, image or audio files to start editing.
-              </p>
               <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
                 Browse files
               </Button>

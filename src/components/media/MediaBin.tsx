@@ -14,12 +14,11 @@ import {
   Globe,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
-import { useEditorStore, type MediaFilter } from '@/stores/editorStore'
+import { useEditorStore } from '@/stores/editorStore'
 import type { Asset } from '@/engine/types'
 import { getMediaUrl } from '@/engine/storage/opfs'
 import { useMediaImport } from '@/hooks/useMediaImport'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/onboarding/EmptyState'
 import { cn } from '@/lib/utils'
 import { VirtualList } from '@/components/common/VirtualList'
 import { DragPreviewLayer } from './DragPreview'
@@ -37,13 +36,6 @@ const TABS: { value: 'media' | 'online'; label: string; icon: React.ReactNode }[
   { value: 'online', label: 'Stock Search', icon: <Globe className="size-3.5" /> },
 ]
 
-const FILTERS: { value: MediaFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'video', label: 'Videos' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'image', label: 'Images' },
-]
-
 export function MediaBin() {
   const assets = useTimelineStore((s) => s.assets)
   const deleteAsset = useTimelineStore((s) => s.deleteAsset)
@@ -55,8 +47,6 @@ export function MediaBin() {
   const setSearch = useEditorStore((s) => s.setMediaSearch)
   const view = useEditorStore((s) => s.mediaView)
   const setView = useEditorStore((s) => s.setMediaView)
-  const filter = useEditorStore((s) => s.mediaFilter)
-  const setFilter = useEditorStore((s) => s.setMediaFilter)
   const sort = useEditorStore((s) => s.mediaSort)
   const genSubTab = useEditorStore((s) => s.generatedSubTab)
   const linkAudio = useEditorStore((s) => s.linkAudio)
@@ -127,20 +117,6 @@ export function MediaBin() {
     }
   }, [assets])
 
-  const filterCounts = React.useMemo(() => {
-    const baseList =
-      tab === 'generated'
-        ? assets.filter(isGenerated)
-        : assets.filter((a) => !isGenerated(a))
-
-    return {
-      all: baseList.length,
-      video: baseList.filter((a) => a.type === 'video').length,
-      audio: baseList.filter((a) => a.type === 'audio').length,
-      image: baseList.filter((a) => a.type === 'image').length,
-    }
-  }, [assets, tab])
-
   const visibleAssets = React.useMemo(() => {
     let list = assets
     if (tab === 'generated') {
@@ -149,9 +125,6 @@ export function MediaBin() {
     } else {
       // Default: 'media' tab (raw uploaded + recorded assets)
       list = list.filter((a) => !isGenerated(a))
-      if (filter === 'video') list = list.filter((a) => a.type === 'video')
-      else if (filter === 'audio') list = list.filter((a) => a.type === 'audio')
-      else if (filter === 'image') list = list.filter((a) => a.type === 'image')
     }
 
     if (search.trim()) {
@@ -173,7 +146,7 @@ export function MediaBin() {
       }
     })
     return sorted
-  }, [assets, tab, filter, genSubTab, search, sort])
+  }, [assets, tab, genSubTab, search, sort])
 
   const handleFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList)
@@ -351,30 +324,6 @@ export function MediaBin() {
               <FolderOpen className="size-3.5 text-violet-500" />
               <span>Browse Files</span>
             </button>
-
-            {/* Filter Pills WITHOUT Sort Dropdown */}
-            <div className="flex flex-wrap items-center gap-1 pt-0.5">
-              {FILTERS.map((f) => {
-                const count = filterCounts[f.value as keyof typeof filterCounts] ?? 0
-                if (count === 0 && f.value !== 'all') return null
-                return (
-                  <button
-                    key={f.value}
-                    onClick={() => setFilter(f.value)}
-                    data-testid={`filter-${f.value}`}
-                    className={cn(
-                      'rounded-full border px-2 py-0.5 text-[10px] font-medium transition flex items-center gap-1',
-                      filter === f.value
-                        ? 'border-violet-500 bg-violet-500/15 text-violet-300 shadow-xs'
-                        : 'border-border/60 text-muted-foreground hover:border-violet-500/40 hover:text-foreground',
-                    )}
-                  >
-                    <span>{f.label}</span>
-                    {count > 0 && <span className="font-mono text-[9px] opacity-80">({count})</span>}
-                  </button>
-                )
-              })}
-            </div>
           </div>
 
           {/* ── 3. Asset Cards & Workspace Content ── */}
@@ -514,10 +463,7 @@ export function MediaBin() {
           </div>
         )}
 
-        {/* Clean Empty States */}
-        {visibleAssets.length === 0 && tab === 'media' && (
-          <EmptyState onImport={() => document.querySelector<HTMLInputElement>('[data-testid="import-button"]')?.click()} />
-        )}
+
         {visibleAssets.length === 0 && tab === 'generated' && (
           <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
             <div className="bg-muted flex size-12 items-center justify-center rounded-xl border border-violet-500/20 text-violet-400">
