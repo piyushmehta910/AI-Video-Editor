@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Download, FilePlus, History, Home, PanelLeft, Pencil, Save, Search, Settings } from 'lucide-react'
+import { Check, Download, FilePlus, History, Home, PanelLeft, PanelRight, Pencil, Save, Search, Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -77,6 +77,8 @@ export function TopToolbar() {
 
   const toggleLeft = useEditorStore((s) => s.toggleLeft)
   const leftOpen = useEditorStore((s) => s.leftOpen)
+  const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
+  const toggleInspector = useEditorStore((s) => s.toggleInspector)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
   const commandPaletteOpen = useEditorStore((s) => s.commandPaletteOpen)
@@ -287,6 +289,25 @@ export function TopToolbar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent className="text-[11px]">Settings & Integrations</TooltipContent>
+        </Tooltip>
+
+        {/* Toggle Right Panel (Inspector) */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'h-8 w-8 shrink-0 p-0 rounded-lg transition text-muted-foreground hover:text-foreground',
+                inspectorOpen && 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold',
+              )}
+              onClick={toggleInspector}
+              aria-label="Toggle Right Panel"
+            >
+              <PanelRight className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px]">Toggle Right Panel (Inspector)</TooltipContent>
         </Tooltip>
 
         <ThemeToggle />

@@ -117,17 +117,17 @@ export function InspectorPanel({
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
-              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40">
-                <span className="text-[9px] text-muted-foreground block font-sans font-medium">Duration</span>
-                <span className="font-bold text-foreground">~{formatSeconds(duration)}</span>
+              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40 min-w-0">
+                <span className="text-[9px] text-muted-foreground block font-sans font-medium truncate">Duration</span>
+                <span className="font-bold text-foreground truncate block">~{formatSeconds(duration)}</span>
               </div>
-              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40">
-                <span className="text-[9px] text-muted-foreground block font-sans font-medium">Framerate</span>
-                <span className="font-bold text-foreground">{project.fps} fps</span>
+              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40 min-w-0">
+                <span className="text-[9px] text-muted-foreground block font-sans font-medium truncate">Framerate</span>
+                <span className="font-bold text-foreground truncate block">{project.fps} fps</span>
               </div>
-              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40">
-                <span className="text-[9px] text-muted-foreground block font-sans font-medium">Clips / Tracks</span>
-                <span className="font-bold text-foreground">{totalClips} / {project.tracks.length}</span>
+              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40 min-w-0">
+                <span className="text-[9px] text-muted-foreground block font-sans font-medium truncate">Clips / Tracks</span>
+                <span className="font-bold text-foreground truncate block">{totalClips} / {project.tracks.length}</span>
               </div>
             </div>
           </div>
@@ -238,32 +238,34 @@ export function InspectorPanel({
         </div>
 
         {/* Quick Action Buttons Toolbar */}
-        <div className="flex items-center gap-1 pt-0.5">
+        <div className="flex items-center gap-1 pt-0.5 min-w-0">
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[10px] px-2 gap-1 flex-1 font-semibold border-border/60 hover:bg-muted"
+            className="h-7 text-[10px] px-1.5 gap-1 flex-1 min-w-0 font-semibold border-border/60 hover:bg-muted"
             onClick={handleDuplicate}
             title="Duplicate Clip"
           >
-            <Copy className="size-3" /> Duplicate
+            <Copy className="size-3 shrink-0" />
+            <span className="truncate">Duplicate</span>
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[10px] px-2 gap-1 flex-1 font-semibold border-border/60 hover:bg-muted"
+            className="h-7 text-[10px] px-1.5 gap-1 flex-1 min-w-0 font-semibold border-border/60 hover:bg-muted"
             onClick={handleSplit}
             disabled={playhead == null || playhead <= clip.startTime || playhead >= clip.startTime + clip.duration}
             title="Split Clip at Playhead"
           >
-            <Scissors className="size-3" /> Split
+            <Scissors className="size-3 shrink-0" />
+            <span className="truncate">Split</span>
           </Button>
           {target.track.type !== 'text' && (
             <Button
               size="sm"
               variant="outline"
               className={cn(
-                'h-6 text-[10px] px-2 gap-1 font-semibold border-border/60 hover:bg-muted',
+                'size-7 shrink-0 p-0 font-semibold border-border/60 hover:bg-muted flex items-center justify-center',
                 isMuted && 'text-red-500 border-red-500/40 bg-red-500/10',
               )}
               onClick={toggleMute}
@@ -275,7 +277,7 @@ export function InspectorPanel({
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[10px] px-1.5 border-border/60 hover:bg-muted"
+            className="size-7 shrink-0 p-0 border-border/60 hover:bg-muted flex items-center justify-center"
             onClick={handleResetTransform}
             title="Reset Transform (Position, Scale, Rotation)"
           >
@@ -284,7 +286,7 @@ export function InspectorPanel({
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 text-[10px] px-1.5 text-red-500 hover:bg-red-500/10 hover:text-red-600"
+            className="size-7 shrink-0 p-0 text-red-500 hover:bg-red-500/10 hover:text-red-600 flex items-center justify-center"
             onClick={handleDelete}
             title="Delete Clip"
           >
@@ -294,7 +296,7 @@ export function InspectorPanel({
       </div>
 
       {/* Category Tabs Filter */}
-      <div className="flex flex-wrap gap-1 px-3 py-1.5 border-b border-border/60 bg-muted/10">
+      <div className="flex items-center gap-1 px-2.5 py-1.5 border-b border-border/60 bg-muted/10 overflow-x-auto no-scrollbar scroll-smooth">
         {[
           { id: 'all', label: 'All' },
           { id: 'transform', label: 'Transform' },
@@ -309,7 +311,7 @@ export function InspectorPanel({
             key={tab.id}
             type="button"
             className={cn(
-              'rounded-full px-2 py-0.5 text-[9px] font-semibold transition',
+              'rounded-full px-2.5 py-1 text-[10px] font-semibold transition shrink-0 whitespace-nowrap',
               activeTab === tab.id
                 ? 'bg-violet-600 text-white shadow-xs font-bold'
                 : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -394,12 +396,19 @@ function MultiSelectEdits() {
 
 function PanelHeader({ title, onCollapse }: { title: string; onCollapse?: () => void }) {
   return (
-    <div className="flex items-center gap-2 border-b px-3 py-2">
-      <span className="text-foreground min-w-0 truncate text-xs font-semibold tracking-wide uppercase">{title}</span>
+    <div className="flex h-10 shrink-0 items-center justify-between border-b px-3 bg-muted/20">
+      <span className="text-foreground min-w-0 truncate text-xs font-bold tracking-wider uppercase">{title}</span>
       {onCollapse && (
-        <button onClick={onCollapse} className="text-muted-foreground hover:text-foreground ml-auto" title="Hide panel">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onCollapse}
+          className="size-7 text-muted-foreground hover:text-foreground rounded-lg ml-auto shrink-0"
+          title="Collapse right panel"
+          aria-label="Collapse right panel"
+        >
           <ChevronRight className="size-4" />
-        </button>
+        </Button>
       )}
     </div>
   )

@@ -97,18 +97,39 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
     document.addEventListener('pointerup', onUp)
   }
 
+  // Super-responsive width auto-clamp on screen size change
+  React.useEffect(() => {
+    const handleResize = () => {
+      const maxAllowed = Math.max(MIN_RIGHT_WIDTH, Math.min(MAX_RIGHT_WIDTH, Math.floor(window.innerWidth * 0.45)))
+      setRightWidth((curr) => {
+        if (curr > maxAllowed) {
+          localStorage.setItem('clipforge-right-width', String(maxAllowed))
+          return maxAllowed
+        }
+        return curr
+      })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const onRightResizeStart = (e: React.PointerEvent) => {
     e.preventDefault()
     const startX = e.clientX
     const startW = rightWidth
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
 
     const onMove = (ev: PointerEvent) => {
-      const next = Math.max(MIN_RIGHT_WIDTH, Math.min(MAX_RIGHT_WIDTH, startW - (ev.clientX - startX)))
+      const maxAllowed = Math.min(MAX_RIGHT_WIDTH, Math.max(MIN_RIGHT_WIDTH, window.innerWidth - 340))
+      const next = Math.max(MIN_RIGHT_WIDTH, Math.min(maxAllowed, startW - (ev.clientX - startX)))
       setRightWidth(next)
       localStorage.setItem('clipforge-right-width', String(next))
     }
 
     const onUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
       document.removeEventListener('pointermove', onMove)
       document.removeEventListener('pointerup', onUp)
     }
@@ -193,38 +214,33 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
 
         {inspectorOpen ? (
           <div
-            className="relative hidden shrink-0 lg:flex"
-            style={{ width: rightWidth }}
+            className="relative hidden shrink-0 md:flex"
+            style={{ width: rightWidth, maxWidth: '45vw' }}
             data-testid="inspector-panel"
           >
             {/* Drag Resizer on Left Edge of Right Panel */}
             <div
-              className="group absolute -left-1 top-0 bottom-0 z-20 w-2 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 transition"
+              className="group absolute -left-1.5 top-0 bottom-0 z-20 w-3 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 active:bg-violet-500/30 transition touch-none select-none"
               onPointerDown={onRightResizeStart}
               title="Drag to resize Inspector"
               style={{ touchAction: 'none' }}
             >
-              <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-violet-500" />
+              <div className="w-1 h-8 rounded-full bg-border group-hover:bg-violet-500 transition-colors" />
             </div>
-            <aside className="w-full h-full border-l overflow-hidden">
+            <aside className="w-full h-full border-l overflow-hidden bg-card/60 backdrop-blur-md">
               <div className="flex h-full flex-col">
-                <div className="flex h-9 shrink-0 items-center justify-end border-b px-1.5 bg-muted/20">
-                  <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Hide Inspector" title="Hide Inspector">
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                </div>
-                <div className="min-h-0 flex-1">
+                <div className="min-h-0 flex-1 overflow-hidden">
                   <PanelErrorBoundary panelName="Inspector">
-                    <InspectorPanel onOpenMedia={openMedia} />
+                    <InspectorPanel onOpenMedia={openMedia} onCollapse={toggleInspector} />
                   </PanelErrorBoundary>
                 </div>
               </div>
             </aside>
           </div>
         ) : (
-          <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 lg:flex">
-            <Button variant="ghost" size="icon" className="size-7" onClick={toggleInspector} aria-label="Show Inspector" title="Show Inspector">
-              <ChevronLeft className="size-4 rotate-180" />
+          <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 md:flex bg-card/20">
+            <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" onClick={toggleInspector} aria-label="Show Inspector" title="Show Inspector">
+              <ChevronLeft className="size-4" />
             </Button>
           </div>
         )}
@@ -237,7 +253,7 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
               onClick={() => setToolPanelSection(null)}
               aria-label="Close tools"
             />
-            <aside className="bg-background absolute inset-y-0 right-0 z-40 flex w-[420px] sm:w-[480px] max-w-[90vw] flex-col border-l shadow-2xl animate-in slide-in-from-right duration-200">
+            <aside className="bg-background absolute inset-y-0 right-0 z-40 flex w-full sm:w-[460px] md:w-[480px] max-w-[95vw] md:max-w-[45vw] flex-col border-l shadow-2xl animate-in slide-in-from-right duration-200">
               {(() => {
                 const sec = TOOL_SECTIONS.find((s) => s.id === toolPanelSection)
                 const Icon = sec?.icon
