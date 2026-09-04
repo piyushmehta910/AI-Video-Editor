@@ -54,7 +54,7 @@ function ToolButton({
         <Button
           variant="ghost"
           size="sm"
-          className={cn('h-8 w-8 p-0 rounded-lg transition-all', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 font-bold')}
+          className={cn('h-8 w-8 shrink-0 p-0 rounded-lg transition-all', active && 'bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 font-bold')}
           onClick={onClick}
           onDoubleClick={onDoubleClick}
           disabled={disabled}
@@ -123,117 +123,121 @@ export function TopToolbar() {
   }
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/80 bg-background/80 px-3 backdrop-blur-xl">
-      {/* Home navigation & brand badge */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1.5 px-2.5 text-xs font-semibold hover:bg-muted/80 rounded-lg"
-          >
-            <Link to="/" title="Home">
-              <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex size-5 items-center justify-center rounded-md text-[10px] font-black shadow-xs">
-                CF
-              </div>
-              <Home className="size-3.5 text-muted-foreground" />
-              <span className="hidden sm:inline text-foreground font-bold">ClipForge</span>
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="text-[11px]">Back to Home</TooltipContent>
-      </Tooltip>
+    <header className="relative z-30 flex h-11 w-full shrink-0 items-center justify-between border-b border-border/80 bg-background/80 px-2 sm:px-3 backdrop-blur-xl select-none overflow-x-auto no-scrollbar">
+      {/* Left section: Branding, navigation, and project controls */}
+      <div className="flex min-w-0 items-center gap-1 sm:gap-1.5 md:gap-2">
+        {/* Home navigation & brand badge */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 px-2 sm:px-2.5 text-xs font-semibold hover:bg-muted/80 rounded-lg"
+            >
+              <Link to="/" title="Home">
+                <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-black shadow-xs">
+                  CF
+                </div>
+                <Home className="size-3.5 shrink-0 text-muted-foreground hidden sm:block" />
+                <span className="hidden md:inline text-foreground font-bold tracking-tight">ClipForge</span>
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px]">Back to Home</TooltipContent>
+        </Tooltip>
 
-      <div className="bg-border/80 mx-0.5 h-4 w-px" />
+        <div className="bg-border/80 mx-0.5 h-4 w-px shrink-0 hidden sm:block" />
 
-      {/* Media bin toggle */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn('h-8 w-8 shrink-0 p-0 rounded-lg transition', leftOpen && 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold')}
-            onClick={toggleLeft}
-          >
-            <PanelLeft className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="text-[11px]">Toggle Media Library</TooltipContent>
-      </Tooltip>
+        {/* Media bin toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn('h-8 w-8 shrink-0 p-0 rounded-lg transition', leftOpen && 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold')}
+              onClick={toggleLeft}
+            >
+              <PanelLeft className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px]">Toggle Media Library</TooltipContent>
+        </Tooltip>
 
-      {/* New Project Button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setNewProjectOpen(true)}
-            className="h-7 gap-1 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-violet-500/40 rounded-lg"
-          >
-            <FilePlus className="size-3.5 text-violet-500" />
-            <span className="hidden sm:inline">New</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="text-[11px]">Create New Project (All Options)</TooltipContent>
-      </Tooltip>
+        {/* New Project Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setNewProjectOpen(true)}
+              className="h-7 sm:h-8 shrink-0 gap-1 px-1.5 sm:px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border/40 hover:border-violet-500/40 rounded-lg transition-colors"
+            >
+              <FilePlus className="size-3.5 shrink-0 text-violet-500" />
+              <span className="hidden sm:inline">New</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px]">Create New Project (All Options)</TooltipContent>
+        </Tooltip>
 
-      {/* Project name (editable) */}
-      {editingName ? (
-        <input
-          autoFocus
-          value={nameDraft}
-          onChange={(e) => setNameDraft(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitName()
-            if (e.key === 'Escape') {
+        {/* Project name (editable) */}
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitName()
+              if (e.key === 'Escape') {
+                setNameDraft(project.name)
+                setEditingName(false)
+              }
+            }}
+            className="h-7 w-28 sm:w-36 md:w-44 max-w-full rounded-lg border border-violet-500/50 bg-muted/60 px-2 sm:px-2.5 text-xs font-bold outline-none ring-2 ring-violet-500/30 text-foreground"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
               setNameDraft(project.name)
-              setEditingName(false)
-            }
-          }}
-          className="h-7 w-44 rounded-lg border border-violet-500/50 bg-muted/60 px-2.5 text-xs font-bold outline-none ring-2 ring-violet-500/30 text-foreground"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setNameDraft(project.name)
-            setEditingName(true)
-          }}
-          title="Click to rename project"
-          className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-foreground hover:bg-muted/60 transition"
-        >
-          <span className="max-w-48 truncate">{project.name}</span>
-          <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
-        </button>
-      )}
+              setEditingName(true)
+            }}
+            title="Click to rename project"
+            className="group flex min-w-0 max-w-[100px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[280px] xl:max-w-[360px] shrink items-center gap-1 sm:gap-1.5 rounded-lg px-1.5 sm:px-2 py-1 text-xs font-bold text-foreground hover:bg-muted/60 transition"
+          >
+            <span className="truncate">{project.name}</span>
+            <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hidden sm:block" />
+          </button>
+        )}
 
-      {/* Project settings (aspect / fps) — compact, desktop only */}
-      <div className="hidden items-center gap-1 lg:flex">
-        <Select
-          value={project.aspectRatio}
-          onValueChange={(v) => {
-            const ratio = ASPECT_RATIOS.find((r) => r === v)
-            if (ratio) {
-              const [w, h] = ratio.split(':').map(Number)
-              const dims = dimsForAspect(project, w / h)
-              setProjectSettings({ aspectRatio: v, width: dims.width, height: dims.height })
-            }
-          }}
-        >
-          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 text-xs font-semibold hover:bg-muted rounded-md">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[10050]">
-            {ASPECT_RATIOS.map((r) => (
-              <SelectItem key={r} value={r}>{r}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Project settings (aspect / fps) — compact, desktop only */}
+        <div className="hidden items-center gap-1 lg:flex shrink-0">
+          <Select
+            value={project.aspectRatio}
+            onValueChange={(v) => {
+              const ratio = ASPECT_RATIOS.find((r) => r === v)
+              if (ratio) {
+                const [w, h] = ratio.split(':').map(Number)
+                const dims = dimsForAspect(project, w / h)
+                setProjectSettings({ aspectRatio: v, width: dims.width, height: dims.height })
+              }
+            }}
+          >
+            <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border border-border/40 bg-muted/20 px-2 text-xs font-semibold hover:bg-muted rounded-md">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="z-[10050]">
+              {ASPECT_RATIOS.map((r) => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      {/* Right section: Action utilities, panels, and export */}
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 md:gap-1.5 ml-1 sm:ml-2">
         <ToolButton label="History & Undo Log" onClick={toggleHistoryPanel} active={historyPanelOpen} testId="history-button">
           <History className="size-4" />
         </ToolButton>
@@ -249,7 +253,7 @@ export function TopToolbar() {
               variant="ghost"
               size="sm"
               className={cn(
-                'h-8 gap-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all',
+                'h-8 shrink-0 gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg text-xs font-semibold transition-all',
                 justSaved && 'text-emerald-500 bg-emerald-500/10',
                 dirty && !saving && !justSaved && 'text-amber-500',
               )}
@@ -257,22 +261,22 @@ export function TopToolbar() {
               disabled={saving}
             >
               {saving ? (
-                <Save className="size-3.5 animate-pulse text-violet-500" />
+                <Save className="size-3.5 shrink-0 animate-pulse text-violet-500" />
               ) : justSaved ? (
-                <Check className="size-3.5 text-emerald-500" />
+                <Check className="size-3.5 shrink-0 text-emerald-500" />
               ) : (
-                <Save className={cn('size-3.5', dirty && 'text-amber-500')} />
+                <Save className={cn('size-3.5 shrink-0', dirty && 'text-amber-500')} />
               )}
-              <span className="hidden sm:inline">{saving ? 'Saving…' : justSaved ? 'Saved' : dirty ? 'Unsaved' : 'Save'}</span>
+              <span className="hidden lg:inline">{saving ? 'Saving…' : justSaved ? 'Saved' : dirty ? 'Unsaved' : 'Save'}</span>
               {dirty && !saving && !justSaved && (
-                <span aria-hidden className="ml-0.5 size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span aria-hidden className="ml-0.5 size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
               )}
             </Button>
           </TooltipTrigger>
           <TooltipContent className="text-[11px] font-medium">Save Project (Ctrl+S)</TooltipContent>
         </Tooltip>
 
-        <div className="bg-border/80 mx-0.5 h-4 w-px" />
+        <div className="bg-border/80 mx-0.5 h-4 w-px shrink-0 hidden sm:block" />
 
         {/* Settings icon */}
         <Tooltip>
@@ -281,7 +285,7 @@ export function TopToolbar() {
               asChild
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 shrink-0 p-0 rounded-lg text-muted-foreground hover:text-foreground"
             >
               <Link to="/settings" search={{ from: 'editor' }} title="Settings">
                 <Settings className="size-4" />
@@ -310,18 +314,25 @@ export function TopToolbar() {
           <TooltipContent className="text-[11px]">Toggle Right Panel (Inspector)</TooltipContent>
         </Tooltip>
 
-        <ThemeToggle />
+        <div className="shrink-0">
+          <ThemeToggle />
+        </div>
 
         {/* Primary Export Button */}
-        <Button
-          onClick={() => setExportOpen(true)}
-          size="sm"
-          className="h-8 gap-1.5 px-3.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-violet-500/20 text-xs rounded-lg transition-all active:scale-95 shrink-0"
-          data-testid="export-button"
-        >
-          <Download className="size-3.5" />
-          <span>Export</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => setExportOpen(true)}
+              size="sm"
+              className="h-8 shrink-0 gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-violet-500/20 text-xs rounded-lg transition-all active:scale-95"
+              data-testid="export-button"
+            >
+              <Download className="size-3.5 shrink-0" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px] font-medium sm:hidden">Export Project</TooltipContent>
+        </Tooltip>
       </div>
 
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
@@ -331,6 +342,6 @@ export function TopToolbar() {
 
       {/* Open Project Picker */}
       <OpenProjectDialog open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} />
-    </div>
+    </header>
   )
 }

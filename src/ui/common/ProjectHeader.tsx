@@ -44,93 +44,95 @@ export function ProjectHeader() {
   }
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1.5 border-b bg-background/95 px-2 backdrop-blur overflow-x-auto no-scrollbar">
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="h-8 gap-1 px-1.5 text-xs font-medium shrink-0"
-      >
-        <Link to="/" title="Home">
-          <div className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold">
-            CF
-          </div>
-          <Home className="size-3.5" />
-        </Link>
-      </Button>
+    <header className="relative z-30 flex h-11 w-full shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-2 sm:px-3 backdrop-blur-xl select-none overflow-x-auto no-scrollbar">
+      <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 px-1.5 text-xs font-medium shrink-0"
+        >
+          <Link to="/" title="Home">
+            <div className="bg-primary text-primary-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold">
+              CF
+            </div>
+            <Home className="size-3.5" />
+          </Link>
+        </Button>
 
-      <div className="bg-border h-4 w-px shrink-0" />
-      {editingName ? (
-        <input
-          autoFocus
-          value={nameDraft}
-          onChange={(e) => setNameDraft(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitName()
-            if (e.key === 'Escape') {
+        <div className="bg-border h-4 w-px shrink-0" />
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitName()
+              if (e.key === 'Escape') {
+                setNameDraft(project.name)
+                setEditingName(false)
+              }
+            }}
+            className="h-7 w-28 sm:w-40 rounded-md border bg-muted/40 px-2 text-xs sm:text-sm font-semibold outline-none shrink-0"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
               setNameDraft(project.name)
-              setEditingName(false)
+              setEditingName(true)
+            }}
+            title="Rename project"
+            className="group flex min-w-0 shrink items-center gap-1 text-xs sm:text-sm font-semibold max-w-[110px] sm:max-w-[180px]"
+          >
+            <span className="truncate">{project.name}</span>
+            {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" title="Unsaved changes (auto-saves)" />}
+            <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hidden sm:block" />
+          </button>
+        )}
+
+        {/* New Project / Reset Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 px-2 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary border border-primary/20 hover:border-primary/40 rounded-md shrink-0 transition-colors"
+          onClick={() => setResetConfirmOpen(true)}
+          title="Start a new empty project"
+        >
+          <FilePlus className="size-3.5" />
+          <span className="hidden sm:inline">New</span>
+        </Button>
+
+        {/* Aspect Ratio */}
+        <Select
+          value={project.aspectRatio}
+          onValueChange={(v) => {
+            const ratio = ASPECT_RATIOS.find((r) => r === v)
+            if (ratio) {
+              const [w, h] = ratio.split(':').map(Number)
+              const dims = dimsForAspect(project, w / h)
+              setProjectSettings({ aspectRatio: v, width: dims.width, height: dims.height })
             }
           }}
-          className="h-7 w-28 sm:w-40 rounded-md border bg-muted/40 px-2 text-xs sm:text-sm font-semibold outline-none shrink-0"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setNameDraft(project.name)
-            setEditingName(true)
-          }}
-          title="Rename project"
-          className="group flex shrink-0 items-center gap-1 text-xs sm:text-sm font-semibold max-w-[110px] sm:max-w-[180px]"
         >
-          <span className="truncate">{project.name}</span>
-          {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" title="Unsaved changes (auto-saves)" />}
-          <Pencil className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
-        </button>
-      )}
+          <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs hover:bg-muted shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="z-[10050]">
+            {ASPECT_RATIOS.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* New Project / Reset Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1.5 px-2 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary border border-primary/20 hover:border-primary/40 rounded-md shrink-0 transition-colors"
-        onClick={() => setResetConfirmOpen(true)}
-        title="Start a new empty project"
-      >
-        <FilePlus className="size-3.5" />
-        <span className="hidden lg:inline">New Project</span>
-      </Button>
-
-      {/* Aspect Ratio */}
-      <Select
-        value={project.aspectRatio}
-        onValueChange={(v) => {
-          const ratio = ASPECT_RATIOS.find((r) => r === v)
-          if (ratio) {
-            const [w, h] = ratio.split(':').map(Number)
-            const dims = dimsForAspect(project, w / h)
-            setProjectSettings({ aspectRatio: v, width: dims.width, height: dims.height })
-          }
-        }}
-      >
-        <SelectTrigger className="h-7 w-auto min-w-0 gap-1 border-0 bg-transparent px-1.5 text-xs hover:bg-muted shrink-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="z-[10050]">
-          {ASPECT_RATIOS.map((r) => (
-            <SelectItem key={r} value={r}>{r}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <div className="ml-auto flex items-center gap-1 shrink-0">
+      <div className="flex shrink-0 items-center gap-1 ml-1.5">
         <ThemeToggle />
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 px-2 text-violet-600 dark:text-violet-400 font-semibold"
+          className="h-8 px-2 text-violet-600 dark:text-violet-400 font-semibold shrink-0"
           onClick={() => setExportOpen(true)}
           title="Export project"
         >
@@ -141,7 +143,7 @@ export function ProjectHeader() {
           asChild
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-8 shrink-0"
         >
           <Link to="/settings" search={{ from: 'editor' }} title="Settings">
             <Settings className="size-3.5" />
@@ -156,6 +158,6 @@ export function ProjectHeader() {
 
       {/* Open Project Picker */}
       <OpenProjectDialog open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} />
-    </div>
+    </header>
   )
 }
