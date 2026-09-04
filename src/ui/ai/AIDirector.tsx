@@ -16,9 +16,7 @@ import {
   HelpCircle,
   ListChecks,
   Loader2,
-  Maximize2,
   Mic,
-  Minimize2,
   MoreHorizontal,
   Music,
   Palette,
@@ -592,12 +590,13 @@ export function AIDirector({
     }
   }
 
-  const toggleProductionMode = () => {
-    setProductionMode((prev) => {
-      const next = prev === 'review' ? 'autopilot' : 'review'
-      try { localStorage.setItem('ai_director_mode', next) } catch { /* ignore */ }
-      return next
-    })
+  const selectProductionMode = (mode: 'autopilot' | 'review') => {
+    setProductionMode(mode)
+    try {
+      localStorage.setItem('ai_director_mode', mode)
+    } catch {
+      // ignore
+    }
   }
 
   interface PendingQuestionState {
@@ -623,13 +622,15 @@ export function AIDirector({
   const updateApiConfig = useApiConfigStore((s) => s.update)
   const [showModelMenu, setShowModelMenu] = React.useState(false)
   const [showMoreMenu, setShowMoreMenu] = React.useState(false)
+  const [showModeMenu, setShowModeMenu] = React.useState(false)
   const moreMenuRef = React.useRef<HTMLDivElement>(null)
+  const modeMenuRef = React.useRef<HTMLDivElement>(null)
 
   const [onlyFreeModels, setOnlyFreeModels] = React.useState(false)
   const keyStatus = getProviderKeyStatus()
 
   React.useEffect(() => {
-    if (!showModelMenu && !showMoreMenu) return
+    if (!showModelMenu && !showMoreMenu && !showModeMenu) return
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node
       if (showModelMenu && modelMenuRef.current && !modelMenuRef.current.contains(target)) {
@@ -638,16 +639,20 @@ export function AIDirector({
       if (showMoreMenu && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
         setShowMoreMenu(false)
       }
+      if (showModeMenu && modeMenuRef.current && !modeMenuRef.current.contains(target)) {
+        setShowModeMenu(false)
+      }
     }
     window.addEventListener('mousedown', handleClickOutside)
     return () => window.removeEventListener('mousedown', handleClickOutside)
-  }, [showModelMenu, showMoreMenu])
+  }, [showModelMenu, showMoreMenu, showModeMenu])
 
   React.useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowModelMenu(false)
         setShowMoreMenu(false)
+        setShowModeMenu(false)
       }
     }
     window.addEventListener('keydown', handleEsc)
@@ -1338,7 +1343,7 @@ export function AIDirector({
             className="ml-0.5 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground transition flex-shrink-0 cursor-pointer"
             title="Expand AI Director"
           >
-            <Maximize2 className="size-3" />
+            <ChevronUp className="size-3" />
           </button>
           <button
             type="button"
@@ -1404,15 +1409,10 @@ export function AIDirector({
                 <span className="text-xs font-bold leading-none text-foreground tracking-tight whitespace-nowrap">
                   AI Director
                 </span>
-                {busy ? (
+                {busy && (
                   <span className="flex items-center gap-1 rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-semibold text-violet-400 border border-violet-500/30">
                     <Loader2 className="size-2.5 animate-spin" />
                     <span className="hidden sm:inline">Thinking</span>
-                  </span>
-                ) : (
-                  <span className="relative flex size-2 shrink-0" title="AI Director is ready">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                   </span>
                 )}
               </div>
@@ -1440,31 +1440,6 @@ export function AIDirector({
                 <Cpu className="size-3 shrink-0" />
                 <span className="truncate max-w-[85px] sm:max-w-[120px]">{shortModelName}</span>
                 <ChevronDown className="size-2.5 opacity-60 shrink-0" />
-              </button>
-
-              {/* Autopilot / Review Mode Pill */}
-              <button
-                type="button"
-                onClick={toggleProductionMode}
-                className={cn(
-                  'flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all border shrink-0 cursor-pointer',
-                  productionMode === 'autopilot'
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25',
-                )}
-                title={
-                  productionMode === 'autopilot'
-                    ? 'Autopilot mode: changes executed directly. Click to switch to Review mode.'
-                    : 'Review mode: changes staged for approval. Click to switch to Autopilot.'
-                }
-              >
-                <span
-                  className={cn(
-                    'size-1.5 rounded-full',
-                    productionMode === 'autopilot' ? 'bg-emerald-500' : 'bg-amber-500',
-                  )}
-                />
-                <span>{productionMode === 'autopilot' ? 'Auto' : 'Review'}</span>
               </button>
 
               {/* More Utilities Menu */}
@@ -1566,17 +1541,6 @@ export function AIDirector({
                   aria-label={isDocked ? 'Undock AI Director' : 'Dock AI Director to side'}
                 >
                   <PanelRight className="size-3.5" />
-                </button>
-
-                {/* Maximize / Restore */}
-                <button
-                  type="button"
-                  onClick={toggleMaximize}
-                  className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/15 hover:text-foreground transition cursor-pointer"
-                  title={isMaximized ? 'Restore window' : 'Maximize window'}
-                  aria-label={isMaximized ? 'Restore' : 'Maximize'}
-                >
-                  {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
                 </button>
 
                 {/* Minimize to Pill */}
@@ -2403,7 +2367,89 @@ export function AIDirector({
           )}
 
           {/* Bottom Action & Input Bar with Glassmorphism */}
-          <div className="border-t border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 p-3 backdrop-blur-xl rounded-b-2xl shrink-0">
+          <div className="border-t border-white/15 dark:border-white/10 bg-white/25 dark:bg-white/5 p-3 backdrop-blur-xl rounded-b-2xl shrink-0 space-y-2">
+            {/* Mode Dropdown Selector Bar */}
+            <div className="flex items-center justify-between px-0.5">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowModeMenu((s) => !s)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs',
+                    productionMode === 'autopilot'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20',
+                  )}
+                  title="Choose execution mode: Autopilot (direct) or Review (approval required)"
+                >
+                  <span
+                    className={cn(
+                      'size-1.5 rounded-full',
+                      productionMode === 'autopilot' ? 'bg-emerald-500' : 'bg-amber-500',
+                    )}
+                  />
+                  <span>{productionMode === 'autopilot' ? 'Autopilot Mode' : 'Review Mode'}</span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </button>
+
+                {showModeMenu && (
+                  <div
+                    ref={modeMenuRef}
+                    className="absolute bottom-full left-0 mb-1.5 z-50 w-60 rounded-xl border border-border/80 bg-background/98 dark:bg-slate-950/98 p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 space-y-1"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectProductionMode('autopilot')
+                        setShowModeMenu(false)
+                      }}
+                      className={cn(
+                        'flex w-full items-start gap-2.5 rounded-lg p-2 text-left transition cursor-pointer',
+                        productionMode === 'autopilot'
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold'
+                          : 'hover:bg-muted text-foreground',
+                      )}
+                    >
+                      <span className="size-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                      <div>
+                        <div className="text-xs font-bold">Autopilot Mode</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                          Edits and cuts are applied directly to the timeline.
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectProductionMode('review')
+                        setShowModeMenu(false)
+                      }}
+                      className={cn(
+                        'flex w-full items-start gap-2.5 rounded-lg p-2 text-left transition cursor-pointer',
+                        productionMode === 'review'
+                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
+                          : 'hover:bg-muted text-foreground',
+                      )}
+                    >
+                      <span className="size-2 rounded-full bg-amber-500 mt-1 shrink-0" />
+                      <div>
+                        <div className="text-xs font-bold">Review Mode</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                          Edits are staged as proposals for your approval before applying.
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <span className="text-[10px] text-muted-foreground/70">
+                {productionMode === 'autopilot' ? 'Direct execution' : 'Approval required'}
+              </span>
+            </div>
+
             {/* Input Field & Send Button */}
             <div className="flex gap-2 items-center">
               <div className="relative flex-1">
