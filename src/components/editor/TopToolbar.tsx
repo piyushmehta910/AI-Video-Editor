@@ -95,7 +95,7 @@ export function TopToolbar() {
           (c) => timeline.playhead >= c.startTime && timeline.playhead <= c.startTime + c.duration,
         )
         const target = atPlayhead || allClips[0]
-        timeline.selectClip(target.id)
+        timeline.select([target.id])
         if (!inspectorOpen) toggleInspector()
         return
       }

@@ -1,3 +1,4 @@
+import * as React from 'react'
 import {
   ChevronRight,
   Clapperboard,
@@ -12,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { Clip, TextOverlay, TrackType } from '@/engine/types'
+import { formatSeconds } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useInspector } from '@/hooks/useInspector'
 import { Button } from '@/components/ui/button'

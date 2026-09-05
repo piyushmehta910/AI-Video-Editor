@@ -142,25 +142,26 @@ export async function searchWikimediaImages(query: string, limit: number): Promi
       }
     }
     const pages = Object.values(data.query?.pages ?? {})
-    return pages
-      .map((p) => {
-        const info = p.imageinfo?.[0]
-        if (!info?.url) return null
-        const artist =
-          info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') ||
-          info.extmetadata?.Credit?.value?.replace(/<[^>]*>/g, '') ||
-          'Wikimedia Commons'
-        return {
-          id: encodeURIComponent(p.title || crypto.randomUUID()),
-          thumb: info.thumburl || info.url,
-          full: info.url,
-          author: artist.slice(0, 50),
-          source: 'Wikimedia Commons',
-          width: info.width,
-          height: info.height,
-        }
+    const results: StockImageResult[] = []
+    for (const p of pages) {
+      const info = p.imageinfo?.[0]
+      if (!info?.url) continue
+      const artist =
+        info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') ||
+        info.extmetadata?.Credit?.value?.replace(/<[^>]*>/g, '') ||
+        'Wikimedia Commons'
+      results.push({
+        id: encodeURIComponent(p.title || crypto.randomUUID()),
+        thumb: info.thumburl || info.url,
+        full: info.url,
+        author: artist.slice(0, 50),
+        source: 'Wikimedia Commons',
+        width: info.width,
+        height: info.height,
       })
-      .filter((img): img is StockImageResult => img !== null)
+      if (results.length >= limit) break
+    }
+    return results
   } catch (err) {
     console.warn('[stock] Wikimedia image search failed:', err)
     return []
@@ -353,26 +354,27 @@ export async function searchWikimediaVideos(query: string, limit: number): Promi
       }
     }
     const pages = Object.values(data.query?.pages ?? {})
-    return pages
-      .map((p) => {
-        const info = p.imageinfo?.[0]
-        if (!info?.url) return null
-        const artist =
-          info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') ||
-          info.extmetadata?.Credit?.value?.replace(/<[^>]*>/g, '') ||
-          'Wikimedia Commons'
-        return {
-          id: encodeURIComponent(p.title || crypto.randomUUID()),
-          thumb: info.thumburl || '',
-          url: info.url,
-          duration: 8,
-          author: artist.slice(0, 50),
-          source: 'Wikimedia Commons',
-          width: info.width,
-          height: info.height,
-        }
+    const results: StockVideoResult[] = []
+    for (const p of pages) {
+      const info = p.imageinfo?.[0]
+      if (!info?.url) continue
+      const artist =
+        info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') ||
+        info.extmetadata?.Credit?.value?.replace(/<[^>]*>/g, '') ||
+        'Wikimedia Commons'
+      results.push({
+        id: encodeURIComponent(p.title || crypto.randomUUID()),
+        thumb: info.thumburl || '',
+        url: info.url,
+        duration: 8,
+        author: artist.slice(0, 50),
+        source: 'Wikimedia Commons',
+        width: info.width,
+        height: info.height,
       })
-      .filter((v): v is StockVideoResult => v !== null)
+      if (results.length >= limit) break
+    }
+    return results
   } catch (err) {
     console.warn('[stock] Wikimedia video search failed:', err)
     return []

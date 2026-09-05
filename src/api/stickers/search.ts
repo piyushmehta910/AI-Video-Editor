@@ -55,22 +55,22 @@ export async function searchWikimediaGifs(query: string, limit: number): Promise
       }
     }
     const pages = Object.values(data.query?.pages ?? {})
-    return pages
-      .map((p) => {
-        const info = p.imageinfo?.[0]
-        if (!info?.url || !info.url.toLowerCase().includes('.gif')) return null
-        const title = (p.title || '').replace(/^File:/i, '').replace(/\.gif$/i, '')
-        return {
-          id: encodeURIComponent(p.title || crypto.randomUUID()),
-          title,
-          preview: info.thumburl || info.url,
-          url: info.url,
-          width: info.width,
-          height: info.height,
-        }
+    const results: StickerResult[] = []
+    for (const p of pages) {
+      const info = p.imageinfo?.[0]
+      if (!info?.url || !info.url.toLowerCase().includes('.gif')) continue
+      const title = (p.title || '').replace(/^File:/i, '').replace(/\.gif$/i, '')
+      results.push({
+        id: encodeURIComponent(p.title || crypto.randomUUID()),
+        title,
+        preview: info.thumburl || info.url,
+        url: info.url,
+        width: info.width,
+        height: info.height,
       })
-      .filter((g): g is StickerResult => g !== null)
-      .slice(0, limit)
+      if (results.length >= limit) break
+    }
+    return results
   } catch (err) {
     console.warn('[stickers] Wikimedia GIF search failed:', err)
     return []
