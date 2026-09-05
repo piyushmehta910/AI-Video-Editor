@@ -62,6 +62,7 @@ import {
   Eye,
   Disc,
   Radio,
+  X,
 } from 'lucide-react'
 
 const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -3040,7 +3041,6 @@ function TextSection() {
   const project = useTimelineStore((s) => s.project)
   const addTextClip = useTimelineStore((s) => s.addTextClip)
   const updateClip = useTimelineStore((s) => s.updateClip)
-  const select = useTimelineStore((s) => s.select)
   const playhead = useTimelineStore((s) => s.playhead)
   const selectedClip = getSelectedClip()
 
@@ -3063,67 +3063,121 @@ function TextSection() {
   }, [])
 
   const lastAddRef = React.useRef<number>(0)
+  const isAddingRef = React.useRef<boolean>(false)
 
-  const handleApplyPreset = (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number]) => {
+  const handleApplyPreset = React.useCallback(
+    (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number]) => {
+      const now = Date.now()
+      if (isAddingRef.current || now - lastAddRef.current < 400) return
+      isAddingRef.current = true
+      lastAddRef.current = now
+
+      try {
+        loadGoogleFont(preset.fontFamily)
+        const textContent = customTextDraft.trim() || preset.text
+
+        // If a text clip is selected on timeline, apply preset style in-place
+        if (isTextSelected && selectedClip && selectedClip.text) {
+          updateClip(selectedClip.id, {
+            name: textContent.slice(0, 30) || selectedClip.name,
+            text: {
+              ...selectedClip.text,
+              text: textContent,
+              fontSize: preset.fontSize,
+              fontFamily: preset.fontFamily,
+              fontWeight: preset.fontWeight as any,
+              fontStyle: preset.fontStyle || 'normal',
+              color: preset.color,
+              backgroundColor: preset.backgroundColor,
+              textAlign: 'center',
+              paddingTop: preset.paddingTop || 8,
+              paddingBottom: preset.paddingBottom || 8,
+              paddingLeft: preset.paddingLeft || 12,
+              paddingRight: preset.paddingRight || 12,
+              borderRadius: preset.borderRadius || 6,
+              shadow: Boolean(preset.shadow),
+              shadowColor: preset.shadowColor,
+              shadowBlur: preset.shadowBlur,
+              stroke: preset.stroke,
+              letterSpacing: preset.letterSpacing,
+              animation: preset.animation,
+              animationDuration: 0.5,
+            },
+          })
+          setNotice({ kind: 'ok', text: `Applied "${preset.name}" style to selected text` })
+          return
+        }
+
+        // Otherwise insert a new text clip styled with this preset
+        const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
+        if (!textTrack) {
+          setNotice({ kind: 'error', text: 'No track available for text' })
+          return
+        }
+
+        const clip = addTextClip(textContent, textTrack.id, playhead)
+        if (clip) {
+          updateClip(clip.id, {
+            text: {
+              text: textContent,
+              fontSize: preset.fontSize,
+              fontFamily: preset.fontFamily,
+              fontWeight: preset.fontWeight as any,
+              fontStyle: preset.fontStyle || 'normal',
+              color: preset.color,
+              backgroundColor: preset.backgroundColor,
+              textAlign: 'center',
+              paddingTop: preset.paddingTop || 8,
+              paddingBottom: preset.paddingBottom || 8,
+              paddingLeft: preset.paddingLeft || 12,
+              paddingRight: preset.paddingRight || 12,
+              borderRadius: preset.borderRadius || 6,
+              shadow: Boolean(preset.shadow),
+              shadowColor: preset.shadowColor,
+              shadowBlur: preset.shadowBlur,
+              stroke: preset.stroke,
+              letterSpacing: preset.letterSpacing,
+              animation: preset.animation,
+              animationDuration: 0.5,
+            },
+          })
+          setNotice({ kind: 'ok', text: `Added "${preset.name}" at ${playhead.toFixed(1)}s` })
+        }
+      } finally {
+        setTimeout(() => {
+          isAddingRef.current = false
+        }, 400)
+      }
+    },
+    [project.tracks, playhead, customTextDraft, isTextSelected, selectedClip, updateClip, addTextClip],
+  )
+
+  const handleAddCustomText = React.useCallback(() => {
     const now = Date.now()
-    if (now - lastAddRef.current < 300) return
+    if (isAddingRef.current || now - lastAddRef.current < 400) return
+    isAddingRef.current = true
     lastAddRef.current = now
 
-    loadGoogleFont(preset.fontFamily)
+    try {
+      const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
+      if (!textTrack) {
+        setNotice({ kind: 'error', text: 'No track available for text' })
+        return
+      }
 
-    const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
-    if (!textTrack) {
-      setNotice({ kind: 'error', text: 'No track available for text' })
-      return
+      const textToAdd = customTextDraft.trim() || 'Your Text Here'
+      const clip = addTextClip(textToAdd, textTrack.id, playhead)
+      if (clip) {
+        setNotice({ kind: 'ok', text: `Added "${textToAdd.slice(0, 24)}" at ${playhead.toFixed(1)}s` })
+      }
+    } finally {
+      setTimeout(() => {
+        isAddingRef.current = false
+      }, 400)
     }
+  }, [project.tracks, playhead, customTextDraft, addTextClip])
 
-    const clip = addTextClip(preset.text, textTrack.id, playhead)
-    if (clip) {
-      updateClip(clip.id, {
-        text: {
-          text: preset.text,
-          fontSize: preset.fontSize,
-          fontFamily: preset.fontFamily,
-          fontWeight: preset.fontWeight as any,
-          fontStyle: preset.fontStyle || 'normal',
-          color: preset.color,
-          backgroundColor: preset.backgroundColor,
-          textAlign: 'center',
-          paddingTop: preset.paddingTop || 8,
-          paddingBottom: preset.paddingBottom || 8,
-          paddingLeft: preset.paddingLeft || 12,
-          paddingRight: preset.paddingRight || 12,
-          borderRadius: preset.borderRadius || 6,
-          shadow: Boolean(preset.shadow),
-          shadowColor: preset.shadowColor,
-          shadowBlur: preset.shadowBlur,
-          stroke: preset.stroke,
-          letterSpacing: preset.letterSpacing,
-          animation: preset.animation,
-          animationDuration: 0.5,
-        },
-      })
-      select([clip.id], textTrack.id)
-      setNotice({ kind: 'ok', text: `Added "${preset.name}" at ${playhead.toFixed(1)}s` })
-    }
-  }
-
-  const handleAddCustomText = () => {
-    const now = Date.now()
-    if (now - lastAddRef.current < 300) return
-    lastAddRef.current = now
-    const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
-    if (!textTrack) {
-      setNotice({ kind: 'error', text: 'No track available for text' })
-      return
-    }
-
-    const clip = addTextClip(customTextDraft.trim() || 'Your Text Here', textTrack.id, playhead)
-    if (clip) {
-      select([clip.id], textTrack.id)
-      setNotice({ kind: 'ok', text: `Added custom text at ${playhead.toFixed(1)}s` })
-    }
-  }
+  const sampleChips = ['VIRAL HOOK', 'BREAKING NEWS', 'SUMMER SALE', 'DON\'T MISS THIS', 'TOP 10 TIPS']
 
   return (
     <div className="space-y-4 p-3 text-xs">
@@ -3140,24 +3194,86 @@ function TextSection() {
           </Label>
           <span className="text-[10px] font-mono text-muted-foreground">@ {playhead.toFixed(1)}s</span>
         </div>
-        <div className="flex gap-1.5">
-          <input
-            value={customTextDraft}
-            onChange={(e) => setCustomTextDraft(e.target.value)}
-            placeholder="Type text overlay..."
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAddCustomText()
-            }}
-            className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none ring-1 ring-border/40 focus:ring-violet-500"
-          />
+        <div className="flex gap-1.5 items-center">
+          <div className="relative flex-1">
+            <input
+              value={customTextDraft}
+              onChange={(e) => setCustomTextDraft(e.target.value)}
+              placeholder="Type text overlay..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleAddCustomText()
+                }
+              }}
+              className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none ring-1 ring-border/40 focus:ring-violet-500 pr-7"
+            />
+            {customTextDraft && (
+              <button
+                type="button"
+                onClick={() => setCustomTextDraft('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                title="Clear text"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
           <Button
+            type="button"
             size="sm"
-            onClick={handleAddCustomText}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleAddCustomText()
+            }}
             className="h-8 gap-1 bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs"
           >
             <Plus className="size-3.5" />
             Add
           </Button>
+        </div>
+
+        {/* Quick Sample Suggestions */}
+        <div className="flex flex-wrap items-center gap-1 pt-0.5">
+          <span className="text-[9px] text-muted-foreground mr-0.5 font-medium">Ideas:</span>
+          {sampleChips.map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => setCustomTextDraft(chip)}
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[9px] font-mono transition border',
+                customTextDraft.trim().toUpperCase() === chip
+                  ? 'border-violet-500/50 bg-violet-500/20 text-violet-300'
+                  : 'border-border/50 bg-muted/40 text-muted-foreground hover:text-foreground hover:border-border',
+              )}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+
+        {/* Live Typography Preview Callout */}
+        <div className="rounded-lg border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-transparent p-2.5 space-y-1">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="font-semibold text-violet-400 flex items-center gap-1">
+              <Sparkles className="size-3" /> Live Typography Preview
+            </span>
+            <span className="text-[9px] text-muted-foreground">Showing below across all presets</span>
+          </div>
+          <div className="flex items-center justify-center rounded-md bg-black/50 border border-white/10 p-2.5 min-h-[42px] text-center overflow-hidden">
+            <span
+              className="text-sm font-bold text-white tracking-wide truncate max-w-full"
+              style={{
+                fontFamily: 'Inter',
+                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+              }}
+            >
+              {customTextDraft.trim() || 'Your Text Here'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -3300,6 +3416,7 @@ function TextSection() {
           {categories.map((cat) => (
             <button
               key={cat}
+              type="button"
               onClick={() => setCategory(cat)}
               className={cn(
                 'rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition',
@@ -3313,64 +3430,78 @@ function TextSection() {
           ))}
         </div>
 
-        {/* Preset Cards Grid */}
+        {/* Preset Cards Grid with Dynamic Real-Time Custom Text Preview */}
         <div className="space-y-2 pt-1">
-          {filteredPresets.map((preset) => (
-            <div
-              key={preset.id}
-              onClick={() => handleApplyPreset(preset)}
-              className="group cursor-pointer rounded-xl border border-border/80 bg-card p-3 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/30"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-foreground">{preset.name}</span>
-                    <span className="rounded bg-muted px-1.5 py-0.2 text-[8px] font-mono text-muted-foreground">
-                      {preset.category}
-                    </span>
-                    <span className="text-[9px] font-mono text-violet-400">
-                      {preset.fontFamily}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">{preset.description}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="size-7 p-0 opacity-0 group-hover:opacity-100 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleApplyPreset(preset)
-                  }}
-                  title="Insert at Playhead"
-                >
-                  <Plus className="size-4" />
-                </Button>
-              </div>
+          {filteredPresets.map((preset) => {
+            const displayPreviewText = customTextDraft.trim() || preset.text
 
-              {/* Visual typography preview card */}
+            return (
               <div
-                className="mt-2.5 flex items-center justify-center rounded-lg border border-border/40 p-3 text-center overflow-hidden"
-                style={{
-                  backgroundColor: preset.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.45)' : preset.backgroundColor,
-                }}
+                key={preset.id}
+                onClick={() => handleApplyPreset(preset)}
+                className="group cursor-pointer rounded-xl border border-border/80 bg-card p-3 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/30"
               >
-                <span
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">{preset.name}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.2 text-[8px] font-mono text-muted-foreground">
+                        {preset.category}
+                      </span>
+                      <span className="text-[9px] font-mono text-violet-400">
+                        {preset.fontFamily}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">{preset.description}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="size-7 p-0 opacity-0 group-hover:opacity-100 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleApplyPreset(preset)
+                    }}
+                    title={isTextSelected ? 'Apply Style to Selected Clip' : 'Insert at Playhead'}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+
+                {/* Visual typography preview card dynamically rendering custom text */}
+                <div
+                  className="mt-2.5 flex items-center justify-center rounded-lg border border-border/40 p-3 text-center overflow-hidden transition-colors group-hover:border-violet-500/40"
                   style={{
-                    color: preset.color,
-                    fontFamily: preset.fontFamily,
-                    fontSize: `${Math.min(22, preset.fontSize * 0.42)}px`,
-                    fontWeight: preset.fontWeight as any,
-                    fontStyle: preset.fontStyle || 'normal',
-                    letterSpacing: `${(preset.letterSpacing || 0) * 0.5}px`,
+                    backgroundColor: preset.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.5)' : preset.backgroundColor,
+                    borderRadius: preset.borderRadius ? `${preset.borderRadius}px` : undefined,
                   }}
-                  className="truncate max-w-full tracking-wide"
                 >
-                  {preset.text}
-                </span>
+                  <span
+                    style={{
+                      color: preset.color,
+                      fontFamily: preset.fontFamily,
+                      fontSize: `${Math.min(22, preset.fontSize * 0.42)}px`,
+                      fontWeight: preset.fontWeight as any,
+                      fontStyle: preset.fontStyle || 'normal',
+                      letterSpacing: preset.letterSpacing ? `${preset.letterSpacing * 0.5}px` : undefined,
+                      WebkitTextStroke: preset.stroke
+                        ? `${Math.max(1, preset.stroke.width * 0.4)}px ${preset.stroke.color}`
+                        : undefined,
+                      textShadow: preset.shadow
+                        ? `0 2px ${preset.shadowBlur || 8}px ${preset.shadowColor || 'rgba(0,0,0,0.8)'}`
+                        : undefined,
+                    }}
+                    className="truncate max-w-full tracking-wide select-none"
+                    title={displayPreviewText}
+                  >
+                    {displayPreviewText}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

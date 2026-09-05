@@ -713,6 +713,7 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
               const maxTime = duration > 0 ? duration : 0
               const rawTime = (e.clientX - rect.left - HEADER_WIDTH) / zoom
               addTextAtTime(Math.max(0, Math.min(rawTime, maxTime)))
+              useEditorStore.getState().setTool('select')
               return
             }
 

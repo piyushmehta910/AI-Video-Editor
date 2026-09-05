@@ -284,43 +284,6 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
             </Button>
           </div>
         )}
-
-        {/* Mobile / small screen overlay drawer for Middle Tools & Clip Inspector */}
-        {(toolPanelSection || (inspectorOpen && hasSelectedClip)) && (
-          <div className="md:hidden">
-            <button
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
-              onClick={() => {
-                setToolPanelSection(null)
-                if (inspectorOpen) toggleInspector()
-              }}
-              aria-label="Close tools"
-            />
-            <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[95vw] sm:max-w-[460px] flex-col border-l bg-background shadow-2xl animate-in slide-in-from-right duration-200">
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {toolPanelSection ? (
-                  <MiddleToolsInspector
-                    section={toolPanelSection as ToolSection}
-                    onSelectSection={setToolPanelSection}
-                    onCollapse={() => {
-                      setToolPanelSection(null)
-                      if (inspectorOpen) toggleInspector()
-                    }}
-                    hasSelectedClip={hasSelectedClip}
-                    onShowClipInspector={() => setToolPanelSection(null)}
-                  />
-                ) : (
-                  <InspectorPanel
-                    onCollapse={() => {
-                      if (inspectorOpen) toggleInspector()
-                    }}
-                    onOpenMiddleTools={() => setToolPanelSection('effects')}
-                  />
-                )}
-              </div>
-            </aside>
-          </div>
-        )}
       </div>
 
       <HistoryToast />

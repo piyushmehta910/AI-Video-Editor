@@ -374,6 +374,45 @@ describe('human-readable log', () => {
     s.undo()
     expect(clipCount()).toBe(3)
   })
+
+  it('adds exactly one text clip to the target track and selects it', () => {
+    const s = useTimelineStore.getState()
+    const textTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks[0]
+    const clip = s.addTextClip('Test Overlay', textTrack.id, 2.5)
+
+    expect(clip).toBeDefined()
+    expect(clip?.text?.text).toBe('Test Overlay')
+    expect(clip?.startTime).toBe(2.5)
+    expect(useTimelineStore.getState().selection.clipIds).toEqual([clip!.id])
+
+    // Verify exactly 1 text clip exists
+    const textClips = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips).filter((c) => Boolean(c.text))
+    expect(textClips).toHaveLength(1)
+  })
+
+  it('updates text clip in place without adding duplicate clips', () => {
+    const s = useTimelineStore.getState()
+    const textTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks[0]
+    const clip = s.addTextClip('Initial Text', textTrack.id, 0)
+    expect(clip).toBeDefined()
+
+    // Update typography in place
+    s.updateClip(clip!.id, {
+      text: {
+        ...clip!.text!,
+        text: 'Updated Style Text',
+        fontFamily: 'Orbitron',
+        color: '#22d3ee',
+        shadow: true,
+      },
+    })
+
+    const allClips = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
+    expect(allClips).toHaveLength(1)
+    expect(allClips[0].text?.text).toBe('Updated Style Text')
+    expect(allClips[0].text?.fontFamily).toBe('Orbitron')
+    expect(allClips[0].text?.color).toBe('#22d3ee')
+  })
 })
 
 
