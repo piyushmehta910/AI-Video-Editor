@@ -153,7 +153,21 @@ export function CommandPalette() {
       { id: 'fit-screen', label: 'Fit timeline to screen', category: 'View', icon: <SquareDashed className="size-4" />, hint: 'F', run: fitZoom },
     ]
 
-    return [...project, ...edit, ...view, ...STUDIO_SECTIONS.map((s) => ({ id: `studio-${s.id}`, label: s.label, category: 'Studio', icon: s.icon, run: () => ed().setToolPanelSection(s.id) }))]
+    return [
+      ...project,
+      ...edit,
+      ...view,
+      ...STUDIO_SECTIONS.map((s) => ({
+        id: `studio-${s.id}`,
+        label: s.label,
+        category: 'Studio',
+        icon: s.icon,
+        run: () => {
+          ed().setToolPanelSection(s.id)
+          ed().setInspectorOpen(true)
+        },
+      })),
+    ]
   }, [])
 
   React.useEffect(() => {

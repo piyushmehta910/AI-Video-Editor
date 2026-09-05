@@ -46,6 +46,7 @@ export interface EditorUIState {
   toggleLeft: () => void
   setLeftOpen: (open: boolean) => void
   toggleInspector: () => void
+  setInspectorOpen: (open: boolean) => void
   setToolPanelSection: (section: string | null) => void
   setMediaTab: (tab: MediaTab) => void
   setMediaSearch: (q: string) => void
@@ -118,6 +119,10 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
       persist('clipforge-inspector-open', !s.inspectorOpen)
       return { inspectorOpen: !s.inspectorOpen }
     }),
+  setInspectorOpen: (open) => {
+    persist('clipforge-inspector-open', open)
+    set({ inspectorOpen: open })
+  },
   setToolPanelSection: (section) => set({ toolPanelSection: section }),
   setMediaTab: (tab) => set({ mediaTab: tab }),
   setMediaSearch: (q) => set({ mediaSearch: q }),

@@ -55,3 +55,52 @@ export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ c
   { id: 'images', label: 'Images', icon: ImagePlus },
 ]
 
+export const SECTION_DESCRIPTIONS: Record<ToolSection, string> = {
+  text: 'Add titles, headings, lower thirds and styled text presets',
+  insights: 'Project health, coverage and quality diagnostics',
+  effects: 'Color grades, light filters, and stylized looks',
+  audio: 'Music, audio enhancements, and audio cleanup',
+  voiceover: 'AI text-to-speech with natural voices & audio cloning',
+  captions: 'Automated speech subtitles and animated captions',
+  transitions: 'Smooth cuts, wipes, and transitions between clips',
+  stickers: 'Giphy animated GIF stickers and overlay graphics',
+  speed: 'Clip playback rate presets and speed ramps',
+  keyframe: 'Smooth position, scale, and opacity keyframe animations',
+  crop: 'Framing, panning, and aspect ratio adjustments',
+  slide: 'Interactive AI presentation slides and keynotes',
+  avatar: 'Lip-synced AI presenters and avatar generation',
+  design: 'HTML/CSS motion graphics and kinetic typography',
+  script: 'AI teleprompter and structured script generator',
+  images: 'Free stock photos and royalty-free media search',
+}
+
+export type ToolCategory = 'all' | 'visual' | 'audio' | 'titles' | 'ai' | 'transform'
+
+export const TOOL_CATEGORIES: { id: ToolCategory; label: string }[] = [
+  { id: 'all', label: 'All Tools' },
+  { id: 'visual', label: 'Visual & FX' },
+  { id: 'audio', label: 'Audio & Voice' },
+  { id: 'titles', label: 'Text & Titles' },
+  { id: 'ai', label: 'AI Studios' },
+  { id: 'transform', label: 'Motion & Speed' },
+]
+
+export const TOOL_SECTION_CATEGORY: Record<ToolSection, ToolCategory> = {
+  text: 'titles',
+  captions: 'titles',
+  stickers: 'titles',
+  images: 'titles',
+  effects: 'visual',
+  transitions: 'visual',
+  crop: 'visual',
+  audio: 'audio',
+  voiceover: 'audio',
+  avatar: 'ai',
+  slide: 'ai',
+  script: 'ai',
+  design: 'ai',
+  speed: 'transform',
+  keyframe: 'transform',
+  insights: 'all',
+}
+

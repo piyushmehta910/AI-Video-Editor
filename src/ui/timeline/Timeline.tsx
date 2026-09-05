@@ -142,6 +142,8 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const trimMode = useEditorStore((s) => s.trimMode)
   const setTrimMode = useEditorStore((s) => s.setTrimMode)
   const tool = useEditorStore((s) => s.tool)
+  const toolPanelSection = useEditorStore((s) => s.toolPanelSection)
+  const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
     const counts: Partial<Record<Track['type'], number>> = {}
@@ -508,10 +510,6 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
     if (store.selection.clipIds.length) store.cutClips(store.selection.clipIds)
   }
 
-  const handleAddText = React.useCallback(() => {
-    onOpenTool?.('text')
-  }, [onOpenTool])
-
   const { step, labelEvery } = React.useMemo(() => computeTicks(duration, zoom), [duration, zoom])
   const ticks = React.useMemo(() => {
     // Hard cap prevents 5000+ DOM nodes for long projects while staying readable.
@@ -560,34 +558,74 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
         <SeparatorLine />
 
         {/* Core Timeline Tools & Generators */}
-        <ToolbarButton label="Text & Titles Studio (T)" onClick={handleAddText}>
+        <ToolbarButton
+          label="Text & Titles Studio (T)"
+          active={inspectorOpen && toolPanelSection === 'text'}
+          onClick={() => onOpenTool?.('text')}
+        >
           <Type className="size-4 text-amber-400" />
         </ToolbarButton>
-        <ToolbarButton label="Auto Captions (C)" onClick={() => onOpenTool?.('captions')}>
+        <ToolbarButton
+          label="Auto Captions (C)"
+          active={inspectorOpen && toolPanelSection === 'captions'}
+          onClick={() => onOpenTool?.('captions')}
+        >
           <Captions className="size-4 text-sky-400" />
         </ToolbarButton>
-        <ToolbarButton label="Voiceover & Audio Studio" onClick={() => onOpenTool?.('voiceover')}>
+        <ToolbarButton
+          label="Voiceover & Audio Studio"
+          active={inspectorOpen && (toolPanelSection === 'voiceover' || toolPanelSection === 'audio')}
+          onClick={() => onOpenTool?.('voiceover')}
+        >
           <Music className="size-4 text-emerald-400" />
         </ToolbarButton>
-        <ToolbarButton label="Slides & Keynotes Studio" onClick={() => onOpenTool?.('slide')}>
+        <ToolbarButton
+          label="Slides & Keynotes Studio"
+          active={inspectorOpen && toolPanelSection === 'slide'}
+          onClick={() => onOpenTool?.('slide')}
+        >
           <Presentation className="size-4 text-indigo-400" />
         </ToolbarButton>
-        <ToolbarButton label="AI Avatar Presenter Studio" onClick={() => onOpenTool?.('avatar')}>
+        <ToolbarButton
+          label="AI Avatar Presenter Studio"
+          active={inspectorOpen && toolPanelSection === 'avatar'}
+          onClick={() => onOpenTool?.('avatar')}
+        >
           <Clapperboard className="size-4 text-violet-400" />
         </ToolbarButton>
-        <ToolbarButton label="Visual Effects Studio" onClick={() => onOpenTool?.('effects')}>
+        <ToolbarButton
+          label="Visual Effects Studio"
+          active={inspectorOpen && toolPanelSection === 'effects'}
+          onClick={() => onOpenTool?.('effects')}
+        >
           <Sparkles className="size-4 text-pink-400" />
         </ToolbarButton>
-        <ToolbarButton label="Transitions Studio" onClick={() => onOpenTool?.('transitions')}>
+        <ToolbarButton
+          label="Transitions Studio"
+          active={inspectorOpen && toolPanelSection === 'transitions'}
+          onClick={() => onOpenTool?.('transitions')}
+        >
           <Zap className="size-4 text-yellow-400" />
         </ToolbarButton>
-        <ToolbarButton label="Giphy Animated Stickers" onClick={() => onOpenTool?.('stickers')}>
+        <ToolbarButton
+          label="Giphy Animated Stickers"
+          active={inspectorOpen && toolPanelSection === 'stickers'}
+          onClick={() => onOpenTool?.('stickers')}
+        >
           <Smile className="size-4 text-emerald-400" />
         </ToolbarButton>
-        <ToolbarButton label="Stock Media Search" onClick={() => onOpenTool?.('images')}>
+        <ToolbarButton
+          label="Stock Media Search"
+          active={inspectorOpen && toolPanelSection === 'images'}
+          onClick={() => onOpenTool?.('images')}
+        >
           <Image className="size-4 text-cyan-400" />
         </ToolbarButton>
-        <ToolbarButton label="Script Studio (AI Teleprompter)" onClick={() => onOpenTool?.('script')}>
+        <ToolbarButton
+          label="Script Studio (AI Teleprompter)"
+          active={inspectorOpen && toolPanelSection === 'script'}
+          onClick={() => onOpenTool?.('script')}
+        >
           <ScrollText className="size-4 text-blue-400" />
         </ToolbarButton>
         <SeparatorLine />
