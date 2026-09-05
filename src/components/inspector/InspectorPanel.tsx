@@ -1,8 +1,6 @@
-import * as React from 'react'
 import {
   ChevronRight,
   Clapperboard,
-  MousePointerClick,
   Music,
   Sparkles,
   Type,
@@ -12,10 +10,8 @@ import {
   VolumeX,
   RotateCcw,
   Trash2,
-  Film,
 } from 'lucide-react'
 import type { Clip, TextOverlay, TrackType } from '@/engine/types'
-import { formatSeconds } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useInspector } from '@/hooks/useInspector'
 import { Button } from '@/components/ui/button'
@@ -63,7 +59,6 @@ function defaultTextOverlay(): TextOverlay {
  * All edits apply in real time; slider drags collapse into single undo steps.
  */
 export function InspectorPanel({
-  onOpenMedia,
   onCollapse,
 }: {
   onOpenMedia?: () => void
@@ -73,13 +68,11 @@ export function InspectorPanel({
   const target = insp.target
   const clip = target?.clip
   const selection = useTimelineStore((s) => s.selection)
-  const project = useTimelineStore((s) => s.project)
   const playhead = useTimelineStore((s) => s.playhead)
   const splitClip = useTimelineStore((s) => s.splitClip)
   const deleteClips = useTimelineStore((s) => s.deleteClips)
   const addClip = useTimelineStore((s) => s.addClip)
   const updateClip = useTimelineStore((s) => s.updateClip)
-  const addTextClip = useTimelineStore((s) => s.addTextClip)
 
   const [activeTab, setActiveTab] = React.useState<string>('all')
 
@@ -102,81 +95,14 @@ export function InspectorPanel({
   }
 
   if (!target || !clip) {
-    const totalClips = project.tracks.reduce((sum, t) => sum + t.clips.length, 0)
-    const duration = useTimelineStore.getState().duration()
     return (
       <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-        <PanelHeader title="Project Inspector" onCollapse={onCollapse} />
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-          {/* Project Summary Card */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-2.5 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground truncate max-w-[180px]">{project.name || 'Untitled Project'}</span>
-              <span className="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-violet-600 dark:text-violet-400">
-                {project.width}×{project.height}
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
-              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40 min-w-0">
-                <span className="text-[9px] text-muted-foreground block font-sans font-medium truncate">Duration</span>
-                <span className="font-bold text-foreground truncate block">~{formatSeconds(duration)}</span>
-              </div>
-              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40 min-w-0">
-                <span className="text-[9px] text-muted-foreground block font-sans font-medium truncate">Framerate</span>
-                <span className="font-bold text-foreground truncate block">{project.fps} fps</span>
-              </div>
-              <div className="rounded-lg bg-background/50 p-1.5 border border-border/40 min-w-0">
-                <span className="text-[9px] text-muted-foreground block font-sans font-medium truncate">Clips / Tracks</span>
-                <span className="font-bold text-foreground truncate block">{totalClips} / {project.tracks.length}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Creation Shortcuts */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Quick Add & Tools</span>
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs justify-start gap-1.5 border-border/60 hover:border-violet-500/40 hover:bg-violet-500/10 font-medium"
-                onClick={() => {
-                  const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[0]
-                  if (textTrack) addTextClip('New Title', textTrack.id, playhead ?? 0)
-                }}
-              >
-                <Type className="size-3 text-sky-500" />
-                Add Text Title
-              </Button>
-              {onOpenMedia && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs justify-start gap-1.5 border-border/60 hover:border-violet-500/40 hover:bg-violet-500/10 font-medium"
-                  onClick={onOpenMedia}
-                >
-                  <Film className="size-3 text-emerald-500" />
-                  Browse Media
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-dashed border-border p-4 text-center space-y-2">
-            <div className="bg-violet-500/10 text-violet-500 mx-auto flex size-10 items-center justify-center rounded-xl">
-              <MousePointerClick className="size-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-foreground">Select a Clip to Edit</p>
-              <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
-                Click any video, audio, text, or fx clip on the timeline below to inspect and customize properties.
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full pt-1 text-left">
-            <CaptionsPanel />
-          </div>
+        <PanelHeader title="Inspector" onCollapse={onCollapse} />
+        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-muted-foreground">
+          <p className="text-xs font-semibold text-foreground">No Clip Selected</p>
+          <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
+            Click any clip on the timeline to inspect and customize properties.
+          </p>
         </div>
       </div>
     )

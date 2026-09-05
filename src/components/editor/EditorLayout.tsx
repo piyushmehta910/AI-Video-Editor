@@ -47,6 +47,7 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const setLeftOpen = useEditorStore((s) => s.setLeftOpen)
   const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
   const toggleInspector = useEditorStore((s) => s.toggleInspector)
+  const hasSelectedClip = useTimelineStore((s) => s.selection.clipIds.length > 0)
   const toolPanelSection = useEditorStore((s) => s.toolPanelSection)
   const setToolPanelSection = useEditorStore((s) => s.setToolPanelSection)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
@@ -64,13 +65,15 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
 
   const openMedia = React.useCallback(() => setLeftOpen(true), [setLeftOpen])
 
-  // Selection-driven inspector: picking a clip surfaces its properties, even if
-  // the panel was collapsed. Clearing the selection leaves it as-is (user choice).
+  // Selection-driven inspector: picking a clip surfaces its properties.
+  // When no clip is selected, Project Inspector is removed and the rail collapses.
   React.useEffect(() => {
     const unsub = useTimelineStore.subscribe((state, prev) => {
       const hasClip = state.selection.clipIds.length > 0
       const hadClip = prev.selection.clipIds.length > 0
       if (hasClip && !hadClip && !useEditorStore.getState().inspectorOpen) {
+        useEditorStore.getState().toggleInspector()
+      } else if (!hasClip && hadClip && useEditorStore.getState().inspectorOpen) {
         useEditorStore.getState().toggleInspector()
       }
     })
@@ -212,37 +215,39 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
         {/* History sidebar */}
         {historyPanelOpen && <HistoryPanel onClose={toggleHistoryPanel} />}
 
-        {inspectorOpen ? (
-          <div
-            className="relative hidden shrink-0 md:flex"
-            style={{ width: rightWidth, maxWidth: '45vw' }}
-            data-testid="inspector-panel"
-          >
-            {/* Drag Resizer on Left Edge of Right Panel */}
+        {hasSelectedClip && (
+          inspectorOpen ? (
             <div
-              className="group absolute -left-1.5 top-0 bottom-0 z-20 w-3 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 active:bg-violet-500/30 transition touch-none select-none"
-              onPointerDown={onRightResizeStart}
-              title="Drag to resize Inspector"
-              style={{ touchAction: 'none' }}
+              className="relative hidden shrink-0 md:flex"
+              style={{ width: rightWidth, maxWidth: '45vw' }}
+              data-testid="inspector-panel"
             >
-              <div className="w-1 h-8 rounded-full bg-border group-hover:bg-violet-500 transition-colors" />
-            </div>
-            <aside className="w-full h-full border-l overflow-hidden bg-card/60 backdrop-blur-md">
-              <div className="flex h-full flex-col">
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <PanelErrorBoundary panelName="Inspector">
-                    <InspectorPanel onOpenMedia={openMedia} onCollapse={toggleInspector} />
-                  </PanelErrorBoundary>
-                </div>
+              {/* Drag Resizer on Left Edge of Right Panel */}
+              <div
+                className="group absolute -left-1.5 top-0 bottom-0 z-20 w-3 cursor-col-resize flex items-center justify-center hover:bg-violet-500/20 active:bg-violet-500/30 transition touch-none select-none"
+                onPointerDown={onRightResizeStart}
+                title="Drag to resize Inspector"
+                style={{ touchAction: 'none' }}
+              >
+                <div className="w-1 h-8 rounded-full bg-border group-hover:bg-violet-500 transition-colors" />
               </div>
-            </aside>
-          </div>
-        ) : (
-          <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 md:flex bg-card/20">
-            <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" onClick={toggleInspector} aria-label="Show Inspector" title="Show Inspector">
-              <ChevronLeft className="size-4" />
-            </Button>
-          </div>
+              <aside className="w-full h-full border-l overflow-hidden bg-card/60 backdrop-blur-md">
+                <div className="flex h-full flex-col">
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <PanelErrorBoundary panelName="Inspector">
+                      <InspectorPanel onCollapse={toggleInspector} />
+                    </PanelErrorBoundary>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          ) : (
+            <div className="hidden w-8 shrink-0 flex-col items-center border-l py-2 md:flex bg-card/20">
+              <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" onClick={toggleInspector} aria-label="Show Inspector" title="Show Inspector">
+                <ChevronLeft className="size-4" />
+              </Button>
+            </div>
+          )
         )}
 
         {/* AI tools overlay drawer */}

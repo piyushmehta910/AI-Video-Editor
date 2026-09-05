@@ -85,7 +85,7 @@ function persist(key: string, value: boolean) {
 
 export const useEditorStore = create<EditorUIState>()((set) => ({
   leftOpen: persisted('clipforge-left-open', true),
-  inspectorOpen: persisted('clipforge-inspector-open', true),
+  inspectorOpen: persisted('clipforge-inspector-open', false),
   toolPanelSection: null,
   mediaTab: 'media',
   mediaSearch: '',

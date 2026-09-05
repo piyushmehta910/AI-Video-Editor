@@ -23,7 +23,7 @@ describe('Online Asset Search APIs', () => {
 
     const musicResults = await searchMusic('nonexistentquery123456789')
     expect(Array.isArray(musicResults)).toBe(true)
-  })
+  }, 15000)
 
   it('successfully returns search arrays from open stock providers', async () => {
     const wikiImages = await searchWikimediaImages('nature', 2)
@@ -31,6 +31,8 @@ describe('Online Asset Search APIs', () => {
 
     const wikiVideos = await searchWikimediaVideos('nature', 2)
     expect(Array.isArray(wikiVideos)).toBe(true)
-  })
-})
 
+    const wikiGifs = await searchWikimediaGifs('cat', 2)
+    expect(Array.isArray(wikiGifs)).toBe(true)
+  }, 15000)
+})

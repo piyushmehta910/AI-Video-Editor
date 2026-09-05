@@ -79,10 +79,29 @@ export function TopToolbar() {
   const leftOpen = useEditorStore((s) => s.leftOpen)
   const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
   const toggleInspector = useEditorStore((s) => s.toggleInspector)
+  const hasSelectedClip = useTimelineStore((s) => s.selection.clipIds.length > 0)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
   const commandPaletteOpen = useEditorStore((s) => s.commandPaletteOpen)
   const toggleCommandPalette = () => useEditorStore.setState({ commandPaletteOpen: !useEditorStore.getState().commandPaletteOpen })
+
+  const handleToggleInspector = () => {
+    const timeline = useTimelineStore.getState()
+    const hasClip = timeline.selection.clipIds.length > 0
+    if (!hasClip) {
+      const allClips = timeline.project.tracks.flatMap((t) => t.clips)
+      if (allClips.length > 0) {
+        const atPlayhead = allClips.find(
+          (c) => timeline.playhead >= c.startTime && timeline.playhead <= c.startTime + c.duration,
+        )
+        const target = atPlayhead || allClips[0]
+        timeline.selectClip(target.id)
+        if (!inspectorOpen) toggleInspector()
+        return
+      }
+    }
+    toggleInspector()
+  }
 
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
 
@@ -303,15 +322,15 @@ export function TopToolbar() {
               size="sm"
               className={cn(
                 'h-8 w-8 shrink-0 p-0 rounded-lg transition text-muted-foreground hover:text-foreground',
-                inspectorOpen && 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold',
+                inspectorOpen && hasSelectedClip && 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold',
               )}
-              onClick={toggleInspector}
-              aria-label="Toggle Right Panel"
+              onClick={handleToggleInspector}
+              aria-label="Toggle Clip Inspector"
             >
               <PanelRight className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent className="text-[11px]">Toggle Right Panel (Inspector)</TooltipContent>
+          <TooltipContent className="text-[11px]">Toggle Clip Inspector</TooltipContent>
         </Tooltip>
 
         <div className="shrink-0">
