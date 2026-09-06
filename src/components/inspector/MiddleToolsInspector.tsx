@@ -1,11 +1,9 @@
 import * as React from 'react'
 import {
-  ChevronRight,
   LayoutGrid,
   Search,
   Sparkles,
   SlidersHorizontal,
-  Type,
 } from 'lucide-react'
 import { RightToolPanel } from '@/ui/common/RightToolPanel'
 import {
@@ -32,15 +30,12 @@ interface MiddleToolsInspectorProps {
   onSelectSection: (section: ToolSection | null) => void
   onCollapse: () => void
   hasSelectedClip?: boolean
-  onShowClipInspector?: () => void
 }
 
 export function MiddleToolsInspector({
   section,
   onSelectSection,
   onCollapse,
-  hasSelectedClip,
-  onShowClipInspector,
 }: MiddleToolsInspectorProps) {
   const [search, setSearch] = React.useState('')
   const [activeCategory, setActiveCategory] = React.useState<ToolCategory>('all')
@@ -66,30 +61,9 @@ export function MiddleToolsInspector({
     const CurrentIcon = currentMeta?.icon || Sparkles
     return (
       <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-        {/* Top Master Switcher Bar */}
-        <div className="border-b bg-muted/20 px-3 py-2 space-y-2 shrink-0">
-          {hasSelectedClip && onShowClipInspector && (
-            <div className="flex items-center rounded-lg bg-muted/60 p-0.5 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={onShowClipInspector}
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-center text-muted-foreground hover:text-foreground hover:bg-background/40 transition-all text-[11px]"
-                title="Switch to detailed clip properties"
-              >
-                <SlidersHorizontal className="size-3" />
-                Clip Properties
-              </button>
-              <button
-                type="button"
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-card py-1 text-center text-violet-600 dark:text-violet-400 font-bold shadow-xs transition-colors text-[11px]"
-              >
-                {section === 'text' ? <Type className="size-3 text-violet-500" /> : <Sparkles className="size-3 text-violet-500" />}
-                {section === 'text' ? 'Text Presets' : (currentMeta?.label || 'Middle Tools')}
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-1.5 min-w-0">
+        {/* Section header: quick-switch dropdown + back-to-hub */}
+        <div className="border-b bg-muted/20 px-3 py-2 shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             {/* Quick Switch Dropdown */}
             <div className="flex-1 min-w-0">
               <Select
@@ -124,22 +98,10 @@ export function MiddleToolsInspector({
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0 gap-1 rounded-md"
               onClick={() => onSelectSection(null)}
-              title="Browse all 16 middle tools"
+              title="Browse all tools"
             >
               <LayoutGrid className="size-3.5" />
               <span className="hidden sm:inline text-[11px]">All Tools</span>
-            </Button>
-
-            {/* Collapse Panel Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 rounded-lg text-muted-foreground hover:text-foreground shrink-0"
-              onClick={onCollapse}
-              title="Collapse inspector"
-              aria-label="Collapse inspector"
-            >
-              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -158,49 +120,16 @@ export function MiddleToolsInspector({
   // Otherwise, render the Middle Tools Directory Hub
   return (
     <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-      {/* Header */}
-      <div className="border-b bg-muted/20 px-3 py-2.5 space-y-2.5 shrink-0">
-        {hasSelectedClip && onShowClipInspector && (
-          <div className="flex items-center rounded-lg bg-muted/60 p-0.5 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={onShowClipInspector}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-center text-muted-foreground hover:text-foreground hover:bg-background/40 transition-all text-[11px]"
-              title="Switch to detailed clip properties"
-            >
-              <SlidersHorizontal className="size-3" />
-              Clip Properties
-            </button>
-            <button
-              type="button"
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-card py-1 text-center text-violet-600 dark:text-violet-400 font-bold shadow-xs transition-colors text-[11px]"
-            >
-              <Sparkles className="size-3 text-violet-500" />
-              Middle Tools
-            </button>
+      {/* Search header */}
+      <div className="border-b bg-muted/20 px-3 py-2.5 space-y-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold">
+            <SlidersHorizontal className="size-3.5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-xs font-bold text-foreground truncate">Middle Tools Inspector</h3>
+            <p className="text-[10px] text-muted-foreground truncate">16 creative tools &amp; studio inspectors</p>
           </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold">
-              <SlidersHorizontal className="size-3.5" />
-            </span>
-            <div className="min-w-0">
-              <h3 className="text-xs font-bold text-foreground truncate">Middle Tools Inspector</h3>
-              <p className="text-[10px] text-muted-foreground truncate">16 creative tools & studio inspectors</p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 rounded-lg text-muted-foreground hover:text-foreground shrink-0"
-            onClick={onCollapse}
-            title="Collapse inspector"
-            aria-label="Collapse inspector"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
         </div>
 
         {/* Search */}

@@ -16,7 +16,6 @@ import {
   Scissors,
   ScrollText,
   Slice,
-  SlidersHorizontal,
   Smile,
   Sparkles,
   Trash2,
@@ -153,17 +152,6 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const denoiseAction = useDenoiseAction()
   const playhead = useTimelineStore((s) => s.playhead)
   const assets = useTimelineStore((s) => s.assets)
-
-  const isSelectedClipText = React.useMemo(() => {
-    if (selection.clipIds.length !== 1) return false
-    const id = selection.clipIds[0]
-    for (const t of project.tracks) {
-      const clip = t.clips.find((c) => c.id === id)
-      if (clip) return Boolean(clip.text)
-    }
-    return false
-  }, [selection.clipIds, project.tracks])
-
   const [dragActive, setDragActive] = React.useState(false)
   const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
   const trimMode = useEditorStore((s) => s.trimMode)
@@ -625,69 +613,12 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
 
         {/* Core Timeline Tools & Generators */}
         <ToolbarButton
-          label={
-            isSelectedClipText
-              ? inspectorOpen && toolPanelSection === 'text'
-                ? 'Switch to Clip Properties (T)'
-                : 'Switch to Text Presets (T)'
-              : 'Text & Titles Studio (T)'
-          }
+          label="Text & Titles Studio (T)"
           active={inspectorOpen && toolPanelSection === 'text'}
-          onClick={() => {
-            if (isSelectedClipText) {
-              if (inspectorOpen && toolPanelSection === 'text') {
-                useEditorStore.getState().setToolPanelSection(null)
-              } else {
-                useEditorStore.getState().setToolPanelSection('text')
-                if (!inspectorOpen) useEditorStore.getState().toggleInspector()
-              }
-            } else {
-              onOpenTool?.('text')
-            }
-          }}
+          onClick={() => onOpenTool?.('text')}
         >
           <Type className="size-4 text-amber-400" />
         </ToolbarButton>
-
-        {/* Quick segmented switcher when a text clip is selected */}
-        {isSelectedClipText && (
-          <div className="flex items-center rounded-md bg-muted/60 p-0.5 text-[10px] font-semibold border border-border/50 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                useEditorStore.getState().setToolPanelSection(null)
-                if (!inspectorOpen) useEditorStore.getState().toggleInspector()
-              }}
-              className={cn(
-                'flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors',
-                inspectorOpen && !toolPanelSection
-                  ? 'bg-violet-600 text-white font-bold shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
-              )}
-              title="View text clip properties (style, transform, animations)"
-            >
-              <SlidersHorizontal className="size-3" />
-              Props
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                useEditorStore.getState().setToolPanelSection('text')
-                if (!inspectorOpen) useEditorStore.getState().toggleInspector()
-              }}
-              className={cn(
-                'flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors',
-                inspectorOpen && toolPanelSection === 'text'
-                  ? 'bg-violet-600 text-white font-bold shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
-              )}
-              title="View typography presets & quick insert"
-            >
-              <Type className="size-3" />
-              Presets
-            </button>
-          </div>
-        )}
         <ToolbarButton
           label="Auto Captions (C)"
           active={inspectorOpen && toolPanelSection === 'captions'}

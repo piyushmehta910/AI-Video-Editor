@@ -1,6 +1,5 @@
 import * as React from 'react'
 import {
-  ChevronRight,
   Clapperboard,
   Music,
   Sparkles,
@@ -11,7 +10,6 @@ import {
   VolumeX,
   RotateCcw,
   Trash2,
-  SlidersHorizontal,
 } from 'lucide-react'
 import type { Clip, TrackType } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
@@ -40,16 +38,7 @@ const TYPE_META: Record<TrackType, { label: string; icon: typeof Clapperboard; c
  * Right-rail inspector: collapsible property sections for the selected clip.
  * All edits apply in real time; slider drags collapse into single undo steps.
  */
-export function InspectorPanel({
-  onCollapse,
-  onOpenMiddleTools,
-  middleToolLabel,
-}: {
-  onOpenMedia?: () => void
-  onCollapse?: () => void
-  onOpenMiddleTools?: () => void
-  middleToolLabel?: string
-}) {
+export function InspectorPanel() {
   const insp = useInspector()
   const target = insp.target
   const clip = target?.clip
@@ -66,12 +55,9 @@ export function InspectorPanel({
   if (selection.clipIds.length > 1) {
     return (
       <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-        <PanelHeader
-          title={`Multi-Clip Inspector (${selection.clipIds.length})`}
-          onCollapse={onCollapse}
-          onOpenMiddleTools={onOpenMiddleTools}
-          middleToolLabel={middleToolLabel}
-        />
+        <div className="flex h-9 shrink-0 items-center px-3 border-b bg-muted/20">
+          <span className="text-xs font-bold text-foreground">{selection.clipIds.length} Clips Selected</span>
+        </div>
         <MultiClipInspector />
       </div>
     )
@@ -80,12 +66,6 @@ export function InspectorPanel({
   if (!target || !clip) {
     return (
       <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-        <PanelHeader
-          title="Inspector"
-          onCollapse={onCollapse}
-          onOpenMiddleTools={onOpenMiddleTools}
-          middleToolLabel={middleToolLabel}
-        />
         <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-muted-foreground">
           <p className="text-xs font-semibold text-foreground">No Clip Selected</p>
           <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
@@ -130,12 +110,6 @@ export function InspectorPanel({
 
   return (
     <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-      <PanelHeader
-        title={insp.selectionCount > 1 ? `${insp.selectionCount} clips selected` : 'Inspector'}
-        onCollapse={onCollapse}
-        onOpenMiddleTools={onOpenMiddleTools}
-        middleToolLabel={middleToolLabel}
-      />
 
       {/* Clip Info Header */}
       <div className="border-b border-border/80 px-3 py-2.5 space-y-2 bg-muted/15">
@@ -315,56 +289,3 @@ function MultiSelectEdits() {
   )
 }
 
-function PanelHeader({
-  title,
-  onCollapse,
-  onOpenMiddleTools,
-  middleToolLabel = 'Middle Tools',
-}: {
-  title: string
-  onCollapse?: () => void
-  onOpenMiddleTools?: () => void
-  middleToolLabel?: string
-}) {
-  const isTextTool = middleToolLabel.toLowerCase().includes('text')
-  const ToolIcon = isTextTool ? Type : Sparkles
-
-  return (
-    <div className="flex h-10 shrink-0 items-center justify-between border-b px-3 bg-muted/20 gap-2">
-      {onOpenMiddleTools ? (
-        <div className="flex items-center rounded-lg bg-muted/60 p-0.5 text-xs font-semibold">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1 text-violet-600 dark:text-violet-400 font-bold shadow-xs text-[11px]"
-          >
-            <SlidersHorizontal className="size-3" />
-            Clip Properties
-          </button>
-          <button
-            type="button"
-            onClick={onOpenMiddleTools}
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground hover:bg-background/40 text-[11px] transition-all"
-            title={`Switch to ${middleToolLabel}`}
-          >
-            <ToolIcon className="size-3" />
-            {middleToolLabel}
-          </button>
-        </div>
-      ) : (
-        <span className="text-foreground min-w-0 truncate text-xs font-bold tracking-wider uppercase">{title}</span>
-      )}
-      {onCollapse && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onCollapse}
-          className="size-7 text-muted-foreground hover:text-foreground rounded-lg ml-auto shrink-0"
-          title="Collapse right panel"
-          aria-label="Collapse right panel"
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      )}
-    </div>
-  )
-}

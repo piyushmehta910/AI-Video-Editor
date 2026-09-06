@@ -212,7 +212,7 @@ export function EditorPage() {
 
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   {mobilePanel === 'media' && <MediaBrowser />}
-                  {mobilePanel === 'inspector' && <InspectorPanel onCollapse={() => setMobilePanel(null)} />}
+                  {mobilePanel === 'inspector' && <InspectorPanel />}
                   {mobilePanel === 'tools' && (
                     <RightToolPanel
                       section={mobileToolSection}

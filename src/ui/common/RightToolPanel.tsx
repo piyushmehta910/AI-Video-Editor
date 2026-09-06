@@ -83,7 +83,6 @@ const CREATOR_STYLE_ICON_MAP: Record<string, React.ComponentType<{ className?: s
 }
 
 import { useTimelineStore } from '@/stores/timelineStore'
-import { useEditorStore } from '@/stores/editorStore'
 import { useApiConfigStore } from '@/api/config/store'
 import type { Clip, Effect, EffectType, TextOverlay } from '@/engine/types'
 import { loadGoogleFont, GOOGLE_FONTS } from '@/lib/fonts'
@@ -3217,36 +3216,6 @@ function TextSection() {
         <SectionNotice kind={notice.kind} text={notice.text} />
       )}
 
-      {/* Selected Text Clip Banner: 1-click switch to full Clip Properties */}
-      {isTextSelected && selectedClip?.text && (
-        <div className="flex items-center justify-between rounded-xl border border-violet-500/40 bg-violet-500/15 p-2.5 shadow-xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-violet-600/30 text-violet-300">
-              <Type className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400">Selected Clip</span>
-                <span className="text-[10px] font-mono text-muted-foreground">({selectedClip.duration.toFixed(1)}s)</span>
-              </div>
-              <p className="text-xs font-semibold text-foreground truncate">
-                &ldquo;{selectedClip.text.text || selectedClip.name}&rdquo;
-              </p>
-            </div>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => useEditorStore.getState().setToolPanelSection(null)}
-            className="h-7 shrink-0 text-[11px] font-bold bg-violet-600 hover:bg-violet-500 text-white gap-1 shadow-xs ml-2"
-            title="Switch to full Clip Properties (Inspector)"
-          >
-            <SlidersHorizontal className="size-3" />
-            Properties ➔
-          </Button>
-        </div>
-      )}
-
       {/* Quick Insert Input */}
       <div className="space-y-2 rounded-xl border border-border/80 bg-card/60 p-3 shadow-xs">
         <div className="flex items-center justify-between">
@@ -3306,20 +3275,9 @@ function TextSection() {
               <Pencil className="size-3.5 text-violet-400" />
               Adjust Selected Text
             </span>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] text-violet-300 bg-violet-500/20 px-1.5 py-0.5 rounded">
-                {selectedClip.startTime.toFixed(1)}s – {(selectedClip.startTime + selectedClip.duration).toFixed(1)}s
-              </span>
-              <button
-                type="button"
-                onClick={() => useEditorStore.getState().setToolPanelSection(null)}
-                className="flex items-center gap-1 text-[10px] font-bold text-violet-400 hover:text-violet-200 transition-colors"
-                title="Open full inspector for position, keyframes, shadows and animations"
-              >
-                <SlidersHorizontal className="size-3" />
-                Full Inspector ➔
-              </button>
-            </div>
+            <span className="font-mono text-[10px] text-violet-300 bg-violet-500/20 px-1.5 py-0.5 rounded">
+              {selectedClip.startTime.toFixed(1)}s – {(selectedClip.startTime + selectedClip.duration).toFixed(1)}s
+            </span>
           </div>
 
           {/* Text content */}
