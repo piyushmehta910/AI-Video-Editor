@@ -112,6 +112,7 @@ export function MobileActionBar({
   }
 
   const propertiesActive = activeDrawer === 'inspector' && rightPanelTab === 'properties'
+  const isStandardTool = Boolean(toolPanelSection && ['text', 'captions', 'voiceover', 'audio', 'effects', 'transitions'].includes(toolPanelSection))
 
   return (
     <div
@@ -211,7 +212,7 @@ export function MobileActionBar({
             icon={LayoutGrid}
             label="Tools"
             iconColor="text-indigo-400"
-            active={activeDrawer === 'tools' && !['text','captions','voiceover','audio','effects','transitions'].includes(toolPanelSection)}
+            active={activeDrawer === 'tools' && !isStandardTool}
             onClick={() => onOpenDrawer(activeDrawer === 'tools' ? null : 'tools')}
           />
         </div>
