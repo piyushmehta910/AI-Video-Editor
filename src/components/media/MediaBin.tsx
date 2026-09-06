@@ -185,7 +185,7 @@ export function MediaBin() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-card/40 select-none" data-testid="media-bin">
+    <div className="@container flex h-full w-full flex-col bg-card/40 select-none" data-testid="media-bin">
       <DragPreviewLayer />
 
       {/* ── 1. Top Buttons & Tabs ── */}
@@ -210,11 +210,16 @@ export function MediaBin() {
             size="sm"
             disabled={importing}
             onClick={() => fileInputRef.current?.click()}
-            className="h-8 gap-1.5 text-xs font-semibold hover:bg-violet-500/10 hover:border-violet-500/50 hover:text-violet-600 dark:hover:text-violet-300 transition"
+            className="h-8 min-w-0 gap-1.5 px-2 @[260px]:px-3 text-xs font-semibold hover:bg-violet-500/10 hover:border-violet-500/50 hover:text-violet-600 dark:hover:text-violet-300 transition"
             data-testid="import-button"
+            title="Import video, audio, or image files"
           >
-            {importing ? <LoaderCircle className="size-3.5 animate-spin text-violet-500" /> : <FolderUp className="size-3.5 text-violet-500" />}
-            Import
+            {importing ? (
+              <LoaderCircle className="size-3.5 shrink-0 animate-spin text-violet-500" />
+            ) : (
+              <FolderUp className="size-3.5 shrink-0 text-violet-500" />
+            )}
+            <span className="truncate">Import</span>
           </Button>
 
           <Button
@@ -224,15 +229,18 @@ export function MediaBin() {
             disabled={recording !== null}
             onClick={() => void startRecording('webcam')}
             className={cn(
-              'h-8 gap-1.5 text-xs font-semibold transition',
+              'h-8 min-w-0 gap-1.5 px-2 @[260px]:px-3 text-xs font-semibold transition',
               recording === 'webcam'
                 ? 'border-red-500 bg-red-500/15 text-red-500 animate-pulse'
                 : 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-500',
             )}
             data-testid="record-video-button"
+            title="Record webcam video directly into project"
           >
-            <Video className="size-3.5 text-red-500" />
-            Record Video
+            <Video className="size-3.5 shrink-0 text-red-500" />
+            <span className="truncate">
+              Record<span className="hidden @[260px]:inline"> Video</span>
+            </span>
           </Button>
         </div>
 
@@ -246,19 +254,30 @@ export function MediaBin() {
                 key={value}
                 type="button"
                 onClick={() => setTab(value)}
+                title={label}
                 className={cn(
-                  'flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-semibold transition',
+                  'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-1.5 @[260px]:px-2.5 py-1.5 text-[11px] font-semibold transition',
                   active
                     ? 'bg-card text-violet-700 dark:text-violet-300 shadow-xs ring-1 ring-border/50'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {icon}
-                <span className="truncate">{label}</span>
+                <span className="shrink-0">{icon}</span>
+                <span className="truncate min-w-0">
+                  {value === 'media' ? (
+                    <>
+                      <span className="hidden @[270px]:inline">Project </span>Media
+                    </>
+                  ) : (
+                    <>
+                      Stock<span className="hidden @[270px]:inline"> Search</span>
+                    </>
+                  )}
+                </span>
                 {value === 'media' && count > 0 && (
                   <span
                     className={cn(
-                      'rounded-full px-1.5 py-0.2 text-[9px] font-mono',
+                      'shrink-0 rounded-full px-1.5 py-0.2 text-[9px] font-mono',
                       active ? 'bg-violet-500/20 text-violet-400' : 'bg-muted text-muted-foreground',
                     )}
                   >
@@ -295,7 +314,7 @@ export function MediaBin() {
                 )}
               </div>
 
-              <div className="flex overflow-hidden rounded-md border bg-muted/30 p-0.5">
+              <div className="flex shrink-0 overflow-hidden rounded-md border bg-muted/30 p-0.5">
                 <button
                   onClick={() => setView('grid')}
                   title="Grid view"
@@ -339,29 +358,30 @@ export function MediaBin() {
                 }
               }}
               className={cn(
-                'flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-3.5 px-3 text-xs font-medium transition-all duration-150 cursor-pointer shadow-xs select-none',
+                'flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-2.5 @[260px]:py-3.5 px-2 @[260px]:px-3 text-xs font-medium transition-all duration-150 cursor-pointer shadow-xs select-none',
                 browseDragOver
                   ? 'border-violet-500 bg-violet-500/15 text-violet-300 scale-[1.01] ring-2 ring-violet-500/30'
                   : 'border-border/80 bg-muted/20 text-muted-foreground hover:border-violet-500/60 hover:bg-violet-500/5 hover:text-foreground',
               )}
               data-testid="browse-files-button"
+              title="Click to browse files or drag and drop media files here"
             >
               <div
                 className={cn(
-                  'flex size-8 items-center justify-center rounded-lg transition-colors',
+                  'flex size-7 @[260px]:size-8 items-center justify-center rounded-lg transition-colors',
                   browseDragOver
                     ? 'bg-violet-500/20 text-violet-400'
                     : 'bg-violet-500/10 text-violet-500',
                 )}
               >
-                <UploadCloud className={cn('size-4 transition-transform', browseDragOver && 'scale-110')} />
+                <UploadCloud className={cn('size-3.5 @[260px]:size-4 transition-transform', browseDragOver && 'scale-110')} />
               </div>
-              <div className="flex items-center gap-1 text-[11px]">
+              <div className="flex flex-wrap items-center justify-center gap-x-1 text-[11px] text-center">
                 <span className="font-semibold text-foreground">
                   {browseDragOver ? 'Drop files to import' : 'Browse files'}
                 </span>
                 {!browseDragOver && (
-                  <span className="text-muted-foreground">or drag here</span>
+                  <span className="text-muted-foreground hidden @[230px]:inline">or drag here</span>
                 )}
               </div>
             </button>
@@ -520,7 +540,7 @@ export function MediaBin() {
             itemHeight={140}
             itemKey={(a) => a.id}
             className="relative"
-            innerClassName="grid grid-cols-2 gap-2 px-0"
+            innerClassName="grid grid-cols-1 @[240px]:grid-cols-2 @[380px]:grid-cols-3 gap-2 px-0"
             emptyState={null}
             renderItem={(asset) => (
               <MediaItem

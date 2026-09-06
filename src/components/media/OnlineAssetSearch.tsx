@@ -381,7 +381,7 @@ export function OnlineAssetSearch() {
   )
 
   return (
-    <div className="flex h-full flex-col text-xs">
+    <div className="@container flex h-full flex-col text-xs">
       {/* Hidden audio element for previewing music */}
       <audio
         ref={audioRef}
@@ -498,7 +498,7 @@ export function OnlineAssetSearch() {
                       {videoResults.length}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 @[240px]:grid-cols-2 @[380px]:grid-cols-3 gap-2">
                     {videoResults.map(renderItemCard)}
                   </div>
                 </div>
@@ -514,7 +514,7 @@ export function OnlineAssetSearch() {
                       {imageResults.length}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 @[240px]:grid-cols-2 @[380px]:grid-cols-3 gap-2">
                     {imageResults.map(renderItemCard)}
                   </div>
                 </div>
@@ -530,7 +530,7 @@ export function OnlineAssetSearch() {
                       {musicResults.length}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 @[240px]:grid-cols-2 @[380px]:grid-cols-3 gap-2">
                     {musicResults.map(renderItemCard)}
                   </div>
                 </div>
@@ -546,7 +546,7 @@ export function OnlineAssetSearch() {
                       {stickerResults.length}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 @[240px]:grid-cols-2 @[380px]:grid-cols-3 gap-2">
                     {stickerResults.map(renderItemCard)}
                   </div>
                 </div>
@@ -554,7 +554,7 @@ export function OnlineAssetSearch() {
             </div>
           ) : (
             /* Single Category Grid View */
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 @[240px]:grid-cols-2 @[380px]:grid-cols-3 gap-2">
               {results.map(renderItemCard)}
             </div>
           )
