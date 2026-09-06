@@ -3216,8 +3216,6 @@ function TextSection() {
     }
   }, [project.tracks, playhead, customTextDraft, addTextClip])
 
-  const sampleChips = ['VIRAL HOOK', 'BREAKING NEWS', 'SUMMER SALE', 'DON\'T MISS THIS', 'TOP 10 TIPS']
-
   return (
     <div className="space-y-4 p-3 text-xs">
       {notice && (
@@ -3272,60 +3270,6 @@ function TextSection() {
             <Plus className="size-3.5" />
             Add
           </Button>
-        </div>
-
-        {/* Quick Sample Suggestions */}
-        <div className="flex flex-wrap items-center gap-1 pt-0.5">
-          <span className="text-[9px] text-muted-foreground mr-0.5 font-medium">Ideas:</span>
-          {sampleChips.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => setCustomTextDraft((prev) => (prev === chip ? '' : chip))}
-              className={cn(
-                'rounded px-1.5 py-0.5 text-[9px] font-mono transition border',
-                customTextDraft.trim().toUpperCase() === chip
-                  ? 'border-violet-500/50 bg-violet-500/20 text-violet-300'
-                  : 'border-border/50 bg-muted/40 text-muted-foreground hover:text-foreground hover:border-border',
-              )}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-
-        {/* Live Typography Preview Callout */}
-        <div className="rounded-lg border border-violet-500/30 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-transparent p-2.5 space-y-1">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="font-semibold text-violet-400 flex items-center gap-1">
-              <Sparkles className="size-3" /> Live Typography Preview
-            </span>
-            <span className="text-[9px] text-muted-foreground">
-              {customTextDraft.trim() ? (
-                <span className="text-emerald-400 font-medium">Custom text active below</span>
-              ) : (
-                'Type above to customize presets below'
-              )}
-            </span>
-          </div>
-          <div className="flex items-center justify-center rounded-md bg-black/50 border border-white/10 p-2.5 min-h-[42px] text-center overflow-hidden">
-            <span
-              className={cn(
-                'text-sm tracking-wide truncate max-w-full select-none',
-                customTextDraft.trim() ? 'font-bold text-white' : 'font-normal text-muted-foreground italic text-xs',
-              )}
-              style={
-                customTextDraft.trim()
-                  ? {
-                      fontFamily: 'Inter',
-                      textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-                    }
-                  : undefined
-              }
-            >
-              {customTextDraft.trim() || 'Type text above to preview your message in all 14 presets'}
-            </span>
-          </div>
         </div>
       </div>
 
