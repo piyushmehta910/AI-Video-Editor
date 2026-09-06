@@ -12,7 +12,7 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react'
-import type { Clip, TextOverlay, TrackType } from '@/engine/types'
+import type { Clip, TrackType } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useInspector } from '@/hooks/useInspector'
@@ -33,27 +33,6 @@ const TYPE_META: Record<TrackType, { label: string; icon: typeof Clapperboard; c
   audio: { label: 'Audio', icon: Music, className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
   text: { label: 'Text', icon: Type, className: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' },
   fx: { label: 'FX', icon: Sparkles, className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400' },
-}
-
-function defaultTextOverlay(): TextOverlay {
-  return {
-    text: 'Your text here',
-    fontSize: 48,
-    fontFamily: 'sans-serif',
-    fontWeight: 'bold',
-    fontStyle: 'normal',
-    color: '#ffffff',
-    backgroundColor: 'transparent',
-    textAlign: 'center',
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingLeft: 16,
-    paddingRight: 16,
-    borderRadius: 0,
-    shadow: true,
-    animation: 'none',
-    animationDuration: 1,
-  }
 }
 
 /**
@@ -79,14 +58,6 @@ export function InspectorPanel({
   const updateClip = useTimelineStore((s) => s.updateClip)
 
   const [activeTab, setActiveTab] = React.useState<string>('all')
-
-  // Text-track clips always carry an overlay so the Text section is editable.
-  React.useEffect(() => {
-    if (!target || target.track.type !== 'text') return
-    if (!target.clip.text) {
-      useTimelineStore.getState().updateClip(target.clip.id, { text: defaultTextOverlay() })
-    }
-  }, [target])
 
   // Multi-selection mode
   if (selection.clipIds.length > 1) {
@@ -272,7 +243,9 @@ export function InspectorPanel({
           {(activeTab === 'all' || activeTab === 'transform') && target.track.type !== 'audio' && (
             <TransformSection insp={insp} />
           )}
-          {(activeTab === 'all' || activeTab === 'text') && <TextSection insp={insp} />}
+          {((activeTab === 'all' && (clip.text || target.track.type === 'text')) || activeTab === 'text') && (
+            <TextSection insp={insp} showAddPrompt={activeTab === 'text' || target.track.type === 'text'} />
+          )}
           {(activeTab === 'all' || activeTab === 'appearance') && <AppearanceSection insp={insp} />}
           {(activeTab === 'all' || activeTab === 'audio') && <AudioSection insp={insp} />}
           {(activeTab === 'all' || activeTab === 'effects') && <EffectsSection insp={insp} />}

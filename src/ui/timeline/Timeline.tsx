@@ -302,6 +302,9 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
 
     // Active mouse tools act on pointer-down instead of dragging.
     const activeTool = useEditorStore.getState().tool
+    if (activeTool === 'text') {
+      useEditorStore.getState().setTool('select')
+    }
     if (mode === 'move' && (activeTool === 'razor' || activeTool === 'rate')) {
       const vp = viewportRef.current
       if (vp) {

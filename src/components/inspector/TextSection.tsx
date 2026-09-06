@@ -66,7 +66,13 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
-export function TextSection({ insp }: { insp: InspectorApi }) {
+export function TextSection({
+  insp,
+  showAddPrompt,
+}: {
+  insp: InspectorApi
+  showAddPrompt?: boolean
+}) {
   const target = insp.target!
   const clip = target.clip
   const t: TextOverlay | undefined = clip.text
@@ -86,7 +92,50 @@ export function TextSection({ insp }: { insp: InspectorApi }) {
     }
   }, [t?.fontFamily])
 
-  if (!t) return null
+  if (!t) {
+    if (showAddPrompt) {
+      return (
+        <Section title="Text & Typography">
+          <div className="flex flex-col items-center justify-center p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-3">No text overlay on this clip</p>
+            <button
+              type="button"
+              onClick={() =>
+                insp.batched(
+                  {
+                    text: {
+                      text: 'Your text here',
+                      fontSize: 48,
+                      fontFamily: 'sans-serif',
+                      fontWeight: 'bold',
+                      fontStyle: 'normal',
+                      color: '#ffffff',
+                      backgroundColor: 'transparent',
+                      textAlign: 'center',
+                      paddingTop: 8,
+                      paddingBottom: 8,
+                      paddingLeft: 16,
+                      paddingRight: 16,
+                      borderRadius: 0,
+                      shadow: true,
+                      animation: 'none',
+                      animationDuration: 1,
+                    },
+                  },
+                  'Add text overlay',
+                )
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 shadow-xs transition"
+            >
+              <Type className="size-3.5" />
+              Add Text Overlay
+            </button>
+          </div>
+        </Section>
+      )
+    }
+    return null
+  }
 
   const setText = (patch: Partial<TextOverlay>, label = `Edited text of '${clip.name}'`) =>
     insp.batched({ text: { ...t, ...patch } }, label)

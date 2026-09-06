@@ -3065,6 +3065,8 @@ function TextSection() {
   React.useEffect(() => {
     if (selectedClip && selectedClip.text) {
       activeTextClipIdRef.current = selectedClip.id
+    } else if (selectedClip && !selectedClip.text) {
+      activeTextClipIdRef.current = null
     }
   }, [selectedClip])
 
