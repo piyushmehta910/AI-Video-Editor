@@ -3054,7 +3054,6 @@ function TextSection() {
     return null
   }, [selectedClipId, project.tracks])
 
-  const [category, setCategory] = React.useState<string>('All')
   // Empty by default so preset cards show their own default preset text until user types
   const [customTextDraft, setCustomTextDraft] = React.useState('')
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
@@ -3068,13 +3067,6 @@ function TextSection() {
       activeTextClipIdRef.current = selectedClip.id
     }
   }, [selectedClip])
-
-  const categories = ['All', 'Essential', 'Viral & Hooks', 'Badges', 'Cinematic', 'Stylized', 'Narrative']
-
-  const filteredPresets = React.useMemo(() => {
-    if (category === 'All') return TEXT_TYPOGRAPHY_PRESETS
-    return TEXT_TYPOGRAPHY_PRESETS.filter((p) => p.category === category)
-  }, [category])
 
   // Preload top Google Fonts on mount
   React.useEffect(() => {
@@ -3401,34 +3393,16 @@ function TextSection() {
         </div>
       )}
 
-      {/* Preset Categories */}
+      {/* Typography Presets */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-bold text-foreground">Typography Presets</Label>
-          <span className="text-[10px] text-muted-foreground font-mono">{filteredPresets.length} styles</span>
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setCategory(cat)}
-              className={cn(
-                'rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition',
-                category === cat
-                  ? 'border-violet-500 bg-violet-500/20 text-violet-300 font-bold shadow-xs'
-                  : 'border-border/60 text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {cat}
-            </button>
-          ))}
+          <span className="text-[10px] text-muted-foreground font-mono">{TEXT_TYPOGRAPHY_PRESETS.length} styles</span>
         </div>
 
         {/* Preset Cards Grid with Dynamic Real-Time Custom Text Preview */}
         <div className="space-y-2 pt-1">
-          {filteredPresets.map((preset) => {
+          {TEXT_TYPOGRAPHY_PRESETS.map((preset) => {
             // Default to preset.text, but immediately update to custom entered text as user types
             const displayPreviewText = customTextDraft.trim() || preset.text
 
