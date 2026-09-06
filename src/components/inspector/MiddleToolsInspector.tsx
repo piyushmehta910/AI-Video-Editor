@@ -5,6 +5,7 @@ import {
   Search,
   Sparkles,
   SlidersHorizontal,
+  Type,
 } from 'lucide-react'
 import { RightToolPanel } from '@/ui/common/RightToolPanel'
 import {
@@ -72,15 +73,18 @@ export function MiddleToolsInspector({
               <button
                 type="button"
                 onClick={onShowClipInspector}
-                className="flex-1 rounded-md py-1 text-center text-muted-foreground hover:text-foreground transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-center text-muted-foreground hover:text-foreground hover:bg-background/40 transition-all text-[11px]"
+                title="Switch to detailed clip properties"
               >
+                <SlidersHorizontal className="size-3" />
                 Clip Properties
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-md bg-card py-1 text-center text-violet-600 dark:text-violet-400 font-bold shadow-xs transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-card py-1 text-center text-violet-600 dark:text-violet-400 font-bold shadow-xs transition-colors text-[11px]"
               >
-                Middle Tools
+                {section === 'text' ? <Type className="size-3 text-violet-500" /> : <Sparkles className="size-3 text-violet-500" />}
+                {section === 'text' ? 'Text Presets' : (currentMeta?.label || 'Middle Tools')}
               </button>
             </div>
           )}
@@ -161,14 +165,17 @@ export function MiddleToolsInspector({
             <button
               type="button"
               onClick={onShowClipInspector}
-              className="flex-1 rounded-md py-1 text-center text-muted-foreground hover:text-foreground transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-md py-1 text-center text-muted-foreground hover:text-foreground hover:bg-background/40 transition-all text-[11px]"
+              title="Switch to detailed clip properties"
             >
+              <SlidersHorizontal className="size-3" />
               Clip Properties
             </button>
             <button
               type="button"
-              className="flex-1 rounded-md bg-card py-1 text-center text-violet-600 dark:text-violet-400 font-bold shadow-xs transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-card py-1 text-center text-violet-600 dark:text-violet-400 font-bold shadow-xs transition-colors text-[11px]"
             >
+              <Sparkles className="size-3 text-violet-500" />
               Middle Tools
             </button>
           </div>

@@ -54,6 +54,26 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
 
+  const selectionClipIds = useTimelineStore((s) => s.selection.clipIds)
+  const tracks = useTimelineStore((s) => s.project.tracks)
+  const isTextClip = React.useMemo(() => {
+    if (selectionClipIds.length !== 1) return false
+    const id = selectionClipIds[0]
+    for (const t of tracks) {
+      const clip = t.clips.find((c) => c.id === id)
+      if (clip) return Boolean(clip.text)
+    }
+    return false
+  }, [selectionClipIds, tracks])
+
+  const [lastToolSection, setLastToolSection] = React.useState<ToolSection>('text')
+
+  React.useEffect(() => {
+    if (toolPanelSection) {
+      setLastToolSection(toolPanelSection as ToolSection)
+    }
+  }, [toolPanelSection])
+
   const [timelineHeight, setTimelineHeight] = React.useState(() =>
     loadNum('clipforge-timeline-height', DEFAULT_TIMELINE_HEIGHT),
   )
@@ -255,7 +275,10 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
                     ) : hasSelectedClip ? (
                       <InspectorPanel
                         onCollapse={toggleInspector}
-                        onOpenMiddleTools={() => setToolPanelSection(null)}
+                        onOpenMiddleTools={() =>
+                          setToolPanelSection(isTextClip ? 'text' : (lastToolSection || 'text'))
+                        }
+                        middleToolLabel={isTextClip ? 'Text Presets' : 'Middle Tools'}
                       />
                     ) : (
                       <MiddleToolsInspector

@@ -11,6 +11,7 @@ import {
   VolumeX,
   RotateCcw,
   Trash2,
+  SlidersHorizontal,
 } from 'lucide-react'
 import type { Clip, TrackType } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
@@ -42,10 +43,12 @@ const TYPE_META: Record<TrackType, { label: string; icon: typeof Clapperboard; c
 export function InspectorPanel({
   onCollapse,
   onOpenMiddleTools,
+  middleToolLabel,
 }: {
   onOpenMedia?: () => void
   onCollapse?: () => void
   onOpenMiddleTools?: () => void
+  middleToolLabel?: string
 }) {
   const insp = useInspector()
   const target = insp.target
@@ -67,6 +70,7 @@ export function InspectorPanel({
           title={`Multi-Clip Inspector (${selection.clipIds.length})`}
           onCollapse={onCollapse}
           onOpenMiddleTools={onOpenMiddleTools}
+          middleToolLabel={middleToolLabel}
         />
         <MultiClipInspector />
       </div>
@@ -80,6 +84,7 @@ export function InspectorPanel({
           title="Inspector"
           onCollapse={onCollapse}
           onOpenMiddleTools={onOpenMiddleTools}
+          middleToolLabel={middleToolLabel}
         />
         <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-muted-foreground">
           <p className="text-xs font-semibold text-foreground">No Clip Selected</p>
@@ -129,6 +134,7 @@ export function InspectorPanel({
         title={insp.selectionCount > 1 ? `${insp.selectionCount} clips selected` : 'Inspector'}
         onCollapse={onCollapse}
         onOpenMiddleTools={onOpenMiddleTools}
+        middleToolLabel={middleToolLabel}
       />
 
       {/* Clip Info Header */}
@@ -313,27 +319,35 @@ function PanelHeader({
   title,
   onCollapse,
   onOpenMiddleTools,
+  middleToolLabel = 'Middle Tools',
 }: {
   title: string
   onCollapse?: () => void
   onOpenMiddleTools?: () => void
+  middleToolLabel?: string
 }) {
+  const isTextTool = middleToolLabel.toLowerCase().includes('text')
+  const ToolIcon = isTextTool ? Type : Sparkles
+
   return (
     <div className="flex h-10 shrink-0 items-center justify-between border-b px-3 bg-muted/20 gap-2">
       {onOpenMiddleTools ? (
         <div className="flex items-center rounded-lg bg-muted/60 p-0.5 text-xs font-semibold">
           <button
             type="button"
-            className="rounded-md bg-card px-2 py-0.5 text-violet-600 dark:text-violet-400 font-bold shadow-xs text-[11px]"
+            className="flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1 text-violet-600 dark:text-violet-400 font-bold shadow-xs text-[11px]"
           >
+            <SlidersHorizontal className="size-3" />
             Clip Properties
           </button>
           <button
             type="button"
             onClick={onOpenMiddleTools}
-            className="rounded-md px-2 py-0.5 text-muted-foreground hover:text-foreground text-[11px] transition-colors"
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground hover:bg-background/40 text-[11px] transition-all"
+            title={`Switch to ${middleToolLabel}`}
           >
-            Middle Tools
+            <ToolIcon className="size-3" />
+            {middleToolLabel}
           </button>
         </div>
       ) : (

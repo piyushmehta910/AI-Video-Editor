@@ -14,6 +14,7 @@ import {
 import type { TextAnimation, TextOverlay } from '@/engine/types'
 import { TEXT_ANIMATIONS } from '@/engine/types'
 import { useCustomFonts, type InspectorApi } from '@/hooks/useInspector'
+import { useEditorStore } from '@/stores/editorStore'
 import { GOOGLE_FONTS, loadGoogleFont, FONT_CATEGORIES } from '@/lib/fonts'
 import { ColorInput, IconButtonGroup, LabeledSlider, MiniToggle, NumInput, Row, Section } from './controls'
 import { cn } from '@/lib/utils'
@@ -144,6 +145,22 @@ export function TextSection({
 
   return (
     <Section title="Text & Typography">
+      {/* Quick Switch to Typography Presets in Middle Tools */}
+      <button
+        type="button"
+        onClick={() => useEditorStore.getState().setToolPanelSection('text')}
+        className="flex w-full items-center justify-between rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 hover:border-violet-500/50 transition-all group shadow-2xs"
+        title="Open Middle Toolbar Text Presets & Typography Templates"
+      >
+        <span className="flex items-center gap-1.5">
+          <Sparkles className="size-3.5 text-violet-500 shrink-0" />
+          <span className="text-[11px] font-semibold">Browse Typography Presets</span>
+        </span>
+        <span className="text-[10px] font-bold text-violet-500 group-hover:translate-x-0.5 transition-transform">
+          Presets ➔
+        </span>
+      </button>
+
       {/* 1. Content Textarea */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
