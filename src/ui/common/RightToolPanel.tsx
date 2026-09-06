@@ -3042,13 +3042,32 @@ function TextSection() {
   const addTextClip = useTimelineStore((s) => s.addTextClip)
   const updateClip = useTimelineStore((s) => s.updateClip)
   const playhead = useTimelineStore((s) => s.playhead)
-  const selectedClip = getSelectedClip()
+  const selectionClipIds = useTimelineStore((s) => s.selection.clipIds)
+  const selectedClipId = selectionClipIds[0] ?? null
+
+  const selectedClip = React.useMemo(() => {
+    if (!selectedClipId) return null
+    for (const track of project.tracks) {
+      const c = track.clips.find((clip) => clip.id === selectedClipId)
+      if (c) return c
+    }
+    return null
+  }, [selectedClipId, project.tracks])
 
   const [category, setCategory] = React.useState<string>('All')
-  const [customTextDraft, setCustomTextDraft] = React.useState('Your Text Here')
+  // Empty by default so preset cards show their own default preset text until user types
+  const [customTextDraft, setCustomTextDraft] = React.useState('')
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
   const isTextSelected = Boolean(selectedClip && selectedClip.text)
+  const activeTextClipIdRef = React.useRef<string | null>(null)
+
+  // Keep activeTextClipIdRef synchronized whenever a text clip is selected on timeline
+  React.useEffect(() => {
+    if (selectedClip && selectedClip.text) {
+      activeTextClipIdRef.current = selectedClip.id
+    }
+  }, [selectedClip])
 
   const categories = ['All', 'Essential', 'Viral & Hooks', 'Badges', 'Cinematic', 'Stylized', 'Narrative']
 
@@ -3066,7 +3085,7 @@ function TextSection() {
   const isAddingRef = React.useRef<boolean>(false)
 
   const handleApplyPreset = React.useCallback(
-    (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number]) => {
+    (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number], options?: { forceNew?: boolean }) => {
       const now = Date.now()
       if (isAddingRef.current || now - lastAddRef.current < 400) return
       isAddingRef.current = true
@@ -3074,14 +3093,30 @@ function TextSection() {
 
       try {
         loadGoogleFont(preset.fontFamily)
-        const textContent = customTextDraft.trim() || preset.text
 
-        // If a text clip is selected on timeline, apply preset style in-place
-        if (isTextSelected && selectedClip && selectedClip.text) {
-          updateClip(selectedClip.id, {
-            name: textContent.slice(0, 30) || selectedClip.name,
+        // Find existing text clip to update (unless caller explicitly requested forceNew)
+        let targetClip: Clip | null = null
+        if (!options?.forceNew) {
+          if (selectedClip && selectedClip.text) {
+            targetClip = selectedClip
+          } else if (activeTextClipIdRef.current) {
+            for (const track of project.tracks) {
+              const c = track.clips.find((clip) => clip.id === activeTextClipIdRef.current && Boolean(clip.text))
+              if (c) {
+                targetClip = c
+                break
+              }
+            }
+          }
+        }
+
+        // If target text clip exists, update its style in place without adding duplicate clips to the timeline
+        if (targetClip && targetClip.text) {
+          const textContent = customTextDraft.trim() || targetClip.text.text || preset.text
+          updateClip(targetClip.id, {
+            name: textContent.slice(0, 30) || targetClip.name,
             text: {
-              ...selectedClip.text,
+              ...targetClip.text,
               text: textContent,
               fontSize: preset.fontSize,
               fontFamily: preset.fontFamily,
@@ -3104,19 +3139,22 @@ function TextSection() {
               animationDuration: 0.5,
             },
           })
-          setNotice({ kind: 'ok', text: `Applied "${preset.name}" style to selected text` })
+          useTimelineStore.getState().select([targetClip.id], targetClip.trackId)
+          setNotice({ kind: 'ok', text: `Applied "${preset.name}" style` })
           return
         }
 
-        // Otherwise insert a new text clip styled with this preset
+        // Otherwise insert ONE new text clip styled with this preset
         const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks.find((t) => t.type === 'video')
         if (!textTrack) {
           setNotice({ kind: 'error', text: 'No track available for text' })
           return
         }
 
+        const textContent = customTextDraft.trim() || preset.text
         const clip = addTextClip(textContent, textTrack.id, playhead)
         if (clip) {
+          activeTextClipIdRef.current = clip.id
           updateClip(clip.id, {
             text: {
               text: textContent,
@@ -3149,7 +3187,7 @@ function TextSection() {
         }, 400)
       }
     },
-    [project.tracks, playhead, customTextDraft, isTextSelected, selectedClip, updateClip, addTextClip],
+    [project.tracks, playhead, customTextDraft, selectedClip, updateClip, addTextClip],
   )
 
   const handleAddCustomText = React.useCallback(() => {
@@ -3165,9 +3203,10 @@ function TextSection() {
         return
       }
 
-      const textToAdd = customTextDraft.trim() || 'Your Text Here'
+      const textToAdd = customTextDraft.trim() || 'Your Title Here'
       const clip = addTextClip(textToAdd, textTrack.id, playhead)
       if (clip) {
+        activeTextClipIdRef.current = clip.id
         setNotice({ kind: 'ok', text: `Added "${textToAdd.slice(0, 24)}" at ${playhead.toFixed(1)}s` })
       }
     } finally {
@@ -3199,7 +3238,7 @@ function TextSection() {
             <input
               value={customTextDraft}
               onChange={(e) => setCustomTextDraft(e.target.value)}
-              placeholder="Type text overlay..."
+              placeholder="Type custom text to preview styles..."
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -3213,8 +3252,8 @@ function TextSection() {
               <button
                 type="button"
                 onClick={() => setCustomTextDraft('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                title="Clear text"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                title="Clear text (reverts to default preset text)"
               >
                 <X className="size-3.5" />
               </button>
@@ -3242,7 +3281,7 @@ function TextSection() {
             <button
               key={chip}
               type="button"
-              onClick={() => setCustomTextDraft(chip)}
+              onClick={() => setCustomTextDraft((prev) => (prev === chip ? '' : chip))}
               className={cn(
                 'rounded px-1.5 py-0.5 text-[9px] font-mono transition border',
                 customTextDraft.trim().toUpperCase() === chip
@@ -3261,17 +3300,30 @@ function TextSection() {
             <span className="font-semibold text-violet-400 flex items-center gap-1">
               <Sparkles className="size-3" /> Live Typography Preview
             </span>
-            <span className="text-[9px] text-muted-foreground">Showing below across all presets</span>
+            <span className="text-[9px] text-muted-foreground">
+              {customTextDraft.trim() ? (
+                <span className="text-emerald-400 font-medium">Custom text active below</span>
+              ) : (
+                'Type above to customize presets below'
+              )}
+            </span>
           </div>
           <div className="flex items-center justify-center rounded-md bg-black/50 border border-white/10 p-2.5 min-h-[42px] text-center overflow-hidden">
             <span
-              className="text-sm font-bold text-white tracking-wide truncate max-w-full"
-              style={{
-                fontFamily: 'Inter',
-                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-              }}
+              className={cn(
+                'text-sm tracking-wide truncate max-w-full select-none',
+                customTextDraft.trim() ? 'font-bold text-white' : 'font-normal text-muted-foreground italic text-xs',
+              )}
+              style={
+                customTextDraft.trim()
+                  ? {
+                      fontFamily: 'Inter',
+                      textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                    }
+                  : undefined
+              }
             >
-              {customTextDraft.trim() || 'Your Text Here'}
+              {customTextDraft.trim() || 'Type text above to preview your message in all 14 presets'}
             </span>
           </div>
         </div>
@@ -3433,6 +3485,7 @@ function TextSection() {
         {/* Preset Cards Grid with Dynamic Real-Time Custom Text Preview */}
         <div className="space-y-2 pt-1">
           {filteredPresets.map((preset) => {
+            // Default to preset.text, but immediately update to custom entered text as user types
             const displayPreviewText = customTextDraft.trim() || preset.text
 
             return (
@@ -3462,15 +3515,15 @@ function TextSection() {
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      handleApplyPreset(preset)
+                      handleApplyPreset(preset, { forceNew: true })
                     }}
-                    title={isTextSelected ? 'Apply Style to Selected Clip' : 'Insert at Playhead'}
+                    title="Insert New Clip at Playhead"
                   >
                     <Plus className="size-4" />
                   </Button>
                 </div>
 
-                {/* Visual typography preview card dynamically rendering custom text */}
+                {/* Visual typography preview card dynamically rendering custom text or default preset text */}
                 <div
                   className="mt-2.5 flex items-center justify-center rounded-lg border border-border/40 p-3 text-center overflow-hidden transition-colors group-hover:border-violet-500/40"
                   style={{
