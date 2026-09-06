@@ -81,30 +81,32 @@ export function RightPanelContainer() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md select-none">
+    <div className="@container flex h-full w-full flex-col bg-card/60 backdrop-blur-md select-none">
       {/* ─── Top Segmented Control Header (Exact Mockup Match) ─── */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b px-2.5 bg-card/90 dark:bg-zinc-950/60 gap-2">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b px-2 @[310px]:px-2.5 bg-card/90 dark:bg-zinc-950/60 gap-1.5 @[310px]:gap-2">
         {/* Segmented Pill Container */}
-        <div className="inline-flex items-center rounded-xl bg-zinc-900/90 dark:bg-zinc-900/90 border border-border/40 p-1 text-xs font-semibold shadow-inner">
+        <div className="inline-flex items-center rounded-xl bg-zinc-900/90 dark:bg-zinc-900/90 border border-border/40 p-0.5 @[310px]:p-1 text-xs font-semibold shadow-inner min-w-0">
           {/* Tab 1: Clip Properties */}
           <button
             type="button"
             onClick={() => setRightPanelTab('properties')}
             className={cn(
-              'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-all select-none',
+              'flex items-center gap-1 @[310px]:gap-1.5 rounded-lg px-2 @[310px]:px-2.5 py-1 text-xs transition-all select-none whitespace-nowrap min-w-0',
               rightPanelTab === 'properties'
                 ? 'bg-zinc-800 text-violet-400 font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground font-medium',
+                : 'text-muted-foreground hover:text-foreground font-medium hover:bg-zinc-800/40',
             )}
             title="Inspect selected clip properties (transform, appearance, audio, effects)"
           >
             <SlidersHorizontal
               className={cn(
-                'size-3.5',
+                'size-3.5 shrink-0',
                 rightPanelTab === 'properties' ? 'text-violet-400' : 'text-muted-foreground',
               )}
             />
-            <span>Clip Properties</span>
+            <span className="truncate whitespace-nowrap">
+              <span className="hidden @[310px]:inline">Clip </span>Properties
+            </span>
           </button>
 
           {/* Tab 2: Active Tool / Text Presets */}
@@ -112,20 +114,32 @@ export function RightPanelContainer() {
             type="button"
             onClick={() => setRightPanelTab('tools')}
             className={cn(
-              'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-all select-none',
+              'flex items-center gap-1 @[310px]:gap-1.5 rounded-lg px-2 @[310px]:px-2.5 py-1 text-xs transition-all select-none whitespace-nowrap min-w-0',
               rightPanelTab === 'tools'
                 ? 'bg-zinc-800 text-violet-400 font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground font-medium',
+                : 'text-muted-foreground hover:text-foreground font-medium hover:bg-zinc-800/40',
             )}
             title={`Open ${activeToolMeta.label} studio`}
           >
             <ActiveToolIcon
               className={cn(
-                'size-3.5',
+                'size-3.5 shrink-0',
                 rightPanelTab === 'tools' ? 'text-violet-400' : 'text-muted-foreground',
               )}
             />
-            <span>{activeToolMeta.label}</span>
+            <span className="truncate whitespace-nowrap">
+              {activeToolId === 'text' ? (
+                <>
+                  Text<span className="hidden @[310px]:inline"> Presets</span>
+                </>
+              ) : activeToolId === 'images' ? (
+                <>
+                  <span className="hidden @[310px]:inline">Stock </span>Media
+                </>
+              ) : (
+                activeToolMeta.label
+              )}
+            </span>
           </button>
         </div>
 
@@ -133,7 +147,7 @@ export function RightPanelContainer() {
         <button
           type="button"
           onClick={toggleInspector}
-          className="size-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+          className="size-7 flex shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
           title="Collapse inspector"
           aria-label="Collapse inspector"
         >
