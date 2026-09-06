@@ -24,6 +24,41 @@ interface MobileActionBarProps {
   onSelectTool: (tool: ToolSection) => void
 }
 
+// Small icon-label button used for both modes
+function ActionBtn({
+  icon: Icon,
+  label,
+  iconColor,
+  active,
+  danger,
+  onClick,
+}: {
+  icon: React.ElementType
+  label: string
+  iconColor?: string
+  active?: boolean
+  danger?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-xs transition-all active:scale-90 select-none flex-1 min-w-[46px]',
+        danger
+          ? 'text-rose-400 hover:bg-rose-500/10 active:bg-rose-500/20'
+          : active
+            ? 'bg-violet-500/15 text-violet-300 font-semibold'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+      )}
+    >
+      <Icon className={cn('size-[18px] shrink-0', danger ? 'text-rose-400' : active ? 'text-violet-400' : iconColor)} />
+      <span className="text-[10px] leading-none font-medium">{label}</span>
+    </button>
+  )
+}
+
 export function MobileActionBar({
   activeDrawer,
   onOpenDrawer,
@@ -37,7 +72,7 @@ export function MobileActionBar({
 
   const hasSelection = selection.clipIds.length > 0
 
-  // Find selected clip name if single clip
+  // Clip name for deselect label
   const selectedClip = React.useMemo(() => {
     if (selection.clipIds.length !== 1) return null
     for (const track of project.tracks) {
@@ -63,16 +98,12 @@ export function MobileActionBar({
 
   const handleDuplicate = () => {
     const store = useTimelineStore.getState()
-    if (store.selection.clipIds.length) {
-      store.duplicateClips(store.selection.clipIds)
-    }
+    if (store.selection.clipIds.length) store.duplicateClips(store.selection.clipIds)
   }
 
   const handleDelete = () => {
     const store = useTimelineStore.getState()
-    if (store.selection.clipIds.length) {
-      store.deleteClips(store.selection.clipIds, false)
-    }
+    if (store.selection.clipIds.length) store.deleteClips(store.selection.clipIds, false)
   }
 
   const handleOpenProperties = () => {
@@ -80,187 +111,109 @@ export function MobileActionBar({
     onOpenDrawer('inspector')
   }
 
-  const handleToolClick = (tool: ToolSection) => {
-    onSelectTool(tool)
-  }
+  const propertiesActive = activeDrawer === 'inspector' && rightPanelTab === 'properties'
 
   return (
-    <div className="shrink-0 border-t border-border/80 bg-background/95 backdrop-blur-xl select-none pb-[env(safe-area-inset-bottom,0px)]">
+    <div
+      className="shrink-0 border-t border-border/70 bg-background/98 backdrop-blur-xl"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {hasSelection ? (
-        /* Mode B: Clip Selected Action Bar */
-        <div className="flex h-13 items-center justify-between px-2 gap-1 overflow-x-auto no-scrollbar">
-          {/* Deselect / Clip Label */}
+        /* ── Mode B: Clip Selected — instant edit actions ── */
+        <div className="flex items-center gap-0.5 px-1 py-1">
+          {/* Deselect / clip name badge */}
           <button
             type="button"
             onClick={() => select([], null)}
-            className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground shrink-0 border border-border/40"
-            title="Deselect clip"
+            className="flex items-center gap-1 rounded-lg bg-muted/60 px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground shrink-0 border border-border/40 active:scale-95 transition-all"
           >
-            <X className="size-3.5" />
-            <span className="max-w-[70px] truncate text-[11px]">
+            <X className="size-3.5 shrink-0" />
+            <span className="max-w-[68px] truncate text-[11px]">
               {selectedClip ? selectedClip.name : `${selection.clipIds.length} clips`}
             </span>
           </button>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Split */}
-            <button
-              type="button"
+          {/* Clip actions */}
+          <div className="flex flex-1 items-center justify-around">
+            <ActionBtn
+              icon={Scissors}
+              label="Split"
+              iconColor="text-violet-400"
               onClick={handleSplit}
-              className="flex flex-col items-center justify-center rounded-xl p-1.5 text-xs text-foreground hover:bg-muted/80 active:scale-95 transition min-w-11"
-              title="Split at playhead"
-            >
-              <Scissors className="size-4 text-violet-400" />
-              <span className="text-[10px] font-medium mt-0.5">Split</span>
-            </button>
-
-            {/* Properties */}
-            <button
-              type="button"
+            />
+            <ActionBtn
+              icon={SlidersHorizontal}
+              label="Edit"
+              iconColor="text-blue-400"
+              active={propertiesActive}
               onClick={handleOpenProperties}
-              className={cn(
-                'flex flex-col items-center justify-center rounded-xl p-1.5 text-xs active:scale-95 transition min-w-11',
-                activeDrawer === 'inspector' && rightPanelTab === 'properties'
-                  ? 'bg-violet-500/20 text-violet-400 font-bold'
-                  : 'text-foreground hover:bg-muted/80',
-              )}
-              title="Clip properties & adjustments"
-            >
-              <SlidersHorizontal className="size-4 text-violet-400" />
-              <span className="text-[10px] font-medium mt-0.5">Edit</span>
-            </button>
-
-            {/* Duplicate */}
-            <button
-              type="button"
+            />
+            <ActionBtn
+              icon={CopyPlus}
+              label="Duplicate"
+              iconColor="text-cyan-400"
               onClick={handleDuplicate}
-              className="flex flex-col items-center justify-center rounded-xl p-1.5 text-xs text-foreground hover:bg-muted/80 active:scale-95 transition min-w-11"
-              title="Duplicate clip"
-            >
-              <CopyPlus className="size-4 text-cyan-400" />
-              <span className="text-[10px] font-medium mt-0.5">Copy</span>
-            </button>
-
-            {/* Delete */}
-            <button
-              type="button"
+            />
+            <ActionBtn
+              icon={Trash2}
+              label="Delete"
+              danger
               onClick={handleDelete}
-              className="flex flex-col items-center justify-center rounded-xl p-1.5 text-xs text-rose-400 hover:bg-rose-500/10 active:scale-95 transition min-w-11"
-              title="Delete clip"
-            >
-              <Trash2 className="size-4" />
-              <span className="text-[10px] font-medium mt-0.5">Delete</span>
-            </button>
+            />
           </div>
         </div>
       ) : (
-        /* Mode A: Studio Tools Action Bar */
-        <div className="flex h-13 items-center justify-around px-1 overflow-x-auto no-scrollbar">
-          {/* Media */}
-          <button
-            type="button"
+        /* ── Mode A: Studio Tools ── */
+        <div className="flex items-center px-0.5 py-1 gap-0">
+          <ActionBtn
+            icon={Film}
+            label="Media"
+            iconColor="text-emerald-400"
+            active={activeDrawer === 'media'}
             onClick={() => onOpenDrawer(activeDrawer === 'media' ? null : 'media')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'media'
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Film className="size-4 text-emerald-400" />
-            <span className="text-[10px] font-medium mt-0.5">Media</span>
-          </button>
-
-          {/* Text */}
-          <button
-            type="button"
-            onClick={() => handleToolClick('text')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'tools' && toolPanelSection === 'text'
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Type className="size-4 text-amber-400" />
-            <span className="text-[10px] font-medium mt-0.5">Text</span>
-          </button>
-
-          {/* Captions */}
-          <button
-            type="button"
-            onClick={() => handleToolClick('captions')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'tools' && toolPanelSection === 'captions'
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Captions className="size-4 text-sky-400" />
-            <span className="text-[10px] font-medium mt-0.5">Captions</span>
-          </button>
-
-          {/* Audio */}
-          <button
-            type="button"
-            onClick={() => handleToolClick('voiceover')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'tools' && (toolPanelSection === 'voiceover' || toolPanelSection === 'audio')
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Music className="size-4 text-emerald-400" />
-            <span className="text-[10px] font-medium mt-0.5">Audio</span>
-          </button>
-
-          {/* Effects */}
-          <button
-            type="button"
-            onClick={() => handleToolClick('effects')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'tools' && toolPanelSection === 'effects'
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Sparkles className="size-4 text-pink-400" />
-            <span className="text-[10px] font-medium mt-0.5">Effects</span>
-          </button>
-
-          {/* Transitions */}
-          <button
-            type="button"
-            onClick={() => handleToolClick('transitions')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'tools' && toolPanelSection === 'transitions'
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Zap className="size-4 text-yellow-400" />
-            <span className="text-[10px] font-medium mt-0.5">Transitions</span>
-          </button>
-
-          {/* More Tools */}
-          <button
-            type="button"
+          />
+          <ActionBtn
+            icon={Type}
+            label="Text"
+            iconColor="text-amber-400"
+            active={activeDrawer === 'tools' && toolPanelSection === 'text'}
+            onClick={() => onSelectTool('text')}
+          />
+          <ActionBtn
+            icon={Captions}
+            label="Captions"
+            iconColor="text-sky-400"
+            active={activeDrawer === 'tools' && toolPanelSection === 'captions'}
+            onClick={() => onSelectTool('captions')}
+          />
+          <ActionBtn
+            icon={Music}
+            label="Audio"
+            iconColor="text-emerald-400"
+            active={activeDrawer === 'tools' && (toolPanelSection === 'voiceover' || toolPanelSection === 'audio')}
+            onClick={() => onSelectTool('voiceover')}
+          />
+          <ActionBtn
+            icon={Sparkles}
+            label="Effects"
+            iconColor="text-pink-400"
+            active={activeDrawer === 'tools' && toolPanelSection === 'effects'}
+            onClick={() => onSelectTool('effects')}
+          />
+          <ActionBtn
+            icon={Zap}
+            label="FX"
+            iconColor="text-yellow-400"
+            active={activeDrawer === 'tools' && toolPanelSection === 'transitions'}
+            onClick={() => onSelectTool('transitions')}
+          />
+          <ActionBtn
+            icon={LayoutGrid}
+            label="Tools"
+            iconColor="text-indigo-400"
+            active={activeDrawer === 'tools' && !['text','captions','voiceover','audio','effects','transitions'].includes(toolPanelSection)}
             onClick={() => onOpenDrawer(activeDrawer === 'tools' ? null : 'tools')}
-            className={cn(
-              'flex flex-col items-center justify-center rounded-xl p-1 text-xs active:scale-95 transition flex-1 min-w-12',
-              activeDrawer === 'tools'
-                ? 'bg-violet-500/20 text-violet-400 font-bold'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <LayoutGrid className="size-4 text-indigo-400" />
-            <span className="text-[10px] font-medium mt-0.5">Tools</span>
-          </button>
+          />
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import {
   Save,
   Search,
   Settings,
+  Sparkles,
   Undo2,
   X,
 } from 'lucide-react'
@@ -44,13 +45,19 @@ function dimsForAspect(current: { width: number; height: number }, ratio: number
   return { width: Math.max(2, w), height: max }
 }
 
-export function MobileTopBar() {
+interface MobileTopBarProps {
+  onOpenMedia?: () => void
+}
+
+export function MobileTopBar({ onOpenMedia: _onOpenMedia }: MobileTopBarProps) {
   const project = useTimelineStore((s) => s.project)
   const renameProject = useTimelineStore((s) => s.renameProject)
   const save = useTimelineStore((s) => s.save)
   const saving = useTimelineStore((s) => s.saving)
   const dirty = useTimelineStore((s) => s.dirty)
   const setProjectSettings = useTimelineStore((s) => s.setProjectSettings)
+  const aiDirectorOpen = useEditorStore((s) => s.aiDirectorOpen)
+  const setAIDirectorOpen = useEditorStore((s) => s.setAIDirectorOpen)
 
   const { canUndo, canRedo } = useUndoRedo()
 
@@ -61,6 +68,11 @@ export function MobileTopBar() {
   const [openProjectOpen, setOpenProjectOpen] = React.useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false)
   const [justSaved, setJustSaved] = React.useState(false)
+
+  // Keep name draft in sync if project name changes externally
+  React.useEffect(() => {
+    if (!editingName) setNameDraft(project.name)
+  }, [project.name, editingName])
 
   const toggleCommandPalette = () => {
     useEditorStore.setState({ commandPaletteOpen: !useEditorStore.getState().commandPaletteOpen })
@@ -84,17 +96,19 @@ export function MobileTopBar() {
   }
 
   return (
-    <header className="relative z-30 flex h-11 w-full shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-2 backdrop-blur-xl select-none">
-      {/* Left: Brand + Project Title */}
-      <div className="flex min-w-0 items-center gap-1.5">
+    <header className="relative z-30 flex h-11 w-full shrink-0 items-center border-b border-border/80 bg-background/98 px-2 backdrop-blur-xl gap-1"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
+      {/* ── Left: Home + Project Title ── */}
+      <div className="flex min-w-0 items-center gap-1 flex-1">
         <Button
           asChild
           variant="ghost"
           size="sm"
-          className="h-8 shrink-0 px-1.5 hover:bg-muted/80 rounded-lg"
+          className="h-8 w-8 shrink-0 p-0 rounded-lg hover:bg-muted/80"
         >
           <Link to="/" title="Home">
-            <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-black shadow-xs">
+            <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex size-6 items-center justify-center rounded-md text-[11px] font-black shadow-xs">
               CF
             </div>
           </Link>
@@ -113,7 +127,7 @@ export function MobileTopBar() {
                 setEditingName(false)
               }
             }}
-            className="h-7 w-28 max-w-[120px] rounded-lg border border-violet-500/50 bg-muted/80 px-2 text-xs font-bold outline-none ring-2 ring-violet-500/30 text-foreground"
+            className="h-7 min-w-0 flex-1 max-w-[140px] rounded-lg border border-violet-500/50 bg-muted/80 px-2 text-xs font-bold outline-none ring-2 ring-violet-500/30 text-foreground"
           />
         ) : (
           <button
@@ -122,83 +136,100 @@ export function MobileTopBar() {
               setNameDraft(project.name)
               setEditingName(true)
             }}
-            title="Tap to rename"
-            className="group flex min-w-0 max-w-[110px] items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-bold text-foreground hover:bg-muted/60 transition truncate"
+            className="group flex min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-semibold text-foreground hover:bg-muted/60 transition-colors truncate"
           >
-            <span className="truncate">{project.name}</span>
-            <Pencil className="size-2.5 shrink-0 text-muted-foreground opacity-60" />
+            <span className="truncate max-w-[90px]">{project.name}</span>
+            {dirty && !saving && (
+              <span className="size-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" aria-label="Unsaved changes" />
+            )}
+            <Pencil className="size-2.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
         )}
+
+        {/* Aspect ratio quick pill */}
+        <span className="hidden xs:inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground shrink-0">
+          {project.aspectRatio}
+        </span>
       </div>
 
-      {/* Center: Quick Undo & Redo */}
-      <div className="flex items-center gap-0.5">
+      {/* ── Center: Undo / Redo ── */}
+      <div className="flex items-center shrink-0">
         <Button
           variant="ghost"
           size="sm"
-          className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
+          className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
           onClick={() => useTimelineStore.getState().undo()}
           disabled={!canUndo}
           aria-label="Undo"
-          title="Undo"
         >
           <Undo2 className="size-4" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
+          className="size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
           onClick={() => useTimelineStore.getState().redo()}
           disabled={!canRedo}
           aria-label="Redo"
-          title="Redo"
         >
           <Redo2 className="size-4" />
         </Button>
       </div>
 
-      {/* Right: Save Status + Export CTA + Overflow Menu */}
-      <div className="flex items-center gap-1">
-        {/* Save button with status */}
+      {/* ── Right: AI Director + Save + Export + More ── */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {/* AI Director quick launch */}
         <Button
           variant="ghost"
           size="sm"
           className={cn(
-            'size-8 p-0 rounded-lg text-muted-foreground hover:text-foreground transition-all',
-            justSaved && 'text-emerald-500 bg-emerald-500/10',
+            'size-8 p-0 rounded-lg transition-colors',
+            aiDirectorOpen
+              ? 'bg-violet-500/20 text-violet-400'
+              : 'text-muted-foreground hover:text-violet-400',
+          )}
+          onClick={() => setAIDirectorOpen(!aiDirectorOpen)}
+          aria-label="AI Director"
+          title="AI Director"
+        >
+          <Sparkles className="size-4" />
+        </Button>
+
+        {/* Save status */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'size-8 p-0 rounded-lg transition-all',
+            justSaved && 'text-emerald-500',
             dirty && !saving && !justSaved && 'text-amber-500',
+            !dirty && !justSaved && !saving && 'text-muted-foreground hover:text-foreground',
           )}
           onClick={() => void handleSave()}
           disabled={saving}
-          aria-label={saving ? 'Saving' : justSaved ? 'Saved' : dirty ? 'Unsaved changes' : 'Save'}
-          title="Save project"
+          aria-label="Save"
         >
           {saving ? (
-            <Save className="size-3.5 shrink-0 animate-pulse text-violet-500" />
+            <Save className="size-3.5 animate-pulse text-violet-500" />
           ) : justSaved ? (
-            <Check className="size-3.5 shrink-0 text-emerald-500" />
+            <Check className="size-3.5 text-emerald-500" />
           ) : (
-            <div className="relative">
-              <Save className={cn('size-3.5 shrink-0', dirty && 'text-amber-500')} />
-              {dirty && (
-                <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500 animate-pulse" />
-              )}
-            </div>
+            <Save className={cn('size-3.5', dirty && 'text-amber-500')} />
           )}
         </Button>
 
-        {/* Primary Export CTA */}
+        {/* Export CTA */}
         <Button
           onClick={() => setExportOpen(true)}
           size="sm"
-          className="h-7 gap-1 px-2.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 text-white font-bold text-xs rounded-lg shadow-sm shadow-violet-500/20 active:scale-95"
+          className="h-7 gap-1 px-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs rounded-lg shadow-sm shadow-violet-500/20 active:scale-95 transition-all"
           data-testid="mobile-export-button"
         >
           <Download className="size-3 shrink-0" />
           <span>Export</span>
         </Button>
 
-        {/* More Menu Toggle */}
+        {/* More menu */}
         <Button
           variant="ghost"
           size="sm"
@@ -210,28 +241,34 @@ export function MobileTopBar() {
         </Button>
       </div>
 
-      {/* Overflow Menu Sheet */}
+      {/* ── Overflow Bottom Sheet ── */}
       {moreMenuOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
             onClick={() => setMoreMenuOpen(false)}
           />
-          <div className="relative bg-card border-t border-border rounded-t-2xl p-4 shadow-2xl space-y-3 animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between border-b pb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Options</span>
+          <div className="relative bg-card border-t border-border/80 rounded-t-2xl px-4 pt-3 pb-6 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
+            {/* Drag handle */}
+            <div className="mx-auto h-1 w-10 rounded-full bg-border/80 mb-1" />
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Settings</span>
               <button
                 type="button"
                 onClick={() => setMoreMenuOpen(false)}
-                className="size-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
+                className="size-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            {/* Aspect Ratio Picker */}
-            <div className="flex items-center justify-between gap-2 py-1">
-              <span className="text-xs font-semibold text-foreground">Canvas Ratio</span>
+            {/* Aspect Ratio */}
+            <div className="flex items-center justify-between gap-3 py-0.5">
+              <div>
+                <p className="text-xs font-semibold text-foreground">Canvas Ratio</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Changes the output dimensions</p>
+              </div>
               <Select
                 value={project.aspectRatio}
                 onValueChange={(v) => {
@@ -243,68 +280,57 @@ export function MobileTopBar() {
                   }
                 }}
               >
-                <SelectTrigger className="h-7 w-28 text-xs font-semibold border-border/60">
+                <SelectTrigger className="h-8 w-24 text-xs font-semibold border-border/60 bg-muted/30">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[10050]">
                   {ASPECT_RATIOS.map((r) => (
-                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                    <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Actions Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="border-t border-border/50 pt-3 grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 justify-start gap-2 text-xs font-semibold"
-                onClick={() => {
-                  setNewProjectOpen(true)
-                  setMoreMenuOpen(false)
-                }}
+                className="h-10 justify-start gap-2 text-xs font-semibold rounded-xl"
+                onClick={() => { setNewProjectOpen(true); setMoreMenuOpen(false) }}
               >
-                <FilePlus className="size-3.5 text-violet-500" />
+                <FilePlus className="size-4 text-violet-500 shrink-0" />
                 New Project
               </Button>
-
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 justify-start gap-2 text-xs font-semibold"
-                onClick={() => {
-                  setOpenProjectOpen(true)
-                  setMoreMenuOpen(false)
-                }}
+                className="h-10 justify-start gap-2 text-xs font-semibold rounded-xl"
+                onClick={() => { setOpenProjectOpen(true); setMoreMenuOpen(false) }}
               >
-                <Home className="size-3.5 text-blue-500" />
+                <Home className="size-4 text-blue-500 shrink-0" />
                 Open Project
               </Button>
-
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 justify-start gap-2 text-xs font-semibold"
+                className="h-10 justify-start gap-2 text-xs font-semibold rounded-xl"
                 onClick={toggleHistoryPanel}
               >
-                <History className="size-3.5 text-amber-500" />
-                Undo History
+                <History className="size-4 text-amber-500 shrink-0" />
+                History Log
               </Button>
-
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 justify-start gap-2 text-xs font-semibold"
+                className="h-10 justify-start gap-2 text-xs font-semibold rounded-xl"
                 onClick={toggleCommandPalette}
               >
-                <Search className="size-3.5 text-emerald-500" />
+                <Search className="size-4 text-emerald-500 shrink-0" />
                 Search Actions
               </Button>
             </div>
 
-            {/* Bottom Row: Settings & Theme */}
-            <div className="flex items-center justify-between border-t pt-2">
+            <div className="flex items-center justify-between border-t border-border/40 pt-3">
               <Button
                 asChild
                 variant="ghost"
