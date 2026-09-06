@@ -54,6 +54,7 @@ interface DragState {
   clipIds: string[]
   mode: DragMode
   startClientX: number
+  startScrollLeft: number
   originals: Map<string, Clip>
   zoom: number
   snapping: boolean
@@ -361,6 +362,7 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
       clipIds,
       mode,
       startClientX: e.clientX,
+      startScrollLeft: viewportRef.current?.scrollLeft ?? 0,
       originals,
       zoom,
       snapping: useTimelineStore.getState().snapEnabled !== e.shiftKey,
@@ -374,7 +376,8 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
   const handleDragMove = (e: React.PointerEvent) => {
     const drag = dragRef.current
     if (!drag) return
-    const dx = e.clientX - drag.startClientX
+    const scrollDelta = (viewportRef.current?.scrollLeft ?? 0) - drag.startScrollLeft
+    const dx = (e.clientX - drag.startClientX) + scrollDelta
     const dt = dx / drag.zoom
     if (Math.abs(dx) > 2) drag.moved = true
     const store = useTimelineStore.getState()
@@ -442,7 +445,19 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
         newStart = snapTo(newStart, drag.zoom, candidates)
       }
       newStart = Math.max(0, newStart)
-      store.moveClip(id, newStart - orig.startTime, drag.clipIds.length === 1 ? trackId : undefined)
+
+      const currentClip = useTimelineStore
+        .getState()
+        .project.tracks.flatMap((t) => t.clips)
+        .find((c) => c.id === id)
+      const currentStart = currentClip?.startTime ?? orig.startTime
+      const stepDelta = newStart - currentStart
+      const targetTrackId = drag.clipIds.length === 1 ? trackId : undefined
+      const trackChanged = Boolean(targetTrackId && currentClip?.trackId !== targetTrackId)
+
+      if (Math.abs(stepDelta) > 0.0001 || trackChanged) {
+        useTimelineStore.getState().moveClip(id, stepDelta, targetTrackId)
+      }
     }
   }
 
