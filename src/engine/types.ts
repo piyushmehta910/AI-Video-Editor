@@ -560,7 +560,24 @@ function newFxTrack(index: number): Track {
  * type strings are bucketed into their nearest valid type, and an FX track
  * is appended so fx workflows are reachable. Idempotent via schemaVersion.
  */
+/**
+ * Deduplicates tracks by ID and re-indexes them, ensuring project state integrity.
+ */
+export function sanitizeProjectTracks(project: Project): Project {
+  const seen = new Set<string>()
+  const deduped: Track[] = []
+  for (const track of project.tracks) {
+    if (!seen.has(track.id)) {
+      seen.add(track.id)
+      deduped.push({ ...track, index: deduped.length })
+    }
+  }
+  if (deduped.length === project.tracks.length) return project
+  return { ...project, tracks: deduped }
+}
+
 export function migrateProjectTracks(project: Project): Project {
+  project = sanitizeProjectTracks(project)
   if (project.schemaVersion === 2) return project
   const valid: TrackType[] = ['video', 'audio', 'text', 'fx']
   let tracks: Track[] = project.tracks.map((track) => {

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { temporal } from 'zundo'
 import { produce, setAutoFreeze } from 'immer'
 import type { Asset, CaptionsConfig, Clip, MediaClipType, Project, Track, TrackType } from '@/engine/types'
-import { newProject, projectDuration, migrateProjectTracks } from '@/engine/types'
+import { newProject, projectDuration, migrateProjectTracks, sanitizeProjectTracks } from '@/engine/types'
 import { getAllRecords, putRecord, deleteRecord } from '@/engine/storage/db'
 import { writeMediaFile, deleteMediaFile } from '@/engine/storage/opfs'
 import { generateThumbnail, probeMedia } from '@/engine/storage/thumbnails'
@@ -280,9 +280,30 @@ export const useTimelineStore = create<TimelineState>()(
     if (meta) pendingMeta = meta
   }
 
-  const mutate = (updater: (p: Project) => Project) => {
+  const mutate = (updater: (p: Project) => Project | void) => {
     set((state) => ({
-      project: produce(state.project, (draft) => updater(draft as Project)),
+      project: produce(state.project, (draft) => {
+        const res = updater(draft as Project)
+        if (res && res !== draft) {
+          if (res.tracks) {
+            const seen = new Set<string>()
+            res.tracks = res.tracks.filter((t) => {
+              if (seen.has(t.id)) return false
+              seen.add(t.id)
+              return true
+            })
+          }
+          return res
+        }
+        if (draft && draft.tracks) {
+          const seen = new Set<string>()
+          draft.tracks = draft.tracks.filter((t) => {
+            if (seen.has(t.id)) return false
+            seen.add(t.id)
+            return true
+          })
+        }
+      }),
     }))
     scheduleSave()
   }
@@ -426,7 +447,7 @@ export const useTimelineStore = create<TimelineState>()(
 
         set({
           assets,
-          project: storedProject ? migrateProjectTracks(storedProject) : newProject(),
+          project: sanitizeProjectTracks(storedProject ? migrateProjectTracks(storedProject) : newProject()),
           transcripts,
           scenes,
           ocr,

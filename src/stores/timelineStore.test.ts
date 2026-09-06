@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from './timelineStore'
 import { useHistoryStore } from './historyStore'
 import type { Clip } from '@/engine/types'
+import { sanitizeProjectTracks } from '@/engine/types'
 
 function makeClip(id: string, trackId: string, startTime: number): Clip {
   return {
@@ -413,6 +414,40 @@ describe('human-readable log', () => {
     expect(allClips[0].text?.fontFamily).toBe('Orbitron')
     expect(allClips[0].text?.color).toBe('#22d3ee')
   })
+
+  it('sanitizeProjectTracks deduplicates any duplicate track IDs in project', () => {
+    const s = useTimelineStore.getState()
+    const originalTracks = s.project.tracks
+    const duplicateTracks = [...originalTracks, originalTracks[0], originalTracks[originalTracks.length - 1]]
+    const corruptedProject = { ...s.project, tracks: duplicateTracks }
+
+    const sanitized = sanitizeProjectTracks(corruptedProject)
+    expect(sanitized.tracks).toHaveLength(originalTracks.length)
+    const ids = new Set(sanitized.tracks.map((t) => t.id))
+    expect(ids.size).toBe(sanitized.tracks.length)
+  })
+
+  it('selecting a clip does not create or duplicate any tracks', () => {
+    const s = useTimelineStore.getState()
+    const textTrack = s.project.tracks.find((t) => t.type === 'text') || s.project.tracks[0]
+    const clip1 = s.addTextClip('Clip 1', textTrack.id, 0)
+    const clip2 = s.addTextClip('Clip 2', textTrack.id, 4.0)
+
+    const trackCountBefore = useTimelineStore.getState().project.tracks.length
+
+    // Simulate clicking clip 1, then clip 2 multiple times
+    useTimelineStore.getState().select([clip1!.id], clip1!.trackId)
+    useTimelineStore.getState().select([clip2!.id], clip2!.trackId)
+    useTimelineStore.getState().select([clip1!.id], clip1!.trackId)
+    useTimelineStore.getState().select([clip2!.id], clip2!.trackId)
+
+    const currentProject = useTimelineStore.getState().project
+    expect(currentProject.tracks.length).toBe(trackCountBefore)
+    const textTracks = currentProject.tracks.filter((t) => t.type === 'text')
+    expect(textTracks).toHaveLength(1)
+    expect(textTracks[0].clips).toHaveLength(2)
+  })
 })
+
 
 

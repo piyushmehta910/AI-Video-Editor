@@ -54,6 +54,7 @@ interface DragState {
   clipIds: string[]
   mode: DragMode
   startClientX: number
+  startClientY?: number
   startScrollLeft: number
   originals: Map<string, Clip>
   zoom: number
@@ -79,14 +80,27 @@ function snapTo(value: number, zoom: number, candidates: number[]): number {
 function computeRowOffsets(tracks: Track[], collapsed: Record<string, boolean>): Record<string, number> {
   const offsets: Record<string, number> = {}
   let y = RULER_HEIGHT
-  let prevType: Track['type'] | null = null
+  const order: Track['type'][] = ['video', 'audio', 'text', 'fx']
+  const map = new Map<Track['type'], Track[]>()
+  for (const type of order) map.set(type, [])
+  const seenTrackIds = new Set<string>()
   for (const t of tracks) {
-    if (prevType !== t.type) y += SECTION_HEIGHT
-    if (!collapsed[t.type]) {
-      offsets[t.id] = y
-      y += trackHeight()
+    if (seenTrackIds.has(t.id)) continue
+    seenTrackIds.add(t.id)
+    const list = map.get(t.type)
+    if (list) list.push(t)
+    else map.set(t.type, [t])
+  }
+  for (const [type, typeTracks] of map.entries()) {
+    const visibleTracks = typeTracks.filter((t) => t.clips.length > 0)
+    if (visibleTracks.length === 0) continue
+    y += SECTION_HEIGHT
+    if (!collapsed[type]) {
+      for (const t of visibleTracks) {
+        offsets[t.id] = y
+        y += trackHeight()
+      }
     }
-    prevType = t.type
   }
   return offsets
 }
@@ -240,11 +254,22 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
   }, [movePlayheadDom, layoutAudioBar])
 
   const groups = React.useMemo(() => {
-    const out: Array<{ type: Track['type']; tracks: Track[] }> = []
+    const order: Track['type'][] = ['video', 'audio', 'text', 'fx']
+    const map = new Map<Track['type'], Track[]>()
+    for (const type of order) map.set(type, [])
+    const seenTrackIds = new Set<string>()
     for (const t of project.tracks) {
-      const last = out[out.length - 1]
-      if (last && last.type === t.type) last.tracks.push(t)
-      else out.push({ type: t.type, tracks: [t] })
+      if (seenTrackIds.has(t.id)) continue
+      seenTrackIds.add(t.id)
+      const list = map.get(t.type)
+      if (list) list.push(t)
+      else map.set(t.type, [t])
+    }
+    const out: Array<{ type: Track['type']; tracks: Track[] }> = []
+    for (const [type, tracks] of map.entries()) {
+      if (tracks.length > 0) {
+        out.push({ type, tracks })
+      }
     }
     return out
   }, [project.tracks])
@@ -297,6 +322,7 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
   }, [project.tracks])
 
   const startDrag = (e: React.PointerEvent, clip: Clip, mode: DragMode) => {
+    if (e.button !== 0) return
     if (dragRef.current) return
     if (trimMode && mode === 'move') return
 
@@ -349,9 +375,10 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
     // Snapshot track rects once so handleDragMove avoids per-frame DOM reads.
     const trackEls = viewportRef.current?.querySelectorAll<HTMLElement>('[data-timeline-track]')
     trackRectsRef.current = trackEls
-      ? Array.from(trackEls).map((el, i) => {
+      ? Array.from(trackEls).map((el) => {
           const r = el.getBoundingClientRect()
-          return { id: project.tracks[i]?.id ?? '', top: r.top, bottom: r.bottom }
+          const trackId = el.getAttribute('data-timeline-track') || ''
+          return { id: trackId, top: r.top, bottom: r.bottom }
         })
       : []
     const originals = new Map<string, Clip>()
@@ -365,6 +392,7 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
       clipIds,
       mode,
       startClientX: e.clientX,
+      startClientY: e.clientY,
       startScrollLeft: viewportRef.current?.scrollLeft ?? 0,
       originals,
       zoom,
@@ -381,8 +409,16 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
     if (!drag) return
     const scrollDelta = (viewportRef.current?.scrollLeft ?? 0) - drag.startScrollLeft
     const dx = (e.clientX - drag.startClientX) + scrollDelta
+    const dy = e.clientY - (drag.startClientY ?? e.clientY)
+
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) > 3) {
+        drag.moved = true
+      } else {
+        return
+      }
+    }
     const dt = dx / drag.zoom
-    if (Math.abs(dx) > 2) drag.moved = true
     const store = useTimelineStore.getState()
 
     if (drag.mode === 'trim-start' || drag.mode === 'trim-end') {
@@ -415,10 +451,10 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
 
     const vp = viewportRef.current
     if (!vp) return
-    const targetTrackIndex = trackRectsRef.current.findIndex(
+    const targetRect = trackRectsRef.current.find(
       (r) => e.clientY >= r.top && e.clientY <= r.bottom,
     )
-    const targetTrack = targetTrackIndex >= 0 ? project.tracks[targetTrackIndex] : undefined
+    const targetTrack = targetRect ? project.tracks.find((t) => t.id === targetRect.id) : undefined
     const firstOriginal = drag.originals.get(drag.clipIds[0])
     const origTrackType = firstOriginal ? project.tracks.find((t) => t.id === firstOriginal.trackId)?.type : undefined
     const sameType = targetTrack && targetTrack.type === origTrackType
