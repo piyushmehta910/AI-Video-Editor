@@ -1,21 +1,17 @@
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, SlidersHorizontal, LayoutGrid } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEditorStore } from '@/stores/editorStore'
 import { useTimelineStore } from '@/stores/timelineStore'
 import type { PlaybackApi } from '@/hooks/usePlayback'
 import { TopToolbar } from '@/components/editor/TopToolbar'
 import { MediaBin } from '@/components/media/MediaBin'
 import { PreviewCanvas } from '@/components/editor/PreviewCanvas'
-import { InspectorPanel } from '@/components/inspector/InspectorPanel'
-import { MiddleToolsInspector } from '@/components/inspector/MiddleToolsInspector'
+import { RightPanelContainer } from '@/components/inspector/RightPanelContainer'
 import { Timeline } from '@/ui/timeline/Timeline'
-import type { ToolSection } from '@/ui/common/toolSections'
-import { TOOL_SECTIONS } from '@/ui/common/toolSections'
 import { HistoryPanel } from '@/components/history/HistoryPanel'
 import { HistoryToast } from '@/components/history/HistoryToast'
 import { PanelErrorBoundary } from '@/components/editor/PanelErrorBoundary'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 const DEFAULT_TIMELINE_HEIGHT = 224
 const MIN_TIMELINE_HEIGHT = 80
@@ -50,9 +46,6 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const setLeftOpen = useEditorStore((s) => s.setLeftOpen)
   const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
   const toggleInspector = useEditorStore((s) => s.toggleInspector)
-  const hasSelectedClip = useTimelineStore((s) => s.selection.clipIds.length > 0)
-  const toolPanelSection = useEditorStore((s) => s.toolPanelSection)
-  const setToolPanelSection = useEditorStore((s) => s.setToolPanelSection)
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen)
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel)
 
@@ -65,21 +58,23 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
   const [rightWidth, setRightWidth] = React.useState(() =>
     loadNum('clipforge-right-width', DEFAULT_RIGHT_WIDTH),
   )
-  // When a clip is selected, we still need to track if user explicitly chose Tools mode
-  const [forceToolsHub, setForceToolsHub] = React.useState(false)
 
   const openMedia = React.useCallback(() => setLeftOpen(true), [setLeftOpen])
 
   const handleOpenTool = React.useCallback(
     (tool: string) => {
-      if (inspectorOpen && toolPanelSection === tool) {
-        setToolPanelSection(null)
+      const store = useEditorStore.getState()
+      if (store.inspectorOpen && store.rightPanelTab === 'tools' && store.toolPanelSection === tool) {
+        store.setInspectorOpen(false)
       } else {
-        setToolPanelSection(tool)
-        if (!inspectorOpen) toggleInspector()
+        store.setToolPanelSection(tool)
+        store.setRightPanelTab('tools')
+        if (!store.inspectorOpen) {
+          store.setInspectorOpen(true)
+        }
       }
     },
-    [inspectorOpen, toolPanelSection, toggleInspector, setToolPanelSection],
+    [],
   )
 
   // Selection-driven inspector: picking a clip surfaces its properties.
@@ -88,12 +83,10 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
       const hasClip = state.selection.clipIds.length > 0
       const hadClip = prev.selection.clipIds.length > 0
       if (hasClip && !hadClip) {
-        // Auto-open inspector when clip is selected
         if (!useEditorStore.getState().inspectorOpen) {
-          useEditorStore.getState().toggleInspector()
+          useEditorStore.getState().setInspectorOpen(true)
         }
-        // Reset to Properties mode when a clip is freshly selected
-        setForceToolsHub(false)
+        useEditorStore.getState().setRightPanelTab('properties')
       }
     })
     return unsub
@@ -251,47 +244,9 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
             </div>
             <aside className="w-full h-full border-l overflow-hidden bg-card/60 backdrop-blur-md">
               <div className="flex h-full flex-col">
-                {/* ─── Unified Right Panel Navigation Bar ─── */}
-                <RightPanelNav
-                  hasSelectedClip={hasSelectedClip}
-                  toolPanelSection={toolPanelSection}
-                  forceToolsHub={forceToolsHub}
-                  onSelectSection={(s) => {
-                    setToolPanelSection(s)
-                    setForceToolsHub(false)
-                  }}
-                  onGoToToolsHub={() => {
-                    setToolPanelSection(null)
-                    setForceToolsHub(true)
-                  }}
-                  onCollapse={toggleInspector}
-                />
-                {/* ─── Panel Content ─── */}
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <PanelErrorBoundary panelName="Inspector">
-                    {toolPanelSection ? (
-                      <MiddleToolsInspector
-                        section={toolPanelSection as ToolSection}
-                        onSelectSection={(s) => {
-                          setToolPanelSection(s)
-                          setForceToolsHub(false)
-                        }}
-                        onCollapse={toggleInspector}
-                        hasSelectedClip={hasSelectedClip}
-                      />
-                    ) : hasSelectedClip && !forceToolsHub ? (
-                      <InspectorPanel />
-                    ) : (
-                      <MiddleToolsInspector
-                        section={null}
-                        onSelectSection={(s) => {
-                          setToolPanelSection(s)
-                          setForceToolsHub(false)
-                        }}
-                        onCollapse={toggleInspector}
-                        hasSelectedClip={hasSelectedClip}
-                      />
-                    )}
+                    <RightPanelContainer />
                   </PanelErrorBoundary>
                 </div>
               </div>
@@ -317,148 +272,3 @@ export function EditorLayout({ playback }: { playback: PlaybackApi }) {
     </div>
   )
 }
-
-// ─── Quick-access tool shortcuts (top row in Tools mode) ─────────────────────
-const QUICK_TOOLS: ToolSection[] = ['text', 'effects', 'audio', 'transitions', 'captions', 'speed', 'crop', 'images']
-
-/**
- * Unified navigation bar always pinned at the top of the right panel.
- * Shows Properties ↔ Tools tabs and (in Tools mode) a quick-access icon row.
- */
-function RightPanelNav({
-  hasSelectedClip,
-  toolPanelSection,
-  forceToolsHub,
-  onSelectSection,
-  onGoToToolsHub,
-  onCollapse,
-}: {
-  hasSelectedClip: boolean
-  toolPanelSection: string | null
-  forceToolsHub: boolean
-  onSelectSection: (section: string | null) => void
-  onGoToToolsHub: () => void
-  onCollapse: () => void
-}) {
-  // "Tools mode" = user explicitly opened a tool section OR is in the tools hub
-  const isToolsMode = toolPanelSection !== null || !hasSelectedClip || forceToolsHub
-
-  const quickTools = React.useMemo(
-    () => TOOL_SECTIONS.filter((s) => QUICK_TOOLS.includes(s.id as ToolSection)),
-    [],
-  )
-
-  return (
-    <div className="shrink-0 border-b bg-card/80 backdrop-blur-sm">
-      {/* Primary tab row */}
-      <div className="flex items-center gap-1 px-2 pt-2 pb-0">
-        {/* Properties tab */}
-        <button
-          type="button"
-          disabled={!hasSelectedClip}
-          onClick={() => onSelectSection(null)}
-          className={cn(
-            'relative flex items-center gap-1.5 rounded-t-lg px-3 py-1.5 text-[11px] font-semibold transition-colors border border-b-0',
-            !isToolsMode && hasSelectedClip
-              ? 'bg-card border-border text-foreground shadow-sm z-10 -mb-px border-b-card'
-              : hasSelectedClip
-                ? 'border-transparent bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                : 'border-transparent bg-transparent text-muted-foreground/40 cursor-not-allowed',
-          )}
-          title={hasSelectedClip ? 'Show Clip Properties' : 'Select a clip to view properties'}
-        >
-          <SlidersHorizontal className="size-3 shrink-0" />
-          Properties
-        </button>
-
-        {/* Tools tab */}
-        <button
-          type="button"
-          onClick={() => {
-            if (!isToolsMode) {
-              onGoToToolsHub()
-            }
-          }}
-          className={cn(
-            'relative flex items-center gap-1.5 rounded-t-lg px-3 py-1.5 text-[11px] font-semibold transition-colors border border-b-0',
-            isToolsMode
-              ? 'bg-card border-border text-foreground shadow-sm z-10 -mb-px border-b-card'
-              : 'border-transparent bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40',
-          )}
-          title="Browse Middle Tools"
-        >
-          <LayoutGrid className="size-3 shrink-0" />
-          Tools
-        </button>
-
-        {/* Spacer + collapse */}
-        <div className="ml-auto">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
-            onClick={onCollapse}
-            title="Collapse right panel"
-            aria-label="Collapse right panel"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Separator */}
-      <div className="h-px bg-border" />
-
-      {/* Quick-access icon row — Tools mode only */}
-      {isToolsMode && (
-        <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar px-2 py-1.5">
-          {quickTools.map((tool) => {
-            const Icon = tool.icon
-            const isActive = toolPanelSection === tool.id
-            return (
-              <button
-                key={tool.id}
-                type="button"
-                onClick={() => onSelectSection(tool.id)}
-                title={tool.label}
-                className={cn(
-                  'relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-center transition-colors shrink-0 min-w-0',
-                  isActive
-                    ? 'bg-violet-600/15 text-violet-600 dark:text-violet-400'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                <span className="text-[9px] font-medium leading-none whitespace-nowrap">
-                  {tool.label.split(' ')[0]}
-                </span>
-                {isActive && (
-                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-3.5 h-0.5 rounded-full bg-violet-500" />
-                )}
-              </button>
-            )
-          })}
-          {/* All Tools button */}
-          <button
-            type="button"
-            onClick={() => onGoToToolsHub()}
-            title="Browse all tools"
-            className={cn(
-              'relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-center transition-colors shrink-0 min-w-0',
-              toolPanelSection === null && isToolsMode
-                ? 'bg-violet-600/15 text-violet-600 dark:text-violet-400'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-            )}
-          >
-            <LayoutGrid className="size-4 shrink-0" />
-            <span className="text-[9px] font-medium leading-none">All</span>
-            {toolPanelSection === null && isToolsMode && (
-              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-3.5 h-0.5 rounded-full bg-violet-500" />
-            )}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-

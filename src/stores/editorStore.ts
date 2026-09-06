@@ -8,6 +8,7 @@ export type GeneratedSubTab = 'all' | 'images' | 'voice' | 'avatars' | 'animatio
 export type EditorMode = 'human' | 'hybrid' | 'ai'
 /** Active timeline mouse tool (razor splits where you click, text places clips…). */
 export type EditorTool = 'select' | 'razor' | 'text' | 'rate'
+export type RightPanelTab = 'properties' | 'tools'
 
 /** Trim mode state for timeline edge-dragging. */
 export type TrimMode = boolean
@@ -20,6 +21,7 @@ export type TrimMode = boolean
 export interface EditorUIState {
   leftOpen: boolean
   inspectorOpen: boolean
+  rightPanelTab: RightPanelTab
   toolPanelSection: string | null
   mediaTab: MediaTab
   mediaSearch: string
@@ -47,6 +49,7 @@ export interface EditorUIState {
   setLeftOpen: (open: boolean) => void
   toggleInspector: () => void
   setInspectorOpen: (open: boolean) => void
+  setRightPanelTab: (tab: RightPanelTab) => void
   setToolPanelSection: (section: string | null) => void
   setMediaTab: (tab: MediaTab) => void
   setMediaSearch: (q: string) => void
@@ -70,7 +73,18 @@ export interface EditorUIState {
 
 function persisted(key: string, fallback: boolean): boolean {
   try {
+    if (typeof localStorage === 'undefined') return fallback
     return localStorage.getItem(key) === null ? fallback : localStorage.getItem(key) === '1'
+  } catch {
+    return fallback
+  }
+}
+
+function persistedString(key: string, fallback: string): string {
+  try {
+    if (typeof localStorage === 'undefined') return fallback
+    const val = localStorage.getItem(key)
+    return val !== null ? val : fallback
   } catch {
     return fallback
   }
@@ -78,7 +92,9 @@ function persisted(key: string, fallback: boolean): boolean {
 
 function persist(key: string, value: boolean) {
   try {
-    localStorage.setItem(key, value ? '1' : '0')
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value ? '1' : '0')
+    }
   } catch {
     // ignore storage errors
   }
@@ -87,7 +103,8 @@ function persist(key: string, value: boolean) {
 export const useEditorStore = create<EditorUIState>()((set) => ({
   leftOpen: persisted('clipforge-left-open', true),
   inspectorOpen: persisted('clipforge-inspector-open', false),
-  toolPanelSection: null,
+  rightPanelTab: 'properties',
+  toolPanelSection: 'text',
   mediaTab: 'media',
   mediaSearch: '',
   mediaView: 'grid',
@@ -95,7 +112,7 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
   mediaSort: 'dateAdded',
   generatedSubTab: 'all',
   linkAudio: persisted('clipforge-link-audio', false),
-  mode: (localStorage.getItem('clipforge-mode') as EditorMode) || 'hybrid',
+  mode: (persistedString('clipforge-mode', 'hybrid') as EditorMode) || 'hybrid',
   aiDirectorOpen: persisted('clipforge-ai-director-open', true),
   historyPanelOpen: false,
   tool: 'select',
@@ -123,7 +140,13 @@ export const useEditorStore = create<EditorUIState>()((set) => ({
     persist('clipforge-inspector-open', open)
     set({ inspectorOpen: open })
   },
-  setToolPanelSection: (section) => set({ toolPanelSection: section }),
+  setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
+  setToolPanelSection: (section) =>
+    set((s) => ({
+      toolPanelSection: section,
+      rightPanelTab: section ? 'tools' : s.rightPanelTab,
+      inspectorOpen: section ? true : s.inspectorOpen,
+    })),
   setMediaTab: (tab) => set({ mediaTab: tab }),
   setMediaSearch: (q) => set({ mediaSearch: q }),
   setMediaView: (view) => set({ mediaView: view }),

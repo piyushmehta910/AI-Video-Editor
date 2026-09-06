@@ -1,5 +1,6 @@
 import * as React from 'react'
 import {
+  ChevronRight,
   Clapperboard,
   Music,
   Sparkles,
@@ -10,6 +11,7 @@ import {
   VolumeX,
   RotateCcw,
   Trash2,
+  SlidersHorizontal,
 } from 'lucide-react'
 import type { Clip, TrackType } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
@@ -38,7 +40,16 @@ const TYPE_META: Record<TrackType, { label: string; icon: typeof Clapperboard; c
  * Right-rail inspector: collapsible property sections for the selected clip.
  * All edits apply in real time; slider drags collapse into single undo steps.
  */
-export function InspectorPanel() {
+export function InspectorPanel({
+  onCollapse,
+  onOpenMiddleTools,
+  hideHeader = false,
+}: {
+  onOpenMedia?: () => void
+  onCollapse?: () => void
+  onOpenMiddleTools?: () => void
+  hideHeader?: boolean
+}) {
   const insp = useInspector()
   const target = insp.target
   const clip = target?.clip
@@ -55,22 +66,48 @@ export function InspectorPanel() {
   if (selection.clipIds.length > 1) {
     return (
       <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
-        <div className="flex h-9 shrink-0 items-center px-3 border-b bg-muted/20">
-          <span className="text-xs font-bold text-foreground">{selection.clipIds.length} Clips Selected</span>
-        </div>
+        {!hideHeader && (
+          <PanelHeader
+            title={`Multi-Clip Inspector (${selection.clipIds.length})`}
+            onCollapse={onCollapse}
+            onOpenMiddleTools={onOpenMiddleTools}
+          />
+        )}
         <MultiClipInspector />
       </div>
     )
   }
 
   if (!target || !clip) {
+    const allClips = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
+    const firstClip = allClips[0]
     return (
       <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
+        {!hideHeader && (
+          <PanelHeader
+            title="Inspector"
+            onCollapse={onCollapse}
+            onOpenMiddleTools={onOpenMiddleTools}
+          />
+        )}
         <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-muted-foreground">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 mb-3 text-muted-foreground/60 border border-border/40">
+            <SlidersHorizontal className="size-6" />
+          </div>
           <p className="text-xs font-semibold text-foreground">No Clip Selected</p>
-          <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
-            Click any clip on the timeline to inspect and customize properties.
+          <p className="text-[11px] text-muted-foreground mt-1 max-w-[220px] leading-relaxed">
+            Click any clip on the timeline to inspect and customize its properties.
           </p>
+          {firstClip && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 text-xs gap-1.5 h-7"
+              onClick={() => useTimelineStore.getState().select([firstClip.id], null)}
+            >
+              Select Clip
+            </Button>
+          )}
         </div>
       </div>
     )
@@ -110,6 +147,13 @@ export function InspectorPanel() {
 
   return (
     <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
+      {!hideHeader && (
+        <PanelHeader
+          title={insp.selectionCount > 1 ? `${insp.selectionCount} clips selected` : 'Inspector'}
+          onCollapse={onCollapse}
+          onOpenMiddleTools={onOpenMiddleTools}
+        />
+      )}
 
       {/* Clip Info Header */}
       <div className="border-b border-border/80 px-3 py-2.5 space-y-2 bg-muted/15">
@@ -289,3 +333,48 @@ function MultiSelectEdits() {
   )
 }
 
+function PanelHeader({
+  title,
+  onCollapse,
+  onOpenMiddleTools,
+}: {
+  title: string
+  onCollapse?: () => void
+  onOpenMiddleTools?: () => void
+}) {
+  return (
+    <div className="flex h-10 shrink-0 items-center justify-between border-b px-3 bg-muted/20 gap-2">
+      {onOpenMiddleTools ? (
+        <div className="flex items-center rounded-lg bg-muted/60 p-0.5 text-xs font-semibold">
+          <button
+            type="button"
+            className="rounded-md bg-card px-2 py-0.5 text-violet-600 dark:text-violet-400 font-bold shadow-xs text-[11px]"
+          >
+            Clip Properties
+          </button>
+          <button
+            type="button"
+            onClick={onOpenMiddleTools}
+            className="rounded-md px-2 py-0.5 text-muted-foreground hover:text-foreground text-[11px] transition-colors"
+          >
+            Middle Tools
+          </button>
+        </div>
+      ) : (
+        <span className="text-foreground min-w-0 truncate text-xs font-bold tracking-wider uppercase">{title}</span>
+      )}
+      {onCollapse && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onCollapse}
+          className="size-7 text-muted-foreground hover:text-foreground rounded-lg ml-auto shrink-0"
+          title="Collapse right panel"
+          aria-label="Collapse right panel"
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+      )}
+    </div>
+  )
+}

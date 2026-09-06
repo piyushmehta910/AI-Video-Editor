@@ -159,6 +159,7 @@ export function Timeline({ height, fill, onOpenTool }: { height?: number; fill?:
   const tool = useEditorStore((s) => s.tool)
   const toolPanelSection = useEditorStore((s) => s.toolPanelSection)
   const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
+  const rightPanelTab = useEditorStore((s) => s.rightPanelTab)
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
     const counts: Partial<Record<Track['type'], number>> = {}
@@ -614,70 +615,70 @@ const trackRectsRef = React.useRef<Array<{ id: string; top: number; bottom: numb
         {/* Core Timeline Tools & Generators */}
         <ToolbarButton
           label="Text & Titles Studio (T)"
-          active={inspectorOpen && toolPanelSection === 'text'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'text'}
           onClick={() => onOpenTool?.('text')}
         >
           <Type className="size-4 text-amber-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Auto Captions (C)"
-          active={inspectorOpen && toolPanelSection === 'captions'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'captions'}
           onClick={() => onOpenTool?.('captions')}
         >
           <Captions className="size-4 text-sky-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Voiceover & Audio Studio"
-          active={inspectorOpen && (toolPanelSection === 'voiceover' || toolPanelSection === 'audio')}
+          active={inspectorOpen && rightPanelTab === 'tools' && (toolPanelSection === 'voiceover' || toolPanelSection === 'audio')}
           onClick={() => onOpenTool?.('voiceover')}
         >
           <Music className="size-4 text-emerald-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Slides & Keynotes Studio"
-          active={inspectorOpen && toolPanelSection === 'slide'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'slide'}
           onClick={() => onOpenTool?.('slide')}
         >
           <Presentation className="size-4 text-indigo-400" />
         </ToolbarButton>
         <ToolbarButton
           label="AI Avatar Presenter Studio"
-          active={inspectorOpen && toolPanelSection === 'avatar'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'avatar'}
           onClick={() => onOpenTool?.('avatar')}
         >
           <Clapperboard className="size-4 text-violet-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Visual Effects Studio"
-          active={inspectorOpen && toolPanelSection === 'effects'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'effects'}
           onClick={() => onOpenTool?.('effects')}
         >
           <Sparkles className="size-4 text-pink-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Transitions Studio"
-          active={inspectorOpen && toolPanelSection === 'transitions'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'transitions'}
           onClick={() => onOpenTool?.('transitions')}
         >
           <Zap className="size-4 text-yellow-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Giphy Animated Stickers"
-          active={inspectorOpen && toolPanelSection === 'stickers'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'stickers'}
           onClick={() => onOpenTool?.('stickers')}
         >
           <Smile className="size-4 text-emerald-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Stock Media Search"
-          active={inspectorOpen && toolPanelSection === 'images'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'images'}
           onClick={() => onOpenTool?.('images')}
         >
           <Image className="size-4 text-cyan-400" />
         </ToolbarButton>
         <ToolbarButton
           label="Script Studio (AI Teleprompter)"
-          active={inspectorOpen && toolPanelSection === 'script'}
+          active={inspectorOpen && rightPanelTab === 'tools' && toolPanelSection === 'script'}
           onClick={() => onOpenTool?.('script')}
         >
           <ScrollText className="size-4 text-blue-400" />

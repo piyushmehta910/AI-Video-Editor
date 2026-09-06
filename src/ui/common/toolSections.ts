@@ -37,23 +37,28 @@ export type ToolSection =
   | 'voiceover'
 
 export const TOOL_SECTIONS: { id: ToolSection; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: 'text', label: 'Text & Titles', icon: Type },
-  { id: 'insights', label: 'Insights', icon: BarChart3 },
+  { id: 'text', label: 'Text Presets', icon: Type },
+  { id: 'captions', label: 'Captions', icon: FileText },
   { id: 'effects', label: 'Effects', icon: Sparkles },
+  { id: 'transitions', label: 'Transitions', icon: ArrowLeftRight },
   { id: 'audio', label: 'Audio', icon: Music },
   { id: 'voiceover', label: 'Voiceover', icon: Mic },
-  { id: 'captions', label: 'Captions', icon: FileText },
-  { id: 'transitions', label: 'Transitions', icon: ArrowLeftRight },
-  { id: 'stickers', label: 'Stickers', icon: Smile },
-  { id: 'speed', label: 'Speed', icon: Gauge },
-  { id: 'keyframe', label: 'Keyframe', icon: Diamond },
-  { id: 'crop', label: 'Crop', icon: Crop },
-  { id: 'slide', label: 'Slides', icon: Presentation },
   { id: 'avatar', label: 'Avatar', icon: Clapperboard },
-  { id: 'design', label: 'Design', icon: Code },
+  { id: 'slide', label: 'Slides', icon: Presentation },
   { id: 'script', label: 'Script', icon: ScrollText },
-  { id: 'images', label: 'Images', icon: ImagePlus },
+  { id: 'stickers', label: 'Stickers', icon: Smile },
+  { id: 'images', label: 'Stock Media', icon: ImagePlus },
+  { id: 'speed', label: 'Speed', icon: Gauge },
+  { id: 'crop', label: 'Crop', icon: Crop },
+  { id: 'keyframe', label: 'Keyframe', icon: Diamond },
+  { id: 'insights', label: 'Insights', icon: BarChart3 },
+  { id: 'design', label: 'Design', icon: Code },
 ]
+
+export function getToolMeta(section: string | null) {
+  if (!section) return TOOL_SECTIONS[0]
+  return TOOL_SECTIONS.find((s) => s.id === section) || TOOL_SECTIONS[0]
+}
 
 export const SECTION_DESCRIPTIONS: Record<ToolSection, string> = {
   text: 'Add titles, headings, lower thirds and styled text presets',

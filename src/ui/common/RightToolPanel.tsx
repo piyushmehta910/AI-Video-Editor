@@ -7449,6 +7449,7 @@ function VoiceoverSection() {
 interface RightToolPanelProps {
   section: ToolSection
   onCollapse: () => void
+  hideHeader?: boolean
 }
 
 const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
@@ -7470,26 +7471,28 @@ const SECTION_COMPONENTS: Record<ToolSection, React.FC> = {
   images: ImagesSection,
 }
 
-export function RightToolPanel({ section, onCollapse }: RightToolPanelProps) {
+export function RightToolPanel({ section, onCollapse, hideHeader = false }: RightToolPanelProps) {
   const sectionMeta = TOOL_SECTIONS.find((s) => s.id === section)
   const SectionContent = SECTION_COMPONENTS[section]
 
   return (
     <div className="flex h-full w-full flex-col bg-card">
-      <div className="shrink-0 border-b px-3 py-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {sectionMeta && <sectionMeta.icon className="size-3.5 text-violet-500" />}
-            <span className="text-xs font-semibold">{sectionMeta?.label ?? section}</span>
+      {!hideHeader && (
+        <div className="shrink-0 border-b px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {sectionMeta && <sectionMeta.icon className="size-3.5 text-violet-500" />}
+              <span className="text-xs font-semibold">{sectionMeta?.label ?? section}</span>
+            </div>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onCollapse}>
+              <ChevronLeft className="size-4" />
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onCollapse}>
-            <ChevronLeft className="size-4" />
-          </Button>
+          {SECTION_DESCRIPTIONS[section] && (
+            <p className="text-muted-foreground mt-0.5 pl-[22px] text-[10px]">{SECTION_DESCRIPTIONS[section]}</p>
+          )}
         </div>
-        {SECTION_DESCRIPTIONS[section] && (
-          <p className="text-muted-foreground mt-0.5 pl-[22px] text-[10px]">{SECTION_DESCRIPTIONS[section]}</p>
-        )}
-      </div>
+      )}
       <div className="flex-1 overflow-y-auto">
         {SectionContent && <SectionContent />}
       </div>
