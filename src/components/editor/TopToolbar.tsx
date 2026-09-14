@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { Check, Download, FilePlus, History, Home, PanelLeft, PanelRight, Pencil, Save, Search, Settings } from 'lucide-react'
+import { Check, Download, FilePlus, History, Home, PanelLeft, PanelRight, Pencil, Save, Search, Settings, Video } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
 import { ExportDialog } from '@/ui/export/ExportDialog'
 import { NewProjectDialog } from '@/components/editor/NewProjectDialog'
 import { OpenProjectDialog } from '@/components/editor/OpenProjectDialog'
+import { RecordDialog } from '@/components/editor/RecordDialog'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
@@ -95,6 +96,7 @@ export function TopToolbar() {
   const [exportOpen, setExportOpen] = React.useState(false)
   const [newProjectOpen, setNewProjectOpen] = React.useState(false)
   const [openProjectOpen, setOpenProjectOpen] = React.useState(false)
+  const [recordOpen, setRecordOpen] = React.useState(false)
 
   // Command palette and other surfaces (TopToolbar owns the project dialogs)
   // can open them through window events without prop drilling.
@@ -103,6 +105,7 @@ export function TopToolbar() {
       if (kind === 'export') setExportOpen(true)
       else if (kind === 'newProject') setNewProjectOpen(true)
       else if (kind === 'openProject') setOpenProjectOpen(true)
+      else if (kind === 'record') setRecordOpen(true)
     }
     const listeners = (Object.entries(DIALOG_EVENTS) as Array<[keyof typeof DIALOG_EVENTS, string]>).map(
       ([kind, name]) => {
@@ -182,6 +185,27 @@ export function TopToolbar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent className="text-[11px]">Create New Project (All Options)</TooltipContent>
+        </Tooltip>
+
+        {/* Record Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRecordOpen(true)}
+              className="h-7 sm:h-8 shrink-0 gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 text-[11px] font-semibold text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 hover:border-rose-500/60 rounded-lg transition-colors shadow-2xs"
+              data-testid="header-record-button"
+            >
+              <span className="relative flex size-2 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
+              </span>
+              <Video className="size-3.5 shrink-0 text-rose-500" />
+              <span className="hidden sm:inline">Record</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[11px]">Record Webcam, Screen, or Audio</TooltipContent>
         </Tooltip>
 
         {/* Project name (editable) */}
@@ -346,6 +370,9 @@ export function TopToolbar() {
 
       {/* Open Project Picker */}
       <OpenProjectDialog open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} />
+
+      {/* Record Media Dialog */}
+      {recordOpen && <RecordDialog open={recordOpen} onClose={() => setRecordOpen(false)} />}
     </header>
   )
 }

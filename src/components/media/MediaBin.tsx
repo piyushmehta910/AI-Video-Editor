@@ -1,18 +1,16 @@
 import * as React from 'react'
 import {
+  Check,
   FolderOpen,
-  FolderUp,
+  Globe,
   LayoutGrid,
   List,
-  LoaderCircle,
   Search,
   Sparkles,
   Square,
   UploadCloud,
   Video,
   X,
-  Check,
-  Globe,
 } from 'lucide-react'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEditorStore } from '@/stores/editorStore'
@@ -21,6 +19,7 @@ import { getMediaUrl } from '@/engine/storage/opfs'
 import { useMediaImport } from '@/hooks/useMediaImport'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { openEditorDialog } from '@/lib/uiEvents'
 import { VirtualList } from '@/components/common/VirtualList'
 import { DragPreviewLayer } from './DragPreview'
 import { applyAssetDropRules } from './afterAdd'
@@ -53,7 +52,7 @@ export function MediaBin() {
   const linkAudio = useEditorStore((s) => s.linkAudio)
   const toggleLinkAudio = useEditorStore((s) => s.toggleLinkAudio)
 
-  const { jobs, importing, recording, recordingStream, importFiles, startRecording, stopRecording, cancelRecording } =
+  const { jobs, importing: _importing, recording, recordingStream, importFiles, startRecording: _startRecording, stopRecording, cancelRecording } =
     useMediaImport()
 
   const [dragOver, setDragOver] = React.useState(false)
@@ -202,45 +201,23 @@ export function MediaBin() {
           }}
         />
 
-        {/* Top Two Buttons: Import and Record Video */}
-        <div className="grid grid-cols-2 gap-1.5">
+        {/* Record Video / Audio Button */}
+        <div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={importing}
-            onClick={() => fileInputRef.current?.click()}
-            className="h-8 min-w-0 gap-1.5 px-2 @[260px]:px-3 text-xs font-semibold hover:bg-violet-500/10 hover:border-violet-500/50 hover:text-violet-600 dark:hover:text-violet-300 transition"
-            data-testid="import-button"
-            title="Import video, audio, or image files"
-          >
-            {importing ? (
-              <LoaderCircle className="size-3.5 shrink-0 animate-spin text-violet-500" />
-            ) : (
-              <FolderUp className="size-3.5 shrink-0 text-violet-500" />
-            )}
-            <span className="truncate">Import</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={recording !== null}
-            onClick={() => void startRecording('webcam')}
-            className={cn(
-              'h-8 min-w-0 gap-1.5 px-2 @[260px]:px-3 text-xs font-semibold transition',
-              recording === 'webcam'
-                ? 'border-red-500 bg-red-500/15 text-red-500 animate-pulse'
-                : 'hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-500',
-            )}
+            onClick={() => openEditorDialog('record')}
+            className="h-8 w-full min-w-0 gap-1.5 px-2 @[260px]:px-3 text-xs font-semibold hover:bg-rose-500/10 hover:border-rose-500/50 hover:text-rose-500 dark:hover:text-rose-400 transition"
             data-testid="record-video-button"
-            title="Record webcam video directly into project"
+            title="Record webcam, screen, or audio directly into project"
           >
-            <Video className="size-3.5 shrink-0 text-red-500" />
-            <span className="truncate">
-              Record<span className="hidden @[260px]:inline"> Video</span>
+            <span className="relative flex size-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
             </span>
+            <Video className="size-3.5 shrink-0 text-rose-500" />
+            <span className="truncate">Record Video / Audio</span>
           </Button>
         </div>
 

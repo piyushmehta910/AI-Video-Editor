@@ -7,6 +7,7 @@ export const DIALOG_EVENTS = {
   newProject: 'clipforge:new-project',
   openProject: 'clipforge:open-project',
   export: 'clipforge:export',
+  record: 'clipforge:record',
 } as const
 
 export type DialogEventKey = keyof typeof DIALOG_EVENTS

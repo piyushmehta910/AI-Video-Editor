@@ -28,6 +28,7 @@ import {
   Trash2,
   Type,
   Undo2,
+  Video,
   Wand2,
   Zap,
 } from 'lucide-react'
@@ -88,6 +89,7 @@ export function CommandPalette() {
     }
 
     const project: PaletteItem[] = [
+      { id: 'record', label: 'Record webcam, screen, or audio…', category: 'Project', icon: <Video className="size-4 text-rose-500" />, run: () => openEditorDialog('record') },
       { id: 'export', label: 'Export project…', category: 'Project', icon: <Download className="size-4" />, run: () => openEditorDialog('export') },
       { id: 'new-project', label: 'New project…', category: 'Project', icon: <FilePlus2 className="size-4" />, run: () => openEditorDialog('newProject') },
       { id: 'open-project', label: 'Open project…', category: 'Project', icon: <FolderOpen className="size-4" />, run: () => openEditorDialog('openProject') },

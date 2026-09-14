@@ -13,6 +13,7 @@ import {
   Settings,
   Sparkles,
   Undo2,
+  Video,
   X,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
@@ -22,6 +23,7 @@ import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { ExportDialog } from '@/ui/export/ExportDialog'
 import { NewProjectDialog } from '@/components/editor/NewProjectDialog'
 import { OpenProjectDialog } from '@/components/editor/OpenProjectDialog'
+import { RecordDialog } from '@/components/editor/RecordDialog'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
@@ -66,6 +68,7 @@ export function MobileTopBar({ onOpenMedia: _onOpenMedia }: MobileTopBarProps) {
   const [exportOpen, setExportOpen] = React.useState(false)
   const [newProjectOpen, setNewProjectOpen] = React.useState(false)
   const [openProjectOpen, setOpenProjectOpen] = React.useState(false)
+  const [recordOpen, setRecordOpen] = React.useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false)
   const [justSaved, setJustSaved] = React.useState(false)
 
@@ -176,8 +179,25 @@ export function MobileTopBar({ onOpenMedia: _onOpenMedia }: MobileTopBarProps) {
         </Button>
       </div>
 
-      {/* ── Right: AI Director + Save + Export + More ── */}
+      {/* ── Right: Record + AI Director + Save + Export + More ── */}
       <div className="flex items-center gap-0.5 shrink-0">
+        {/* Record quick button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-8 p-0 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors relative"
+          onClick={() => setRecordOpen(true)}
+          aria-label="Record Media"
+          title="Record Media"
+          data-testid="mobile-record-button"
+        >
+          <Video className="size-4 text-rose-500" />
+          <span className="absolute top-1.5 right-1.5 flex size-1.5">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-rose-500" />
+          </span>
+        </Button>
+
         {/* AI Director quick launch */}
         <Button
           variant="ghost"
@@ -351,6 +371,7 @@ export function MobileTopBar({ onOpenMedia: _onOpenMedia }: MobileTopBarProps) {
       {exportOpen && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
       <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
       <OpenProjectDialog open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} />
+      {recordOpen && <RecordDialog open={recordOpen} onClose={() => setRecordOpen(false)} />}
     </header>
   )
 }
