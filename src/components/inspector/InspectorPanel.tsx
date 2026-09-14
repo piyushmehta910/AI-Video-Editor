@@ -13,15 +13,15 @@ import {
   Trash2,
   SlidersHorizontal,
 } from 'lucide-react'
-import type { Clip, TrackType } from '@/engine/types'
+import type { TrackType } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
-import { useInspector } from '@/hooks/useInspector'
+import { useInspector, type InspectorApi, type InspectorTarget } from '@/hooks/useInspector'
 import { Button } from '@/components/ui/button'
 import { CaptionsPanel } from '@/ui/inspector/CaptionsPanel'
 import { MultiClipInspector } from './MultiClipInspector'
 import { cn } from '@/lib/utils'
-import { LabeledSlider, Section } from './controls'
+import { LabeledSlider, MiniToggle, Row, Section } from './controls'
 import { TransformSection } from './TransformSection'
 import { AppearanceSection } from './AppearanceSection'
 import { TextSection } from './TextSection'
@@ -36,8 +36,261 @@ const TYPE_META: Record<TrackType, { label: string; icon: typeof Clapperboard; c
   fx: { label: 'FX', icon: Sparkles, className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400' },
 }
 
+/** Resolves clip capabilities & generates relevant property categories & active badges */
+function getClipPropertiesState(target: InspectorTarget) {
+  const { clip, track, asset } = target
+  const isAudio =
+    track.type === 'audio' ||
+    clip.clipType === 'audio' ||
+    clip.clipType === 'music' ||
+    clip.clipType === 'voice' ||
+    clip.clipType === 'sfx' ||
+    asset?.type === 'audio'
+
+  const isText = track.type === 'text' || clip.text != null || clip.textType != null
+  const isImage = asset?.type === 'image' || (clip.clipType as string) === 'image' || (clip.clipType as string) === 'sticker'
+  const isVideo = (track.type === 'video' || asset?.type === 'video') && !isImage
+  const isCaptions =
+    track.name.toLowerCase().includes('caption') || track.name.toLowerCase().includes('subtitle')
+
+  const hasAudio = isAudio || isVideo
+  const hasVisual = !isAudio
+  const hasEffects = hasVisual
+  const hasTransitions = true
+  const hasText = isText || clip.text != null
+
+  // Active property summaries for clickable quick-jump chips
+  const activeChips: Array<{ id: string; label: string; tabId: string; color: string }> = []
+
+  if (hasAudio) {
+    if (clip.volume === 0 || clip.muted) {
+      activeChips.push({
+        id: 'muted',
+        label: 'Muted',
+        tabId: 'audio',
+        color: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+      })
+    } else if (clip.volume !== 1) {
+      activeChips.push({
+        id: 'volume',
+        label: `Vol ${Math.round(clip.volume * 100)}%`,
+        tabId: 'audio',
+        color: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+      })
+    }
+  }
+
+  if (clip.speed !== 1) {
+    activeChips.push({
+      id: 'speed',
+      label: `${clip.speed}× Speed`,
+      tabId: isAudio ? 'timing' : 'transform',
+      color: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
+    })
+  }
+
+  if (hasVisual && clip.opacity !== 1) {
+    activeChips.push({
+      id: 'opacity',
+      label: `Opacity ${Math.round(clip.opacity * 100)}%`,
+      tabId: 'appearance',
+      color: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    })
+  }
+
+  if (hasVisual && clip.blendMode && clip.blendMode !== 'normal') {
+    activeChips.push({
+      id: 'blend',
+      label: `Blend: ${clip.blendMode}`,
+      tabId: 'appearance',
+      color: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    })
+  }
+
+  const enabledEffects = clip.effects?.filter((e) => e.enabled !== false) ?? []
+  if (hasEffects && enabledEffects.length > 0) {
+    activeChips.push({
+      id: 'fx',
+      label: `${enabledEffects.length} FX`,
+      tabId: 'effects',
+      color: 'bg-pink-500/15 text-pink-400 border-pink-500/30',
+    })
+  }
+
+  if (clip.transitions?.in || clip.transitions?.out) {
+    const tName = clip.transitions.in?.type ?? clip.transitions.out?.type ?? 'active'
+    activeChips.push({
+      id: 'transition',
+      label: `Transition: ${tName}`,
+      tabId: 'transitions',
+      color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+    })
+  }
+
+  if (clip.text) {
+    activeChips.push({
+      id: 'text',
+      label: 'Text Overlay',
+      tabId: 'text',
+      color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    })
+  }
+
+  if (clip.crop && (clip.crop.top > 0 || clip.crop.bottom > 0 || clip.crop.left > 0 || clip.crop.right > 0)) {
+    activeChips.push({
+      id: 'crop',
+      label: 'Cropped',
+      tabId: 'appearance',
+      color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+    })
+  }
+
+  // Dynamic tabs tailored specifically to this clip's properties
+  const categories: Array<{ id: string; label: string; badge?: string }> = [
+    { id: 'all', label: 'All' },
+  ]
+
+  if (isText) {
+    categories.push({ id: 'text', label: 'Text', badge: clip.text ? 'Set' : undefined })
+  }
+
+  if (hasVisual) {
+    categories.push({ id: 'transform', label: 'Transform' })
+    categories.push({
+      id: 'appearance',
+      label: 'Appearance',
+      badge: clip.blendMode && clip.blendMode !== 'normal' ? clip.blendMode : undefined,
+    })
+  }
+
+  if (hasAudio) {
+    categories.push({
+      id: 'audio',
+      label: 'Audio',
+      badge: clip.volume === 0 || clip.muted ? 'Muted' : clip.volume !== 1 ? `${Math.round(clip.volume * 100)}%` : undefined,
+    })
+  }
+
+  if (!isText && hasVisual && clip.text != null) {
+    categories.push({ id: 'text', label: 'Text', badge: 'Active' })
+  }
+
+  if (hasEffects) {
+    categories.push({
+      id: 'effects',
+      label: 'Effects',
+      badge: enabledEffects.length > 0 ? String(enabledEffects.length) : undefined,
+    })
+  }
+
+  if (hasTransitions) {
+    categories.push({
+      id: 'transitions',
+      label: 'Transitions',
+      badge: clip.transitions?.in || clip.transitions?.out ? 'Active' : undefined,
+    })
+  }
+
+  if (isCaptions) {
+    categories.push({ id: 'captions', label: 'Captions' })
+  }
+
+  if (isAudio) {
+    categories.push({
+      id: 'timing',
+      label: 'Speed & Timing',
+      badge: clip.speed !== 1 ? `${clip.speed}×` : undefined,
+    })
+  }
+
+  return {
+    isAudio,
+    isText,
+    isImage,
+    isVideo,
+    isCaptions,
+    hasAudio,
+    hasVisual,
+    hasEffects,
+    hasTransitions,
+    hasText,
+    activeChips,
+    categories,
+  }
+}
+
+/** Speed and timing inspector section for audio/media clips */
+function SpeedTimingSection({ insp }: { insp: InspectorApi }) {
+  const target = insp.target!
+  const clip = target.clip
+  const speed = clip.speed ?? 1
+
+  const handleSpeedChange = (newSpeed: number) => {
+    insp.batched({ speed: Math.max(0.25, Math.min(4, newSpeed)) }, `Set speed of '${clip.name}' to ${newSpeed}x`)
+  }
+
+  return (
+    <Section title="Speed & Timing">
+      <LabeledSlider
+        label="Playback Speed"
+        value={speed}
+        min={0.25}
+        max={4}
+        step={0.05}
+        format={(v) => `${v.toFixed(2)}×`}
+        onChange={handleSpeedChange}
+      />
+      {/* Quick Speed Preset Buttons */}
+      <div className="flex items-center gap-1.5 pt-0.5">
+        {[0.5, 1, 1.5, 2, 4].map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => handleSpeedChange(preset)}
+            className={cn(
+              'flex-1 rounded-md py-1 text-[10px] font-semibold transition border border-border/50',
+              Math.abs(speed - preset) < 0.02
+                ? 'bg-violet-600 text-white font-bold border-violet-500 shadow-xs'
+                : 'bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            {preset}×
+          </button>
+        ))}
+      </div>
+
+      {/* Preserve Pitch Toggle */}
+      <Row label="Preserve Pitch">
+        <MiniToggle
+          checked={clip.preservePitch ?? true}
+          onChange={(on) => insp.update({ preservePitch: on }, `Toggle preserve pitch on '${clip.name}'`)}
+          label="Keep audio pitch at altered speeds"
+        />
+      </Row>
+
+      {/* Timing Info */}
+      <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 space-y-1.5 text-[11px]">
+        <div className="flex items-center justify-between text-muted-foreground">
+          <span>Timeline Position</span>
+          <span className="font-mono text-foreground font-semibold">@ {formatSeconds(clip.startTime)}</span>
+        </div>
+        <div className="flex items-center justify-between text-muted-foreground">
+          <span>Clip Duration</span>
+          <span className="font-mono text-foreground font-semibold">{formatSeconds(clip.duration)}</span>
+        </div>
+        <div className="flex items-center justify-between text-muted-foreground">
+          <span>Source Range</span>
+          <span className="font-mono text-foreground font-semibold">
+            {formatSeconds(clip.sourceStart)} – {formatSeconds(clip.sourceEnd)}
+          </span>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 /**
- * Right-rail inspector: collapsible property sections for the selected clip.
+ * Right-rail inspector: collapsible property sections adapted dynamically to the selected clip.
  * All edits apply in real time; slider drags collapse into single undo steps.
  */
 export function InspectorPanel({
@@ -62,6 +315,19 @@ export function InspectorPanel({
 
   const [activeTab, setActiveTab] = React.useState<string>('all')
 
+  const clipProps = React.useMemo(() => {
+    return target ? getClipPropertiesState(target) : null
+  }, [target])
+
+  // Auto-heal activeTab when selecting different clip types
+  React.useEffect(() => {
+    if (!clipProps) return
+    const exists = clipProps.categories.some((c) => c.id === activeTab)
+    if (!exists) {
+      setActiveTab(clipProps.isText ? 'text' : 'all')
+    }
+  }, [clip?.id, clipProps, activeTab])
+
   // Multi-selection mode
   if (selection.clipIds.length > 1) {
     return (
@@ -78,7 +344,7 @@ export function InspectorPanel({
     )
   }
 
-  if (!target || !clip) {
+  if (!target || !clip || !clipProps) {
     const allClips = useTimelineStore.getState().project.tracks.flatMap((t) => t.clips)
     const firstClip = allClips[0]
     return (
@@ -128,9 +394,9 @@ export function InspectorPanel({
     }
   }
 
-  const isMuted = clip.volume === 0
+  const isMuted = clip.volume === 0 || clip.muted
   const toggleMute = () => {
-    updateClip(clip.id, { volume: isMuted ? 1 : 0 })
+    updateClip(clip.id, { volume: isMuted ? 1 : 0, muted: !isMuted })
   }
 
   const handleResetTransform = () => {
@@ -146,7 +412,7 @@ export function InspectorPanel({
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md">
+    <div className="flex h-full w-full flex-col bg-card/60 backdrop-blur-md select-none">
       {!hideHeader && (
         <PanelHeader
           title={insp.selectionCount > 1 ? `${insp.selectionCount} clips selected` : 'Inspector'}
@@ -155,7 +421,7 @@ export function InspectorPanel({
         />
       )}
 
-      {/* Clip Info Header */}
+      {/* ─── Clip Info Header & Active Properties Summary ─── */}
       <div className="border-b border-border/80 px-3 py-2.5 space-y-2 bg-muted/15">
         <div className="flex items-center gap-2.5">
           <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg shadow-xs', meta.className)}>
@@ -167,6 +433,12 @@ export function InspectorPanel({
               <span>{formatSeconds(clip.duration)}</span>
               <span>·</span>
               <span>@ {formatSeconds(clip.startTime)}</span>
+              {clip.speed !== 1 && (
+                <>
+                  <span>·</span>
+                  <span className="text-violet-400 font-bold">{clip.speed}×</span>
+                </>
+              )}
             </div>
           </div>
           <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider', meta.className)}>
@@ -174,7 +446,27 @@ export function InspectorPanel({
           </span>
         </div>
 
-        {/* Quick Action Buttons Toolbar */}
+        {/* Applied Properties Chips (Quick Jump) */}
+        {clipProps.activeChips.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
+            {clipProps.activeChips.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setActiveTab(chip.tabId)}
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border transition-all hover:opacity-80 active:scale-95 whitespace-nowrap shrink-0',
+                  chip.color,
+                )}
+                title={`Click to inspect ${chip.label} properties`}
+              >
+                <span>{chip.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Quick Action Buttons Toolbar (Context-Aware) */}
         <div className="flex items-center gap-1 pt-0.5 min-w-0">
           <Button
             size="sm"
@@ -197,7 +489,7 @@ export function InspectorPanel({
             <Scissors className="size-3 shrink-0" />
             <span className="truncate">Split</span>
           </Button>
-          {target.track.type !== 'text' && (
+          {clipProps.hasAudio && (
             <Button
               size="sm"
               variant="outline"
@@ -211,15 +503,17 @@ export function InspectorPanel({
               {isMuted ? <VolumeX className="size-3" /> : <Volume2 className="size-3" />}
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="size-7 shrink-0 p-0 border-border/60 hover:bg-muted flex items-center justify-center"
-            onClick={handleResetTransform}
-            title="Reset Transform (Position, Scale, Rotation)"
-          >
-            <RotateCcw className="size-3" />
-          </Button>
+          {clipProps.hasVisual && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="size-7 shrink-0 p-0 border-border/60 hover:bg-muted flex items-center justify-center"
+              onClick={handleResetTransform}
+              title="Reset Transform (Position, Scale, Rotation)"
+            >
+              <RotateCcw className="size-3" />
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -232,103 +526,79 @@ export function InspectorPanel({
         </div>
       </div>
 
-      {/* Category Tabs Filter */}
+      {/* ─── Category Tabs Filter (Tailored Specifically to this Clip) ─── */}
       <div className="flex items-center gap-1 px-2.5 py-1.5 border-b border-border/60 bg-muted/10 overflow-x-auto no-scrollbar scroll-smooth">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'transform', label: 'Transform' },
-          { id: 'appearance', label: 'Appearance' },
-          { id: 'audio', label: 'Audio' },
-          { id: 'text', label: 'Text' },
-          { id: 'effects', label: 'Effects' },
-          { id: 'transitions', label: 'Transitions' },
-          { id: 'captions', label: 'Captions' },
-        ].map((tab) => (
+        {clipProps.categories.map((tab) => (
           <button
             key={tab.id}
             type="button"
             className={cn(
-              'rounded-full px-2.5 py-1 text-[10px] font-semibold transition shrink-0 whitespace-nowrap',
+              'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold transition shrink-0 whitespace-nowrap',
               activeTab === tab.id
                 ? 'bg-violet-600 text-white shadow-xs font-bold'
                 : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
             onClick={() => setActiveTab(tab.id)}
           >
-            {tab.label}
+            <span>{tab.label}</span>
+            {tab.badge && (
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider',
+                  activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-violet-500/20 text-violet-400',
+                )}
+              >
+                {tab.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {insp.selectionCount > 1 ? (
-        <MultiSelectEdits />
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 space-y-1">
-          {(activeTab === 'all' || activeTab === 'transform') && target.track.type !== 'audio' && (
-            <TransformSection insp={insp} />
-          )}
-          {((activeTab === 'all' && (clip.text || target.track.type === 'text')) || activeTab === 'text') && (
-            <TextSection insp={insp} showAddPrompt={activeTab === 'text' || target.track.type === 'text'} />
-          )}
-          {(activeTab === 'all' || activeTab === 'appearance') && <AppearanceSection insp={insp} />}
-          {(activeTab === 'all' || activeTab === 'audio') && <AudioSection insp={insp} />}
-          {(activeTab === 'all' || activeTab === 'effects') && <EffectsSection insp={insp} />}
-          {(activeTab === 'all' || activeTab === 'transitions') && <TransitionsSection insp={insp} />}
-          {(activeTab === 'all' || activeTab === 'captions') && (
-            <Section title="Captions" defaultOpen={activeTab === 'captions'}>
-              <CaptionsPanel />
-            </Section>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
+      {/* ─── Property Sections (Rendered According to Clip Capabilities) ─── */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 space-y-1">
+        {/* Text Section (shown first if text clip) */}
+        {(clipProps.isText || clipProps.hasText) && (activeTab === 'all' || activeTab === 'text') && (
+          <TextSection insp={insp} showAddPrompt={activeTab === 'text' || clipProps.isText} />
+        )}
 
-/** Volume/opacity applied to every selected clip as a single undo step. */
-function MultiSelectEdits() {
-  const selection = useTimelineStore((s) => s.selection)
-  const project = useTimelineStore((s) => s.project)
-  const first = React.useMemo(() => {
-    for (const track of project.tracks) {
-      const clip = track.clips.find((c) => c.id === selection.clipIds[0])
-      if (clip) return clip
-    }
-    return null
-  }, [project, selection.clipIds])
-  if (!first) return null
+        {/* Audio Section (rendered only for audio & video clips) */}
+        {clipProps.hasAudio && (activeTab === 'all' || activeTab === 'audio') && (
+          <AudioSection insp={insp} />
+        )}
 
-  const applyToAll = (patch: Partial<Clip>, description: string) => {
-    const store = useTimelineStore.getState()
-    store.beginHistoryGroup({ type: 'edit', description })
-    try {
-      for (const id of store.selection.clipIds) store.updateClip(id, patch)
-    } finally {
-      store.endHistoryGroup()
-    }
-  }
+        {/* Speed & Timing Section (for audio clips) */}
+        {clipProps.isAudio && (activeTab === 'all' || activeTab === 'timing') && (
+          <SpeedTimingSection insp={insp} />
+        )}
 
-  return (
-    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-      <p className="text-muted-foreground text-xs">
-        Editing {selection.clipIds.length} clips — changes apply to all of them.
-      </p>
-      <LabeledSlider
-        label="Volume"
-        value={Math.round(first.volume * 100)}
-        min={0}
-        max={200}
-        format={(v) => `${v}%`}
-        onChange={(v) => applyToAll({ volume: v / 100 }, 'Changed volume of selected clips')}
-      />
-      <LabeledSlider
-        label="Opacity"
-        value={Math.round(first.opacity * 100)}
-        min={0}
-        max={100}
-        format={(v) => `${v}%`}
-        onChange={(v) => applyToAll({ opacity: v / 100 }, 'Changed opacity of selected clips')}
-      />
+        {/* Transform Section (rendered only for visual clips) */}
+        {clipProps.hasVisual && (activeTab === 'all' || activeTab === 'transform') && (
+          <TransformSection insp={insp} />
+        )}
+
+        {/* Appearance Section (rendered only for visual clips) */}
+        {clipProps.hasVisual && (activeTab === 'all' || activeTab === 'appearance') && (
+          <AppearanceSection insp={insp} />
+        )}
+
+        {/* Effects Section (rendered only for visual clips) */}
+        {clipProps.hasEffects && (activeTab === 'all' || activeTab === 'effects') && (
+          <EffectsSection insp={insp} />
+        )}
+
+        {/* Transitions Section */}
+        {clipProps.hasTransitions && (activeTab === 'all' || activeTab === 'transitions') && (
+          <TransitionsSection insp={insp} />
+        )}
+
+        {/* Captions Section (rendered only for caption clips or explicit captions tab) */}
+        {(clipProps.isCaptions || activeTab === 'captions') && (activeTab === 'all' || activeTab === 'captions') && (
+          <Section title="Captions" defaultOpen={activeTab === 'captions'}>
+            <CaptionsPanel />
+          </Section>
+        )}
+      </div>
     </div>
   )
 }
