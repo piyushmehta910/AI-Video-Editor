@@ -67,10 +67,31 @@ export function RightPanelContainer() {
     })
   }, [search, activeCategory])
 
+  const CLIP_TOOL_SECTIONS = React.useMemo(
+    () =>
+      new Set<ToolSection>([
+        'text',
+        'audio',
+        'voiceover',
+        'speed',
+        'crop',
+        'keyframe',
+        'effects',
+        'transitions',
+        'design',
+        'captions',
+      ]),
+    [],
+  )
+
   const handleSelectTool = (id: ToolSection) => {
     setToolPanelSection(id)
-    setRightPanelTab('tools')
-    setViewMode('studio')
+    if (rightPanelTab === 'properties' && CLIP_TOOL_SECTIONS.has(id)) {
+      // Stay in Clip Properties to inspect that tool's properties for the clip
+    } else {
+      setRightPanelTab('tools')
+      setViewMode('studio')
+    }
   }
 
   const scrollRibbon = (direction: 'left' | 'right') => {
@@ -102,7 +123,7 @@ export function RightPanelContainer() {
           >
             {TOOL_SECTIONS.map((sec) => {
               const Icon = sec.icon
-              const isCurrent = activeToolId === sec.id && rightPanelTab === 'tools' && viewMode === 'studio'
+              const isCurrent = activeToolId === sec.id && viewMode === 'studio'
               return (
                 <button
                   key={sec.id}

@@ -12,11 +12,16 @@ import {
   RotateCcw,
   Trash2,
   SlidersHorizontal,
+  RotateCw,
+  FlipHorizontal,
+  FlipVertical,
 } from 'lucide-react'
-import type { TrackType } from '@/engine/types'
+import type { CropEdges, TrackType } from '@/engine/types'
 import { formatSeconds } from '@/engine/types'
 import { useTimelineStore } from '@/stores/timelineStore'
+import { useEditorStore } from '@/stores/editorStore'
 import { useInspector, type InspectorApi, type InspectorTarget } from '@/hooks/useInspector'
+import { upsertKeyframe, removeKeyframe } from '@/lib/keyframes'
 import { Button } from '@/components/ui/button'
 import { CaptionsPanel } from '@/ui/inspector/CaptionsPanel'
 import { MultiClipInspector } from './MultiClipInspector'
@@ -84,7 +89,7 @@ function getClipPropertiesState(target: InspectorTarget) {
     activeChips.push({
       id: 'speed',
       label: `${clip.speed}× Speed`,
-      tabId: isAudio ? 'timing' : 'transform',
+      tabId: 'speed',
       color: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
     })
   }
@@ -140,12 +145,22 @@ function getClipPropertiesState(target: InspectorTarget) {
     activeChips.push({
       id: 'crop',
       label: 'Cropped',
-      tabId: 'appearance',
+      tabId: 'crop',
       color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
     })
   }
 
-  // Dynamic tabs tailored specifically to this clip's properties
+  const kfCount = clip.keyframes?.length ?? 0
+  if (kfCount > 0) {
+    activeChips.push({
+      id: 'keyframe',
+      label: `${kfCount} Keyframes`,
+      tabId: 'keyframe',
+      color: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+    })
+  }
+
+  // Dynamic tabs tailored specifically to this clip's properties & each tool
   const categories: Array<{ id: string; label: string; badge?: string }> = [
     { id: 'all', label: 'All' },
   ]
@@ -157,8 +172,16 @@ function getClipPropertiesState(target: InspectorTarget) {
   if (hasVisual) {
     categories.push({ id: 'transform', label: 'Transform' })
     categories.push({
+      id: 'crop',
+      label: 'Crop',
+      badge:
+        clip.crop && (clip.crop.top > 0 || clip.crop.bottom > 0 || clip.crop.left > 0 || clip.crop.right > 0)
+          ? 'Active'
+          : undefined,
+    })
+    categories.push({
       id: 'appearance',
-      label: 'Appearance',
+      label: 'Color & Look',
       badge: clip.blendMode && clip.blendMode !== 'normal' ? clip.blendMode : undefined,
     })
   }
@@ -167,7 +190,28 @@ function getClipPropertiesState(target: InspectorTarget) {
     categories.push({
       id: 'audio',
       label: 'Audio',
-      badge: clip.volume === 0 || clip.muted ? 'Muted' : clip.volume !== 1 ? `${Math.round(clip.volume * 100)}%` : undefined,
+      badge:
+        clip.volume === 0 || clip.muted
+          ? 'Muted'
+          : clip.volume !== 1
+            ? `${Math.round(clip.volume * 100)}%`
+            : undefined,
+    })
+  }
+
+  // Speed is applicable to video and audio clips
+  categories.push({
+    id: 'speed',
+    label: 'Speed',
+    badge: clip.speed !== 1 ? `${clip.speed.toFixed(2)}×` : undefined,
+  })
+
+  // Keyframes for all animated/media clips
+  if (hasVisual || hasAudio) {
+    categories.push({
+      id: 'keyframe',
+      label: 'Keyframes',
+      badge: kfCount > 0 ? String(kfCount) : undefined,
     })
   }
 
@@ -195,14 +239,6 @@ function getClipPropertiesState(target: InspectorTarget) {
     categories.push({ id: 'captions', label: 'Captions' })
   }
 
-  if (isAudio) {
-    categories.push({
-      id: 'timing',
-      label: 'Speed & Timing',
-      badge: clip.speed !== 1 ? `${clip.speed}×` : undefined,
-    })
-  }
-
   return {
     isAudio,
     isText,
@@ -219,36 +255,50 @@ function getClipPropertiesState(target: InspectorTarget) {
   }
 }
 
-/** Speed and timing inspector section for audio/media clips */
-function SpeedTimingSection({ insp }: { insp: InspectorApi }) {
+/** Speed tool properties section */
+function SpeedSection({ insp }: { insp: InspectorApi }) {
   const target = insp.target!
   const clip = target.clip
   const speed = clip.speed ?? 1
+  const [rippleDuration, setRippleDuration] = React.useState(true)
 
-  const handleSpeedChange = (newSpeed: number) => {
-    insp.batched({ speed: Math.max(0.25, Math.min(4, newSpeed)) }, `Set speed of '${clip.name}' to ${newSpeed}x`)
+  const sourceDuration = Math.max(0.1, clip.sourceEnd - clip.sourceStart)
+
+  const handleSetSpeed = (newSpeed: number) => {
+    const safeSpeed = Math.max(0.05, Math.min(16, Math.round(newSpeed * 100) / 100))
+    const patch: Partial<typeof clip> = { speed: safeSpeed }
+    if (rippleDuration) {
+      patch.duration = Math.max(0.1, sourceDuration / safeSpeed)
+    }
+    insp.batched(patch, `Set speed of '${clip.name}' to ${safeSpeed}x`)
   }
 
+  const quickPresets = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4]
+  const timelineAfter = rippleDuration
+    ? `${(sourceDuration / speed).toFixed(2)}s`
+    : `${clip.duration.toFixed(2)}s (fixed)`
+
   return (
-    <Section title="Speed & Timing">
+    <Section title="Speed">
       <LabeledSlider
-        label="Playback Speed"
+        label="Playback Multiplier"
         value={speed}
         min={0.25}
         max={4}
         step={0.05}
         format={(v) => `${v.toFixed(2)}×`}
-        onChange={handleSpeedChange}
+        onChange={handleSetSpeed}
       />
-      {/* Quick Speed Preset Buttons */}
-      <div className="flex items-center gap-1.5 pt-0.5">
-        {[0.5, 1, 1.5, 2, 4].map((preset) => (
+
+      {/* Quick Presets */}
+      <div className="grid grid-cols-4 gap-1 pt-1">
+        {quickPresets.map((preset) => (
           <button
             key={preset}
             type="button"
-            onClick={() => handleSpeedChange(preset)}
+            onClick={() => handleSetSpeed(preset)}
             className={cn(
-              'flex-1 rounded-md py-1 text-[10px] font-semibold transition border border-border/50',
+              'rounded-md py-1 text-[10px] font-semibold transition border border-border/50',
               Math.abs(speed - preset) < 0.02
                 ? 'bg-violet-600 text-white font-bold border-violet-500 shadow-xs'
                 : 'bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -259,31 +309,310 @@ function SpeedTimingSection({ insp }: { insp: InspectorApi }) {
         ))}
       </div>
 
+      {/* Style Presets */}
+      <div className="grid grid-cols-2 gap-1.5 pt-1">
+        {[
+          { label: 'Slow-Mo', val: 0.5, desc: '50% Smooth Slow' },
+          { label: 'Ultra Slow', val: 0.25, desc: '25% Dramatic Slow' },
+          { label: 'Fast Forward', val: 2, desc: '2× Quick Pace' },
+          { label: 'Time-Lapse', val: 4, desc: '4× Fast Motion' },
+        ].map((style) => (
+          <button
+            key={style.label}
+            type="button"
+            onClick={() => handleSetSpeed(style.val)}
+            className={cn(
+              'flex flex-col items-start p-2 rounded-lg border text-left transition text-[10px]',
+              Math.abs(speed - style.val) < 0.02
+                ? 'bg-violet-500/15 border-violet-500/50 text-violet-400 font-bold'
+                : 'bg-muted/20 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/40',
+            )}
+          >
+            <span className="font-semibold text-foreground">{style.label}</span>
+            <span className="text-[9px] text-muted-foreground">{style.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Ripple duration toggle */}
+      <Row label="Ripple Duration">
+        <MiniToggle
+          checked={rippleDuration}
+          onChange={setRippleDuration}
+          label="Adjust timeline duration when speed changes"
+        />
+      </Row>
+
       {/* Preserve Pitch Toggle */}
       <Row label="Preserve Pitch">
         <MiniToggle
           checked={clip.preservePitch ?? true}
           onChange={(on) => insp.update({ preservePitch: on }, `Toggle preserve pitch on '${clip.name}'`)}
-          label="Keep audio pitch at altered speeds"
+          label="Keep original audio pitch at altered speeds"
         />
       </Row>
 
-      {/* Timing Info */}
-      <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 space-y-1.5 text-[11px]">
+      {/* Duration Readout */}
+      <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 space-y-1 text-[11px]">
         <div className="flex items-center justify-between text-muted-foreground">
-          <span>Timeline Position</span>
-          <span className="font-mono text-foreground font-semibold">@ {formatSeconds(clip.startTime)}</span>
+          <span>Source Duration</span>
+          <span className="font-mono text-foreground">{sourceDuration.toFixed(2)}s</span>
         </div>
         <div className="flex items-center justify-between text-muted-foreground">
-          <span>Clip Duration</span>
-          <span className="font-mono text-foreground font-semibold">{formatSeconds(clip.duration)}</span>
+          <span>Timeline Duration</span>
+          <span className="font-mono text-foreground font-semibold text-violet-400">{timelineAfter}</span>
         </div>
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span>Source Range</span>
-          <span className="font-mono text-foreground font-semibold">
-            {formatSeconds(clip.sourceStart)} – {formatSeconds(clip.sourceEnd)}
+      </div>
+    </Section>
+  )
+}
+
+/** Crop tool properties section */
+function CropSection({ insp }: { insp: InspectorApi }) {
+  const target = insp.target!
+  const clip = target.clip
+  const crop = clip.crop ?? { top: 0, right: 0, bottom: 0, left: 0 }
+  const reframing = clip.reframing
+  const aspectPresets = ['16:9', '9:16', '1:1', '4:5', '21:9', 'free'] as const
+
+  const setCropEdge = (edge: keyof CropEdges, val: number) => {
+    const next = { ...crop, [edge]: Math.max(0, Math.min(45, val)) }
+    insp.batched({ crop: next }, `Crop '${clip.name}'`)
+  }
+
+  const setTargetAspect = (aspect: string) => {
+    insp.update(
+      {
+        reframing: {
+          enabled: aspect !== 'free',
+          targetAspect: aspect,
+          followStrength: reframing?.followStrength ?? 0.6,
+        },
+      },
+      `Set crop aspect of '${clip.name}' to ${aspect}`,
+    )
+  }
+
+  const handleRotate90 = () => {
+    const current = clip.rotation ?? 0
+    insp.update({ rotation: (current + 90) % 360 }, `Rotated '${clip.name}' by 90°`)
+  }
+
+  const handleFlipH = () => {
+    const sx = clip.scale?.x ?? 1
+    const sy = clip.scale?.y ?? 1
+    insp.update({ scale: { x: -sx, y: sy } }, `Flipped '${clip.name}' horizontally`)
+  }
+
+  const handleFlipV = () => {
+    const sx = clip.scale?.x ?? 1
+    const sy = clip.scale?.y ?? 1
+    insp.update({ scale: { x: sx, y: -sy } }, `Flipped '${clip.name}' vertically`)
+  }
+
+  return (
+    <Section title="Crop & Framing">
+      {/* Aspect Ratio Presets */}
+      <div className="space-y-1.5">
+        <span className="text-[11px] font-semibold text-muted-foreground">Target Aspect Ratio</span>
+        <div className="grid grid-cols-3 gap-1">
+          {aspectPresets.map((preset) => {
+            const isActive =
+              reframing?.targetAspect === preset || (!reframing?.enabled && preset === 'free')
+            return (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setTargetAspect(preset)}
+                className={cn(
+                  'h-7 rounded-md text-[10px] font-semibold transition border',
+                  isActive
+                    ? 'bg-violet-600 text-white font-bold border-violet-500 shadow-xs'
+                    : 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {preset}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Manual Margin Crop Sliders */}
+      <div className="space-y-1.5 pt-1">
+        <span className="text-[11px] font-semibold text-muted-foreground">Manual Crop Margins (%)</span>
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/50 bg-muted/20 p-2.5">
+          {(['top', 'bottom', 'left', 'right'] as const).map((side) => (
+            <label key={side} className="flex items-center gap-2">
+              <span className="w-10 text-[10px] font-medium capitalize text-muted-foreground">{side}</span>
+              <input
+                type="range"
+                min={0}
+                max={45}
+                value={crop[side]}
+                onChange={(e) => setCropEdge(side, Number(e.target.value))}
+                className="accent-violet-500 h-1 flex-1 cursor-pointer"
+              />
+              <span className="w-6 text-right font-mono text-[9px] text-foreground">{crop[side]}%</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick Transform Orientations */}
+      <div className="flex items-center gap-1.5 pt-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 flex-1 text-[10px] font-semibold gap-1"
+          onClick={handleRotate90}
+          title="Rotate 90° Clockwise"
+        >
+          <RotateCw className="size-3" />
+          <span>Rotate 90°</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 flex-1 text-[10px] font-semibold gap-1"
+          onClick={handleFlipH}
+          title="Flip Horizontal"
+        >
+          <FlipHorizontal className="size-3" />
+          <span>Flip H</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 flex-1 text-[10px] font-semibold gap-1"
+          onClick={handleFlipV}
+          title="Flip Vertical"
+        >
+          <FlipVertical className="size-3" />
+          <span>Flip V</span>
+        </Button>
+      </div>
+    </Section>
+  )
+}
+
+/** Keyframe tool properties section */
+function KeyframeSection({ insp }: { insp: InspectorApi }) {
+  const target = insp.target!
+  const clip = target.clip
+  const playhead = useTimelineStore((s) => s.playhead)
+
+  const keyframes = clip.keyframes ?? []
+  const clipLocalTime = Math.max(0, Math.min(clip.duration, playhead - clip.startTime))
+
+  const addKeyframeFor = (prop: string, val: number) => {
+    const updated = upsertKeyframe(keyframes, prop, clipLocalTime, val)
+    insp.update({ keyframes: updated }, `Add ${prop} keyframe to '${clip.name}'`)
+  }
+
+  const handleDeleteKeyframe = (id: string) => {
+    const updated = removeKeyframe(keyframes, id)
+    insp.update({ keyframes: updated }, `Delete keyframe from '${clip.name}'`)
+  }
+
+  const handleClearAll = () => {
+    insp.update({ keyframes: [] }, `Clear keyframes on '${clip.name}'`)
+  }
+
+  return (
+    <Section title="Keyframes">
+      {/* Playhead status */}
+      <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 p-2 text-[11px]">
+        <span className="text-muted-foreground">Clip Playhead</span>
+        <span className="font-mono text-foreground font-semibold">
+          {clipLocalTime.toFixed(2)}s / {clip.duration.toFixed(2)}s
+        </span>
+      </div>
+
+      {/* Add Keyframe at Playhead */}
+      <div className="space-y-1.5">
+        <span className="text-[11px] font-semibold text-muted-foreground">Add Keyframe at Playhead</span>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px] font-semibold justify-start"
+            onClick={() => addKeyframeFor('opacity', clip.opacity ?? 1)}
+          >
+            + Opacity ({Math.round((clip.opacity ?? 1) * 100)}%)
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px] font-semibold justify-start"
+            onClick={() => addKeyframeFor('rotation', clip.rotation ?? 0)}
+          >
+            + Rotation ({Math.round(clip.rotation ?? 0)}°)
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px] font-semibold justify-start"
+            onClick={() => addKeyframeFor('scale.x', clip.scale?.x ?? 1)}
+          >
+            + Scale X ({(clip.scale?.x ?? 1).toFixed(2)})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px] font-semibold justify-start"
+            onClick={() => addKeyframeFor('position.x', clip.position?.x ?? 0)}
+          >
+            + Pos X ({Math.round(clip.position?.x ?? 0)}px)
+          </Button>
+        </div>
+      </div>
+
+      {/* Existing Keyframes List */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-muted-foreground">
+            Active Keyframes ({keyframes.length})
           </span>
+          {keyframes.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="text-[10px] text-destructive hover:underline"
+            >
+              Clear All
+            </button>
+          )}
         </div>
+
+        {keyframes.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground/70 py-2 text-center bg-muted/10 rounded-lg border border-border/30">
+            No keyframes captured. Click a button above to add one at the playhead.
+          </p>
+        ) : (
+          <div className="max-h-40 overflow-y-auto space-y-1 pr-0.5">
+            {keyframes.map((kf) => (
+              <div
+                key={kf.id}
+                className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2 py-1 text-[11px]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-violet-400 font-semibold">{kf.time.toFixed(2)}s</span>
+                  <span className="font-medium text-foreground">{kf.prop}</span>
+                  <span className="font-mono text-muted-foreground">={kf.value}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteKeyframe(kf.id)}
+                  className="text-muted-foreground hover:text-destructive transition p-0.5"
+                  title="Delete keyframe"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Section>
   )
@@ -313,11 +642,35 @@ export function InspectorPanel({
   const addClip = useTimelineStore((s) => s.addClip)
   const updateClip = useTimelineStore((s) => s.updateClip)
 
+  const toolPanelSection = useEditorStore((s) => s.toolPanelSection)
+  const setToolPanelSection = useEditorStore((s) => s.setToolPanelSection)
+
   const [activeTab, setActiveTab] = React.useState<string>('all')
 
   const clipProps = React.useMemo(() => {
     return target ? getClipPropertiesState(target) : null
   }, [target])
+
+  // Sync with selected tool from the top ribbon
+  React.useEffect(() => {
+    if (!clipProps || !toolPanelSection) return
+    const TOOL_TO_TAB: Record<string, string> = {
+      text: 'text',
+      audio: 'audio',
+      voiceover: 'audio',
+      speed: 'speed',
+      crop: 'crop',
+      keyframe: 'keyframe',
+      effects: 'effects',
+      transitions: 'transitions',
+      design: 'appearance',
+      captions: 'captions',
+    }
+    const mapped = TOOL_TO_TAB[toolPanelSection]
+    if (mapped && clipProps.categories.some((c) => c.id === mapped)) {
+      setActiveTab(mapped)
+    }
+  }, [toolPanelSection, clipProps])
 
   // Auto-heal activeTab when selecting different clip types
   React.useEffect(() => {
@@ -327,6 +680,24 @@ export function InspectorPanel({
       setActiveTab(clipProps.isText ? 'text' : 'all')
     }
   }, [clip?.id, clipProps, activeTab])
+
+  // Tab click handler that also syncs toolPanelSection
+  const handleTabClick = (tabId: string) => {
+    setActiveTab(tabId)
+    const TAB_TO_TOOL: Record<string, string> = {
+      text: 'text',
+      audio: 'audio',
+      speed: 'speed',
+      crop: 'crop',
+      keyframe: 'keyframe',
+      effects: 'effects',
+      transitions: 'transitions',
+      appearance: 'design',
+      captions: 'captions',
+    }
+    const tool = TAB_TO_TOOL[tabId]
+    if (tool) setToolPanelSection(tool)
+  }
 
   // Multi-selection mode
   if (selection.clipIds.length > 1) {
@@ -453,7 +824,7 @@ export function InspectorPanel({
               <button
                 key={chip.id}
                 type="button"
-                onClick={() => setActiveTab(chip.tabId)}
+                onClick={() => handleTabClick(chip.tabId)}
                 className={cn(
                   'flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border transition-all hover:opacity-80 active:scale-95 whitespace-nowrap shrink-0',
                   chip.color,
@@ -526,7 +897,7 @@ export function InspectorPanel({
         </div>
       </div>
 
-      {/* ─── Category Tabs Filter (Tailored Specifically to this Clip) ─── */}
+      {/* ─── Category Tabs Filter (Tailored to Each Tool in Clip Properties) ─── */}
       <div className="flex items-center gap-1 px-2.5 py-1.5 border-b border-border/60 bg-muted/10 overflow-x-auto no-scrollbar scroll-smooth">
         {clipProps.categories.map((tab) => (
           <button
@@ -538,7 +909,7 @@ export function InspectorPanel({
                 ? 'bg-violet-600 text-white shadow-xs font-bold'
                 : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabClick(tab.id)}
           >
             <span>{tab.label}</span>
             {tab.badge && (
@@ -555,44 +926,54 @@ export function InspectorPanel({
         ))}
       </div>
 
-      {/* ─── Property Sections (Rendered According to Clip Capabilities) ─── */}
+      {/* ─── Property Sections (Properties of Each Tool in Clip Properties) ─── */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 space-y-1">
-        {/* Text Section (shown first if text clip) */}
+        {/* 1. Text Section (from Text tool) */}
         {(clipProps.isText || clipProps.hasText) && (activeTab === 'all' || activeTab === 'text') && (
           <TextSection insp={insp} showAddPrompt={activeTab === 'text' || clipProps.isText} />
         )}
 
-        {/* Audio Section (rendered only for audio & video clips) */}
-        {clipProps.hasAudio && (activeTab === 'all' || activeTab === 'audio') && (
-          <AudioSection insp={insp} />
-        )}
-
-        {/* Speed & Timing Section (for audio clips) */}
-        {clipProps.isAudio && (activeTab === 'all' || activeTab === 'timing') && (
-          <SpeedTimingSection insp={insp} />
-        )}
-
-        {/* Transform Section (rendered only for visual clips) */}
+        {/* 2. Transform Section */}
         {clipProps.hasVisual && (activeTab === 'all' || activeTab === 'transform') && (
           <TransformSection insp={insp} />
         )}
 
-        {/* Appearance Section (rendered only for visual clips) */}
+        {/* 3. Crop Section (from Crop tool) */}
+        {clipProps.hasVisual && (activeTab === 'all' || activeTab === 'crop') && (
+          <CropSection insp={insp} />
+        )}
+
+        {/* 4. Color & Look Section (from Design / Color Grade tool) */}
         {clipProps.hasVisual && (activeTab === 'all' || activeTab === 'appearance') && (
           <AppearanceSection insp={insp} />
         )}
 
-        {/* Effects Section (rendered only for visual clips) */}
+        {/* 5. Audio Section (from Audio tool) */}
+        {clipProps.hasAudio && (activeTab === 'all' || activeTab === 'audio') && (
+          <AudioSection insp={insp} />
+        )}
+
+        {/* 6. Speed Section (from Speed tool) */}
+        {(activeTab === 'all' || activeTab === 'speed') && (
+          <SpeedSection insp={insp} />
+        )}
+
+        {/* 7. Keyframes Section (from Keyframe tool) */}
+        {(clipProps.hasVisual || clipProps.hasAudio) && (activeTab === 'all' || activeTab === 'keyframe') && (
+          <KeyframeSection insp={insp} />
+        )}
+
+        {/* 8. Effects Section (from Effects tool) */}
         {clipProps.hasEffects && (activeTab === 'all' || activeTab === 'effects') && (
           <EffectsSection insp={insp} />
         )}
 
-        {/* Transitions Section */}
+        {/* 9. Transitions Section (from Transitions tool) */}
         {clipProps.hasTransitions && (activeTab === 'all' || activeTab === 'transitions') && (
           <TransitionsSection insp={insp} />
         )}
 
-        {/* Captions Section (rendered only for caption clips or explicit captions tab) */}
+        {/* 10. Captions Section (from Captions tool) */}
         {(clipProps.isCaptions || activeTab === 'captions') && (activeTab === 'all' || activeTab === 'captions') && (
           <Section title="Captions" defaultOpen={activeTab === 'captions'}>
             <CaptionsPanel />
