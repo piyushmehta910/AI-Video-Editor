@@ -19,7 +19,6 @@ import { getMediaUrl } from '@/engine/storage/opfs'
 import { useMediaImport } from '@/hooks/useMediaImport'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { openEditorDialog } from '@/lib/uiEvents'
 import { VirtualList } from '@/components/common/VirtualList'
 import { DragPreviewLayer } from './DragPreview'
 import { applyAssetDropRules } from './afterAdd'
@@ -201,25 +200,6 @@ export function MediaBin() {
           }}
         />
 
-        {/* Record Video / Audio Button */}
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => openEditorDialog('record')}
-            className="h-8 w-full min-w-0 gap-1.5 px-2 @[260px]:px-3 text-xs font-semibold hover:bg-rose-500/10 hover:border-rose-500/50 hover:text-rose-500 dark:hover:text-rose-400 transition"
-            data-testid="record-video-button"
-            title="Record webcam, screen, or audio directly into project"
-          >
-            <span className="relative flex size-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
-            </span>
-            <Video className="size-3.5 shrink-0 text-rose-500" />
-            <span className="truncate">Record Video / Audio</span>
-          </Button>
-        </div>
 
         {/* Tab Switcher: Project Media | Stock Search */}
         <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/30 p-0.5">
