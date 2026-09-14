@@ -82,14 +82,142 @@ export function RightPanelContainer() {
 
   return (
     <div className="@container flex h-full w-full flex-col bg-card/60 backdrop-blur-md select-none">
-      {/* ─── Top Segmented Control Header (Exact Mockup Match) ─── */}
+      {/* ─── Row 1 (Top): Quick Tool Switcher Ribbon (Always on top for all views) ─── */}
+      <div className="shrink-0 border-b bg-muted/20 dark:bg-zinc-950/70 select-none">
+        {/* Horizontal Tool Ribbon with left/right scroll controls & collapse */}
+        <div className="relative flex items-center px-1.5 py-1.5 gap-1">
+          <button
+            type="button"
+            onClick={() => scrollRibbon('left')}
+            className="size-6 flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Scroll left"
+          >
+            <ChevronLeft className="size-3.5" />
+          </button>
+
+          {/* Scrollable Tool Pills */}
+          <div
+            ref={ribbonRef}
+            className="flex flex-1 items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5 min-w-0"
+          >
+            {TOOL_SECTIONS.map((sec) => {
+              const Icon = sec.icon
+              const isCurrent = activeToolId === sec.id && rightPanelTab === 'tools' && viewMode === 'studio'
+              return (
+                <button
+                  key={sec.id}
+                  ref={isCurrent ? activePillRef : null}
+                  type="button"
+                  onClick={() => handleSelectTool(sec.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-all shrink-0',
+                    isCurrent
+                      ? 'bg-violet-600 text-white font-bold shadow-xs shadow-violet-500/25 scale-[1.02]'
+                      : 'bg-card/70 dark:bg-zinc-900/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40 hover:border-violet-500/30',
+                  )}
+                  title={SECTION_DESCRIPTIONS[sec.id] || sec.label}
+                >
+                  <Icon className={cn('size-3.5 shrink-0', isCurrent ? 'text-white' : 'text-muted-foreground')} />
+                  <span>{sec.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => scrollRibbon('right')}
+            className="size-6 flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Scroll right"
+          >
+            <ChevronRight className="size-3.5" />
+          </button>
+
+          {/* Toggle Directory Grid View */}
+          <button
+            type="button"
+            onClick={() => {
+              if (rightPanelTab !== 'tools') setRightPanelTab('tools')
+              setViewMode(viewMode === 'directory' ? 'studio' : 'directory')
+            }}
+            className={cn(
+              'size-6 flex shrink-0 items-center justify-center rounded-md transition-colors border',
+              viewMode === 'directory' && rightPanelTab === 'tools'
+                ? 'bg-violet-600 text-white border-violet-500 shadow-xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 border-border/50',
+            )}
+            title={viewMode === 'directory' ? 'Back to studio view' : 'Browse all 16 tools directory'}
+          >
+            <LayoutGrid className="size-3.5" />
+          </button>
+
+          {/* Collapse Panel Button */}
+          <button
+            type="button"
+            onClick={toggleInspector}
+            className="size-6 flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors ml-0.5"
+            title="Collapse inspector"
+            aria-label="Collapse inspector"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+
+        {/* Directory Search & Filter Sub-Bar (only when browsing directory) */}
+        {viewMode === 'directory' && rightPanelTab === 'tools' && (
+          <div className="border-t border-border/50 px-3 py-2 space-y-2 bg-background/50">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tools & studios..."
+                className="h-7 pl-8 text-xs bg-card/70"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Categories */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+              {TOOL_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={cn(
+                    'rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors shrink-0',
+                    activeCategory === cat.id
+                      ? 'bg-violet-600 text-white font-bold shadow-xs'
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Row 2: Segmented Control Header (Clip Properties | Active Tool) ─── */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b px-2 @[310px]:px-2.5 bg-card/90 dark:bg-zinc-950/60 gap-1.5 @[310px]:gap-2">
         {/* Segmented Pill Container */}
         <div className="inline-flex items-center rounded-xl bg-zinc-900/90 dark:bg-zinc-900/90 border border-border/40 p-0.5 @[310px]:p-1 text-xs font-semibold shadow-inner min-w-0">
           {/* Tab 1: Clip Properties */}
           <button
             type="button"
-            onClick={() => setRightPanelTab('properties')}
+            onClick={() => {
+              setRightPanelTab('properties')
+              if (viewMode === 'directory') setViewMode('studio')
+            }}
             className={cn(
               'flex items-center gap-1 @[310px]:gap-1.5 rounded-lg px-2 @[310px]:px-2.5 py-1 text-xs transition-all select-none whitespace-nowrap min-w-0',
               rightPanelTab === 'properties'
@@ -112,7 +240,10 @@ export function RightPanelContainer() {
           {/* Tab 2: Active Tool / Text Presets */}
           <button
             type="button"
-            onClick={() => setRightPanelTab('tools')}
+            onClick={() => {
+              setRightPanelTab('tools')
+              if (viewMode === 'directory') setViewMode('studio')
+            }}
             className={cn(
               'flex items-center gap-1 @[310px]:gap-1.5 rounded-lg px-2 @[310px]:px-2.5 py-1 text-xs transition-all select-none whitespace-nowrap min-w-0',
               rightPanelTab === 'tools'
@@ -143,130 +274,14 @@ export function RightPanelContainer() {
           </button>
         </div>
 
-        {/* Right Action: Collapse Panel */}
-        <button
-          type="button"
-          onClick={toggleInspector}
-          className="size-7 flex shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-          title="Collapse inspector"
-          aria-label="Collapse inspector"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-
-      {/* ─── Quick Tool Switcher Ribbon (when in Tools mode) ─── */}
-      {rightPanelTab === 'tools' && (
-        <div className="shrink-0 border-b bg-muted/15">
-          {/* Horizontal Tool Ribbon with left/right scroll controls */}
-          <div className="relative flex items-center px-1.5 py-1.5 gap-1">
-            <button
-              type="button"
-              onClick={() => scrollRibbon('left')}
-              className="size-6 flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Scroll left"
-            >
-              <ChevronLeft className="size-3.5" />
-            </button>
-
-            {/* Scrollable Tool Pills */}
-            <div
-              ref={ribbonRef}
-              className="flex flex-1 items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5"
-            >
-              {TOOL_SECTIONS.map((sec) => {
-                const Icon = sec.icon
-                const isCurrent = activeToolId === sec.id && viewMode === 'studio'
-                return (
-                  <button
-                    key={sec.id}
-                    ref={isCurrent ? activePillRef : null}
-                    type="button"
-                    onClick={() => handleSelectTool(sec.id)}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-all shrink-0',
-                      isCurrent
-                        ? 'bg-violet-600 text-white font-bold shadow-xs shadow-violet-500/25 scale-[1.02]'
-                        : 'bg-card/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40 hover:border-violet-500/30',
-                    )}
-                    title={SECTION_DESCRIPTIONS[sec.id] || sec.label}
-                  >
-                    <Icon className={cn('size-3.5 shrink-0', isCurrent ? 'text-white' : 'text-muted-foreground')} />
-                    <span>{sec.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => scrollRibbon('right')}
-              className="size-6 flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Scroll right"
-            >
-              <ChevronRight className="size-3.5" />
-            </button>
-
-            {/* Toggle Directory Grid View */}
-            <button
-              type="button"
-              onClick={() => setViewMode(viewMode === 'directory' ? 'studio' : 'directory')}
-              className={cn(
-                'size-6 flex shrink-0 items-center justify-center rounded-md transition-colors border',
-                viewMode === 'directory'
-                  ? 'bg-violet-600 text-white border-violet-500 shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 border-border/50',
-              )}
-              title={viewMode === 'directory' ? 'Back to studio view' : 'Browse all 16 tools directory'}
-            >
-              <LayoutGrid className="size-3.5" />
-            </button>
-          </div>
-
-          {/* Directory Search & Filter Sub-Bar (only when browsing directory) */}
-          {viewMode === 'directory' && (
-            <div className="border-t border-border/50 px-3 py-2 space-y-2 bg-background/50">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search tools & studios..."
-                  className="h-7 pl-8 text-xs bg-card/70"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* Categories */}
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
-                {TOOL_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={cn(
-                      'rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors shrink-0',
-                      activeCategory === cat.id
-                        ? 'bg-violet-600 text-white font-bold shadow-xs'
-                        : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
-                    )}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        {/* Status / Category indicator on right of Row 2 */}
+        <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground truncate">
+          <span className="hidden @[280px]:inline-block size-1.5 rounded-full bg-violet-500/80" />
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/80 truncate">
+            {rightPanelTab === 'properties' ? 'Inspector' : activeToolMeta.label}
+          </span>
         </div>
-      )}
+      </div>
 
       {/* ─── Content Area ─── */}
       <div className="min-h-0 flex-1 overflow-hidden">
