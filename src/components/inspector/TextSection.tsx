@@ -15,6 +15,12 @@ import type { TextAnimation, TextOverlay } from '@/engine/types'
 import { TEXT_ANIMATIONS } from '@/engine/types'
 import { useCustomFonts, type InspectorApi } from '@/hooks/useInspector'
 import { GOOGLE_FONTS, loadGoogleFont, FONT_CATEGORIES } from '@/lib/fonts'
+import {
+  TEXT_TYPOGRAPHY_PRESETS,
+  TYPOGRAPHY_CATEGORIES,
+  applyTypographyPreset,
+  type TypographyCategory,
+} from '@/lib/typographyPresets'
 import { ColorInput, IconButtonGroup, LabeledSlider, MiniToggle, NumInput, Row, Section } from './controls'
 import { cn } from '@/lib/utils'
 
@@ -79,11 +85,17 @@ export function TextSection({
   const fileRef = React.useRef<HTMLInputElement>(null)
   const customFonts = useCustomFonts()
   const [fontCat, setFontCat] = React.useState<string>('All')
+  const [presetCategory, setPresetCategory] = React.useState<TypographyCategory>('All')
 
   const filteredFonts = React.useMemo(() => {
     const base = fontCat === 'All' ? GOOGLE_FONTS : GOOGLE_FONTS.filter((f) => f.category === fontCat)
     return base
   }, [fontCat])
+
+  const filteredPresets = React.useMemo(() => {
+    if (presetCategory === 'All') return TEXT_TYPOGRAPHY_PRESETS
+    return TEXT_TYPOGRAPHY_PRESETS.filter((p) => p.category === presetCategory)
+  }, [presetCategory])
 
   // Auto load active font
   React.useEffect(() => {
@@ -205,6 +217,97 @@ export function TextSection({
         >
           {t.text.split('\n')[0] || 'Typography Preview'}
         </span>
+      </div>
+
+      {/* 2b. Quick Typography Presets */}
+      <div className="space-y-2 rounded-xl border border-border/70 bg-card/40 p-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Sparkles className="size-3 text-violet-500" />
+            Quick Typography Presets
+          </span>
+          <span className="text-[9px] font-mono text-muted-foreground">
+            {filteredPresets.length} styles
+          </span>
+        </div>
+
+        {/* Category Pills */}
+        <div className="flex flex-wrap gap-1">
+          {TYPOGRAPHY_CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setPresetCategory(cat)}
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[9px] font-semibold transition border',
+                presetCategory === cat
+                  ? 'bg-violet-600 border-violet-500 text-white font-bold'
+                  : 'bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Presets Grid */}
+        <div className="grid grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-0.5 pt-1">
+          {filteredPresets.map((p) => {
+            const previewText = t.text.trim().split('\n')[0] || p.text
+            const isMatch =
+              t.fontFamily.toLowerCase() === p.fontFamily.toLowerCase() &&
+              t.color.toLowerCase() === p.color.toLowerCase()
+
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  loadGoogleFont(p.fontFamily)
+                  setText(applyTypographyPreset(t, p), `Applied "${p.name}" typography preset`)
+                }}
+                className={cn(
+                  'group flex flex-col items-stretch text-left rounded-lg border p-2 transition text-xs relative overflow-hidden',
+                  isMatch
+                    ? 'border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/40'
+                    : 'border-border/60 bg-background/60 hover:border-violet-500/50 hover:bg-muted/30',
+                )}
+                title={p.description}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[10px] font-bold text-foreground truncate">{p.name}</span>
+                  <span className="text-[8px] font-mono text-violet-400 shrink-0">{p.fontFamily}</span>
+                </div>
+                {/* Visual miniature tile */}
+                <div
+                  className="flex h-8 items-center justify-center rounded px-1 text-center overflow-hidden"
+                  style={{
+                    backgroundColor: p.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.5)' : p.backgroundColor,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: p.fontFamily,
+                      fontSize: '11px',
+                      fontWeight: p.fontWeight as any,
+                      fontStyle: p.fontStyle || 'normal',
+                      color: p.color,
+                      WebkitTextStroke: p.stroke
+                        ? `0.5px ${p.stroke.color}`
+                        : undefined,
+                      textShadow: p.shadow
+                        ? `0 1px 4px ${p.shadowColor || 'rgba(0,0,0,0.8)'}`
+                        : undefined,
+                    }}
+                    className="truncate max-w-full font-medium select-none"
+                  >
+                    {previewText}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* 3. Google Fonts & Custom Font Selector */}

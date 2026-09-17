@@ -86,6 +86,21 @@ import { useTimelineStore } from '@/stores/timelineStore'
 import { useApiConfigStore } from '@/api/config/store'
 import type { Clip, Effect, EffectType, TextOverlay } from '@/engine/types'
 import { loadGoogleFont, GOOGLE_FONTS } from '@/lib/fonts'
+import {
+  TEXT_TYPOGRAPHY_PRESETS,
+  TYPOGRAPHY_CATEGORIES,
+  applyTypographyPreset,
+  preloadAllTypographyPresetFonts,
+  type TextTypographyPreset,
+  type TypographyCategory,
+} from '@/lib/typographyPresets'
+
+export {
+  TEXT_TYPOGRAPHY_PRESETS,
+  TYPOGRAPHY_CATEGORIES,
+  type TextTypographyPreset,
+  type TypographyCategory,
+}
 import { upsertKeyframe, removeKeyframe } from '@/lib/keyframes'
 import {
   CREATOR_STYLES,
@@ -2806,237 +2821,6 @@ function AudioSection() {
 }
 
 // ─── Text & Titles Section ──────────────────────────────────────────────────
-const TEXT_TYPOGRAPHY_PRESETS = [
-  // Essential
-  {
-    id: 'heading-bold',
-    name: 'Bold Headline',
-    category: 'Essential',
-    text: 'YOUR TITLE HERE',
-    fontSize: 56,
-    color: '#ffffff',
-    backgroundColor: 'transparent',
-    fontFamily: 'Inter',
-    animation: 'fade-in' as const,
-    fontWeight: '800',
-    letterSpacing: 1,
-    description: 'High-impact modern uppercase headline',
-  },
-  {
-    id: 'subtitle-clean',
-    name: 'Subtitle / Description',
-    category: 'Essential',
-    text: 'A clean supporting description or subtitle',
-    fontSize: 28,
-    color: '#e2e8f0',
-    backgroundColor: 'transparent',
-    fontFamily: 'Inter',
-    animation: 'slide-up' as const,
-    fontWeight: '500',
-    description: 'Crisp body and narration copy',
-  },
-  {
-    id: 'minimal-caption',
-    name: 'Minimal Caption',
-    category: 'Essential',
-    text: 'Minimal clean title design',
-    fontSize: 32,
-    color: '#ffffff',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    fontFamily: 'Plus Jakarta Sans',
-    animation: 'fade-in' as const,
-    fontWeight: '600',
-    description: 'Sleek dark translucent badge',
-  },
-
-  // Viral & Hooks
-  {
-    id: 'viral-yellow-hook',
-    name: 'Viral TikTok Hook',
-    category: 'Viral & Hooks',
-    text: 'WAIT TILL THE END! ⚡',
-    fontSize: 52,
-    color: '#facc15',
-    backgroundColor: 'transparent',
-    fontFamily: 'Oswald',
-    animation: 'pop' as const,
-    fontWeight: '700',
-    stroke: { width: 3, color: '#000000' },
-    shadow: true,
-    shadowColor: 'rgba(0,0,0,0.9)',
-    shadowBlur: 8,
-    description: 'High-contrast yellow punch for short-form retention',
-  },
-  {
-    id: 'reels-punchy-bold',
-    name: 'Reels Punchy Outline',
-    category: 'Viral & Hooks',
-    text: '3 SECRETS REVEALED',
-    fontSize: 54,
-    color: '#ffffff',
-    backgroundColor: 'transparent',
-    fontFamily: 'Bebas Neue',
-    animation: 'pop' as const,
-    fontWeight: '400',
-    letterSpacing: 2,
-    stroke: { width: 3, color: '#ef4444' },
-    description: 'Bold red outline typography for attention',
-  },
-  {
-    id: 'comic-banger',
-    name: 'Comic Boom',
-    category: 'Viral & Hooks',
-    text: 'BOOM! MUST WATCH',
-    fontSize: 50,
-    color: '#facc15',
-    backgroundColor: 'transparent',
-    fontFamily: 'Bangers',
-    animation: 'bounce' as const,
-    fontWeight: '400',
-    stroke: { width: 4, color: '#000000' },
-    description: 'Playful comic-style pop for gaming and reaction clips',
-  },
-
-  // Badges & Lower Thirds
-  {
-    id: 'lower-third-modern',
-    name: 'Lower Third Pill',
-    category: 'Badges',
-    text: 'Piyush Mehta — Video Creator',
-    fontSize: 24,
-    color: '#38bdf8',
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
-    fontFamily: 'Plus Jakarta Sans',
-    animation: 'slide-up' as const,
-    fontWeight: '600',
-    borderRadius: 8,
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingLeft: 14,
-    paddingRight: 14,
-    description: 'Presenter name badge with glass backdrop',
-  },
-  {
-    id: 'callout-punchy',
-    name: 'Action Callout Banner',
-    category: 'Badges',
-    text: 'NEW EPISODE OUT NOW!',
-    fontSize: 44,
-    color: '#fbbf24',
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    fontFamily: 'Anton',
-    animation: 'pop' as const,
-    fontWeight: '400',
-    borderRadius: 6,
-    paddingTop: 10,
-    paddingBottom: 10,
-    paddingLeft: 16,
-    paddingRight: 16,
-    description: 'Attention grabbing alert banner',
-  },
-
-  // Cinematic & Luxury
-  {
-    id: 'cinematic-gold',
-    name: 'Cinematic Gold',
-    category: 'Cinematic',
-    text: 'A FILM BY CREATOR',
-    fontSize: 42,
-    color: '#fef08a',
-    backgroundColor: 'transparent',
-    fontFamily: 'Cinzel',
-    animation: 'fade-in' as const,
-    fontWeight: '700',
-    letterSpacing: 4,
-    shadow: true,
-    shadowColor: 'rgba(0,0,0,0.8)',
-    shadowBlur: 10,
-    description: 'Classic high-end movie title with wide tracking',
-  },
-  {
-    id: 'luxury-editorial',
-    name: 'Editorial Luxury',
-    category: 'Cinematic',
-    text: 'The Modern Aesthetic',
-    fontSize: 40,
-    color: '#f8fafc',
-    backgroundColor: 'transparent',
-    fontFamily: 'Playfair Display',
-    animation: 'fade-in' as const,
-    fontStyle: 'italic' as const,
-    fontWeight: '600',
-    description: 'Refined serif typography for documentaries & luxury brands',
-  },
-
-  // Stylized & Neon
-  {
-    id: 'neon-cyber',
-    name: 'Cyberpunk Neon',
-    category: 'Stylized',
-    text: 'CYBERPUNK 2099',
-    fontSize: 46,
-    color: '#22d3ee',
-    backgroundColor: 'transparent',
-    fontFamily: 'Orbitron',
-    animation: 'pop' as const,
-    fontWeight: '800',
-    letterSpacing: 2,
-    shadow: true,
-    shadowColor: '#06b6d4',
-    shadowBlur: 15,
-    description: 'Glowing sci-fi title with cyan neon aura',
-  },
-  {
-    id: 'purple-vaporwave',
-    name: 'Synthwave Glow',
-    category: 'Stylized',
-    text: 'RETRO HORIZON',
-    fontSize: 46,
-    color: '#c084fc',
-    backgroundColor: 'transparent',
-    fontFamily: 'Space Grotesk',
-    animation: 'fade-in' as const,
-    fontWeight: '700',
-    shadow: true,
-    shadowColor: '#a855f7',
-    shadowBlur: 12,
-    description: 'Synthwave gradient glow header',
-  },
-
-  // Narrative & Handwriting
-  {
-    id: 'typewriter-narrative',
-    name: 'Typewriter Story Log',
-    category: 'Narrative',
-    text: 'The journey began on a rainy night...',
-    fontSize: 24,
-    color: '#f8fafc',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    fontFamily: 'JetBrains Mono',
-    animation: 'typewriter' as const,
-    fontWeight: '500',
-    borderRadius: 6,
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingLeft: 12,
-    paddingRight: 12,
-    description: 'Letter-by-letter live terminal / story typing',
-  },
-  {
-    id: 'handwritten-vlog',
-    name: 'Handwritten Vlog',
-    category: 'Narrative',
-    text: 'Day in my life ✨',
-    fontSize: 38,
-    color: '#fda4af',
-    backgroundColor: 'transparent',
-    fontFamily: 'Caveat',
-    animation: 'fade-in' as const,
-    fontWeight: '700',
-    description: 'Casual handwritten note for lifestyle and vlogs',
-  },
-]
-
 function TextSection() {
   const project = useTimelineStore((s) => s.project)
   const addTextClip = useTimelineStore((s) => s.addTextClip)
@@ -3056,6 +2840,8 @@ function TextSection() {
 
   // Empty by default so preset cards show their own default preset text until user types
   const [customTextDraft, setCustomTextDraft] = React.useState('')
+  const [selectedCategory, setSelectedCategory] = React.useState<TypographyCategory>('All')
+  const [searchQuery, setSearchQuery] = React.useState('')
   const [notice, setNotice] = React.useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
   const isTextSelected = Boolean(selectedClip && selectedClip.text)
@@ -3070,16 +2856,35 @@ function TextSection() {
     }
   }, [selectedClip])
 
-  // Preload top Google Fonts on mount
+  // Preload typography preset Google Fonts on mount
   React.useEffect(() => {
-    TEXT_TYPOGRAPHY_PRESETS.forEach((p) => loadGoogleFont(p.fontFamily))
+    preloadAllTypographyPresetFonts()
   }, [])
+
+  const filteredPresets = React.useMemo(() => {
+    let list = TEXT_TYPOGRAPHY_PRESETS
+    if (selectedCategory !== 'All') {
+      list = list.filter((p) => p.category === selectedCategory)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.fontFamily.toLowerCase().includes(q) ||
+          p.text.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q),
+      )
+    }
+    return list
+  }, [selectedCategory, searchQuery])
 
   const lastAddRef = React.useRef<number>(0)
   const isAddingRef = React.useRef<boolean>(false)
 
   const handleApplyPreset = React.useCallback(
-    (preset: (typeof TEXT_TYPOGRAPHY_PRESETS)[number], options?: { forceNew?: boolean }) => {
+    (preset: TextTypographyPreset, options?: { forceNew?: boolean }) => {
       const now = Date.now()
       if (isAddingRef.current || now - lastAddRef.current < 400) return
       isAddingRef.current = true
@@ -3106,32 +2911,10 @@ function TextSection() {
 
         // If target text clip exists, update its style in place without adding duplicate clips to the timeline
         if (targetClip && targetClip.text) {
-          const textContent = customTextDraft.trim() || targetClip.text.text || preset.text
+          const styledOverlay = applyTypographyPreset(targetClip.text, preset, customTextDraft)
           updateClip(targetClip.id, {
-            name: textContent.slice(0, 30) || targetClip.name,
-            text: {
-              ...targetClip.text,
-              text: textContent,
-              fontSize: preset.fontSize,
-              fontFamily: preset.fontFamily,
-              fontWeight: preset.fontWeight as any,
-              fontStyle: preset.fontStyle || 'normal',
-              color: preset.color,
-              backgroundColor: preset.backgroundColor,
-              textAlign: 'center',
-              paddingTop: preset.paddingTop || 8,
-              paddingBottom: preset.paddingBottom || 8,
-              paddingLeft: preset.paddingLeft || 12,
-              paddingRight: preset.paddingRight || 12,
-              borderRadius: preset.borderRadius || 6,
-              shadow: Boolean(preset.shadow),
-              shadowColor: preset.shadowColor,
-              shadowBlur: preset.shadowBlur,
-              stroke: preset.stroke,
-              letterSpacing: preset.letterSpacing,
-              animation: preset.animation,
-              animationDuration: 0.5,
-            },
+            name: styledOverlay.text.slice(0, 30) || targetClip.name,
+            text: styledOverlay,
           })
           useTimelineStore.getState().select([targetClip.id], targetClip.trackId)
           setNotice({ kind: 'ok', text: `Applied "${preset.name}" style` })
@@ -3145,33 +2928,13 @@ function TextSection() {
           return
         }
 
-        const textContent = customTextDraft.trim() || preset.text
-        const clip = addTextClip(textContent, textTrack.id, playhead)
+        const initialText = customTextDraft.trim() || preset.text
+        const clip = addTextClip(initialText, textTrack.id, playhead)
         if (clip) {
           activeTextClipIdRef.current = clip.id
+          const styledOverlay = applyTypographyPreset(clip.text, preset, initialText)
           updateClip(clip.id, {
-            text: {
-              text: textContent,
-              fontSize: preset.fontSize,
-              fontFamily: preset.fontFamily,
-              fontWeight: preset.fontWeight as any,
-              fontStyle: preset.fontStyle || 'normal',
-              color: preset.color,
-              backgroundColor: preset.backgroundColor,
-              textAlign: 'center',
-              paddingTop: preset.paddingTop || 8,
-              paddingBottom: preset.paddingBottom || 8,
-              paddingLeft: preset.paddingLeft || 12,
-              paddingRight: preset.paddingRight || 12,
-              borderRadius: preset.borderRadius || 6,
-              shadow: Boolean(preset.shadow),
-              shadowColor: preset.shadowColor,
-              shadowBlur: preset.shadowBlur,
-              stroke: preset.stroke,
-              letterSpacing: preset.letterSpacing,
-              animation: preset.animation,
-              animationDuration: 0.5,
-            },
+            text: styledOverlay,
           })
           setNotice({ kind: 'ok', text: `Added "${preset.name}" at ${playhead.toFixed(1)}s` })
         }
@@ -3396,85 +3159,131 @@ function TextSection() {
       )}
 
       {/* Typography Presets */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-bold text-foreground">Typography Presets</Label>
-          <span className="text-[10px] text-muted-foreground font-mono">{TEXT_TYPOGRAPHY_PRESETS.length} styles</span>
+          <span className="text-[10px] text-muted-foreground font-mono">{filteredPresets.length} of {TEXT_TYPOGRAPHY_PRESETS.length} styles</span>
+        </div>
+
+        {/* Search Bar & Category Filter Pills */}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search presets (e.g. viral, cinematic, neon)..."
+              className="w-full rounded-lg border border-border bg-background pl-7 pr-7 py-1 text-[11px] text-foreground outline-none ring-1 ring-border/40 focus:ring-violet-500"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1">
+            {TYPOGRAPHY_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={cn(
+                  'rounded-full px-2.5 py-0.5 text-[10px] font-medium transition border',
+                  selectedCategory === cat
+                    ? 'bg-violet-600 border-violet-500 text-white font-bold shadow-xs'
+                    : 'bg-muted/40 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/70',
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Preset Cards Grid with Dynamic Real-Time Custom Text Preview */}
-        <div className="space-y-2 pt-1">
-          {TEXT_TYPOGRAPHY_PRESETS.map((preset) => {
-            // Default to preset.text, but immediately update to custom entered text as user types
-            const displayPreviewText = customTextDraft.trim() || preset.text
+        <div className="space-y-2 pt-1 max-h-[520px] overflow-y-auto pr-1">
+          {filteredPresets.length === 0 ? (
+            <div className="p-4 text-center text-[11px] text-muted-foreground rounded-lg border border-dashed border-border">
+              No typography styles match &quot;{searchQuery}&quot;
+            </div>
+          ) : (
+            filteredPresets.map((preset) => {
+              // Default to preset.text, but immediately update to custom entered text as user types
+              const displayPreviewText = customTextDraft.trim() || preset.text
 
-            return (
-              <div
-                key={preset.id}
-                onClick={() => handleApplyPreset(preset)}
-                className="group cursor-pointer rounded-xl border border-border/80 bg-card p-3 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/30"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-foreground">{preset.name}</span>
-                      <span className="rounded bg-muted px-1.5 py-0.2 text-[8px] font-mono text-muted-foreground">
-                        {preset.category}
-                      </span>
-                      <span className="text-[9px] font-mono text-violet-400">
-                        {preset.fontFamily}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">{preset.description}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="size-7 p-0 opacity-0 group-hover:opacity-100 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleApplyPreset(preset, { forceNew: true })
-                    }}
-                    title="Insert New Clip at Playhead"
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                </div>
-
-                {/* Visual typography preview card dynamically rendering custom text or default preset text */}
+              return (
                 <div
-                  className="mt-2.5 flex items-center justify-center rounded-lg border border-border/40 p-3 text-center overflow-hidden transition-colors group-hover:border-violet-500/40"
-                  style={{
-                    backgroundColor: preset.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.5)' : preset.backgroundColor,
-                    borderRadius: preset.borderRadius ? `${preset.borderRadius}px` : undefined,
-                  }}
+                  key={preset.id}
+                  onClick={() => handleApplyPreset(preset)}
+                  className="group cursor-pointer rounded-xl border border-border/80 bg-card p-3 transition hover:border-violet-500/60 hover:shadow-md hover:bg-muted/30"
                 >
-                  <span
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold text-foreground">{preset.name}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.2 text-[8px] font-mono text-muted-foreground">
+                          {preset.category}
+                        </span>
+                        <span className="text-[9px] font-mono text-violet-400">
+                          {preset.fontFamily}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{preset.description}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="size-7 p-0 opacity-0 group-hover:opacity-100 text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleApplyPreset(preset, { forceNew: true })
+                      }}
+                      title="Insert New Clip at Playhead"
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  </div>
+
+                  {/* Visual typography preview card dynamically rendering custom text or default preset text */}
+                  <div
+                    className="mt-2.5 flex items-center justify-center rounded-lg border border-border/40 p-3 text-center overflow-hidden transition-colors group-hover:border-violet-500/40"
                     style={{
-                      color: preset.color,
-                      fontFamily: preset.fontFamily,
-                      fontSize: `${Math.min(22, preset.fontSize * 0.42)}px`,
-                      fontWeight: preset.fontWeight as any,
-                      fontStyle: preset.fontStyle || 'normal',
-                      letterSpacing: preset.letterSpacing ? `${preset.letterSpacing * 0.5}px` : undefined,
-                      WebkitTextStroke: preset.stroke
-                        ? `${Math.max(1, preset.stroke.width * 0.4)}px ${preset.stroke.color}`
-                        : undefined,
-                      textShadow: preset.shadow
-                        ? `0 2px ${preset.shadowBlur || 8}px ${preset.shadowColor || 'rgba(0,0,0,0.8)'}`
-                        : undefined,
+                      backgroundColor: preset.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.5)' : preset.backgroundColor,
+                      borderRadius: preset.borderRadius ? `${preset.borderRadius}px` : undefined,
                     }}
-                    className="truncate max-w-full tracking-wide select-none"
-                    title={displayPreviewText}
                   >
-                    {displayPreviewText}
-                  </span>
+                    <span
+                      style={{
+                        color: preset.color,
+                        fontFamily: preset.fontFamily,
+                        fontSize: `${Math.min(22, preset.fontSize * 0.42)}px`,
+                        fontWeight: preset.fontWeight as any,
+                        fontStyle: preset.fontStyle || 'normal',
+                        letterSpacing: preset.letterSpacing ? `${preset.letterSpacing * 0.5}px` : undefined,
+                        WebkitTextStroke: preset.stroke
+                          ? `${Math.max(1, preset.stroke.width * 0.4)}px ${preset.stroke.color}`
+                          : undefined,
+                        textShadow: preset.shadow
+                          ? `0 2px ${preset.shadowBlur || 8}px ${preset.shadowColor || 'rgba(0,0,0,0.8)'}`
+                          : undefined,
+                      }}
+                      className="truncate max-w-full tracking-wide select-none"
+                      title={displayPreviewText}
+                    >
+                      {displayPreviewText}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          )}
         </div>
       </div>
     </div>
